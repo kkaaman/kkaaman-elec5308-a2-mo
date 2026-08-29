@@ -42,5 +42,22 @@ The project introduces several technical risks that may affect the reliability, 
 - **Reproducibility risk:** Differences in package versions, model configuration, preprocessing or dataset preparation may produce inconsistent results across team members or machines. Dependencies, configuration and relevant experimental assumptions will therefore be documented and version-controlled where practical.
 
 ## Success Criteria
+The project will be considered successful if it delivers a working, modular and reproducible baseline library that satisfies the required perception and navigation capabilities. Success will be assessed through both individual module performance and the reliability of the integrated system.
+
+The following criteria will be used:
+
+- The library provides working baseline implementations for lane and driving-area detection, object detection and tracking, semantic segmentation, traffic-condition detection, and basic path following, steering and speed control.
+
+- All modules use clear and documented interfaces, while simulator-specific dependencies are isolated within an adapter so that the core library remains simulator-agnostic.
+
+- The integrated system runs without unhandled errors in the selected simulator and demonstrates a perception or navigation capability operating in real time.
+
+- Each module is supported by appropriate evaluation evidence, such as precision, recall, IoU, processing speed, simulator measurements, screenshots, or documented success and failure cases.
+
+- The path-following controller completes a predefined route containing straight and curved sections without manual intervention. Initial targets are at least 90% route completion, a mean cross-track error below 1.0 metre, and a mean speed error below 1.5 metres per second across repeatable simulator runs.
+
+- The project is installable as a Python package, passes linting and at least five meaningful unit tests, and builds its automatic documentation without errors or warnings.
+
+- A new user can clone the repository and run the documented demonstration within 15 minutes on a supported machine, while all major contributions are reviewed and significant AI assistance is properly declared.
 
 ## Project Goal (Mohammad)
