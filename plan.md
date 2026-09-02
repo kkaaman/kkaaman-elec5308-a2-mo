@@ -1,5 +1,39 @@
 # Title
 ## Project Goal
+The objective of this project is to design and implement an autonomous perception & navigation library in the python environment. The various modules of this library will then be brought together in the second project to implement higher level of functionality (e.g. autonomous drones, self driving cars, vacuum robot mapping & functionality, etc.) The following will outline the goals/milestones needed in order to succesfully deliver the project in the dedicated timeline.
+
+### 1. Core Deliverables
+
+- **Milestone 1: Developed Python Library:**
+Implement a user friendly python library that is able to be installed by users and performs the baseline capabilities outlined in the Functional & Design goal section.
+
+- **Milestone 2:Produce a Technical Report:** 
+Write a concise report (max 3 pages / 1,000 words) covering the system architecture, key design decisions, evaluation results, and limitations.
+- **Milestone 3: Complete a Live Demonstration:**
+Present library to the class and prepare extensive knowledge of code bases within each module for Q&A.
+
+### 2. Functional and Design Goals
+
+- **Implement Core Capabilities:** The library must successfully perform the following tasks:
+    -  Lane and driving area detection (Abdullah)
+    -  Object detection and tracking   (Ricky)
+    -  Semantic segmentation           (Mohammad)
+    -  Traffic condition detection     (Alan)
+    -  Basic path following            (Zhaolin)
+- **Ensure Design Integrity:**
+    - **Installability:** The library must be installable as a Python package via `pip`.
+    - **Well Oriented API:** Expose a well-documented, clear API that is suitable for integration.
+    - **Reproducibility:** A new user must be able to clone, install, and run the demonstration in under 15 minutes.
+
+### 3. Engineering and Process Goals
+
+- **Maintain Rigorous Version Control:** All code must be committed to a Git repository, with a history showing peer review and clear, descriptive commit messages along with AI Journals.
+- **Implement a Successful CI Pipeline:** Configure GitHub Actions to automatically run:
+    - **Clean Code:** Ensure consistent code style accross modules and entire library with no errors.
+    - **Unit Testing (Test cases):** develop & Run at least five meaningful unit tests that cover core functionality.
+    - **Documentation Build:** Generate HTML documentation from docstrings without errors or warnings.
+- **Clear Documentation:** Provide instructions through a `README.md` with a clear project description, setup steps, and a quick-start example.
+
 
 ## Dataset
 The team expects to use a combination of publicly available autonomous-driving datasets and data generated from the selected simulator. The dataset will primarily consist of RGB road-scene images with task-specific ground-truth annotations, such as object bounding boxes, semantic segmentation masks, and lane or drivable-area labels. This supports the required perception capabilities of lane and driving-area detection, object detection and tracking, semantic segmentation, and traffic-condition detection.
@@ -18,7 +52,7 @@ The following assumptions are currently being made:
 - Simulator-generated data may not perfectly reflect real-world visual distributions, so conclusions drawn from simulator performance should be interpreted within that limitation.
 - Dataset loading and preprocessing will be kept separate from simulator-specific functionality where practical to support the simulator-agnostic architecture required by the project.
 
-# I like apples and bananas
+
 
 ## Risks
 The project introduces several technical risks that may affect the reliability, generalisation and real-time performance of the final autonomous perception and navigation system.
@@ -60,4 +94,3 @@ The following criteria will be used:
 
 - A new user can clone the repository and run the documented demonstration within 15 minutes on a supported machine, while all major contributions are reviewed and significant AI assistance is properly declared.
 
-## Project Goal (Mohammad)
