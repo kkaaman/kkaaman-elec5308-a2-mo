@@ -1,6 +1,6 @@
-# Title
-## Project Goal
-The objective of this project is to design and implement an autonomous perception & navigation library in the python environment. The various modules of this library will then be brought together in the second project to implement higher level of functionality (e.g. autonomous drones, self driving cars, vacuum robot mapping & functionality, etc.) The following will outline the goals/milestones needed in order to succesfully deliver the project in the dedicated timeline.
+# Autonomous Perception and Navigation Library
+## Project Goals
+The objective of this project is to design and implement a reproducable autonomous perception & navigation library in the python environment with proper documentation. The various modules of this library will then be brought together in the second project to implement higher level of functionality (e.g. autonomous drones, self driving cars, vacuum robot mapping & functionality, etc.) The following will outline the goals/milestones needed in order to succesfully deliver the project in the dedicated timeline.
 
 ### 1. Core Deliverables
 
