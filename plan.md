@@ -1,11 +1,11 @@
 # Autonomous Perception and Navigation Library
 ## Project Goals
-The objective of this project is to design and implement a reproducable autonomous perception & navigation library in the python environment with proper documentation. The various modules of this library will then be brought together in the second project to implement higher level of functionality (e.g. autonomous drones, self driving cars, vacuum robot mapping & functionality, etc.) The following will outline the goals/milestones needed in order to succesfully deliver the project in the dedicated timeline.
+The objective of this project is to design and implement a reproducable autonomous perception & navigation library in the python environment with proper documentation. The library will also be showcased using the CARLA environment. The various modules of this library will then be brought together in the second project to implement higher level of functionality (e.g. autonomous drones, self driving cars, vacuum robot mapping & functionality, etc.) The following will outline the goals/milestones needed in order to succesfully deliver the project in the dedicated timeline.
 
 ### 1. Core Deliverables
 
 - **Milestone 1: Developed Python Library:**
-Implement a user friendly python library that is able to be installed by users and performs the baseline capabilities outlined in the Functional & Design goal section.
+Implement a user friendly python library that is able to be installed by users and performs the baseline capabilities outlined in the Functional & Design goal section. 
 
 - **Milestone 2:Produce a Technical Report:** 
 Write a concise report (max 3 pages / 1,000 words) covering the system architecture, key design decisions, evaluation results, and limitations.
