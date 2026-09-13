@@ -9,156 +9,156 @@ from autodrive.perception.lane_segmentation import LaneUNet
 from autodrive.perception.losses import CombinedLoss
 
 
-parser = argparse.ArgumentParser(
-    description="Train the lane segmentation model."
-)
+def main():
+    parser = argparse.ArgumentParser(
+        description="Train the lane segmentation model."
+    )
 
-parser.add_argument(
-    "--data-dir",
-    required=True,
-    help="Path to the prepared TuSimple dataset.",
-)
+    parser.add_argument(
+        "--data-dir",
+        required=True,
+        help="Path to the prepared TuSimple dataset.",
+    )
 
-args = parser.parse_args()
+    args = parser.parse_args()
 
-DATA_DIR = args.data_dir
-CSV_PATH = DATA_DIR + "/dataset.csv"
+    data_dir = args.data_dir
+    csv_path = data_dir + "/dataset.csv"
 
-IMAGE_SIZE = (360, 640)
-BATCH_SIZE = 8
-LEARNING_RATE = 3e-4
-NUM_EPOCHS = 10
+    image_size = (360, 640)
+    batch_size = 8
+    learning_rate = 3e-4
+    num_epochs = 10
 
+    if torch.backends.mps.is_available():
+        device = torch.device("mps")
+    elif torch.cuda.is_available():
+        device = torch.device("cuda")
+    else:
+        device = torch.device("cpu")
 
-device = torch.device(
-    "mps" if torch.backends.mps.is_available() else "cpu"
-)
+    print("Training device:", device)
 
-print("Training device:", device)
+    df = pd.read_csv(csv_path)
 
+    dataset = LaneDataset(
+        dataframe=df,
+        data_dir=data_dir,
+        image_size=image_size,
+    )
 
-df = pd.read_csv(CSV_PATH)
+    total_size = len(dataset)
+    train_size = int(0.70 * total_size)
+    val_size = int(0.15 * total_size)
+    test_size = total_size - train_size - val_size
 
-dataset = LaneDataset(
-    dataframe=df,
-    data_dir=DATA_DIR,
-    image_size=IMAGE_SIZE,
-)
+    generator = torch.Generator().manual_seed(42)
 
+    train_dataset, val_dataset, test_dataset = random_split(
+        dataset,
+        [train_size, val_size, test_size],
+        generator=generator,
+    )
 
-total_size = len(dataset)
-train_size = int(0.70 * total_size)
-val_size = int(0.15 * total_size)
-test_size = total_size - train_size - val_size
+    train_loader = DataLoader(
+        train_dataset,
+        batch_size=batch_size,
+        shuffle=True,
+        num_workers=0,
+    )
 
-# Fixed seed keeps the dataset split reproducible.
-generator = torch.Generator().manual_seed(42)
+    val_loader = DataLoader(
+        val_dataset,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=0,
+    )
 
-train_dataset, val_dataset, test_dataset = random_split(
-    dataset,
-    [train_size, val_size, test_size],
-    generator=generator,
-)
+    test_loader = DataLoader(
+        test_dataset,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=0,
+    )
 
+    model = LaneUNet(
+        num_classes=2
+    ).to(device)
 
-train_loader = DataLoader(
-    train_dataset,
-    batch_size=BATCH_SIZE,
-    shuffle=True,
-    num_workers=0,
-)
+    criterion = CombinedLoss(
+        focal_weight=1.0,
+        dice_weight=1.0,
+    )
 
-val_loader = DataLoader(
-    val_dataset,
-    batch_size=BATCH_SIZE,
-    shuffle=False,
-    num_workers=0,
-)
+    optimizer = torch.optim.AdamW(
+        model.parameters(),
+        lr=learning_rate,
+    )
 
-test_loader = DataLoader(
-    test_dataset,
-    batch_size=BATCH_SIZE,
-    shuffle=False,
-    num_workers=0,
-)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+        optimizer,
+        T_max=num_epochs,
+    )
 
+    print("Starting training...")
 
-model = LaneUNet(
-    num_classes=2
-).to(device)
+    best_val_loss = float("inf")
 
-criterion = CombinedLoss(
-    focal_weight=1.0,
-    dice_weight=1.0,
-)
+    for epoch in range(num_epochs):
+        model.train()
+        running_train_loss = 0.0
 
-optimizer = torch.optim.AdamW(
-    model.parameters(),
-    lr=LEARNING_RATE,
-)
-
-scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-    optimizer,
-    T_max=NUM_EPOCHS,
-)
-
-
-print("Starting training...")
-
-best_val_loss = float("inf")
-
-for epoch in range(NUM_EPOCHS):
-    model.train()
-    running_train_loss = 0.0
-
-    for images, masks in train_loader:
-        images = images.to(device)
-        masks = masks.to(device)
-
-        optimizer.zero_grad()
-
-        predictions = model(images)
-        loss = criterion(predictions, masks)
-
-        loss.backward()
-        optimizer.step()
-
-        running_train_loss += loss.item()
-
-    train_loss = running_train_loss / len(train_loader)
-
-    model.eval()
-    running_val_loss = 0.0
-
-    with torch.no_grad():
-        for images, masks in val_loader:
+        for images, masks in train_loader:
             images = images.to(device)
             masks = masks.to(device)
+
+            optimizer.zero_grad()
 
             predictions = model(images)
             loss = criterion(predictions, masks)
 
-            running_val_loss += loss.item()
+            loss.backward()
+            optimizer.step()
 
-    val_loss = running_val_loss / len(val_loader)
+            running_train_loss += loss.item()
 
-    if val_loss < best_val_loss:
-        best_val_loss = val_loss
+        train_loss = running_train_loss / len(train_loader)
 
-        torch.save(
-            model.state_dict(),
-            "lane_unet_best.pth",
+        model.eval()
+        running_val_loss = 0.0
+
+        with torch.no_grad():
+            for images, masks in val_loader:
+                images = images.to(device)
+                masks = masks.to(device)
+
+                predictions = model(images)
+                loss = criterion(predictions, masks)
+
+                running_val_loss += loss.item()
+
+        val_loss = running_val_loss / len(val_loader)
+
+        if val_loss < best_val_loss:
+            best_val_loss = val_loss
+
+            torch.save(
+                model.state_dict(),
+                "lane_unet_best.pth",
+            )
+
+            print("Saved new best model!")
+
+        print(
+            f"Epoch {epoch + 1}/{num_epochs} | "
+            f"Train Loss: {train_loss:.4f} | "
+            f"Validation Loss: {val_loss:.4f}"
         )
 
-        print("Saved new best model!")
+        scheduler.step()
 
-    print(
-        f"Epoch {epoch + 1}/{NUM_EPOCHS} | "
-        f"Train Loss: {train_loss:.4f} | "
-        f"Validation Loss: {val_loss:.4f}"
-    )
-
-    scheduler.step()
+    print("Training finished!")
 
 
-print("Training finished!")
+if __name__ == "__main__":
+    main()

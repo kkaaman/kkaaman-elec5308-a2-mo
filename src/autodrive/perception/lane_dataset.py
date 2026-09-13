@@ -1,4 +1,5 @@
 from pathlib import Path
+
 import cv2
 import torch
 from torch.utils.data import Dataset
@@ -29,6 +30,16 @@ class LaneDataset(Dataset):
             str(mask_path),
             cv2.IMREAD_GRAYSCALE,
         )
+
+        if image is None:
+            raise FileNotFoundError(
+                f"Could not read image at {image_path}"
+            )
+
+        if mask is None:
+            raise FileNotFoundError(
+                f"Could not read mask at {mask_path}"
+            )
 
         height, width = self.image_size
 
