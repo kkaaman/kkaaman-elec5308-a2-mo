@@ -122,6 +122,20 @@ class TrafficPerceptionTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             perception.detect(image)
 
+    def test_model_prediction_rejects_nan_confidence(self):
+        with self.assertRaises(ValueError):
+            ModelPrediction(
+                category=TrafficCategory.SIGN,
+                label="stop",
+                confidence=float("nan"),
+                bounding_box=BoundingBox(
+                    x_min=0,
+                    y_min=0,
+                    x_max=10,
+                    y_max=10,
+                ),
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

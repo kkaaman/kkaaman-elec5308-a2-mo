@@ -17,6 +17,9 @@ class ModelPrediction:
     confidence: float
     bounding_box: BoundingBox
 
+    def __post_init__(self) -> None:
+        probability("confidence", self.confidence)
+
 
 DetectionBackend = Callable[[np.ndarray], Iterable[ModelPrediction]]
 
@@ -31,6 +34,19 @@ class TrafficPerception:
         focal_length_px: float | None = None,
         object_widths_m: dict[str, float] | None = None,
     ) -> None:
+        """Create a traffic perception pipeline.
+
+        Args:
+            backend: Callable that takes an RGB image and returns an iterable of
+                ModelPrediction instances.
+            confidence_threshold: Minimum confidence required for a prediction to
+                be retained. Defaults to 0.5.
+            focal_length_px: Camera focal length in pixels used for monocular
+                distance estimation. If None, distance estimation is skipped.
+            object_widths_m: Known real-world object widths in metres, indexed by
+                label. Labels without a known width will not receive a distance
+                estimate.
+        """
         if not callable(backend):
             raise TypeError("backend must be callable")
 
