@@ -1,5 +1,17 @@
-﻿.venv/
+# Python
 __pycache__/
-.pytest_cache/
 *.py[cod]
-ELEC5308-Lab6-skwo0237/
+.pytest_cache/
+
+# Python packaging
+*.egg-info/
+
+# Virtual environment
+.venv/
+
+# Editor
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
