@@ -22,4 +22,4 @@ The script:
 - The repository dependencies installed with:
 
 ```powershell
-python -m pip install -r requirements.txt
+python -m pip install -e ".[test,carla]"

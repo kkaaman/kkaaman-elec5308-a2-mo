@@ -4,11 +4,25 @@ These tests use fake CARLA-like objects, so no running simulator is required.
 """
 
 import math
-from types import SimpleNamespace
+import sys
+from types import ModuleType, SimpleNamespace
 
 import pytest
+class FakeVehicleControl:
+    """Small replacement for carla.VehicleControl used by unit tests."""
+
+    def __init__(self, **kwargs):
+        self.__dict__.update(kwargs)
+
+
+fake_carla = ModuleType("carla")
+fake_carla.Vehicle = object
+fake_carla.VehicleControl = FakeVehicleControl
+sys.modules["carla"] = fake_carla
+
 
 from carla_adapter.adapter import (
+    apply_command,
     carla_vehicle_to_state,
     command_to_carla_control,
 )
@@ -84,3 +98,29 @@ def test_invalid_max_steering_angle_is_rejected():
 
     with pytest.raises(ValueError, match="max_steering_angle_rad"):
         command_to_carla_control(command, max_steering_angle_rad=0.0)
+
+class FakeCommandVehicle:
+    """Records the control sent by apply_command."""
+
+    def apply_control(self, control):
+        self.applied_control = control
+
+
+def test_apply_command_sends_and_returns_control():
+    vehicle = FakeCommandVehicle()
+    command = ControlCommand(
+        steering_angle_rad=0.1,
+        throttle=0.4,
+        brake=0.0,
+    )
+
+    control = apply_command(
+        vehicle,
+        command,
+        max_steering_angle_rad=0.5,
+    )
+
+    assert vehicle.applied_control is control
+    assert control.steer == pytest.approx(-0.2)
+    assert control.throttle == pytest.approx(0.4)
+    assert control.brake == pytest.approx(0.0)

@@ -19,6 +19,9 @@ dependencies = [
 test = [
     "pytest",
 ]
+carla = [
+    "carla==0.9.16",
+]
 training = [
     "pandas",
 ]
