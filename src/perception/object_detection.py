@@ -10,6 +10,12 @@ class ObjectDetector:
     """Detect and track road objects using a pretrained YOLO model."""
 
     def __init__(self, config: PerceptionConfig | None = None):
+        """Create a detector.
+
+        Args:
+            config: Optional detection and tracking settings. When omitted, the
+                default :class:`PerceptionConfig` is used.
+        """
         self.config = config or PerceptionConfig()
         self.model = YOLO(self.config.model_name)
 
@@ -18,7 +24,8 @@ class ObjectDetector:
     def detect(self, image: np.ndarray) -> tuple[Detection, ...]:
         """Detect objects in one RGB image."""
 
-        image_bgr = image[:, :, ::-1]
+        self._validate_rgb_image(image, "image")
+        image_bgr = image[:, :, ::-1].copy()
 
         results = self.model.predict(
             image_bgr,
@@ -33,7 +40,8 @@ class ObjectDetector:
     def track(self, frame: np.ndarray) -> tuple[Detection, ...]:
         """Detect and track objects across consecutive RGB frames."""
 
-        frame_bgr = frame[:, :, ::-1]
+        self._validate_rgb_image(frame, "frame")
+        frame_bgr = frame[:, :, ::-1].copy()
 
         results = self.model.track(
             frame_bgr,
@@ -46,6 +54,18 @@ class ObjectDetector:
         )
 
         return self._convert(results[0], include_track_ids=True)
+
+    @staticmethod
+    def _validate_rgb_image(value: np.ndarray, parameter_name: str) -> None:
+        """Validate an RGB image before it is passed to YOLO."""
+
+        if not isinstance(value, np.ndarray):
+            raise TypeError(f"{parameter_name} must be a NumPy array")
+
+        if value.ndim != 3 or value.shape[2] != 3:
+            raise ValueError(
+                f"{parameter_name} must have shape (H, W, 3); got {value.shape}"
+            )
 
     def _get_class_ids(self):
         """Find the model IDs for the classes we care about."""
