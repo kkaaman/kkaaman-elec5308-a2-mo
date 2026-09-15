@@ -12,6 +12,7 @@ dependencies = [
     "opencv-python",
     "torch",
     "torchvision",
+    "ultralytics",
 ]
 
 [project.optional-dependencies]
