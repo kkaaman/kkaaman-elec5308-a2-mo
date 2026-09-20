@@ -6,6 +6,7 @@ detection, and basic path-following, steering and speed control, demonstrated
 live in CARLA.
 
 **Team members:**
+
 - Saviour Kwofie
 - Alan Tran
 - Mohammad Judeh
@@ -212,7 +213,7 @@ From the repository root:
 
 ```powershell
 cd src
-python demo_combined_perception.py --town Town03
+python demo_combined_perception.py --town Town10HD
 ```
 
 This demo runs the perception modules while CARLA autopilot controls the
@@ -227,14 +228,14 @@ The overlay includes:
 
 Display controls:
 
-| Key | Action |
-| --- | --- |
+| Key | Action                       |
+| --- | ---------------------------- |
 | `1` | Toggle semantic segmentation |
-| `2` | Toggle object detections |
-| `3` | Toggle traffic detections |
-| `4` | Toggle lane overlay |
-| `0` | Toggle all overlays |
-| `q` | Quit |
+| `2` | Toggle object detections     |
+| `3` | Toggle traffic detections    |
+| `4` | Toggle lane overlay          |
+| `0` | Toggle all overlays          |
+| `q` | Quit                         |
 
 The display controls only affect visualisation. They do not disable the
 underlying perception modules.
@@ -244,7 +245,7 @@ underlying perception modules.
 From `src/`:
 
 ```powershell
-python demo_fused_lane_following.py --town Town03
+python demo_fused_lane_following.py --town Town10HD
 ```
 
 This demo does not use CARLA autopilot.
@@ -378,14 +379,15 @@ For the live CARLA demo:
 ```powershell
 python setup_environment.py --carla-version 0.9.16
 cd src
-python demo_combined_perception.py --town Town03
+python demo_combined_perception.py --town Town10HD
 ```
 
 or:
 
 ```powershell
-python demo_fused_lane_following.py --town Town03
+python demo_fused_lane_following.py --town Town10HD
 ```
 
 A recorded CARLA demonstration should also be kept as a backup for the live
 presentation.
+
