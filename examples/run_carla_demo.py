@@ -5,37 +5,35 @@ Start CARLA first, then run:
     python examples/run_carla_demo.py
 """
 
-from queue import Empty, Queue
-
-import cv2
-import numpy as np
-
-from perception import ObjectDetector, PerceptionConfig
-from segmentation.segmentation import SemanticSegmenter
-from autodrive.perception.lane_inference import LaneSegmenter
-from autodrive.perception.lane_path import draw_ego_path, extract_ego_path
-
-from traffic_perception import (
-    BoundingBox as TrafficBoundingBox,
-    ModelPrediction,
-    TrafficCategory,
-    TrafficPerception,
-)
-
 import argparse
 import math
 import sys
-import time
 import threading
+import time
+from queue import Empty, Queue
 
 import carla
+import cv2
+import numpy as np
 
+from autodrive.perception.lane_inference import LaneSegmenter
+from autodrive.perception.lane_path import draw_ego_path, extract_ego_path
 from carla_adapter import apply_command, carla_vehicle_to_state
 from navigation_control.controller import PathFollower
 from navigation_control.types import (
-    ControlStatus,
     ControllerConfig,
+    ControlStatus,
     Waypoint,
+)
+from perception import ObjectDetector, PerceptionConfig
+from segmentation.segmentation import SemanticSegmenter
+from traffic_perception import (
+    BoundingBox as TrafficBoundingBox,
+)
+from traffic_perception import (
+    ModelPrediction,
+    TrafficCategory,
+    TrafficPerception,
 )
 
 

@@ -21,7 +21,6 @@ clockwise-positive/left-handed -> controller counter-clockwise-
 positive/right-handed).
 """
 
-import math
 
 
 def _angle_diff_deg(a: float, b: float) -> float:

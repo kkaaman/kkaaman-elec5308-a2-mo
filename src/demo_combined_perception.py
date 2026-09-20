@@ -52,13 +52,13 @@ import cv2
 import numpy as np
 
 sys.path.insert(0, ".")
-from perception import ObjectDetector, PerceptionConfig
 from overlay_enhancements import (
     LaneTemporalSmoother,
     PerceptionHUD,
     blend_overlay,
     confidence_thickness,
 )
+from perception import ObjectDetector, PerceptionConfig
 from perception.lane_inference import LaneSegmenter
 from perception.lane_path import draw_ego_path, extract_ego_path
 from segmentation.segmentation import SemanticSegmenter

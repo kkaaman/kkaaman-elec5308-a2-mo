@@ -5,8 +5,7 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-from perception import BoundingBox, Detection, ObjectDetector, PerceptionConfig
-from perception import object_detection
+from perception import BoundingBox, Detection, ObjectDetector, PerceptionConfig, object_detection
 
 
 class FakeModel:

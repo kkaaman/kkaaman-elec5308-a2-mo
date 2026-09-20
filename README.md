@@ -1,154 +1,391 @@
-# Autonomous Perception and Navigation Library (ELEC5308 Assignment 1)
+# Autonomous Perception and Navigation Library
 
 A simulator-agnostic Python library providing lane/driving-area detection,
-object detection & tracking, semantic segmentation, traffic condition
-detection, and basic path-following/steering/speed control — demonstrated
+object detection and tracking, semantic segmentation, traffic-condition
+detection, and basic path-following, steering and speed control, demonstrated
 live in CARLA.
 
-**Team members:** *(add your names here)*
+**Team members:**
+- Saviour Kwofie
+- Alan Tran
+- Mohammad Judeh
+- Zhaolin Huang
+- Abdullah Almutairi
+- Ricky Purani
 
 ## Repository layout
 
-```
+```text
 .
-├── pyproject.toml            # dependency + package spec
-├── setup_environment.py      # one-shot installer for the CARLA demos (see below)
+├── pyproject.toml            # dependency + package specification
+├── setup_environment.py      # one-shot installer for CARLA demo dependencies
 ├── lane_unet_best.pth        # trained lane-detection weights
 ├── segmentation_model.pth    # trained segmentation weights
-├── training/                 # model training scripts (not needed to run the demos)
+├── training/                 # model training scripts
 ├── tests/                    # automated test suite
-├── examples/, docs/          # additional usage examples and docs
+├── examples/                 # additional usage examples
+├── docs/                     # Sphinx documentation and worked examples
+├── .github/
+│   └── workflows/
+│       └── ci.yml            # lint, test and documentation CI
 └── src/
-    ├── perception/            # lane detection + ego-path extraction
+    ├── perception/            # object detection/tracking + lane processing
     ├── segmentation/          # BiSeNetV2 semantic segmentation
-    ├── object_detection/      # YOLO-based object detection/tracking
     ├── traffic_perception/    # traffic light/sign detection + distance estimation
-    ├── navigation_control/    # Pure-Pursuit + PID path-following controller
-    ├── carla_adapter/         # the only files that import `carla` directly
-    ├── demo_combined_perception.py   # perception showcase (autopilot-driven)
-    ├── demo_fused_lane_following.py  # lane detection actually drives the car
-    ├── overlay_enhancements.py       # display-only smoothing/HUD helpers
+    ├── navigation_control/    # Pure Pursuit + PID path-following controller
+    ├── carla_adapter/         # CARLA-specific adapter layer
+    ├── demo_combined_perception.py   # perception showcase
+    ├── demo_fused_lane_following.py  # perception-driven lane following
+    ├── overlay_enhancements.py       # display smoothing and HUD helpers
     ├── turn_decision.py              # junction detection + turn selection
-    ├── traffic_light_color.py        # HSV traffic-light color classifier
-    ├── ground_projection.py          # image-pixel -> real-world ground projection
-    └── lane_to_waypoints.py          # perception-to-control fusion point
+    ├── traffic_light_color.py        # HSV traffic-light colour classifier
+    ├── ground_projection.py          # image-pixel -> ground-plane projection
+    └── lane_to_waypoints.py          # perception-to-control fusion
 ```
 
-## 1. Base install (library + tests)
+## 1. Base install
 
-This is the minimum needed to install the library and run its automated
-test suite — no simulator required.
+This is the minimum needed to install the library and run the automated
+tests. A running simulator is not required.
 
-Create and activate a virtual environment, then install the project:
+Python 3.10 or later is supported. The CARLA demonstrations were developed
+and tested using Python 3.12.
+
+### Linux / WSL
+
+From the repository root:
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-python -m pip install -e ".[test]"
+python -m pip install --upgrade pip
+python -m pip install -e ".[test,docs]"
 ```
 
+### Windows
+
+```powershell
+python -m venv .venv
+.venv\Scripts\activate
+python -m pip install --upgrade pip
+python -m pip install -e ".[test,docs]"
+```
+
+## 2. Quick start
+
+After installation, the public modules can be imported directly:
+
+```python
+from perception import ObjectDetector, PerceptionConfig
+from traffic_perception import TrafficPerception
+from navigation_control import PathFollower
+```
+
+Example object-detector setup:
+
+```python
+from perception import ObjectDetector, PerceptionConfig
+
+config = PerceptionConfig(
+    model_name="yolo26n.pt",
+    confidence_threshold=0.25,
+)
+
+detector = ObjectDetector(config)
+detections = detector.detect(image)
+
+for detection in detections:
+    print(detection)
+```
+
+The detector expects an RGB NumPy image.
+
+## 3. Automated tests
+
 Run the complete automated test suite from the repository root:
+
+```bash
+python -m pytest
+```
+
+For verbose output:
 
 ```bash
 python -m pytest tests -v
 ```
 
-## 2. Running the live CARLA demos (optional, builds on the base install)
+The current integrated version contains 106 automated tests covering areas
+including:
 
-The steps above are enough to use the library and run its tests. To also
-run the two live CARLA demos, a few additional things are needed on top.
+- object detection and tracking
+- lane-path extraction
+- traffic perception
+- navigation and control
+- CARLA adapter behaviour
+
+A running CARLA simulator is not required for the unit tests.
+
+## 4. Linting
+
+The project uses Ruff for linting and import checking.
+
+From the repository root:
+
+```bash
+ruff check .
+```
+
+## 5. Documentation
+
+The project uses Sphinx to generate HTML documentation from source
+docstrings.
+
+The documentation includes:
+
+- a Getting Started guide
+- automatically generated API reference
+- worked usage examples
+- CARLA demonstration instructions
+
+Build the documentation from the repository root:
+
+```bash
+sphinx-build -W docs docs/_build/html
+```
+
+The generated documentation can then be opened at:
+
+```text
+docs/_build/html/index.html
+```
+
+## 6. Continuous integration
+
+GitHub Actions automatically runs:
+
+1. Ruff linting
+2. pytest automated tests
+3. the Sphinx documentation build
+
+The workflow is defined in:
+
+```text
+.github/workflows/ci.yml
+```
+
+## 7. Running the live CARLA demos
+
+The base installation above is sufficient for the library, tests and
+documentation. Running the live demos additionally requires CARLA.
 
 ### Assumptions
 
-- **CARLA is already installed** (server running via `CarlaUE4.exe`,
-  version matching what you'll install the Python client for below).
-- **The correct Python version is already installed** (this project was
-  built and tested against Python 3.12).
+- CARLA is already installed.
+- The CARLA server can be started with `CarlaUE4.exe`.
+- The Python client version should match the CARLA simulator version.
+- The project was tested with CARLA 0.9.16 and Python 3.12.
 
 ### Additional install step
 
-From the repository root, with your Python 3.12 environment active
-(the same one from step 1 above):
+From the repository root, with the Python environment active:
 
 ```powershell
-python setup_environment.py --carla-version <your CARLA version, e.g. 0.9.16>
+python setup_environment.py --carla-version 0.9.16
 ```
 
-This installs torch/torchvision (CUDA build if you have an NVIDIA GPU),
-the `carla` Python client (from a local wheel if found, matching your
-CARLA install, or falls back to PyPI), and the rest of this project's
-dependencies from `pyproject.toml` (numpy, opencv-python, ultralytics,
-pandas, pytest) in one pass. It's idempotent — safe to re-run if a step
-fails partway through.
+The setup script installs the dependencies needed by the live demo,
+including PyTorch, torchvision and the CARLA Python client.
 
-If CARLA's Python client is *already* installed and working, skip that
-step:
+If the CARLA Python client is already installed and working:
 
 ```powershell
 python setup_environment.py --skip-carla
 ```
 
-### Run a demo
+### Start CARLA
 
-With `CarlaUE4.exe` already running, from `src/`:
+Start `CarlaUE4.exe` before launching either demo.
+
+### Combined perception demo
+
+From the repository root:
 
 ```powershell
 cd src
-python demo_combined_perception.py --town Town01
+python demo_combined_perception.py --town Town03
 ```
 
-Toggleable perception overlay (segmentation/objects/traffic/lane), driven
-by CARLA's own autopilot. Keys: `1`/`2`/`3`/`4` toggle each layer, `0`
-toggles all, `q` quits.
+This demo runs the perception modules while CARLA autopilot controls the
+vehicle.
+
+The overlay includes:
+
+- semantic segmentation
+- object detection
+- traffic-condition detection
+- lane detection and ego-path extraction
+
+Display controls:
+
+| Key | Action |
+| --- | --- |
+| `1` | Toggle semantic segmentation |
+| `2` | Toggle object detections |
+| `3` | Toggle traffic detections |
+| `4` | Toggle lane overlay |
+| `0` | Toggle all overlays |
+| `q` | Quit |
+
+The display controls only affect visualisation. They do not disable the
+underlying perception modules.
+
+### Fused perception and navigation demo
+
+From `src/`:
 
 ```powershell
-python demo_fused_lane_following.py --town Town01
+python demo_fused_lane_following.py --town Town03
 ```
 
-Lane detection actually drives the vehicle, via a Pure-Pursuit + PID
-controller — no autopilot involved. Same toggle keys for the display
-overlay; driving itself only ever depends on the lane layer, regardless of
-what's toggled on screen.
+This demo does not use CARLA autopilot.
 
-`--town` is optional on both — omit it to use whatever map `CarlaUE4.exe`
-already has loaded. `Town01` is a good default: simple, single-lane-per-
-direction roads that avoid a known limitation in the current lane-
-boundary-selection logic on wider, multi-lane maps (e.g. Town10HD).
+Instead, the control pipeline is:
 
-## `demo_fused_lane_following.py`'s driving behaviour
+```text
+RGB camera
+    ↓
+lane segmentation
+    ↓
+ego-lane centreline extraction
+    ↓
+ground-plane projection
+    ↓
+local world waypoints
+    ↓
+PathFollower
+    ↓
+steering / throttle / brake
+```
 
-Beyond ordinary lane-following, this demo also:
+The route is regenerated from the latest lane estimate so perception
+directly influences vehicle control.
 
-- **Turns at junctions.** Pure lane-following can't decide to turn (a
-  turn's destination road usually isn't visible until already partway
-  through it) — so when a junction is detected ahead (using CARLA's own
-  map waypoint graph, see `turn_decision.py`), control briefly switches to
-  a short, fixed map-based route through that junction, then hands back to
-  lane-following. Priority: **straight always wins if available**;
-  otherwise alternates right, then left, then right, ... This is a
-  hardcoded rule, not navigation — there's no destination, and no
-  awareness of the road beyond the current junction.
-- **Stops for red traffic lights** (see `traffic_light_color.py`) — a
-  simple HSV classifier on the detected "traffic light" box, using box
-  *height* as a proximity proxy (not a real metric distance — traffic
-  lights are elevated off the road plane, so this project's ground-plane
-  projection technique doesn't apply to them, and no established real-world
-  width exists for them either). Red only, not yellow (yellow previously
-  mis-fired on nearby signage sharing the detected box's crop).
+`--town` is optional on both demos. If omitted, the currently loaded CARLA
+map is used.
+
+Different CARLA towns and road sections produce different lane-detection
+quality, so a known working route should be rehearsed before the live demo.
+
+## `demo_fused_lane_following.py` driving behaviour
+
+Beyond ordinary lane-following, the fused demo also includes junction
+handling and red-light response.
+
+### Junction handling
+
+Pure camera-based lane-following cannot always determine which road branch
+to follow through an intersection because the destination lane may not yet
+be visible.
+
+When a junction is detected ahead using CARLA's waypoint graph,
+`turn_decision.py` constructs a short map-based route through the junction.
+Control then returns to perception-driven lane-following afterwards.
+
+The current selection rule is:
+
+1. continue straight when a straight exit is available
+2. otherwise alternate between right and left turns
+
+This is local junction handling rather than destination-based route
+planning.
+
+### Red traffic lights
+
+`traffic_light_color.py` applies an HSV-based colour classifier to detected
+traffic-light regions.
+
+When a sufficiently confident nearby red traffic light is detected, the
+current driving command is overridden by reducing throttle and applying
+the brake.
+
+Bounding-box height is used as a proximity proxy rather than a calibrated
+metric distance.
+
+Yellow-light behaviour is not used in the current demo because colour
+classification was less reliable for those cases.
+
+## Traffic perception
+
+General object detection and traffic perception are separate layers.
+
+The object detector identifies general road objects using YOLO.
+
+Traffic perception then filters traffic-relevant detections, including
+traffic lights and stop signs, and can optionally attach monocular distance
+estimates.
+
+For supported objects, distance is estimated using:
+
+```text
+distance = focal_length × real_object_width
+           ────────────────────────────────
+                observed_pixel_width
+```
+
+Objects without a configured real-world width can still be detected but do
+not receive a metric distance estimate.
 
 ## Known limitations
 
-- No obstacle/collision avoidance and no destination/route planning —
-  turning is a per-junction, hardcoded rule (see above), not navigation.
-  No awareness of other agents when choosing or executing a turn, and a
-  red-light stop isn't specially suppressed mid-turn.
-- The ego-lane boundary-selection heuristic (`src/perception/lane_path.py`)
-  assumes exactly one marking line per side of the lane. Wide, multi-lane
-  roads (3+ parallel lines — a double-yellow centreline, one or more
-  internal dividers, a far edge line) can cause it to lock onto the wrong
-  line. Confirmed on Town10HD; not fixed as of this release — use a
-  simple single-lane-per-direction town for a reliable demo.
-- The junction-turning and red-light logic were verified via isolated unit
-  tests against synthetic/fake data (not a live CARLA run) at the time
-  this was last assembled — treat the first real run as the actual test,
-  same as any new feature in this project.
+- The system does not currently provide obstacle or collision avoidance.
+- It does not perform destination-based route planning.
+- Junction selection uses a simple local rule rather than a global route.
+- Lane extraction depends on the quality and visibility of road markings.
+- Dashed, missing or ambiguous markings can cause the lane centreline to
+  become unstable or temporarily unavailable.
+- Multi-lane roads and intersections may produce ambiguous lane-boundary
+  detections.
+- Ground projection assumes a flat road and fixed camera geometry.
+- Traffic-light proximity uses bounding-box size rather than calibrated 3D
+  localisation.
+- Red-light handling operates independently of the junction state.
+- Real-time performance depends on available hardware and model inference
+  speed.
+
+These limitations are expected for a baseline system and provide clear
+areas for future improvement.
+
+## Reproducing the project
+
+From a fresh clone:
+
+```bash
+git clone <repository-url>
+cd 26-S2-Assignment1-Group7
+
+python -m venv .venv
+source .venv/bin/activate
+
+python -m pip install -e ".[test,docs]"
+
+ruff check .
+python -m pytest
+sphinx-build -W docs docs/_build/html
+```
+
+For the live CARLA demo:
+
+```powershell
+python setup_environment.py --carla-version 0.9.16
+cd src
+python demo_combined_perception.py --town Town03
+```
+
+or:
+
+```powershell
+python demo_fused_lane_following.py --town Town03
+```
+
+A recorded CARLA demonstration should also be kept as a backup for the live
+presentation.

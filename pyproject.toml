@@ -18,6 +18,11 @@ dependencies = [
 [project.optional-dependencies]
 test = [
     "pytest",
+    "ruff",
+]
+docs = [
+    "sphinx",
+    "myst-parser",
 ]
 carla = [
     "carla==0.9.16",
@@ -32,3 +37,14 @@ namespaces = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/test_carla_adapter.py" = ["E402"]

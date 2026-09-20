@@ -2,9 +2,10 @@ import numpy as np
 import pytest
 
 from autodrive.perception.lane_path import (
-    extract_ego_path,
     draw_ego_path,
+    extract_ego_path,
 )
+
 
 def make_straight_lane_mask():
 

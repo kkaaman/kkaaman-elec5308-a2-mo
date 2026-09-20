@@ -117,15 +117,21 @@ import cv2
 import numpy as np
 
 sys.path.insert(0, ".")
-from ground_projection import pixel_to_vehicle_local, vehicle_local_to_world  # noqa: F401 (re-exported for reference)
+from carla_adapter.adapter import apply_command, carla_vehicle_to_state
+from ground_projection import (  # noqa: F401 (re-exported for reference)
+    pixel_to_vehicle_local,
+    vehicle_local_to_world,
+)
 from lane_to_waypoints import build_local_route
-from perception import ObjectDetector, PerceptionConfig
+from navigation_control.controller import PathFollower
+from navigation_control.types import ControlCommand, ControllerConfig, ControlStatus
 from overlay_enhancements import (
     LaneTemporalSmoother,
     PerceptionHUD,
     blend_overlay,
     confidence_thickness,
 )
+from perception import ObjectDetector, PerceptionConfig
 from perception.lane_inference import LaneSegmenter
 from perception.lane_path import draw_ego_path, extract_ego_path
 from segmentation.segmentation import SemanticSegmenter
@@ -137,9 +143,6 @@ from turn_decision import (
     get_junction_exit_candidates,
     select_turn_direction,
 )
-from carla_adapter.adapter import apply_command, carla_vehicle_to_state
-from navigation_control.controller import PathFollower
-from navigation_control.types import ControlCommand, ControllerConfig, ControlStatus
 
 SEGMENTATION_WEIGHTS = "../segmentation_model.pth"
 LANE_WEIGHTS = "../lane_unet_best.pth"

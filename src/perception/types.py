@@ -3,7 +3,6 @@
 from dataclasses import dataclass
 from typing import Optional
 
-
 ROAD_RELEVANT_CLASSES = (
     "person",
     "bicycle",

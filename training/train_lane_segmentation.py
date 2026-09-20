@@ -74,7 +74,7 @@ def main():
         num_workers=0,
     )
 
-    test_loader = DataLoader(
+    _test_loader = DataLoader(
         test_dataset,
         batch_size=batch_size,
         shuffle=False,
