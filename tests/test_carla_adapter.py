@@ -8,6 +8,8 @@ import sys
 from types import ModuleType, SimpleNamespace
 
 import pytest
+
+
 class FakeVehicleControl:
     """Small replacement for carla.VehicleControl used by unit tests."""
 
