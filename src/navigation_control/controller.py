@@ -33,6 +33,14 @@ class PathFollower:
         self._path: Optional[ReferencePath] = None
         self._steering = PurePursuit(config)
         self._speed = SpeedPID(config)
+        # ADDED (Mohammad): last successfully-computed (non-fallback)
+        # steering angle. Deliberately NOT cleared by reset() -- a fused
+        # perception/control loop that replans a fresh short route every
+        # cycle calls set_path() (and therefore reset()) constantly, and
+        # this needs to survive that so the fallback below can hold the
+        # last real heading instead of snapping to 0.0 (straight) on a
+        # sharp curve.
+        self._last_valid_steering_angle_rad = 0.0
         self.reset()
 
     def set_path(self, waypoints: Iterable[Waypoint]) -> None:
@@ -46,6 +54,49 @@ class PathFollower:
         self._progress_m = 0.0
         self._finished = False
         self._speed.reset()
+
+    def _safe_steering_angle(
+        self, state: VehicleState, target: Waypoint, goal: Waypoint
+    ) -> tuple[float, bool]:
+        """steering_angle(), with a graceful fallback chain instead of an
+        unhandled crash.
+
+        FIXED (Mohammad): steering_angle() raises ValueError when its
+        target ends up behind the vehicle (a sharp turn with the lookahead
+        point positioned behind, or a receding-horizon route whose
+        endpoint the vehicle has already passed). This previously crashed
+        update() with no recovery -- and was only patched in the TRACKING
+        branch, missing the exact same unguarded call in the zero-speed
+        (stopping) branch below, a real latent crash risk that just hadn't
+        been triggered yet.
+
+        Tries the immediate lookahead target, then the path's actual
+        endpoint (usually further away, more likely still ahead), and
+        only as a last resort holds the last successfully-computed real
+        steering angle -- continuing to turn in roughly the same direction
+        rather than snapping straight, which would drive the vehicle off
+        a genuinely curving road instead of merely going less precisely
+        around it.
+
+        Returns:
+            (angle_rad, fallback_used) -- fallback_used is True only when
+            neither the target nor the goal produced a valid angle,
+            surfaced via ControlDiagnostics.steering_fallback_used so a
+            caller can actually observe how often this engages, rather
+            than it being invisible.
+        """
+        try:
+            angle = self._steering.steering_angle(state, target)
+            self._last_valid_steering_angle_rad = angle
+            return angle, False
+        except ValueError:
+            pass
+        try:
+            angle = self._steering.steering_angle(state, goal)
+            self._last_valid_steering_angle_rad = angle
+            return angle, False
+        except ValueError:
+            return self._last_valid_steering_angle_rad, True
 
     def update(
         self, state: VehicleState, target_speed_mps: float, dt_s: float
@@ -90,13 +141,15 @@ class PathFollower:
         else:
             status = ControlStatus.TRACKING
 
+        fallback_used = False
+
         # A zero speed request must not keep accelerating due to an old integral.
         if internal_speed == 0:
             angle = 0.0
             # Keep following a curve while braking for a temporary stop. At the
             # route end, do not chase a target that may already be behind us.
             if not finished and state.speed_mps > config.stopped_speed_mps and remaining > margin:
-                angle = self._steering.steering_angle(state, target)
+                angle, fallback_used = self._safe_steering_angle(state, target, goal)
             command = ControlCommand(
                 steering_angle_rad=angle,
                 throttle=0.0,
@@ -104,7 +157,7 @@ class PathFollower:
             )
             self._speed.reset()
         else:
-            angle = self._steering.steering_angle(state, target)
+            angle, fallback_used = self._safe_steering_angle(state, target, goal)
             effort = self._speed.update(state.speed_mps, internal_speed, dt_s)
             command = ControlCommand(angle, max(0.0, effort), max(0.0, -effort))
 
@@ -119,5 +172,6 @@ class PathFollower:
             internal_target_speed_mps=internal_speed,
             distance_to_goal_m=goal_distance,
             target_waypoint=target,
+            steering_fallback_used=fallback_used,
         )
         return ControlResult(command, diagnostics, status)

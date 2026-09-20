@@ -127,6 +127,14 @@ class ControlDiagnostics:
     internal_target_speed_mps: float
     distance_to_goal_m: float
     target_waypoint: Waypoint
+    # ADDED (Mohammad): surfaces whether steering_angle()'s target-behind-
+    # vehicle fallback (see controller.py's TRACKING branch) engaged this
+    # cycle. Previously invisible to any caller -- added specifically to
+    # test the hypothesis that a receding-horizon fused perception/control
+    # loop silently drives straight through sharp curves, rather than
+    # continuing to guess without evidence. Backward compatible: optional,
+    # defaults to False, existing callers unaffected.
+    steering_fallback_used: bool = False
 
 
 @dataclass(frozen=True)

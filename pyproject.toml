@@ -1,34 +1,44 @@
+# Dependency + package specification for this project, per Assignment 1's
+# requirement ("a requirements.txt, pyproject.toml, or equivalent").
+#
+# NAME PLACEHOLDER: "name" below is a guess ("autodrive-perception") since
+# no single canonical package name has come up anywhere in this project so
+# far (the code lives as several sibling packages under src/ -- perception,
+# segmentation, object_detection, traffic_perception, navigation_control,
+# carla_adapter -- with no unifying top-level name chosen yet). Rename this
+# to whatever you actually want `pip install -e .` / `import <name>` to use.
+#
+# torch/torchvision and carla are DELIBERATELY NOT listed as dependencies
+# here, same reasoning as the old requirements.txt: torch needs a CUDA-
+# specific index URL, and carla needs a version-matched local wheel
+# (neither expressible as a plain PyPI dependency) -- both are still
+# installed by setup_environment.py, which this file doesn't replace.
+
 [build-system]
-requires = ["setuptools>=68", "wheel"]
+requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "elec5308-group7-autodrive"
+name = "autodrive-perception"  # PLACEHOLDER -- see note above
 version = "0.1.0"
-description = "Simulator-independent autonomous perception and navigation library."
+description = "Simulator-agnostic autonomous perception and navigation library (ELEC5308 Assignment 1)"
 requires-python = ">=3.10"
+readme = "README.md"
+
 dependencies = [
     "numpy",
-    "opencv-python",
-    "torch",
-    "torchvision",
-    "ultralytics",
+    "opencv-python",   # NOT opencv-python-headless -- see setup_environment.py's
+                         # note: the demo scripts use cv2.imshow, which headless
+                         # builds don't implement.
+    "ultralytics",     # YOLO26 backend used by object_detection.
+    "pandas",          # train_lane_segmentation.py / evaluate_lane_segmentation.py --
+                         # both read dataset.csv via pd.read_csv().
 ]
 
 [project.optional-dependencies]
-test = [
-    "pytest",
-]
-carla = [
-    "carla==0.9.16",
-]
-training = [
-    "pandas",
+dev = [
+    "pytest",          # test_carla_adapter.py / test_lane_path.py.
 ]
 
 [tool.setuptools.packages.find]
 where = ["src"]
-namespaces = true
-
-[tool.pytest.ini_options]
-testpaths = ["tests"]

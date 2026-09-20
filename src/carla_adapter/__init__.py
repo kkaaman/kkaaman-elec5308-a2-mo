@@ -1,5 +1,4 @@
 """CARLA integration adapter."""
-
 from .adapter import (
     apply_command,
     carla_vehicle_to_state,

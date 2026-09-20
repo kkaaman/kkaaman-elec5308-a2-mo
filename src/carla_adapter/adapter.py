@@ -1,5 +1,4 @@
 """CARLA-specific translation between CARLA and navigation_control types."""
-
 import math
 
 import carla
@@ -12,7 +11,6 @@ def carla_vehicle_to_state(
     rear_axle_offset_m: float = 0.0,
 ) -> VehicleState:
     """Convert CARLA vehicle data into the controller's shared world frame."""
-
     if rear_axle_offset_m < 0:
         raise ValueError("rear_axle_offset_m must be nonnegative")
 
@@ -47,7 +45,6 @@ def command_to_carla_control(
     max_steering_angle_rad: float,
 ) -> carla.VehicleControl:
     """Convert one controller command into CARLA actuator controls."""
-
     if max_steering_angle_rad <= 0:
         raise ValueError("max_steering_angle_rad must be positive")
 
@@ -71,7 +68,6 @@ def apply_command(
     max_steering_angle_rad: float,
 ) -> carla.VehicleControl:
     """Convert and apply a controller command to a CARLA vehicle."""
-
     control = command_to_carla_control(command, max_steering_angle_rad)
     vehicle.apply_control(control)
     return control
