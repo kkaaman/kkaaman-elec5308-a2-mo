@@ -12,6 +12,8 @@ extensions = [
     "myst_parser",
 ]
 
+autodoc_mock_imports = ["carla"]
+
 templates_path = ["_templates"]
 exclude_patterns = ["_build"]
 
