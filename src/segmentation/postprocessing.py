@@ -37,8 +37,11 @@ CITYSCAPES_PALETTE = np.array(
 def colorize_mask(mask: np.ndarray, palette: np.ndarray | None = None) -> np.ndarray:
     """Map a class-index mask to an RGB image using a palette.
 
+    Pixels labeled 255 (ignore) are rendered black rather than being
+    clipped into a valid class index.
+
     Args:
-        mask: HxW array of class indices.
+        mask: HxW array of class indices, with 255 marking ignored pixels.
         palette: Optional Nx3 uint8 array mapping class index -> RGB.
             Defaults to the Cityscapes 19-class palette.
 
@@ -46,8 +49,11 @@ def colorize_mask(mask: np.ndarray, palette: np.ndarray | None = None) -> np.nda
         HxWx3 uint8 RGB array.
     """
     palette = CITYSCAPES_PALETTE if palette is None else palette
+    ignore = mask == 255
     safe_mask = np.clip(mask, 0, len(palette) - 1)
-    return palette[safe_mask]
+    output = palette[safe_mask]
+    output[ignore] = 0  # render ignore label as black
+    return output
 
 
 def overlay_mask(image: np.ndarray, mask: np.ndarray, alpha: float = 0.5) -> np.ndarray:
@@ -61,6 +67,8 @@ def overlay_mask(image: np.ndarray, mask: np.ndarray, alpha: float = 0.5) -> np.
     Returns:
         HxWx3 uint8 RGB array.
     """
+    if not 0.0 <= alpha <= 1.0:
+        raise ValueError(f"alpha must be in [0, 1], got {alpha}")
     color_mask = colorize_mask(mask)
     if color_mask.shape[:2] != image.shape[:2]:
         color_mask = cv2.resize(

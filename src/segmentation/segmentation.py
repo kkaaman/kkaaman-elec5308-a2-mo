@@ -43,7 +43,10 @@ class SemanticSegmenter:
 
         self.input_size = input_size
         self.num_classes = num_classes
-        self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
+        self.device = device or (
+            "mps" if torch.backends.mps.is_available()
+            else "cuda" if torch.cuda.is_available()
+            else "cpu")
 
         self.model = self._build_model(num_classes)
         self._load_weights(weights_path)
@@ -56,8 +59,16 @@ class SemanticSegmenter:
         return BiSeNetV2(num_classes=num_classes)
 
     def _load_weights(self, weights_path: str) -> None:
-        """Load a trained state dict into ``self.model``."""
-        state_dict = torch.load(weights_path, map_location=self.device)
+        """Load a trained state dict into ``self.model``.
+
+        Accepts either a bare state dict or a checkpoint dict containing one
+        under the key "model_state_dict".
+        """
+        checkpoint = torch.load(weights_path, map_location=self.device)
+        if isinstance(checkpoint, dict) and "model_state_dict" in checkpoint:
+            state_dict = checkpoint["model_state_dict"]
+        else:
+            state_dict = checkpoint
         self.model.load_state_dict(state_dict)
 
     def predict(self, image: np.ndarray) -> np.ndarray:
