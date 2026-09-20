@@ -9,7 +9,7 @@ depthwise-separable "Gather-and-Expand" blocks (a MobileNetV2-style inverted
 residual). A Bilateral Guided Aggregation (BGA) layer fuses the two before
 a lightweight segmentation head produces the final per-pixel logits.
 
-This was chosen over ENet (faster but noticeably lower accuracy — it
+This was chosen over ENet (faster but noticeably lower accuracy -- it
 sacrifices representational capacity to hit extreme speed) and a small
 U-Net (no built-in mechanism to stay fast at inference; shrinking it enough
 to hit a real-time target usually costs about as much accuracy as ENet's
@@ -20,7 +20,7 @@ trading one for the other.
 Written independently from the paper's description, not copied from any
 specific open-source implementation. Channel widths are simplified from the
 paper's exact configuration for a smaller, faster-to-train model appropriate
-to this assignment's timeline and dataset size — the two-branch design and
+to this assignment's timeline and dataset size -- the two-branch design and
 BGA fusion (the architecture's actual defining contribution) are preserved.
 Auxiliary "booster" training heads (see BiSeNetV2.forward_with_aux) are
 included for deeper supervision during training and add zero inference-time
@@ -195,7 +195,7 @@ class SemanticBranch(nn.Module):
         context_out = self.context(stage5_out)
         # Intermediate stage outputs are returned alongside the final one so
         # BiSeNetV2 can optionally attach auxiliary training heads to them
-        # (deeper supervision — see BiSeNetV2.forward_with_aux). Only
+        # (deeper supervision -- see BiSeNetV2.forward_with_aux). Only
         # context_out is used for the main prediction path.
         return context_out, stage3_out, stage4_out, stage5_out
 
@@ -254,13 +254,13 @@ class BiSeNetV2(nn.Module):
 
     Input and output spatial size match exactly (the head upsamples back up
     to the Detail Branch's resolution's original scale), matching the
-    contract SemanticSegmenter.predict() expects — no separate resize step
+    contract SemanticSegmenter.predict() expects -- no separate resize step
     needed by the caller between model output and the input resolution.
 
     Also exposes three auxiliary segmentation heads attached to the
     Semantic Branch's intermediate stages (the paper's "booster" heads),
     used only via :meth:`forward_with_aux` during training for deeper
-    supervision — they add extra loss terms that help gradient flow into
+    supervision -- they add extra loss terms that help gradient flow into
     the semantic branch's earlier layers, at zero inference-time cost since
     they're simply not computed when the plain :meth:`forward` path is
     used (as SemanticSegmenter.predict() always does).
@@ -296,7 +296,7 @@ class BiSeNetV2(nn.Module):
         Use this in the training loop instead of the plain ``forward`` /
         ``model(x)`` call to get deeper supervision; sum the main loss with
         (typically downweighted) losses on each auxiliary output. Not used
-        by SemanticSegmenter — inference always uses the cheaper plain
+        by SemanticSegmenter -- inference always uses the cheaper plain
         ``forward`` path, since the aux heads exist purely to improve what
         gradients reach the semantic branch during training.
         """
