@@ -14,50 +14,18 @@ Usage:
     python setup_environment.py --skip-carla --skip-torch   # re-run just the rest
 
 What this does, and why each step exists:
-    1. Checks the running Python's version (the project's demos were
-       tested on 3.12; a mismatch is a warning, not a hard stop in
-       general -- but see step 4, where it IS a hard stop for CARLA
-       specifically if you're installing from a version-tagged wheel).
-    2. Removes opencv-python-headless if present, then installs
-       requirements.txt (numpy, opencv-python, ultralytics, pytest).
-       Headless and non-headless opencv both provide the `cv2` import
-       name -- having both installed is a common, confusing source of
-       "cv2.imshow not implemented" errors, since the demos need the
-       real GUI build.
-    3. Installs torch + torchvision. Reads your NVIDIA driver's max
-       supported CUDA version via `nvidia-smi` if available and installs
-       a matching (or safely older) PyTorch CUDA build; falls back to
-       asking you to pick the index yourself if it can't detect one --
-       see the printed note, since this is the one step whose exact
-       correct command changes over time and by hardware, and guessing
-       wrong here fails silently at import time, not install time.
-    4. Installs the `carla` Python API. PREFERS a local wheel if
-       --carla-wheel is given (or one is auto-detected -- see
-       find_carla_wheel() below) -- this is CARLA's own documented
-       install method, and the only one confirmed to work on Windows for
-       0.9.16: PyPI currently has no Windows wheel for this version under
-       either naming scheme (`carla==0.9.16` doesn't exist on the main
-       `carla` project at all; `carla-0-9-16` exists but ships Linux
-       wheels only). A local wheel's filename embeds its exact Python
-       tag (e.g. cp312) -- this is checked against the RUNNING
-       interpreter before attempting install, and treated as a hard
-       stop on mismatch, since pip installing a cp312 wheel under a
-       cp313 interpreter fails outright with no useful recovery. Falls
-       back to the PyPI naming-scheme attempts (both classic
-       `carla==X.Y.Z` and the newer `carla-X-Y-Z`) only if no wheel path
-       is given/found -- useful on Linux, where PyPI does have wheels.
-    5. If this script is run from inside the project's git repository,
-       runs `git lfs pull` so the *.pth weight files (segmentation_model.pth,
-       lane_unet_best.pth -- see .gitattributes) are the real trained
-       weights, not empty LFS pointer stubs. This step is skipped (with
-       a clear message) if git or git-lfs isn't available, since it's
-       not required for pip installation to succeed -- but the demos
-       will fail later with a confusing "invalid load key" torch error
-       if the weights are still just pointer text.
-    6. Prints a checklist of things this script CANNOT verify for you
-       (exact CARLA server/client version match, first-run internet-
-       dependent downloads, a known test-file import mismatch) so
-       nothing here is a silent assumption.
+    1. Checks the running Python version. The CARLA demos were tested on
+       Python 3.12.
+    2. Removes opencv-python-headless if present, then installs the project
+       from pyproject.toml in editable mode with the test/docs extras.
+    3. Installs torch + torchvision using the requested CUDA build and
+       verifies that torch can access the GPU.
+    4. Installs the CARLA Python API, preferring a compatible local wheel
+       where available.
+    5. Runs git lfs pull so the tracked model-weight files are the real
+       binaries rather than Git LFS pointer files.
+    6. Prints a final checklist for CARLA version matching, model weights,
+       repository verification and running the live demos.
 """
 
 import argparse
@@ -103,7 +71,7 @@ def check_python_version() -> None:
     print(f"Running under Python {major}.{minor} ({sys.executable})")
     if (major, minor) != (3, 12):
         print(
-            f"[WARNING] This project was set up against Python 3.12; "
+            f"[WARNING] The CARLA demos were tested with Python 3.12; "
             f"you're running {major}.{minor}. CARLA 0.9.16 supports "
             f"3.10/3.11/3.12, so this may still work, but if package "
             f"resolution fails below, that's the first thing to check."
@@ -132,18 +100,14 @@ def remove_conflicting_opencv() -> None:
 
 
 def install_requirements() -> bool:
-    # CHANGED: was `pip install -r requirements.txt` -- now installs from
-    # pyproject.toml instead, in editable mode with the [dev] extra (pulls
-    # in pytest alongside the core numpy/opencv-python/ultralytics/pandas
-    # dependencies). `-e` (editable) means the installed package tracks
-    # this checkout directly, matching how the assignment's own
-    # "pip install -e ." requirement is normally satisfied.
+    """Install the project from pyproject.toml in editable mode."""
     if not PYPROJECT_FILE.exists():
         print(f"[FAILED] {PYPROJECT_FILE} not found next to this script.")
         return False
+    
     return pip_install(
-        ["-e", f"{PYPROJECT_FILE.parent}[dev]"],
-        "Installing project (pyproject.toml, editable, with dev extras)",
+        ["-e", f"{PYPROJECT_FILE.parent}[test,docs]"],
+        "Installing project (pyproject.toml, editable, with test/docs extras)",
     )
 
 
@@ -185,27 +149,16 @@ def torch_cuda_available() -> bool | None:
 
 
 def install_torch(cuda_tag: str) -> bool:
-    """Install torch + torchvision for CUDA, then VERIFY it actually
-    took -- installing alone isn't proof of a GPU build.
+    """Install torch + torchvision for CUDA and verify GPU access.
 
-    FIXED: requirements.txt pulls in ultralytics, which depends on
-    `torch>=1.8.0` with no upper bound. If requirements.txt is installed
-    before this function runs, pip may have already satisfied that
-    unversioned dependency with a plain CPU-only `torch` from the
-    default PyPI index -- and a later `pip install torch --index-url
-    .../cuXXX` with no version pin sees torch "already satisfied" and
-    silently does NOT replace it, even though it's the wrong build. This
-    is why main() now calls install_torch() BEFORE install_requirements()
-    -- so ultralytics' dependency is satisfied by the correct build
-    already present, not the other way around. That ordering fix only
-    prevents the problem in a FRESH environment though; it does nothing
-    for an environment where the wrong CPU build is already sitting
-    there from an earlier run. So this function also verifies
-    torch.cuda.is_available() afterwards and, if it's False, forces a
-    real reinstall (--force-reinstall) from the CUDA index specifically
-    -- the only way to actually fix an already-broken existing install,
-    since a plain reinstall would again see "already satisfied" and
-    skip doing anything.
+    The CUDA-specific torch build is installed before the project
+    dependencies because ultralytics depends on torch. Installing the
+    project first could allow pip to satisfy that dependency with a
+    CPU-only build from the default PyPI index.
+
+    If an incompatible or CPU-only torch installation already exists,
+    this function attempts a forced reinstall from the selected CUDA
+    index.
     """
     print(
         f"\nInstalling torch + torchvision for CUDA tag '{cuda_tag}'.\n"
@@ -423,28 +376,22 @@ def pull_lfs_weights() -> None:
 
 def print_manual_checklist(args: argparse.Namespace) -> None:
     print(
-        "\n" + "=" * 70 +
-        "\nThis script installed everything it safely can. A few things "
-        "\nit can't verify for you:\n" + "=" * 70 +
-        f"\n1. CARLA CLIENT/SERVER VERSION MATCH\n"
-        f"   Installed the client for {args.carla_version} -- confirm your\n"
-        f"   running CarlaUE4.exe is the SAME version, or every demo will\n"
-        f"   fail to connect with a version-mismatch error at startup.\n"
-        f"\n2. FIRST-RUN INTERNET DOWNLOADS\n"
-        f"   object_detection.ObjectDetector() downloads yolo26n.pt on its\n"
-        f"   first run, and perception.lane_segmentation.LaneUNet's ResNet18\n"
-        f"   backbone downloads ImageNet-pretrained weights from torchvision\n"
-        f"   on ITS first run too. Both need real internet access the first\n"
-        f"   time any demo runs -- do one throwaway run somewhere with\n"
-        f"   internet before you need to demo offline.\n"
-        f"\n3. A KNOWN TEST-FILE IMPORT MISMATCH (not fixed by this script)\n"
-        f"   test_lane_path.py imports from `autodrive.perception.lane_path`,\n"
-        f"   but every other file in the project (lane_inference.py's own\n"
-        f"   FIXED note included) treats the real location as flat\n"
-        f"   `perception.lane_path`. Running pytest as-is will likely fail\n"
-        f"   to collect that one test file with an ImportError -- this is a\n"
-        f"   pre-existing bug in the test file itself, not a dependency\n"
-        f"   issue, so it's flagged here rather than silently patched.\n"
+        "\n" + "=" * 70
+        + "\nEnvironment setup complete. Final checks:"
+        + "\n" + "=" * 70
+        + "\n1. CARLA CLIENT/SERVER VERSION MATCH\n"
+        + "   Confirm the running CarlaUE4.exe matches client version "
+        + f"{args.carla_version}.\n"
+        + "\n2. MODEL WEIGHTS\n"
+        + "   Confirm yolo26n.pt, segmentation_model.pth and "
+        + "lane_unet_best.pth are present and contain the real weights.\n"
+        + "\n3. VERIFY THE REPOSITORY\n"
+        + "   From the repository root, run:\n"
+        + "       ruff check .\n"
+        + "       python -m pytest\n"
+        + "       sphinx-build -W docs docs/_build/html\n"
+        + "\n4. LIVE DEMO\n"
+        + "   Start CARLA before running either demo from src/.\n"
     )
 
 
@@ -472,12 +419,9 @@ def main() -> None:
     check_python_version()
     remove_conflicting_opencv()
 
-    # torch/torchvision installed BEFORE requirements.txt -- see the
-    # FIXED note in install_torch()'s docstring. requirements.txt pulls
-    # in ultralytics, whose unversioned `torch>=1.8.0` dependency would
-    # otherwise get silently satisfied by a default CPU-only torch
-    # first, causing this function's own CUDA-specific install to look
-    # "already satisfied" and skip doing anything.
+    # Install torch/torchvision before the project dependencies so
+    # ultralytics does not accidentally satisfy the torch dependency
+    # with a CPU-only build from the default PyPI index.
     detect_cuda_tag()
     if not args.skip_torch:
         install_torch(args.cuda_tag)
