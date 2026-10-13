@@ -1,0 +1,202 @@
+{
+  "run_dir": "runs\\det_seg\\20261012T042447Z",
+  "analyzed_utc": "2026-10-12T04:24:55+00:00",
+  "config": {
+    "models": [
+      "yolo26n.pt",
+      "yolo26n-seg.pt"
+    ],
+    "conf": 0.2,
+    "imgsz": 640,
+    "iou_match": 0.5
+  },
+  "timing": {
+    "yolo26n.pt": {
+      "mean_ms": 24.9,
+      "n": 6
+    },
+    "yolo26n-seg.pt": {
+      "mean_ms": 29.1,
+      "n": 6
+    }
+  },
+  "summary": {
+    "yolo26n.pt": {
+      "car": {
+        "frames": 6,
+        "detected": 6,
+        "detection_rate": 1.0,
+        "median_abs_err_box_full_m": 0.131,
+        "median_abs_err_box_inner_m": 0.099
+      }
+    },
+    "yolo26n-seg.pt": {
+      "car": {
+        "frames": 6,
+        "detected": 6,
+        "detection_rate": 1.0,
+        "median_abs_err_box_full_m": 0.126,
+        "median_abs_err_box_inner_m": 0.095,
+        "median_abs_err_mask_m": 0.011
+      }
+    }
+  },
+  "rows": [
+    {
+      "model": "yolo26n.pt",
+      "class": "car",
+      "gap_m": 5,
+      "gt_distance_m": 6.07,
+      "gt_pixels": 8641,
+      "detected": true,
+      "iou": 0.969,
+      "confidence": 0.823,
+      "err_box_full_m": 0.075,
+      "err_box_inner_m": -0.068,
+      "err_mask_m": null
+    },
+    {
+      "model": "yolo26n.pt",
+      "class": "car",
+      "gap_m": 10,
+      "gt_distance_m": 11.09,
+      "gt_pixels": 2742,
+      "detected": true,
+      "iou": 0.925,
+      "confidence": 0.804,
+      "err_box_full_m": 0.168,
+      "err_box_inner_m": -0.082,
+      "err_mask_m": null
+    },
+    {
+      "model": "yolo26n.pt",
+      "class": "car",
+      "gap_m": 15,
+      "gt_distance_m": 16.1,
+      "gt_pixels": 1331,
+      "detected": true,
+      "iou": 0.911,
+      "confidence": 0.736,
+      "err_box_full_m": 0.088,
+      "err_box_inner_m": -0.1,
+      "err_mask_m": null
+    },
+    {
+      "model": "yolo26n.pt",
+      "class": "car",
+      "gap_m": 20,
+      "gt_distance_m": 21.07,
+      "gt_pixels": 794,
+      "detected": true,
+      "iou": 0.948,
+      "confidence": 0.66,
+      "err_box_full_m": 0.144,
+      "err_box_inner_m": -0.098,
+      "err_mask_m": null
+    },
+    {
+      "model": "yolo26n.pt",
+      "class": "car",
+      "gap_m": 25,
+      "gt_distance_m": 26.14,
+      "gt_pixels": 526,
+      "detected": true,
+      "iou": 0.88,
+      "confidence": 0.663,
+      "err_box_full_m": 0.118,
+      "err_box_inner_m": -0.115,
+      "err_mask_m": null
+    },
+    {
+      "model": "yolo26n.pt",
+      "class": "car",
+      "gap_m": 30,
+      "gt_distance_m": 31.17,
+      "gt_pixels": 370,
+      "detected": true,
+      "iou": 0.825,
+      "confidence": 0.511,
+      "err_box_full_m": 0.148,
+      "err_box_inner_m": -0.104,
+      "err_mask_m": null
+    },
+    {
+      "model": "yolo26n-seg.pt",
+      "class": "car",
+      "gap_m": 5,
+      "gt_distance_m": 6.07,
+      "gt_pixels": 8641,
+      "detected": true,
+      "iou": 0.923,
+      "confidence": 0.791,
+      "err_box_full_m": 0.103,
+      "err_box_inner_m": -0.064,
+      "err_mask_m": 0.017
+    },
+    {
+      "model": "yolo26n-seg.pt",
+      "class": "car",
+      "gap_m": 10,
+      "gt_distance_m": 11.09,
+      "gt_pixels": 2742,
+      "detected": true,
+      "iou": 0.906,
+      "confidence": 0.824,
+      "err_box_full_m": 0.202,
+      "err_box_inner_m": -0.084,
+      "err_mask_m": 0.029
+    },
+    {
+      "model": "yolo26n-seg.pt",
+      "class": "car",
+      "gap_m": 15,
+      "gt_distance_m": 16.1,
+      "gt_pixels": 1331,
+      "detected": true,
+      "iou": 0.894,
+      "confidence": 0.742,
+      "err_box_full_m": 0.24,
+      "err_box_inner_m": -0.092,
+      "err_mask_m": 0.022
+    },
+    {
+      "model": "yolo26n-seg.pt",
+      "class": "car",
+      "gap_m": 20,
+      "gt_distance_m": 21.07,
+      "gt_pixels": 794,
+      "detected": true,
+      "iou": 0.935,
+      "confidence": 0.7,
+      "err_box_full_m": 0.144,
+      "err_box_inner_m": -0.098,
+      "err_mask_m": 0.005
+    },
+    {
+      "model": "yolo26n-seg.pt",
+      "class": "car",
+      "gap_m": 25,
+      "gt_distance_m": 26.14,
+      "gt_pixels": 526,
+      "detected": true,
+      "iou": 0.854,
+      "confidence": 0.596,
+      "err_box_full_m": 0.072,
+      "err_box_inner_m": -0.119,
+      "err_mask_m": -0.006
+    },
+    {
+      "model": "yolo26n-seg.pt",
+      "class": "car",
+      "gap_m": 30,
+      "gt_distance_m": 31.17,
+      "gt_pixels": 370,
+      "detected": true,
+      "iou": 0.863,
+      "confidence": 0.579,
+      "err_box_full_m": 0.107,
+      "err_box_inner_m": -0.105,
+      "err_mask_m": -0.006
+    }
+  ]
+}

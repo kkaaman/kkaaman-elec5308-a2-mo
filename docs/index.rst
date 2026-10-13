@@ -27,6 +27,12 @@ demonstration for the autonomous perception and navigation library.
 
 .. toctree::
    :maxdepth: 1
+   :caption: Experiments
+
+   experiments/detector_seg
+
+.. toctree::
+   :maxdepth: 1
    :caption: Project records
 
    repository_setup

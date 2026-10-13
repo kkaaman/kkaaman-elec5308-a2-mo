@@ -1,0 +1,115 @@
+{
+  "created_utc": "2026-10-12T04:46:50+00:00",
+  "map": "Town10HD_Opt",
+  "camera": {
+    "width": 1280,
+    "height": 720,
+    "fov_deg": 90.0,
+    "focal_px": 640.0,
+    "mount_xyz_m": [
+      1.5,
+      0.0,
+      1.7
+    ]
+  },
+  "distance_definition": "gap_m = ego front bumper to obstacle near surface, along the lane",
+  "frames": [
+    {
+      "name": "car_05m",
+      "class": "car",
+      "gap_m": 5,
+      "frame": 1163010,
+      "obstacle": "vehicle.tesla.model3",
+      "gt_pixels": 22152
+    },
+    {
+      "name": "car_10m",
+      "class": "car",
+      "gap_m": 10,
+      "frame": 1163027,
+      "obstacle": "vehicle.tesla.model3",
+      "gt_pixels": 7048
+    },
+    {
+      "name": "car_15m",
+      "class": "car",
+      "gap_m": 15,
+      "frame": 1163044,
+      "obstacle": "vehicle.tesla.model3",
+      "gt_pixels": 3437
+    },
+    {
+      "name": "car_20m",
+      "class": "car",
+      "gap_m": 20,
+      "frame": 1163061,
+      "obstacle": "vehicle.tesla.model3",
+      "gt_pixels": 2037
+    },
+    {
+      "name": "car_25m",
+      "class": "car",
+      "gap_m": 25,
+      "frame": 1163078,
+      "obstacle": "vehicle.tesla.model3",
+      "gt_pixels": 1338
+    },
+    {
+      "name": "car_30m",
+      "class": "car",
+      "gap_m": 30,
+      "frame": 1163095,
+      "obstacle": "vehicle.tesla.model3",
+      "gt_pixels": 963
+    },
+    {
+      "name": "pedestrian_05m",
+      "class": "pedestrian",
+      "gap_m": 5,
+      "frame": 1163112,
+      "obstacle": "walker.pedestrian.0001",
+      "gt_pixels": 5956
+    },
+    {
+      "name": "pedestrian_10m",
+      "class": "pedestrian",
+      "gap_m": 10,
+      "frame": 1163129,
+      "obstacle": "walker.pedestrian.0001",
+      "gt_pixels": 1799
+    },
+    {
+      "name": "pedestrian_15m",
+      "class": "pedestrian",
+      "gap_m": 15,
+      "frame": 1163146,
+      "obstacle": "walker.pedestrian.0001",
+      "gt_pixels": 850
+    },
+    {
+      "name": "pedestrian_20m",
+      "class": "pedestrian",
+      "gap_m": 20,
+      "frame": 1163163,
+      "obstacle": "walker.pedestrian.0001",
+      "gt_pixels": 499
+    },
+    {
+      "name": "pedestrian_25m",
+      "class": "pedestrian",
+      "gap_m": 25,
+      "frame": 1163180,
+      "obstacle": "walker.pedestrian.0001",
+      "gt_pixels": 330
+    },
+    {
+      "name": "pedestrian_30m",
+      "class": "pedestrian",
+      "gap_m": 30,
+      "frame": 1163197,
+      "obstacle": "walker.pedestrian.0001",
+      "gt_pixels": 238
+    }
+  ],
+  "camera_to_bumper_m": 0.94
+}
