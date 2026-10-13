@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Python packaging
+*.egg-info/
+
+# Virtual environment
+.venv/
+.venv-win/
+
+# Editor
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build outputs
+docs/_build/
+
+# Raw run outputs (runs/<scenario>/<run-id>/); curated evidence goes in docs/
+runs/
