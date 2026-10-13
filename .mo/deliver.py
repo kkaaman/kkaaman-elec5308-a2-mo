@@ -145,6 +145,30 @@ def closure(requested: list[str], tasks: dict, mine: dict, delivered: set,
     return sorted(want)
 
 
+def _file_deps(ids: list[str], mine: dict, delivered: set) -> list[str]:
+    """Add earlier undelivered tasks whose commits touch the same files.
+
+    The board's Depends On column misses code-level links (BL-C-01 edits the
+    file BL-F-01 creates), and delivering one without the other conflicts.
+    """
+    order = git("rev-list", "--reverse", PRIVATE_MAIN).split()
+    pos = {sha: i for i, sha in enumerate(order)}
+    task_of = {c: t for t, cs in mine.items() for c in cs}
+    files = {c: set(git("diff-tree", "--no-commit-id", "--name-only", "-r", c).split())
+             for c in task_of}
+    want = set(ids)
+    changed = True
+    while changed:
+        changed = False
+        for c in [c for t in want for c in mine[t]]:
+            for earlier, tid in task_of.items():
+                if (tid not in want and tid not in delivered and pos[earlier] < pos[c]
+                        and files[earlier] & files[c]):
+                    want.add(tid)
+                    changed = True
+    return sorted(want)
+
+
 # ---------------------------------------------------------------------- commands
 def cmd_setup(_: argparse.Namespace) -> None:
     remotes = [git("remote", "get-url", r).lower() for r in git("remote").split()]
@@ -207,6 +231,8 @@ def cmd_deliver(args: argparse.Namespace) -> None:
     delivered = set(task_commits(TEAM_MAIN)) - set(args.redeliver)
     skip = set(args.skip)
     ids = [t for t in closure(args.ids, tasks, mine, delivered, not args.no_deps) if t not in skip]
+    if not args.no_deps:
+        ids = [t for t in _file_deps(ids, mine, delivered) if t not in skip]
     if not ids:
         sys.exit("nothing to deliver: everything requested is already on team main")
 
@@ -219,7 +245,8 @@ def cmd_deliver(args: argparse.Namespace) -> None:
     print(f"tasks  : {', '.join(ids)}")
     extra = sorted(set(ids) - set(args.ids))
     if extra:
-        print(f"  (dependencies pulled in: {', '.join(extra)}; use --no-deps or --skip to drop)")
+        print(f"  (pulled in: {', '.join(extra)}: board dependencies or earlier tasks touching the "
+              "same files; use --no-deps or --skip to drop)")
     print(f"commits: {len(commits)}")
     for c in commits:
         print("   ", git("log", "-1", "--format=%h %s", c))
@@ -266,7 +293,8 @@ def cmd_deliver(args: argparse.Namespace) -> None:
         if not git("diff", "--cached", "--name-only", cwd=WORKTREE):
             print(f"  {tid}: no changes left to apply (already on team main), skipped")
             continue
-        git("commit", "--quiet", "--no-verify", "-F", "-", cwd=WORKTREE,
+        git("-c", f"user.name={AUTHOR_NAME}", "-c", f"user.email={AUTHOR_EMAIL}",
+            "commit", "--quiet", "--no-verify", "-F", "-", cwd=WORKTREE,
             input_text=_commit_message(tid, tasks, group))
         print(f"  committed {tid}: {git('log', '-1', '--format=%h %an <%ae>', cwd=WORKTREE)}")
 
