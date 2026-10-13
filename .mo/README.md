@@ -26,10 +26,12 @@ gh auth login                      # optional, enables automatic PR creation
 git pull                                   # get what Claude pushed
 python .mo/deliver.py status --todo        # what's left (filter: --owner Alan)
 python .mo/deliver.py deliver BL-F-02 --dry-run   # preview, including dependencies pulled in
-python .mo/deliver.py deliver BL-F-02      # build branch, push to team, open PR
+python .mo/deliver.py deliver BL-F-02      # stage changes on a fresh branch; you commit, then `pr`
+python .mo/deliver.py deliver BL-F-02 --commit    # commit as you (no co-author lines), push, open PR
 python .mo/deliver.py sync                 # teammates' commits to merge into your main
 ```
 
 - **First delivery.** If team `main` is empty, add `--seed-team`, which pushes the A1 baseline (`a1-final`) as team `main`. If it has only a README, the A1 history is merged under it automatically.
-- **Conflict.** Delivery branches are built in a sibling folder `../elec5308-a2-deliver`. Resolve there, run `git cherry-pick --continue`, then `python .mo/deliver.py pr deliver/<ID>`.
+- **What reaches the team repo.** New commits made on your machine as `kkaaman`, one per task, with `Task:` and `AI-assisted:` lines and no co-author lines. `--keep-commits` copies the private commits instead, co-author lines included.
+- **Conflict.** Delivery branches are built in a sibling folder `../elec5308-a2-deliver`. Resolve there, `git add`, commit, then `python .mo/deliver.py pr deliver/<ID>`.
 - **A teammate already delivered their own version.** Use `--skip <ID>` to leave yours out, then `sync` and merge theirs into your `main`.

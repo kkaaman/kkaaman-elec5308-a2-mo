@@ -19,6 +19,8 @@ Commands (run from anywhere inside the repo)
   python .mo/deliver.py setup                   # once per clone
   python .mo/deliver.py status [--owner Alan] [--todo]
   python .mo/deliver.py deliver BL-F-01 [BL-F-02 ...] [--no-deps] [--dry-run]
+        default: stage the changes on a fresh branch for you to commit yourself
+        --commit: commit each task as you (no co-author lines), push, open PR
   python .mo/deliver.py pr deliver/BL-F-01      # push + PR after resolving a conflict
   python .mo/deliver.py sync                    # show teammates' commits to merge in
 
@@ -53,10 +55,11 @@ TEAM_MAIN = f"{TEAM_REMOTE}/main"
 
 
 # --------------------------------------------------------------------------- git
-def git(*args: str, check: bool = True, capture: bool = True, cwd: Path = ROOT) -> str:
+def git(*args: str, check: bool = True, capture: bool = True, cwd: Path = ROOT,
+        input_text: str | None = None) -> str:
     proc = subprocess.run(
         ["git", *args], cwd=cwd, text=True, encoding="utf-8",
-        capture_output=capture,
+        capture_output=capture, input=input_text,
     )
     if check and proc.returncode != 0:
         err = proc.stderr if capture else ""
@@ -238,14 +241,71 @@ def cmd_deliver(args: argparse.Namespace) -> None:
         git("merge", "--allow-unrelated-histories", "-X", "ours", "--no-edit",
             "-m", "Merge initial team repository commit into A1 baseline", TEAM_MAIN, cwd=WORKTREE)
 
-    empty_flag = ["--empty=drop"] if git_version() >= (2, 45) else ["--keep-redundant-commits"]
-    proc = subprocess.run(["git", "cherry-pick", *empty_flag, *commits], cwd=WORKTREE)
-    if proc.returncode != 0:
-        print(f"\nCherry-pick stopped (conflict or empty commit) in {WORKTREE}\n"
-              f"  cd \"{WORKTREE}\"  -> resolve files, git add, git cherry-pick --continue (repeat)\n"
-              f"  then, back in your main checkout: python .mo/deliver.py pr {branch}")
-        sys.exit(1)
-    _push_and_pr(branch, ids, tasks)
+    if args.keep_commits:
+        empty_flag = ["--empty=drop"] if git_version() >= (2, 45) else ["--keep-redundant-commits"]
+        proc = subprocess.run(["git", "cherry-pick", *empty_flag, *commits], cwd=WORKTREE)
+        if proc.returncode != 0:
+            print(f"\nCherry-pick stopped (conflict or empty commit) in {WORKTREE}\n"
+                  f"  cd \"{WORKTREE}\"  -> resolve files, git add, git cherry-pick --continue (repeat)\n"
+                  f"  then, back in your main checkout: python .mo/deliver.py pr {branch}")
+            sys.exit(1)
+        _push_and_pr(branch, ids, tasks)
+        return
+
+    # Default: apply the changes only. Commits are made on this machine, as you.
+    groups = _task_groups(commits)
+    for tid, group in groups:
+        proc = subprocess.run(["git", "cherry-pick", "--no-commit", *group], cwd=WORKTREE)
+        if proc.returncode != 0:
+            print(f"\nConflict while applying {tid} in {WORKTREE}. Resolve the files, `git add` them,\n"
+                  "then commit there yourself with the message below and re-run deliver for any\n"
+                  "remaining tasks:\n\n" + _commit_message(tid, tasks, group))
+            sys.exit(1)
+        if not args.commit:
+            continue
+        if not git("diff", "--cached", "--name-only", cwd=WORKTREE):
+            print(f"  {tid}: no changes left to apply (already on team main), skipped")
+            continue
+        git("commit", "--quiet", "--no-verify", "-F", "-", cwd=WORKTREE,
+            input_text=_commit_message(tid, tasks, group))
+        print(f"  committed {tid}: {git('log', '-1', '--format=%h %an <%ae>', cwd=WORKTREE)}")
+
+    if args.commit:
+        _push_and_pr(branch, ids, tasks)
+        return
+    print(f"\nChanges for {', '.join(ids)} are staged (not committed) in:\n  {WORKTREE}\n"
+          "Review them there, commit as yourself, then push and open the PR:\n"
+          f"  cd \"{WORKTREE}\"\n  git status\n  git commit\n"
+          f"  cd \"{ROOT}\"\n  python .mo/deliver.py pr {branch}\n"
+          "\nSuggested commit message:\n\n" + _commit_message(ids[0], tasks, commits, all_ids=ids))
+
+
+def _task_groups(commits: list[str]) -> list[tuple[str, list[str]]]:
+    """Split commits (in order) into consecutive runs belonging to one task."""
+    groups: list[tuple[str, list[str]]] = []
+    for c in commits:
+        tid = git("log", "-1", "--format=%(trailers:key=Task,valueonly,separator=%x2C)", c).split(",")[0].strip()
+        if groups and groups[-1][0] == tid:
+            groups[-1][1].append(c)
+        else:
+            groups.append((tid, [c]))
+    return groups
+
+
+def _commit_message(tid: str, tasks: dict, commits: list[str], all_ids: list[str] | None = None) -> str:
+    """Commit message for the team repo: task title, Task trailer(s), AI disclosure; no co-author lines."""
+    ids = all_ids or [tid]
+    subject = f"[{tid}] {tasks[tid]['title']}" if len(ids) == 1 else f"[{', '.join(ids)}] " + tasks[ids[0]]["title"]
+    ai = ""
+    for c in commits:
+        found = git("log", "-1", "--format=%(trailers:key=AI-assisted,valueonly)", c).strip()
+        if found:
+            ai = found.splitlines()[0]
+            break
+    lines = [subject, ""] + [f"Task: {t}" for t in ids]
+    if ai:
+        lines.append(f"AI-assisted: {ai}")
+    return "\n".join(lines) + "\n"
 
 
 def _fresh_worktree(branch: str, base: str) -> None:
@@ -271,15 +331,13 @@ def _pr_body(ids: list[str], tasks: dict, branch: str) -> str:
     lines += ["", "## Verification", "", "- [ ] `ruff check .`", "- [ ] `python -m pytest`"]
     if any(tasks[t]["carla"] == "Y" for t in ids):
         lines.append("- [ ] CARLA evidence linked (run logs / summary JSON)")
-    sessions = sorted(set(re.findall(
-        r"^Claude-Session:\s*(\S+)",
+    disclosures = sorted(set(re.findall(
+        r"^AI-assisted:\s*(.+)$",
         git("log", "--format=%B", f"{TEAM_MAIN}..{branch}") if ref_exists(TEAM_MAIN) else "",
         flags=re.M)))
-    lines += ["", "## AI disclosure", "",
-              "AI-assisted: Claude Code – implementation, tests and docs; reviewed and edited by Mohammad",
-              "", "🤖 Generated with [Claude Code](https://claude.com/claude-code)"]
-    if sessions:
-        lines += [""] + sessions
+    lines += ["", "## AI disclosure", ""]
+    lines += [f"AI-assisted: {d}" for d in disclosures] or [
+        "AI-assisted: <tool> – <what>; reviewed and edited by Mohammad"]
     return "\n".join(lines) + "\n"
 
 
@@ -343,6 +401,10 @@ def main() -> None:
     d.add_argument("--redeliver", nargs="*", default=[], help="treat these as not yet on team main")
     d.add_argument("--branch")
     d.add_argument("--seed-team", action="store_true", help="push A1 baseline as team main if it is empty")
+    d.add_argument("--commit", action="store_true",
+                   help="commit each task as you (local git identity) and push + open the PR")
+    d.add_argument("--keep-commits", action="store_true",
+                   help="copy the private commits as they are (includes their co-author lines)")
     d.add_argument("--dry-run", action="store_true")
     d.set_defaults(fn=cmd_deliver)
     r = sub.add_parser("pr")
