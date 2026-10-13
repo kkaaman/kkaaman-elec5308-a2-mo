@@ -1,4 +1,21 @@
-# Autonomous Perception and Navigation Library
+# Autonomous Perception and Navigation Library: Assignment 2
+
+ELEC5308 Group 7. Assignment 2 extends the Assignment 1 library into a
+reproducible, offline CARLA system. The car follows one fixed legal route in
+Town10HD, detects stationary vehicles and pedestrians, stops with a measured
+margin, holds while the road is blocked, and resumes after perceived clearance.
+
+> **Status:** this repository starts from the final Assignment 1 code (tag
+> `a1-final`, commit `a1f3112`) with its full history. A2 capabilities are added
+> task by task through reviewed pull requests. Until a feature's acceptance
+> evidence is linked under `docs/`, the sections below describe the inherited
+> A1 library, not A2 results.
+
+- **How we work** (branches, PRs, reviews, AI disclosure): [CONTRIBUTING.md](CONTRIBUTING.md)
+- **A1 starting point and setup checklist:** [docs/repository_setup.md](docs/repository_setup.md)
+- **Decision log:** [docs/decisions.md](docs/decisions.md)
+
+## Assignment 1 library (inherited baseline)
 
 A simulator-agnostic Python library providing lane/driving-area detection,
 object detection and tracking, semantic segmentation, traffic-condition
@@ -361,8 +378,9 @@ areas for future improvement.
 From a fresh clone:
 
 ```bash
-git clone <repository-url>
-cd 26-S2-Assignment1-Group7
+git clone https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7.git
+cd 26-S2-Assignment2-Group7
+git lfs pull   # real *.pth weights; without Git LFS they are small pointer files
 
 python -m venv .venv
 source .venv/bin/activate

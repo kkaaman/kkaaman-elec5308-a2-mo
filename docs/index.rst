@@ -1,7 +1,7 @@
 Autonomous Perception and Navigation Library
 ============================================
 
-ELEC5308 Assignment 1 - Group 7
+ELEC5308 Assignment 2 - Group 7 (extending the Assignment 1 library)
 
 This documentation covers installation, usage, the public API and the CARLA
 demonstration for the autonomous perception and navigation library.
@@ -14,3 +14,10 @@ demonstration for the autonomous perception and navigation library.
    api
    examples
    carla_demo
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Project records
+
+   repository_setup
+   decisions
