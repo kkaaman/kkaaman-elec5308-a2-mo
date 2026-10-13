@@ -13,6 +13,7 @@ demonstration for the autonomous perception and navigation library.
    getting_started
    api
    examples
+   simulator_interface
    carla_demo
 
 .. toctree::
