@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "description": "Expected model weight files. sha256/size for LFS assets are copied from the Git LFS pointer committed in the A1 repository; verify with scripts/verify_model_asset.py.",
+  "assets": [
+    {
+      "name": "segmentation_bisenetv2",
+      "path": "segmentation_model.pth",
+      "sha256": "a631440d3fe2ccd2554631bb49b1352c0efbbaffc2316caa79c288757e8dde2a",
+      "size": 9505431,
+      "storage": "git-lfs",
+      "loader": "segmentation",
+      "owner": "Mohammad",
+      "task": "RV-01",
+      "source": "A1 repository Git LFS object (USYD-ELEC5308/26-S2-Assignment1-Group7)",
+      "model": "BiSeNetV2, 19 Cityscapes trainId classes, input 512x256 (width x height)"
+    },
+    {
+      "name": "lane_unet",
+      "path": "lane_unet_best.pth",
+      "sha256": "10dca01621fb8e110f1d5b8419e81fb616a8ce1b75d6aface11f5793af88e8ff",
+      "size": 57385466,
+      "storage": "git-lfs",
+      "loader": null,
+      "owner": "Abdullah",
+      "task": "RV-02",
+      "source": "A1 repository Git LFS object (USYD-ELEC5308/26-S2-Assignment1-Group7)",
+      "model": "Lane segmentation U-Net"
+    },
+    {
+      "name": "detector_yolo26n",
+      "path": "yolo26n.pt",
+      "sha256": "9b09cc8bf347f0fc8a5f7657480587f25db09b34bf33b0652110fb03a8ad4fef",
+      "size": 5544453,
+      "storage": "git",
+      "loader": null,
+      "owner": "Ricky",
+      "task": "Detector asset check",
+      "source": "Committed directly in the A1 source archive; hash computed from the 12 Oct 2026 ZIP",
+      "model": "Ultralytics YOLO26n detection weights"
+    }
+  ]
+}

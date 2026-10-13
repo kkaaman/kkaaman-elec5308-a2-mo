@@ -1,0 +1,74 @@
+{
+  "verified_at_utc": "2026-10-12T01:08:38+00:00",
+  "host": "WCB3LJ64",
+  "platform": "Windows-11-10.0.26200-SP0",
+  "python": "3.13.12",
+  "git": {
+    "commit": null,
+    "dirty": null
+  },
+  "manifest": "assets\\model_manifest.json",
+  "all_passed": true,
+  "assets": [
+    {
+      "name": "segmentation_bisenetv2",
+      "path": "segmentation_model.pth",
+      "status": "ok",
+      "message": "size and SHA-256 match the manifest",
+      "expected_size": 9505431,
+      "expected_sha256": "a631440d3fe2ccd2554631bb49b1352c0efbbaffc2316caa79c288757e8dde2a",
+      "actual_size": 9505431,
+      "actual_sha256": "a631440d3fe2ccd2554631bb49b1352c0efbbaffc2316caa79c288757e8dde2a",
+      "load": {
+        "status": "ok",
+        "torch": "2.10.0+cpu",
+        "device": "cpu",
+        "input_size_wh": [
+          512,
+          256
+        ],
+        "num_classes": 19,
+        "image_source": "src\\perception\\street.jpg",
+        "mask_shape": [
+          597,
+          335
+        ],
+        "mean_inference_ms": 37.88,
+        "timed_runs": 5,
+        "top_classes": [
+          {
+            "class_id": 0,
+            "class": "road",
+            "fraction": 0.4259
+          },
+          {
+            "class_id": 10,
+            "class": "sky",
+            "fraction": 0.28
+          },
+          {
+            "class_id": 2,
+            "class": "building",
+            "fraction": 0.2004
+          },
+          {
+            "class_id": 13,
+            "class": "car",
+            "fraction": 0.0539
+          },
+          {
+            "class_id": 15,
+            "class": "bus",
+            "fraction": 0.0082
+          },
+          {
+            "class_id": 1,
+            "class": "sidewalk",
+            "fraction": 0.0077
+          }
+        ],
+        "warnings": []
+      }
+    }
+  ]
+}
