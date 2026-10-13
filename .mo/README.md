@@ -7,7 +7,7 @@
 
 **Rules**
 - One commit per task on `main`, subject `[TASK-ID] Title`, trailer `Task: TASK-ID`. Later fixes reuse the same trailer, and `deliver` carries them along.
-- Commits are authored as `kkaaman <mjud2621@shared.sydney.edu.au>` with the course AI footer (`AI-assisted: … reviewed and edited by Mohammad`). Review a PR before merging it, because that footer is your attestation.
+- Commits are authored as `kkaaman <judehcrabs12@gmail.com>` with the course AI footer (`AI-assisted: … reviewed and edited by Mohammad`). Review a PR before merging it, because that footer is your attestation.
 - `.mo/` is private tooling. Task commits never touch it. **Never push `main` to `team`.**
 - The tag `a1-final` marks the untouched A1 code that both histories start from.
 - CARLA-dependent tasks (`scope = build+carla` in `tasks.csv`) are coded and unit-tested here. The CARLA run and evidence capture happen on your CARLA machine, using the script each task provides.
