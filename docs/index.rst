@@ -20,6 +20,7 @@ demonstration for the autonomous perception and navigation library.
    :caption: Design
 
    interfaces
+   mission
    depth-association
    acceptance
 

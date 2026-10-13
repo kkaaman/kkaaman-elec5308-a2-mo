@@ -1,7 +1,8 @@
 """Forward-only path following in metres, seconds and radians.
 
-No simulator or machine-learning dependency is required. See ``docs/control.md``
-for coordinate conventions, operating assumptions and a complete example.
+No simulator or machine-learning dependency is required. See ``docs/mission.md``
+for the controller contract and how the A2 stack uses it, and
+``docs/interfaces.md`` for coordinate conventions.
 """
 
 from .controller import PathFollower
