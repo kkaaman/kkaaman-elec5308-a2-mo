@@ -41,6 +41,10 @@ contents and task owners until the code lands.
 
 .. automodule:: autonomy
 
+.. automodule:: autonomy.interfaces
+   :members:
+   :exclude-members: ControlCommand
+
 .. automodule:: autonomy.paths
    :members:
 

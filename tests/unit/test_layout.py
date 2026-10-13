@@ -10,6 +10,7 @@ from autonomy import paths
 
 CORE_PACKAGES = [
     "autonomy",
+    "autonomy.interfaces",
     "autonomy.paths",
     "cloud",
     "evaluation",
