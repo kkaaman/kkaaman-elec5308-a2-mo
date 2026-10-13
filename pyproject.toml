@@ -31,12 +31,31 @@ training = [
     "pandas",
 ]
 
+[tool.setuptools]
+package-dir = {"" = "src"}
+# A1 helper modules that still sit directly in src/. Installing them means they
+# import from any working directory (no `cd src`). They move into geometry/,
+# planning/ and visualisation/ later, keeping these names as shims.
+py-modules = [
+    "ground_projection",
+    "lane_to_waypoints",
+    "overlay_enhancements",
+    "traffic_light_color",
+    "turn_decision",
+]
+
 [tool.setuptools.packages.find]
 where = ["src"]
 namespaces = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# importlib mode lets test files in different folders share a base name
+# (tests/unit/test_path.py and tests/navigation_control/test_path.py).
+addopts = "--import-mode=importlib"
+markers = [
+    "carla: needs a CARLA 0.9.16 server and client; lives in tests/carla/",
+]
 
 [tool.ruff]
 target-version = "py310"

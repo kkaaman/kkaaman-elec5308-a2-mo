@@ -19,3 +19,6 @@ Thumbs.db
 
 # Build outputs
 docs/_build/
+
+# Raw run outputs (runs/<scenario>/<run-id>/); curated evidence goes in docs/
+runs/
