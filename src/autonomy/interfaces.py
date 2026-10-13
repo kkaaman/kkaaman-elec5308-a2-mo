@@ -103,7 +103,8 @@ class Extrinsics:
     """Pose of a sensor body in the vehicle frame.
 
     Translation in metres; roll, pitch and yaw in radians, applied as
-    yaw (about z), then pitch (about y), then roll (about x), right-handed.
+    yaw (about z), then pitch (about y), then roll (about x), right-handed:
+    positive pitch tilts the sensor down and positive yaw turns it left.
     A camera with all angles zero looks along vehicle +x. The camera's optical
     frame is obtained from its body frame by the fixed axis swap
     ``x_opt = -y_body, y_opt = -z_body, z_opt = x_body``.

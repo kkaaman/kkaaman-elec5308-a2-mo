@@ -20,6 +20,8 @@ demonstration for the autonomous perception and navigation library.
    :caption: Design
 
    interfaces
+   depth-association
+   acceptance
 
 .. toctree::
    :maxdepth: 1
