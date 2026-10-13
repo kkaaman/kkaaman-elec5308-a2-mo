@@ -231,42 +231,45 @@ def cmd_deliver(args: argparse.Namespace) -> None:
     delivered = set(task_commits(TEAM_MAIN)) - set(args.redeliver)
     skip = set(args.skip)
     ids = [t for t in closure(args.ids, tasks, mine, delivered, not args.no_deps) if t not in skip]
-    if not args.no_deps:
-        ids = [t for t in _file_deps(ids, mine, delivered) if t not in skip]
     if not ids:
         sys.exit("nothing to deliver: everything requested is already on team main")
 
     order = git("rev-list", "--reverse", PRIVATE_MAIN).split()
     pos = {sha: i for i, sha in enumerate(order)}
-    commits = sorted({c for t in ids for c in mine[t]}, key=pos.__getitem__)
+
+    def commits_for(task_ids: list[str]) -> list[str]:
+        return sorted({c for t in task_ids for c in mine[t]}, key=pos.__getitem__)
+
+    if not ref_exists(TEAM_MAIN):
+        if args.dry_run:
+            print("team main is empty: a real run needs --seed-team")
+        elif not args.seed_team:
+            sys.exit("team repo is empty. Re-run with --seed-team to push the A1 baseline as team main first.")
+        else:
+            _seed_empty_team()
+
     branch = args.branch or "deliver/" + "-".join(args.ids)[:60]
+    # Try the smallest set first; add earlier tasks touching the same files
+    # only if the smaller set does not apply cleanly onto team main.
+    if not args.no_deps and ref_exists(TEAM_MAIN):
+        wider = [t for t in _file_deps(ids, mine, delivered) if t not in skip]
+        if wider != ids and not _applies_cleanly(commits_for(ids)):
+            ids = wider
+    commits = commits_for(ids)
 
     print(f"branch : {branch}")
     print(f"tasks  : {', '.join(ids)}")
     extra = sorted(set(ids) - set(args.ids))
     if extra:
-        print(f"  (pulled in: {', '.join(extra)}: board dependencies or earlier tasks touching the "
-              "same files; use --no-deps or --skip to drop)")
+        print(f"  (pulled in: {', '.join(extra)}: board dependencies, or earlier tasks needed for the "
+              "changes to apply; use --no-deps or --skip to drop)")
     print(f"commits: {len(commits)}")
     for c in commits:
         print("   ", git("log", "-1", "--format=%h %s", c))
     if args.dry_run:
         return
 
-    if not ref_exists(TEAM_MAIN):
-        if not args.seed_team:
-            sys.exit("team repo is empty. Re-run with --seed-team to push the A1 baseline as team main first.")
-        _seed_empty_team()
-
-    shares_history = subprocess.run(
-        ["git", "merge-base", TEAM_MAIN, PRIVATE_MAIN], cwd=ROOT, capture_output=True,
-    ).returncode == 0
-    _fresh_worktree(branch, TEAM_MAIN if shares_history else BASE_TAG)
-    if not shares_history:
-        # Team main is an unrelated README-only history: graft A1 baseline under it.
-        print(f"team main has unrelated history; basing on {BASE_TAG} + merge of team main")
-        git("merge", "--allow-unrelated-histories", "-X", "ours", "--no-edit",
-            "-m", "Merge initial team repository commit into A1 baseline", TEAM_MAIN, cwd=WORKTREE)
+    _prepare_worktree(branch)
 
     if args.keep_commits:
         empty_flag = ["--empty=drop"] if git_version() >= (2, 45) else ["--keep-redundant-commits"]
@@ -334,6 +337,29 @@ def _commit_message(tid: str, tasks: dict, commits: list[str], all_ids: list[str
     if ai:
         lines.append(f"AI-assisted: {ai}")
     return "\n".join(lines) + "\n"
+
+
+def _prepare_worktree(branch: str) -> None:
+    """Fresh worktree on ``branch`` holding team main (grafting A1 if unrelated)."""
+    shares_history = subprocess.run(
+        ["git", "merge-base", TEAM_MAIN, PRIVATE_MAIN], cwd=ROOT, capture_output=True,
+    ).returncode == 0
+    _fresh_worktree(branch, TEAM_MAIN if shares_history else BASE_TAG)
+    if not shares_history:
+        # Team main is an unrelated README-only history: graft A1 baseline under it.
+        print(f"team main has unrelated history; basing on {BASE_TAG} + merge of team main")
+        git("merge", "--allow-unrelated-histories", "-X", "ours", "--no-edit",
+            "-m", "Merge initial team repository commit into A1 baseline", TEAM_MAIN, cwd=WORKTREE)
+
+
+def _applies_cleanly(commits: list[str]) -> bool:
+    """Trial-apply ``commits`` onto team main in the delivery worktree."""
+    _prepare_worktree("deliver-trial")
+    ok = subprocess.run(["git", "cherry-pick", "--no-commit", *commits], cwd=WORKTREE,
+                        capture_output=True).returncode == 0
+    subprocess.run(["git", "cherry-pick", "--abort"], cwd=WORKTREE, capture_output=True)
+    subprocess.run(["git", "reset", "--hard", "--quiet"], cwd=WORKTREE, capture_output=True)
+    return ok
 
 
 def _fresh_worktree(branch: str, base: str) -> None:
