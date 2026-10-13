@@ -54,6 +54,12 @@ contents and task owners until the code lands.
 
 .. automodule:: obstacle_perception
 
+.. automodule:: obstacle_perception.types
+   :members:
+
+.. automodule:: sim_harness.fake_detectors
+   :members:
+
 .. automodule:: planning
 
 .. automodule:: evaluation

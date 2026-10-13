@@ -43,12 +43,16 @@ __all__ = [
     "CollisionEvent",
     "ControlCommand",
     "ControlPacket",
+    "Detection2D",
+    "DetectionBatch",
+    "Detector",
     "Diagnostics",
     "DriveMode",
     "EvaluationPacket",
     "Extrinsics",
     "FrameBundle",
     "Gear",
+    "ImageBox",
     "LaneGraph",
     "LaneInvasionEvent",
     "LaneSegment",
@@ -493,6 +497,120 @@ class Mission:
             raise TypeError("maneuvers must be Maneuver values")
         _finite("destination x", self.destination_xy[0])
         _finite("destination y", self.destination_xy[1])
+
+
+# ------------------------------------------------------------------- detector (C-01)
+@dataclass(frozen=True)
+class ImageBox:
+    """Canonical validated axis-aligned box in pixel coordinates."""
+
+    x_min: float
+    y_min: float
+    x_max: float
+    y_max: float
+
+    def __post_init__(self) -> None:
+        for name in ("x_min", "y_min", "x_max", "y_max"):
+            _finite(name, getattr(self, name))
+        if self.x_max <= self.x_min or self.y_max <= self.y_min:
+            raise ValueError("box must have x_max > x_min and y_max > y_min")
+
+    @property
+    def width_px(self) -> float:
+        return self.x_max - self.x_min
+
+    @property
+    def height_px(self) -> float:
+        return self.y_max - self.y_min
+
+    @property
+    def center(self) -> tuple[float, float]:
+        return ((self.x_min + self.x_max) / 2.0, (self.y_min + self.y_max) / 2.0)
+
+
+@dataclass(frozen=True)
+class Detection2D:
+    """One image detection. ``track_id`` is only meaningful within its batch's
+    ``source`` and ``session_id``; use :meth:`track_key` across sources."""
+
+    class_name: str
+    confidence: float
+    box: ImageBox
+    track_id: Optional[int] = None
+
+    def __post_init__(self) -> None:
+        if not self.class_name:
+            raise ValueError("class_name must be non-empty")
+        _probability("confidence", self.confidence)
+        if not isinstance(self.box, ImageBox):
+            raise TypeError("box must be an ImageBox")
+
+
+@dataclass(frozen=True)
+class DetectionBatch:
+    """Detector output for one frame, with provenance and timing.
+
+    * ``source``: backend id, e.g. ``"local"`` or ``"remote"``.
+    * ``session_id``: the tracker session; reset per episode.
+    * ``model_version``: model file name plus checksum prefix.
+    * ``host_start_s`` / ``host_end_s``: host clock around the call that
+      produced the result (for a remote backend, the client-side request and
+      response times, never the server's clock).
+    * ``valid``: ``False`` means *no usable result* (failure, timeout, stale).
+      That is different from a valid batch with no detections.
+    """
+
+    frame_id: int
+    source: str
+    session_id: str
+    model_version: str
+    detections: tuple[Detection2D, ...]
+    tracked: bool
+    host_start_s: float
+    host_end_s: float
+    valid: bool = True
+    reason: str = ""
+
+    def __post_init__(self) -> None:
+        if not self.source or not self.session_id:
+            raise ValueError("source and session_id must be non-empty")
+        _finite("host_start_s", self.host_start_s)
+        _finite("host_end_s", self.host_end_s)
+        if self.host_end_s < self.host_start_s:
+            raise ValueError("host_end_s cannot precede host_start_s")
+        if not self.valid and not self.reason:
+            raise ValueError("an invalid batch must give a reason")
+        if not self.valid and self.detections:
+            raise ValueError("an invalid batch cannot carry detections")
+        if not self.tracked and any(d.track_id is not None for d in self.detections):
+            raise ValueError("untracked batches must not carry track ids")
+
+    @property
+    def latency_s(self) -> float:
+        return self.host_end_s - self.host_start_s
+
+    def track_key(self, detection: Detection2D) -> Optional[str]:
+        """Globally unique identity ``source/session/track``, or ``None``."""
+        if detection.track_id is None:
+            return None
+        return f"{self.source}/{self.session_id}/{detection.track_id}"
+
+
+@runtime_checkable
+class Detector(Protocol):
+    """What the stack needs from any object detector, local or remote.
+
+    ``reset`` starts a new tracker session and must drop all track history.
+    ``infer`` never raises for backend failures: it returns a batch with
+    ``valid=False`` and a reason, so the stack can fall back or stop.
+    """
+
+    source: str
+    model_version: str
+
+    def reset(self, session_id: str) -> None: ...
+
+    def infer(self, rgb: np.ndarray, frame_id: int, track: bool = True) -> DetectionBatch: ...
 
 
 # ---------------------------------------------------------------------- diagnostics

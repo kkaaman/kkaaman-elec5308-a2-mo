@@ -115,3 +115,60 @@ signatures:
 - **E3:** `LaneGraph` and `Mission`.
 
 Every extension flag defaults to off.
+
+## Detector and obstacle contracts (BL-C-01)
+
+### Detector
+
+Any detector, whether local YOLO, the remote server or a test fake,
+implements `autonomy.interfaces.Detector`:
+
+```python
+class Detector(Protocol):
+    source: str            # "local", "remote", ...
+    model_version: str     # model file + checksum prefix
+    def reset(self, session_id: str) -> None: ...          # new episode: drop all tracks
+    def infer(self, rgb, frame_id, track=True) -> DetectionBatch: ...
+```
+
+- **Identities are namespaced.** A `track_id` only means something inside its
+  batch's `source` and `session_id`. Use `batch.track_key(detection)`
+  (`"local/episode-3/12"`) wherever identities cross sources or episodes.
+  Local and remote trackers never share numbering.
+- **Untracked is explicit.** `detect`-style calls return `tracked=False` and
+  no track ids.
+- **Invalid is not empty.** A failed, timed-out or stale call returns
+  `DetectionBatch(valid=False, reason=...)` with no detections. A valid batch
+  with no detections means the detector saw nothing.
+- **Timing.** `host_start_s` and `host_end_s` are client-side host times
+  around the call. A server's own clock is never compared with them.
+- **Boxes.** `ImageBox` is the canonical validated box (`x_max > x_min`,
+  `y_max > y_min`). The A1 `perception.BoundingBox` and
+  `traffic_perception.BoundingBox` are adapted to it (RV-04).
+
+The A1 `ObjectDetector.detect/track` stay as they are. BL-C-02 adds `reset`,
+the tracker setting and timing so the A1 detector satisfies this protocol.
+`sim_harness.fake_detectors` provides `FakeLocalDetector` and
+`FakeRemoteDetector`, which can simulate outages, for CI.
+
+### Obstacles
+
+`obstacle_perception.types.Obstacle` is one object from one source at one
+frame:
+
+| Field | Meaning |
+|---|---|
+| `source`, `frame_id`, `sim_time_s` | Who saw it and when |
+| `obstacle_class`, `label`, `confidence` | Coarse class (`vehicle`, `pedestrian`, `cyclist`, `unknown`), detector label, score |
+| `footprint_vehicle` | Oriented rectangle in the vehicle frame **at capture time** |
+| `footprint_world` | The same in the world frame, using the capture-time pose |
+| `range_m`, `range_sigma_m`, `range_method` | Sensor-to-nearest-surface distance, one-sigma uncertainty, and method. `ground_projection` and `known_width` are flagged fallbacks |
+| `track_key` | Namespaced identity, or `None` |
+| `route_s_m`, `route_d_m` | Along-route and lateral intervals, filled by the corridor (BL-D-04) |
+| `confirmed` | Set by the track filter (BL-C-04) |
+
+`ObstacleSourceResult` is everything one source reports for one frame:
+`health` (`ok`, `degraded`, `failed`), the obstacles, and
+`coverage_range_m`, how far it could actually see. `reports_clear(d)` is
+true only when the source is healthy, sees at least `d` metres, and found
+nothing. A track expiring or a source failing is never evidence of free road.
