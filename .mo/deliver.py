@@ -251,10 +251,8 @@ def cmd_deliver(args: argparse.Namespace) -> None:
     branch = args.branch or "deliver/" + "-".join(args.ids)[:60]
     # Try the smallest set first; add earlier tasks touching the same files
     # only if the smaller set does not apply cleanly onto team main.
-    if not args.no_deps and ref_exists(TEAM_MAIN):
-        wider = [t for t in _file_deps(ids, mine, delivered) if t not in skip]
-        if wider != ids and not _applies_cleanly(commits_for(ids)):
-            ids = wider
+    if ref_exists(TEAM_MAIN):  # always: a set that cannot apply is never useful
+        ids = _minimal_applicable(ids, mine, delivered, skip, commits_for, pos)
     commits = commits_for(ids)
 
     print(f"branch : {branch}")
@@ -350,6 +348,41 @@ def _prepare_worktree(branch: str) -> None:
         print(f"team main has unrelated history; basing on {BASE_TAG} + merge of team main")
         git("merge", "--allow-unrelated-histories", "-X", "ours", "--no-edit",
             "-m", "Merge initial team repository commit into A1 baseline", TEAM_MAIN, cwd=WORKTREE)
+
+
+def _minimal_applicable(ids: list[str], mine: dict, delivered: set, skip: set,
+                        commits_for, pos: dict) -> list[str]:
+    """Grow ``ids`` one task at a time until its changes apply onto team main.
+
+    Each step adds the most recent earlier undelivered task that touches a file
+    the current set touches. Falls back to every such task if that never works.
+    """
+    current = list(ids)
+    wider = [t for t in _file_deps(current, mine, delivered) if t not in skip]
+    for _ in range(len(wider)):
+        if _applies_cleanly(commits_for(current)):
+            break
+        touched = {f for t in current for c in mine[t]
+                   for f in git("diff-tree", "--no-commit-id", "--name-only", "-r", c).split()}
+        candidates = []
+        for t in wider:
+            if t in current:
+                continue
+            files = {f for c in mine[t] for f in git("diff-tree", "--no-commit-id", "--name-only", "-r", c).split()}
+            latest = max(pos[c] for c in mine[t])
+            if files & touched and latest < max(pos[c] for x in current for c in mine[x]):
+                candidates.append((latest, t))
+        if not candidates:
+            break
+        current.append(max(candidates)[1])
+    if not _applies_cleanly(commits_for(current)):
+        return sorted(set(current) | set(wider))
+    # Prune: drop any added task the others do not actually need.
+    for task in sorted((t for t in current if t not in ids), key=lambda t: -max(pos[c] for c in mine[t])):
+        trial = [t for t in current if t != task]
+        if _applies_cleanly(commits_for(trial)):
+            current = trial
+    return sorted(current)
 
 
 def _applies_cleanly(commits: list[str]) -> bool:
@@ -450,7 +483,8 @@ def main() -> None:
     s.set_defaults(fn=cmd_status)
     d = sub.add_parser("deliver")
     d.add_argument("ids", nargs="+")
-    d.add_argument("--no-deps", action="store_true", help="do not pull in undelivered dependencies")
+    d.add_argument("--no-deps", action="store_true",
+                   help="ignore the board's Depends On chain (tasks needed for the changes to apply are still added)")
     d.add_argument("--skip", nargs="*", default=[], help="task ids to leave out (e.g. teammate delivered their own)")
     d.add_argument("--redeliver", nargs="*", default=[], help="treat these as not yet on team main")
     d.add_argument("--branch")
