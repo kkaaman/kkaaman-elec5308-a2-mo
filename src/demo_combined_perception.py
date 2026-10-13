@@ -39,6 +39,11 @@ fails with a "not implemented" error.
 Usage:
     python demo_combined_perception.py
     python demo_combined_perception.py --town Town01
+
+    # ADDED (A2, BL-B-05 prep): choose the segmentation model for layer 1
+    python demo_combined_perception.py --seg-backend segformer_b0
+    python demo_combined_perception.py --seg-backend yolo_seg
+    python demo_combined_perception.py --seg-backend yolo_seg --seg-weights ../yolov8n-seg.pt
 """
 
 import argparse
@@ -52,6 +57,12 @@ import cv2
 import numpy as np
 
 sys.path.insert(0, ".")
+from demo_segmentation import (
+    add_segmentation_args,
+    build_demo_segmenter,
+    require_real_weights,
+    required_weight_files,
+)
 from overlay_enhancements import (
     LaneTemporalSmoother,
     PerceptionHUD,
@@ -368,7 +379,33 @@ def main() -> None:
              "--town help for why a simple single-lane-per-direction town "
              "avoids the ego-lane heuristic's multi-lane ambiguity.",
     )
+    add_segmentation_args(parser)  # ADDED (A2)
     args = parser.parse_args()
+
+    # CHANGED (A2): check weights and load every model BEFORE spawning the car
+    # and sensors, so a model failure exits cleanly instead of leaving actors
+    # in the world.
+    for weights_path in required_weight_files(args, LANE_WEIGHTS):
+        require_real_weights(weights_path)
+    print("Loading models (this can take a moment)...")
+    # CHANGED (A2): segmentation backend is selectable (--seg-backend); the
+    # default is still the A1 BiSeNetV2 with the same weights and input size.
+    segmenter = build_demo_segmenter(args)
+    window_title = f"Combined perception overlay [{segmenter.name}]"
+    detector = ObjectDetector(
+        PerceptionConfig(
+            model_name="yolo26n.pt",
+            confidence_threshold=0.20,
+        )
+    )
+    lane_segmenter = LaneSegmenter(checkpoint_path=LANE_WEIGHTS)
+    shared_detection_state = {"detections": ()}
+    traffic_perception = TrafficPerception(
+        make_cached_backend(shared_detection_state),
+        confidence_threshold=0.4,
+        object_widths_m=OBJECT_WIDTHS_M,
+    )
+    print("Models loaded. Connecting to CARLA and spawning the car...")
 
     client = carla.Client("localhost", 2000)
     client.set_timeout(60.0)
@@ -435,22 +472,6 @@ def main() -> None:
 
     camera.listen(on_frame)
 
-    print("Loading models (this can take a moment)...")
-    segmenter = SemanticSegmenter(weights_path=SEGMENTATION_WEIGHTS, input_size=(512, 256))
-    detector = ObjectDetector(
-        PerceptionConfig(
-            model_name="yolo26n.pt",
-            confidence_threshold=0.20,
-        )
-    )
-    lane_segmenter = LaneSegmenter(checkpoint_path=LANE_WEIGHTS)
-    shared_detection_state = {"detections": ()}
-    traffic_perception = TrafficPerception(
-        make_cached_backend(shared_detection_state),
-        confidence_threshold=0.4,
-        object_widths_m=OBJECT_WIDTHS_M,
-    )
-    print("Models loaded. Starting live overlay.")
     print("Keys: 1=segmentation 2=objects 3=traffic 4=lane 0=toggle all  q=quit")
 
     # CHANGED: start with everything OFF -- the presenter toggles each
@@ -502,9 +523,12 @@ def main() -> None:
                 frames_processed += 1
                 frame_times.append(time.time() - frame_start)
                 if frames_processed % FPS_LOG_INTERVAL == 0 and frame_times:
-                    print(f"[{frames_processed} frames] combined pipeline FPS: {current_fps:.1f}")
+                    print(
+                        f"[{frames_processed} frames] combined pipeline FPS: {current_fps:.1f}"
+                        f"  {segmenter.timing_text()}"  # ADDED (A2)
+                    )
 
-                cv2.imshow("Combined perception overlay", overlay_bgr)
+                cv2.imshow(window_title, overlay_bgr)
                 key = cv2.waitKey(1) & 0xFF
                 if key == ord("q"):
                     break

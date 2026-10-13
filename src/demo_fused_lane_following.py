@@ -104,6 +104,11 @@ Keys during the live window:
 Usage:
     python demo_fused_lane_following.py
     python demo_fused_lane_following.py --town Town01
+
+    # ADDED (A2, BL-B-05 prep): choose the segmentation model (display layer only;
+    # a slower model still slows this real-time control loop -- watch the fps)
+    python demo_fused_lane_following.py --seg-backend segformer_b0
+    python demo_fused_lane_following.py --seg-backend yolo_seg
 """
 
 import argparse
@@ -118,6 +123,12 @@ import numpy as np
 
 sys.path.insert(0, ".")
 from carla_adapter.adapter import apply_command, carla_vehicle_to_state
+from demo_segmentation import (
+    add_segmentation_args,
+    build_demo_segmenter,
+    require_real_weights,
+    required_weight_files,
+)
 from ground_projection import (  # noqa: F401 (re-exported for reference)
     pixel_to_vehicle_local,
     vehicle_local_to_world,
@@ -134,7 +145,6 @@ from overlay_enhancements import (
 from perception import ObjectDetector, PerceptionConfig
 from perception.lane_inference import LaneSegmenter
 from perception.lane_path import draw_ego_path, extract_ego_path
-from segmentation.segmentation import SemanticSegmenter
 from traffic_light_color import classify_traffic_light_color
 from traffic_perception import BoundingBox, ModelPrediction, TrafficCategory, TrafficPerception
 from turn_decision import (
@@ -437,7 +447,31 @@ def main() -> None:
              "disambiguate. A simple single-lane-per-direction town (e.g. "
              "Town01) avoids this entirely for a smoother demo.",
     )
+    add_segmentation_args(parser)  # ADDED (A2)
     args = parser.parse_args()
+
+    # CHANGED (A2): check weights and load every model BEFORE spawning the car
+    # and sensors, so a model failure exits cleanly instead of leaving actors
+    # in the world.
+    for weights_path in required_weight_files(args, LANE_WEIGHTS):
+        require_real_weights(weights_path)
+    print("Loading models (this can take a moment)...")
+    lane_segmenter = LaneSegmenter(checkpoint_path=LANE_WEIGHTS)
+    # CHANGED (A2): segmentation backend is selectable (--seg-backend); the
+    # default is still the A1 BiSeNetV2 with the same weights and input size.
+    segmenter = build_demo_segmenter(args)
+    detector = ObjectDetector(
+        PerceptionConfig(
+            model_name="yolo26n.pt",
+            confidence_threshold=0.20,
+        )
+    )
+    shared_detection_state = {"detections": ()}
+    traffic_perception = TrafficPerception(
+        make_cached_backend(shared_detection_state),
+        confidence_threshold=0.4,
+        object_widths_m=OBJECT_WIDTHS_M,
+    )
 
     client = carla.Client("localhost", 2000)
     client.set_timeout(60.0)
@@ -506,22 +540,6 @@ def main() -> None:
         captured["frame"] = np.ascontiguousarray(rgb)
 
     camera.listen(on_frame)
-
-    print("Loading models (this can take a moment)...")
-    lane_segmenter = LaneSegmenter(checkpoint_path=LANE_WEIGHTS)
-    segmenter = SemanticSegmenter(weights_path=SEGMENTATION_WEIGHTS, input_size=(512, 256))
-    detector = ObjectDetector(
-        PerceptionConfig(
-            model_name="yolo26n.pt",
-            confidence_threshold=0.20,
-        )
-    )
-    shared_detection_state = {"detections": ()}
-    traffic_perception = TrafficPerception(
-        make_cached_backend(shared_detection_state),
-        confidence_threshold=0.4,
-        object_widths_m=OBJECT_WIDTHS_M,
-    )
 
     config = ControllerConfig(wheelbase_m=2.5, max_steering_angle_rad=0.6, lookahead_m=5.0)
     follower = PathFollower(config)
@@ -812,7 +830,7 @@ def main() -> None:
                     display_bgr, "STOPPING FOR LIGHT", (10, 95),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2,
                 )
-            cv2.imshow("Fused lane following", display_bgr)
+            cv2.imshow(f"Fused lane following [{segmenter.name}]", display_bgr)
             key = cv2.waitKey(1) & 0xFF
             if key == ord("q"):
                 break
@@ -834,6 +852,7 @@ def main() -> None:
                     f"fps={fps_str}  "
                     f"steer={command.steering_angle_rad:+.3f}  throttle={command.throttle:.2f}  "
                     f"brake={command.brake:.2f}  consecutive_misses={consecutive_misses}"
+                    f"  {segmenter.timing_text()}"  # ADDED (A2)
                 )
                 last_print = time.time()
 

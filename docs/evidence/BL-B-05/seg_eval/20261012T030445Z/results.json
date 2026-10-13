@@ -1,0 +1,218 @@
+{
+  "task": "BL-B-05 segmentation backend comparison",
+  "started_utc": "2026-10-12T03:04:45+00:00",
+  "host": "WCB3LJ64",
+  "python": "3.12.0",
+  "images": [
+    "runs\\smoke\\WCB3LJ64-20261012T020521Z\\rgb.png",
+    "runs\\smoke\\WCB3LJ64-20261012T020819Z\\rgb.png",
+    "runs\\smoke\\WCB3LJ64-20261012T020840Z\\rgb.png"
+  ],
+  "labels": [
+    "runs\\smoke\\WCB3LJ64-20261012T020521Z\\semantic.png",
+    "runs\\smoke\\WCB3LJ64-20261012T020819Z\\semantic.png",
+    "runs\\smoke\\WCB3LJ64-20261012T020840Z\\semantic.png"
+  ],
+  "label_format": "carla-palette",
+  "results": [
+    {
+      "backend": "bisenetv2",
+      "weights": "segmentation_model.pth",
+      "load_s": 0.53,
+      "device": "cuda",
+      "labels_all_classes": true,
+      "timing_ms": {
+        "mean": 12.2,
+        "p50": 12.17,
+        "p95": 12.66,
+        "n": 20
+      },
+      "predicted_class_fraction": {
+        "road": 0.435,
+        "sidewalk": 0.015,
+        "building": 0.3326,
+        "pole": 0.0002,
+        "traffic light": 0.0003,
+        "traffic sign": 0.0144,
+        "vegetation": 0.1425,
+        "sky": 0.0443,
+        "person": 0.0007,
+        "car": 0.0151
+      },
+      "metrics": {
+        "obstacle_miou": 0.0,
+        "miou_19": 0.3445,
+        "pixel_accuracy": 0.8755,
+        "per_class_iou": {
+          "road": 0.9587,
+          "sidewalk": 0.3145,
+          "building": 0.7577,
+          "wall": null,
+          "fence": null,
+          "pole": 0.0027,
+          "traffic light": 0.0255,
+          "traffic sign": 0.0238,
+          "vegetation": 0.6299,
+          "terrain": null,
+          "sky": 0.7325,
+          "person": null,
+          "rider": null,
+          "car": 0.0,
+          "truck": null,
+          "bus": null,
+          "train": null,
+          "motorcycle": 0.0,
+          "bicycle": null
+        },
+        "evaluated_pixels": 1060070
+      },
+      "label_colour_match": 0.9815
+    },
+    {
+      "backend": "segformer_b0",
+      "weights": "nvidia/segformer-b0-finetuned-cityscapes-1024-1024",
+      "load_s": 12.05,
+      "device": "cuda",
+      "labels_all_classes": true,
+      "timing_ms": {
+        "mean": 47.17,
+        "p50": 47.04,
+        "p95": 49.56,
+        "n": 20
+      },
+      "predicted_class_fraction": {
+        "road": 0.457,
+        "sidewalk": 0.0068,
+        "building": 0.3491,
+        "pole": 0.0016,
+        "traffic light": 0.0007,
+        "traffic sign": 0.0011,
+        "vegetation": 0.1344,
+        "terrain": 0.0002,
+        "sky": 0.0467,
+        "person": 0.001,
+        "car": 0.0007,
+        "bus": 0.0008
+      },
+      "metrics": {
+        "obstacle_miou": 0.0,
+        "miou_19": 0.4008,
+        "pixel_accuracy": 0.9372,
+        "per_class_iou": {
+          "road": 0.986,
+          "sidewalk": 0.3523,
+          "building": 0.8706,
+          "wall": null,
+          "fence": null,
+          "pole": 0.0898,
+          "traffic light": 0.0871,
+          "traffic sign": 0.0004,
+          "vegetation": 0.7764,
+          "terrain": null,
+          "sky": 0.8453,
+          "person": null,
+          "rider": null,
+          "car": 0.0,
+          "truck": null,
+          "bus": null,
+          "train": null,
+          "motorcycle": 0.0,
+          "bicycle": null
+        },
+        "evaluated_pixels": 1060070
+      },
+      "label_colour_match": 0.9815
+    },
+    {
+      "backend": "yolo_seg",
+      "weights": "yolov8n-seg.pt",
+      "load_s": 1.32,
+      "device": "cuda",
+      "labels_all_classes": false,
+      "timing_ms": {
+        "mean": 23.34,
+        "p50": 23.38,
+        "p95": 25.5,
+        "n": 20
+      },
+      "predicted_class_fraction": {
+        "traffic light": 0.0021,
+        "unlabelled": 0.9979
+      },
+      "metrics": {
+        "obstacle_miou": 0.0,
+        "miou_19": null,
+        "pixel_accuracy": null,
+        "per_class_iou": {
+          "road": 0.0,
+          "sidewalk": 0.0,
+          "building": 0.0,
+          "wall": null,
+          "fence": null,
+          "pole": 0.0,
+          "traffic light": 0.2428,
+          "traffic sign": 0.0,
+          "vegetation": 0.0,
+          "terrain": null,
+          "sky": 0.0,
+          "person": null,
+          "rider": null,
+          "car": 0.0,
+          "truck": null,
+          "bus": null,
+          "train": null,
+          "motorcycle": 0.0,
+          "bicycle": null
+        },
+        "evaluated_pixels": 1060070
+      },
+      "label_colour_match": 0.9815
+    },
+    {
+      "backend": "yolo_seg",
+      "weights": "yolo26n-seg.pt",
+      "load_s": 1.13,
+      "device": "cuda",
+      "labels_all_classes": false,
+      "timing_ms": {
+        "mean": 33.3,
+        "p50": 33.38,
+        "p95": 34.79,
+        "n": 20
+      },
+      "predicted_class_fraction": {
+        "traffic light": 0.0055,
+        "car": 0.0006,
+        "unlabelled": 0.9939
+      },
+      "metrics": {
+        "obstacle_miou": 0.3362,
+        "miou_19": null,
+        "pixel_accuracy": null,
+        "per_class_iou": {
+          "road": 0.0,
+          "sidewalk": 0.0,
+          "building": 0.0,
+          "wall": null,
+          "fence": null,
+          "pole": 0.0,
+          "traffic light": 0.6673,
+          "traffic sign": 0.0,
+          "vegetation": 0.0,
+          "terrain": null,
+          "sky": 0.0,
+          "person": null,
+          "rider": null,
+          "car": 0.6725,
+          "truck": null,
+          "bus": null,
+          "train": null,
+          "motorcycle": 0.0,
+          "bicycle": null
+        },
+        "evaluated_pixels": 1060070
+      },
+      "label_colour_match": 0.9815
+    }
+  ]
+}
