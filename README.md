@@ -14,6 +14,37 @@ margin, holds while the road is blocked, and resumes after perceived clearance.
 - **A1 starting point and setup checklist:** [docs/repository_setup.md](docs/repository_setup.md)
 - **Decision log:** [docs/decisions.md](docs/decisions.md)
 
+## Where things go (Assignment 2)
+
+Every A2 workstream already has a home. Add your modules to the folder below
+instead of creating new top-level folders. Each package's `__init__.py` lists
+its planned modules, with task IDs and owners.
+
+| Path | Contents | Workstream |
+|---|---|---|
+| `src/autonomy/` | Shared contracts (`interfaces.py`), the stack (`stack.py`), `paths.py` | F |
+| `src/carla_adapter/` | **The only code that imports `carla`**: world, vehicle, sensors, topology, scenarios, ground truth | E, B |
+| `src/sim_harness/` | `KinematicWorld`: CARLA-free test world | F |
+| `src/geometry/` | Camera model, transforms, ground projection | D |
+| `src/obstacle_perception/` | Box depth, association, track filtering, LiDAR obstacles | B, C, D |
+| `src/planning/` | Route, junctions, corridor, speed governor, behaviour, Wayfinder, parking | A, D, E3, E5 |
+| `src/evaluation/` | Run logger, metrics, evaluation-only ground truth | F, B |
+| `src/visualisation/` | HUD, overlays, lane monitor, mini-map | E, E3 |
+| `src/cloud/` | Optional hybrid inference client and server (off by default) | E4 |
+| `src/perception/`, `src/segmentation/`, `src/traffic_perception/`, `src/navigation_control/` | A1 packages, extended in place with their public APIs kept | C, B, D, A |
+| `configs/` | YAML for stack, sensors, vehicles, scenarios, weather, release | All |
+| `scripts/` | Thin command-line entry points (`run_scenario.py`, `run_acceptance_suite.py`, …) | All |
+| `tests/unit/`, `tests/integration/`, `tests/fixtures/`, `tests/carla/` | Unit, cross-package, test data, live-CARLA tests | All |
+| `runs/` | Raw run outputs, ignored by git | All |
+
+**Paths:**
+- After `pip install -e ".[test,docs]"`, import everything by package name
+  from any folder. There's no need to `cd src` or edit `sys.path`.
+- Find repository files with `autonomy.paths` instead of relative paths:
+  `model_path("segmentation")`, `config_path("scenarios/S0")`,
+  `run_dir("S0", run_id)`.
+- `model_path` also tells you when weights are still Git LFS pointers.
+
 ## Assignment 1 library (inherited baseline)
 
 A simulator-agnostic Python library providing lane/driving-area detection,

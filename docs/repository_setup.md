@@ -76,6 +76,7 @@ These come from A1 merge-commit messages and the first A2 pull request. Confirm 
 - [x] A1 starting point preserved with full history, tag `a1-final`, and hashes recorded
 - [x] A1 compatibility tests retained and passing (106)
 - [x] Branch and PR policy (decision D-002), PR template with AI disclosure, task issue template
+- [x] A2 folder layout (packages, `configs/`, `scripts/`, test folders) and `autonomy.paths`, so code runs from any working directory
 - [ ] Branch protection on `main` (admin): require a PR with 1 approval, require the `lint`, `test` and `docs` checks, block force pushes and deletions
 - [ ] All six members confirmed able to open PRs
 - [ ] Initial issues imported from the task board, one per Task ID

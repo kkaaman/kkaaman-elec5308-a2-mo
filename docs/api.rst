@@ -32,3 +32,28 @@ CARLA Adapter
    :members:
    :undoc-members:
    :show-inheritance:
+
+Assignment 2 packages
+---------------------
+
+These packages hold the A2 work. Each module docstring lists its planned
+contents and task owners until the code lands.
+
+.. automodule:: autonomy
+
+.. automodule:: autonomy.paths
+   :members:
+
+.. automodule:: sim_harness
+
+.. automodule:: geometry
+
+.. automodule:: obstacle_perception
+
+.. automodule:: planning
+
+.. automodule:: evaluation
+
+.. automodule:: visualisation
+
+.. automodule:: cloud
