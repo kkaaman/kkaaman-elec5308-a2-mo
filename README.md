@@ -1,4 +1,51 @@
-# Autonomous Perception and Navigation Library
+# Autonomous Perception and Navigation Library: Assignment 2
+
+ELEC5308 Group 7. Assignment 2 extends the Assignment 1 library into a
+reproducible, offline CARLA system. The car follows one fixed legal route in
+Town10HD, detects stationary vehicles and pedestrians, stops with a measured
+margin, holds while the road is blocked, and resumes after perceived clearance.
+
+> **Status:** this repository starts from the final Assignment 1 code (tag
+> `a1-final`, commit `a1f3112`) with its full history. A2 capabilities are added
+> task by task through reviewed pull requests. Until a feature's acceptance
+> evidence is linked under `docs/`, the sections below describe the inherited
+> A1 library, not A2 results.
+
+- **A1 starting point and setup checklist:** [docs/repository_setup.md](docs/repository_setup.md)
+- **Decision log:** [docs/decisions.md](docs/decisions.md)
+
+## Where things go (Assignment 2)
+
+Every A2 workstream already has a home. Add your modules to the folder below
+instead of creating new top-level folders. Each package's `__init__.py` lists
+its planned modules, with task IDs and owners.
+
+| Path | Contents | Workstream |
+|---|---|---|
+| `src/autonomy/` | Shared contracts (`interfaces.py`), the stack (`stack.py`), `paths.py` | F |
+| `src/carla_adapter/` | **The only code that imports `carla`**: world, vehicle, sensors, topology, scenarios, ground truth | E, B |
+| `src/sim_harness/` | `KinematicWorld`: CARLA-free test world | F |
+| `src/geometry/` | Camera model, transforms, ground projection | D |
+| `src/obstacle_perception/` | Box depth, association, track filtering, LiDAR obstacles | B, C, D |
+| `src/planning/` | Route, junctions, corridor, speed governor, behaviour, Wayfinder, parking | A, D, E3, E5 |
+| `src/evaluation/` | Run logger, metrics, evaluation-only ground truth | F, B |
+| `src/visualisation/` | HUD, overlays, lane monitor, mini-map | E, E3 |
+| `src/cloud/` | Optional hybrid inference client and server (off by default) | E4 |
+| `src/perception/`, `src/segmentation/`, `src/traffic_perception/`, `src/navigation_control/` | A1 packages, extended in place with their public APIs kept | C, B, D, A |
+| `configs/` | YAML for stack, sensors, vehicles, scenarios, weather, release | All |
+| `scripts/` | Thin command-line entry points (`run_scenario.py`, `run_acceptance_suite.py`, …) | All |
+| `tests/unit/`, `tests/integration/`, `tests/fixtures/`, `tests/carla/` | Unit, cross-package, test data, live-CARLA tests | All |
+| `runs/` | Raw run outputs, ignored by git | All |
+
+**Paths:**
+- After `pip install -e ".[test,docs]"`, import everything by package name
+  from any folder. There's no need to `cd src` or edit `sys.path`.
+- Find repository files with `autonomy.paths` instead of relative paths:
+  `model_path("segmentation")`, `config_path("scenarios/S0")`,
+  `run_dir("S0", run_id)`.
+- `model_path` also tells you when weights are still Git LFS pointers.
+
+## Assignment 1 library (inherited baseline)
 
 A simulator-agnostic Python library providing lane/driving-area detection,
 object detection and tracking, semantic segmentation, traffic-condition
@@ -361,8 +408,9 @@ areas for future improvement.
 From a fresh clone:
 
 ```bash
-git clone <repository-url>
-cd 26-S2-Assignment1-Group7
+git clone https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7.git
+cd 26-S2-Assignment2-Group7
+git lfs pull   # real *.pth weights; without Git LFS they are small pointer files
 
 python -m venv .venv
 source .venv/bin/activate
