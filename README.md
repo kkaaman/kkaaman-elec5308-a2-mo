@@ -11,7 +11,6 @@ margin, holds while the road is blocked, and resumes after perceived clearance.
 > evidence is linked under `docs/`, the sections below describe the inherited
 > A1 library, not A2 results.
 
-- **How we work** (branches, PRs, reviews, AI disclosure): [CONTRIBUTING.md](CONTRIBUTING.md)
 - **A1 starting point and setup checklist:** [docs/repository_setup.md](docs/repository_setup.md)
 - **Decision log:** [docs/decisions.md](docs/decisions.md)
 

@@ -57,9 +57,9 @@ CARLA run.
 3. **Dependencies are unpinned.** `pyproject.toml` sets no version bounds. Pin
    validated versions once the CARLA machines are inventoried (PROC-02).
 
-## GitHub handles seen in A1 pull requests
+## GitHub handles
 
-These come from A1 merge-commit messages. Confirm them before assigning issues.
+These come from A1 merge-commit messages and the first A2 pull request. Confirm them before assigning issues.
 
 | Member | Handle |
 |---|---|
@@ -68,14 +68,14 @@ These come from A1 merge-commit messages. Confirm them before assigning issues.
 | Abdullah | `Abdullah-Almutairi-uni` |
 | Zhaolin | `Zhaolin-Huang` |
 | Ricky | `RickyPurani` |
-| Saviour | Not seen in A1 PRs. Please confirm |
+| Saviour | `skwo0237` |
 
 ## PROC-01 checklist
 
 - [x] Repository URL recorded
 - [x] A1 starting point preserved with full history, tag `a1-final`, and hashes recorded
 - [x] A1 compatibility tests retained and passing (106)
-- [x] Branch and PR policy (`CONTRIBUTING.md`), PR template with AI disclosure, task issue template
-- [ ] Branch protection on `main` (admin, settings in `CONTRIBUTING.md`)
+- [x] Branch and PR policy (decision D-002), PR template with AI disclosure, task issue template
+- [ ] Branch protection on `main` (admin): require a PR with 1 approval, require the `lint`, `test` and `docs` checks, block force pushes and deletions
 - [ ] All six members confirmed able to open PRs
 - [ ] Initial issues imported from the task board, one per Task ID
