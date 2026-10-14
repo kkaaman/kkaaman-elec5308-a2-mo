@@ -16,14 +16,13 @@ Planned split of ``adapter.py``:
 The A1 functions below stay importable from here.
 """
 
-from .adapter import (
-    apply_command,
-    carla_vehicle_to_state,
-    command_to_carla_control,
-)
+__all__ = ["apply_command", "carla_vehicle_to_state", "command_to_carla_control"]
 
-__all__ = [
-    "apply_command",
-    "carla_vehicle_to_state",
-    "command_to_carla_control",
-]
+
+def __getattr__(name):
+    # Geometry and contracts remain importable without the optional CARLA wheel.
+    if name in __all__:
+        from importlib import import_module
+
+        return getattr(import_module(".adapter", __name__), name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
