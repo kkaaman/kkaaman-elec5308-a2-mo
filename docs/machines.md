@@ -21,12 +21,22 @@
 Evidence: terminal outputs reviewed during setup. Connection and vehicle
 spawn/cleanup passed. Full driving performance has not been benchmarked.
 
-## Remaining PROC-02 work
+## Team machines and demo arrangement
 
-- Collect OS, GPU, VRAM, Python and CARLA versions for Mohammad, Alan and Zhaolin.
-- Record each member's Town10HD smoke-test results.
-- Confirm availability for the demo.
-- Select primary and backup machines after comparing results.
-- Obtain Zhaolin's review.
+Abdullah confirms that Mohammad, Alan, Zhaolin and Abdullah use university
+PCs with the same hardware specifications. The recorded hardware above
+represents the shared specification, based on that confirmation.
 
-Demo selection: pending. Abdullah's machine is a verified candidate.
+| Member | Hardware evidence | CARLA smoke-test evidence |
+|---|---|---|
+| Abdullah | Measured locally | Connection, Town10HD_Opt, spawn and cleanup passed |
+| Mohammad | Same specifications, confirmed by Abdullah | Not independently recorded |
+| Alan | Same specifications, confirmed by Abdullah | Not independently recorded |
+| Zhaolin | Same specifications, confirmed by Abdullah | Not independently recorded |
+
+Demo arrangement: university PC setup verified by Abdullah.
+A separate primary/backup ranking is omitted at Abdullah's direction
+because the team uses university PCs with the same specifications.
+
+Individual Python/client/server versions on the other PCs have not been
+independently recorded. Review requested from Zhaolin.
