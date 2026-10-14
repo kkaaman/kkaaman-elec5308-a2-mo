@@ -18,6 +18,9 @@ class RGBDSpecificationTests(unittest.TestCase):
         encoded = bgra[:, 2] + 256 * bgra[:, 1] + 65536 * bgra[:, 0]
         self.assertEqual(encoded.tolist(), [1, 256, 65536, 16777215])
         self.assertEqual(float(1000 * (encoded[-1] / 16777215)), 1000)
+        half_scale = 16777215 // 2
+        half_depth_m = 1000 * half_scale / 16777215
+        self.assertAlmostEqual(half_depth_m, 500.0, places=3)
 
     def test_off_axis_axial_and_range_are_distinct(self):
         ray_range = math.sqrt(5**2 + 10**2)

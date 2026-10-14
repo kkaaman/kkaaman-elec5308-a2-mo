@@ -34,8 +34,10 @@ The core FrameBundle contract requires optical axial Z depth. CARLA documentatio
 supplies the encoding but describes distance/depth-buffer terminology without a
 sufficient off-axis numerical example to establish the installed build's behaviour.
 Do not assume raw values are radial range and apply an unconditional correction.
-The older interfaces.md statement that raw depth must be converted from a range
-convention is an unverified assumption; this specification supersedes that claim.
+Any pre-existing documentation that assumes raw CARLA depth is radial range
+must be treated as provisional until the mandatory live convention test below
+is completed. BL-D-02 must use the convention established by that test rather
+than silently applying a range-to-axial conversion.
 
 For normalized pixel ray `(a,b,1)`, where a=(u-cx)/fx and b=(v-cy)/fy:
 - Axial Z: optical point is `(a*Z, b*Z, Z)`.
