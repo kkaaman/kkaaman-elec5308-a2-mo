@@ -25,3 +25,4 @@ demonstration for the autonomous perception and navigation library.
    acceptance
    depth-association
    interfaces
+   geometry
