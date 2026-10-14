@@ -1,0 +1,19 @@
+{
+  "mission_id": "town10hd-forward-open-v1",
+  "map": "Town10HD_Opt",
+  "direction": "forward",
+  "route_kind": "open_non_self_crossing",
+  "pose_reference": "rear_axle",
+  "coordinates": "right_handed_x_forward_y_left_z_up",
+  "tentative_manoeuvres": ["straight", "left", "straight", "right", "straight", "stop_at_goal"],
+  "route_selection_status": "PENDING_TOPOLOGY_EXPORT_AND_LIVE_VALIDATION",
+  "set_path_policy": "once_per_episode_before_first_update",
+  "hold_policy": "request_zero_speed_without_resetting_route",
+  "resume_policy": "fresh_valid_clearance_then_positive_speed_without_set_path",
+  "goal_policy": "latched_finished_until_explicit_reset",
+  "cruise_speed_mps_provisional": 5.0,
+  "speed_status": "PROVISIONAL_PENDING_VEHICLE_CALIBRATION",
+  "reverse_allowed": false,
+  "ego_truth_for_navigation": "PENDING_TUTOR_SCOPE_CONFIRMATION",
+  "obstacle_truth_for_control": false
+}
