@@ -1,0 +1,53 @@
+{
+  "utc": "2026-10-14T03:40:39.709224+00:00",
+  "models": {
+    "segmentation": {
+      "file": "segmentation_model.pth",
+      "size_bytes": 9505431,
+      "sha256": "a631440d3fe2ccd2554631bb49b1352c0efbbaffc2316caa79c288757e8dde2a",
+      "identity": "PASS",
+      "offline_copy": "PASS",
+      "backup_location": "C:\\Users\\aalm2391\\Downloads\\Group7_A2_model_backup",
+      "model_load_and_sample_inference": "PASS",
+      "labels_present": [
+        0,
+        1,
+        2,
+        5,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        15,
+        18
+      ]
+    }
+  },
+  "status": "PASS",
+  "source_commit": "c898a83446bb06d03be5c01825118080e7f8b1f6",
+  "origin": "https://github.com/Abdullah-Almutairi-uni/26-S2-Assignment2-Group7.git",
+  "tracked_changes": [
+    "src/autodrive/perception/lane_inference.py",
+    "src/autodrive/perception/lane_path.py",
+    "src/autodrive/perception/lane_segmentation.py",
+    "src/perception/lane_inference.py",
+    "src/perception/lane_path.py",
+    "src/perception/lane_segmentation.py",
+    "src/segmentation/segmentation.py"
+  ],
+  "python": "3.12.10 (tags/v3.12.10:0cc8128, Apr  8 2025, 12:21:36) [MSC v.1943 64 bit (AMD64)]",
+  "torch": "2.14.1+cpu",
+  "sample": {
+    "file": "street.jpg",
+    "sha256": "8bced898b5d6f3b306ffd835a0bba2267a5953e24633e61c266f4094a5387964",
+    "shape": [
+      597,
+      335,
+      3
+    ]
+  },
+  "scope": "Asset identity, offline copy and inference contract; not accuracy or driving acceptance."
+}

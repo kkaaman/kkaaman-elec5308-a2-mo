@@ -24,9 +24,11 @@ these types rather than creating competing controller commands.
 | Depth | HxW float32/float64 axial optical Z in metres, aligned to RGB |
 | Invalid depth | NaN; never reinterpret as clearance or zero range |
 
-CARLA's encoded camera depth must be decoded and converted from its range
-convention to this axial convention in the adapter. Raw BGRA bytes and encoded
-24-bit depth must not cross into the core. Any RGB resize requires corresponding
+CARLA's encoded camera depth must be decoded in the adapter. Whether the
+installed CARLA build reports axial optical depth or radial range must be
+established by an off-axis depth-convention validation before any conversion
+is applied. The core contract always receives axial optical Z depth in metres.
+Raw BGRA bytes and encoded 24-bit depth must not cross into the core. Any RGB resize requires corresponding
 intrinsics scaling and depth alignment. Ground projection belongs to workstream D.
 
 ## Packets
@@ -97,7 +99,7 @@ No approval is recorded by this implementation.
 | Saviour | Stack lifecycle, packet expiry, harness | Pending |
 | Ricky | Detection metadata and simulator boundary | Pending |
 | Mohammad | RGB-D tick alignment and invalid observations | Pending |
-| Alan | Optical transforms and depth convention | Pending |
+| Alan | Optical transforms and depth convention | Reviewed - 14 Oct 2026 |
 | Zhaolin | Graph transitions and rear-axle navigation frame | Pending |
 | Abdullah | Vehicle conversion and physical steering convention | Pending |
 

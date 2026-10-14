@@ -21,3 +21,7 @@ demonstration for the autonomous perception and navigation library.
 
    repository_setup
    decisions
+   assets
+   acceptance
+   depth-association
+   interfaces
