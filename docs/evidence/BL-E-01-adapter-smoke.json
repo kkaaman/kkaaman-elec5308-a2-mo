@@ -1,0 +1,21 @@
+{
+  "server": "0.9.16",
+  "map": "Carla/Maps/Town10HD_Opt",
+  "geometry": {
+    "wheelbase_m": 3.0046477824157307,
+    "rear_axle_offset_m": 1.3864075570114096,
+    "physical_steering_limit_rad": 1.2217303432379762,
+    "controller_steering_limit_rad": 0.3490658503988659
+  },
+  "state": {
+    "x_m": -66.03124626050453,
+    "y_m": -24.467158040176308,
+    "yaw_rad": -0.0027785285002933603,
+    "speed_mps": 0.0
+  },
+  "left_normalized_steer": -0.142857164144516,
+  "right_normalized_steer": 0.142857164144516,
+  "scope": "installed adapter geometry/state and parked command mapping; not dynamic calibration",
+  "cleanup": "PASS",
+  "status": "PASS"
+}
