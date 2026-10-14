@@ -1,0 +1,45 @@
+============================= test session starts =============================
+platform win32 -- Python 3.12.10, pytest-9.1.1, pluggy-1.6.0 -- C:\Users\aalm2391\26-S2-Assignment2-Group7-1\.venv\Scripts\python.exe
+cachedir: .pytest_cache
+rootdir: C:\Users\aalm2391\26-S2-Assignment2-Group7-1
+configfile: pyproject.toml
+plugins: anyio-4.15.1
+collecting ... collected 35 items
+
+tests/unit/test_geometry.py::test_bl_d01_worked_coordinate_example PASSED [  2%]
+tests/unit/test_geometry.py::test_pixel_world_roundtrip_multiple_headings[pixel0-10-0] PASSED [  5%]
+tests/unit/test_geometry.py::test_pixel_world_roundtrip_multiple_headings[pixel0-10-1.5707963267948966] PASSED [  8%]
+tests/unit/test_geometry.py::test_pixel_world_roundtrip_multiple_headings[pixel0-10--1.5707963267948966] PASSED [ 11%]
+tests/unit/test_geometry.py::test_pixel_world_roundtrip_multiple_headings[pixel0-10-3.141592653589793] PASSED [ 14%]
+tests/unit/test_geometry.py::test_pixel_world_roundtrip_multiple_headings[pixel0-10-0.37] PASSED [ 17%]
+tests/unit/test_geometry.py::test_pixel_world_roundtrip_multiple_headings[pixel1-10-0] PASSED [ 20%]
+tests/unit/test_geometry.py::test_pixel_world_roundtrip_multiple_headings[pixel1-10-1.5707963267948966] PASSED [ 22%]
+tests/unit/test_geometry.py::test_pixel_world_roundtrip_multiple_headings[pixel1-10--1.5707963267948966] PASSED [ 25%]
+tests/unit/test_geometry.py::test_pixel_world_roundtrip_multiple_headings[pixel1-10-3.141592653589793] PASSED [ 28%]
+tests/unit/test_geometry.py::test_pixel_world_roundtrip_multiple_headings[pixel1-10-0.37] PASSED [ 31%]
+tests/unit/test_geometry.py::test_pixel_world_roundtrip_multiple_headings[pixel2-3-0] PASSED [ 34%]
+tests/unit/test_geometry.py::test_pixel_world_roundtrip_multiple_headings[pixel2-3-1.5707963267948966] PASSED [ 37%]
+tests/unit/test_geometry.py::test_pixel_world_roundtrip_multiple_headings[pixel2-3--1.5707963267948966] PASSED [ 40%]
+tests/unit/test_geometry.py::test_pixel_world_roundtrip_multiple_headings[pixel2-3-3.141592653589793] PASSED [ 42%]
+tests/unit/test_geometry.py::test_pixel_world_roundtrip_multiple_headings[pixel2-3-0.37] PASSED [ 45%]
+tests/unit/test_geometry.py::test_ground_intersection_horizon_and_behind PASSED [ 48%]
+tests/unit/test_geometry.py::test_legacy_imports_are_canonical_and_preserve_valid_results PASSED [ 51%]
+tests/unit/test_geometry.py::test_invalid_intrinsics_rejected[kwargs0] PASSED [ 54%]
+tests/unit/test_geometry.py::test_invalid_intrinsics_rejected[kwargs1] PASSED [ 57%]
+tests/unit/test_geometry.py::test_invalid_intrinsics_rejected[kwargs2] PASSED [ 60%]
+tests/unit/test_geometry.py::test_invalid_intrinsics_rejected[kwargs3] PASSED [ 62%]
+tests/unit/test_geometry.py::test_invalid_intrinsics_rejected[kwargs4] PASSED [ 65%]
+tests/unit/test_geometry.py::test_invalid_intrinsics_rejected[kwargs5] PASSED [ 68%]
+tests/unit/test_geometry.py::test_invalid_depth_rejected[0] PASSED       [ 71%]
+tests/unit/test_geometry.py::test_invalid_depth_rejected[-1] PASSED      [ 74%]
+tests/unit/test_geometry.py::test_invalid_depth_rejected[nan] PASSED     [ 77%]
+tests/unit/test_geometry.py::test_invalid_depth_rejected[inf] PASSED     [ 80%]
+tests/unit/test_geometry.py::test_fov_radians_and_metre_distance PASSED  [ 82%]
+tests/unit/test_geometry.py::test_invalid_rigid_transform_rejected[reflection] PASSED [ 85%]
+tests/unit/test_geometry.py::test_invalid_rigid_transform_rejected[scale] PASSED [ 88%]
+tests/unit/test_geometry.py::test_invalid_rigid_transform_rejected[nan] PASSED [ 91%]
+tests/unit/test_geometry.py::test_invalid_rigid_transform_rejected[bad_shape] PASSED [ 94%]
+tests/unit/test_geometry.py::test_pitched_mount_intersection_and_distinct_focal_lengths PASSED [ 97%]
+tests/unit/test_geometry.py::test_legacy_invalid_inputs_and_behind_camera PASSED [100%]
+
+============================= 35 passed in 0.16s ==============================
