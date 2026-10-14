@@ -16,14 +16,17 @@ Planned split of ``adapter.py``:
 The A1 functions below stay importable from here.
 """
 
-from .adapter import (
-    apply_command,
-    carla_vehicle_to_state,
-    command_to_carla_control,
-)
-
 __all__ = [
     "apply_command",
     "carla_vehicle_to_state",
     "command_to_carla_control",
 ]
+
+
+def __getattr__(name):
+    """Keep A1 exports while deferring the SDK until they are requested."""
+    if name in __all__:
+        from . import adapter
+
+        return getattr(adapter, name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
