@@ -39,12 +39,13 @@ class LaneSegmenter:
         self.device = torch.device(device)
 
         self.model = LaneUNet(
-            num_classes=2
+            num_classes=2, pretrained=False
         ).to(self.device)
 
         state_dict = torch.load(
             checkpoint_path,
             map_location=self.device,
+            weights_only=True,
         )
 
         self.model.load_state_dict(state_dict)
@@ -58,6 +59,11 @@ class LaneSegmenter:
             raise TypeError(
                 "Input image must be a NumPy array."
             )
+
+        if image.ndim != 3 or image.shape[2] != 3 or 0 in image.shape:
+            raise ValueError("Expected a nonempty HxWx3 RGB image.")
+        if image.dtype != np.uint8:
+            raise ValueError("Expected uint8 RGB image.")
 
         original_height, original_width = image.shape[:2]
 
