@@ -1,0 +1,97 @@
+{
+  "server": "0.9.16",
+  "map": "Carla/Maps/Town10HD_Opt",
+  "initial_settings": {
+    "actor_active_distance": 2000.0,
+    "deterministic_ragdolls": true,
+    "fixed_delta_seconds": null,
+    "max_culling_distance": 0.0,
+    "max_substep_delta_time": 0.01,
+    "max_substeps": 10,
+    "no_rendering_mode": false,
+    "spectator_as_ego": true,
+    "substepping": true,
+    "synchronous_mode": false,
+    "tile_stream_distance": 3000.0
+  },
+  "cycles": [
+    {
+      "cycle": 1,
+      "frames": [
+        1356422,
+        1356423,
+        1356424,
+        1356425,
+        1356426,
+        1356427,
+        1356428,
+        1356429,
+        1356430,
+        1356431
+      ],
+      "delta_seconds": 0.05000000074505806,
+      "settings_restored": true,
+      "no_actor_leaks": true,
+      "timeout_stop": "NOT_APPLICABLE"
+    },
+    {
+      "cycle": 2,
+      "frames": [
+        1356439,
+        1356440,
+        1356441,
+        1356442,
+        1356443,
+        1356444,
+        1356445,
+        1356446,
+        1356447,
+        1356448
+      ],
+      "delta_seconds": 0.05000000074505806,
+      "settings_restored": true,
+      "no_actor_leaks": true,
+      "timeout_stop": "NOT_APPLICABLE"
+    },
+    {
+      "cycle": 3,
+      "frames": [
+        1356456,
+        1356457,
+        1356458,
+        1356459,
+        1356460,
+        1356461,
+        1356462,
+        1356463,
+        1356464,
+        1356465
+      ],
+      "delta_seconds": 0.05000000074505806,
+      "settings_restored": true,
+      "no_actor_leaks": true,
+      "timeout_stop": "NOT_APPLICABLE"
+    },
+    {
+      "cycle": 4,
+      "frames": [
+        1356473,
+        1356474,
+        1356475,
+        1356476,
+        1356477,
+        1356478,
+        1356479,
+        1356480,
+        1356481,
+        1356482
+      ],
+      "delta_seconds": 0.05000000074505806,
+      "settings_restored": true,
+      "no_actor_leaks": true,
+      "timeout_stop": "PASS_INJECTED_TIMEOUT_REACHABLE_SERVER"
+    }
+  ],
+  "status": "PASS",
+  "scope": "sensor-free lifecycle; timeout is injected with reachable server"
+}
