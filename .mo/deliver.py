@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import json
 import re
 import shutil
 import subprocess
@@ -280,6 +281,8 @@ def cmd_deliver(args: argparse.Namespace) -> None:
         _push_and_pr(branch, ids, tasks)
         return
 
+    journal = _read_journal(args.journal) if args.journal else ""
+
     # Default: apply the changes only. Commits are made on this machine, as you.
     groups = _task_groups(commits)
     for tid, group in groups:
@@ -287,7 +290,8 @@ def cmd_deliver(args: argparse.Namespace) -> None:
         if proc.returncode != 0:
             print(f"\nConflict while applying {tid} in {WORKTREE}. Resolve the files, `git add` them,\n"
                   "then commit there yourself with the message below and re-run deliver for any\n"
-                  "remaining tasks:\n\n" + _commit_message(tid, tasks, group))
+                  "remaining tasks:\n\n" + _commit_message(tid, tasks, group,
+                                                       journal=journal if tid in args.ids else ""))
             sys.exit(1)
         if not args.commit:
             continue
@@ -295,8 +299,8 @@ def cmd_deliver(args: argparse.Namespace) -> None:
             print(f"  {tid}: no changes left to apply (already on team main), skipped")
             continue
         git("-c", f"user.name={AUTHOR_NAME}", "-c", f"user.email={AUTHOR_EMAIL}",
-            "commit", "--quiet", "--no-verify", "-F", "-", cwd=WORKTREE,
-            input_text=_commit_message(tid, tasks, group))
+            "commit", "--quiet", "--no-verify", "--cleanup=whitespace", "-F", "-", cwd=WORKTREE,
+            input_text=_commit_message(tid, tasks, group, journal=journal if tid in args.ids else ""))
         print(f"  committed {tid}: {git('log', '-1', '--format=%h %an <%ae>', cwd=WORKTREE)}")
 
     if args.commit:
@@ -306,7 +310,22 @@ def cmd_deliver(args: argparse.Namespace) -> None:
           "Review them there, commit as yourself, then push and open the PR:\n"
           f"  cd \"{WORKTREE}\"\n  git status\n  git commit\n"
           f"  cd \"{ROOT}\"\n  python .mo/deliver.py pr {branch}\n"
-          "\nSuggested commit message:\n\n" + _commit_message(ids[0], tasks, commits, all_ids=ids))
+          "\nSuggested commit message:\n\n" + _commit_message(ids[0], tasks, commits, all_ids=ids,
+                                                               journal=journal))
+
+
+def _read_journal(path: Path) -> str:
+    """Return the AI Journal export exactly as written (JSON or text), trimmed."""
+    if not path.is_file():
+        sys.exit(f"journal file not found: {path}")
+    text = path.read_text(encoding="utf-8-sig").strip()
+    if not text:
+        sys.exit(f"journal file is empty: {path}")
+    try:
+        json.loads(text)
+    except ValueError:
+        print(f"note: {path.name} is not valid JSON; it is included as plain text")
+    return text
 
 
 def _task_groups(commits: list[str]) -> list[tuple[str, list[str]]]:
@@ -321,8 +340,10 @@ def _task_groups(commits: list[str]) -> list[tuple[str, list[str]]]:
     return groups
 
 
-def _commit_message(tid: str, tasks: dict, commits: list[str], all_ids: list[str] | None = None) -> str:
-    """Commit message for the team repo: task title, Task trailer(s), AI disclosure; no co-author lines."""
+def _commit_message(tid: str, tasks: dict, commits: list[str], all_ids: list[str] | None = None,
+                    journal: str = "") -> str:
+    """Commit message for the team repo: task title, optional AI Journal, Task trailer(s) and AI
+    disclosure; no co-author lines. The journal goes above the trailers so git still reads them."""
     ids = all_ids or [tid]
     subject = f"[{tid}] {tasks[tid]['title']}" if len(ids) == 1 else f"[{', '.join(ids)}] " + tasks[ids[0]]["title"]
     ai = ""
@@ -331,7 +352,10 @@ def _commit_message(tid: str, tasks: dict, commits: list[str], all_ids: list[str
         if found:
             ai = found.splitlines()[0]
             break
-    lines = [subject, ""] + [f"Task: {t}" for t in ids]
+    lines = [subject, ""]
+    if journal:
+        lines += ["AI Journal:", journal, ""]
+    lines += [f"Task: {t}" for t in ids]
     if ai:
         lines.append(f"AI-assisted: {ai}")
     return "\n".join(lines) + "\n"
@@ -489,6 +513,8 @@ def main() -> None:
     d.add_argument("--redeliver", nargs="*", default=[], help="treat these as not yet on team main")
     d.add_argument("--branch")
     d.add_argument("--seed-team", action="store_true", help="push A1 baseline as team main if it is empty")
+    d.add_argument("--journal", type=Path, metavar="FILE",
+                   help="AI Journal export (JSON) to include in the requested task's commit message")
     d.add_argument("--commit", action="store_true",
                    help="commit each task as you (local git identity) and push + open the PR")
     d.add_argument("--keep-commits", action="store_true",
