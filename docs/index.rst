@@ -27,3 +27,14 @@ demonstration for the autonomous perception and navigation library.
    interfaces
    geometry
    lane-topology
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Task records
+
+   controller_audit
+   detector_contracts
+   lane_recovery
+   stack_skeleton
+   vehicle_adapter
+   world_lifecycle
