@@ -24,3 +24,4 @@ demonstration for the autonomous perception and navigation library.
    assets
    acceptance
    depth-association
+   interfaces
