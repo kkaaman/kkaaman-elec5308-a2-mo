@@ -52,11 +52,11 @@ class DecoderBlock(nn.Module):
 
 
 class LaneUNet(nn.Module):
-    def __init__(self, num_classes=2):
+    def __init__(self, num_classes=2, pretrained=True):
         super().__init__()
 
         backbone = resnet18(
-            weights=ResNet18_Weights.DEFAULT
+            weights=ResNet18_Weights.DEFAULT if pretrained else None
         )
 
         self.stem = nn.Sequential(

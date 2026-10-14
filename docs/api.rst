@@ -52,6 +52,15 @@ contents and task owners until the code lands.
 
 .. automodule:: planning
 
+.. automodule:: planning.lane_graph
+   :members:
+
+.. automodule:: planning.lane_graph_audit
+   :members:
+
+.. automodule:: carla_adapter.topology
+   :members:
+
 .. automodule:: evaluation
 
 .. automodule:: visualisation
