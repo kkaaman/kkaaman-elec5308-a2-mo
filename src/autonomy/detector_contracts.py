@@ -1,0 +1,23 @@
+"""BL-C-01 protocols using the BL-F-01 frame contract."""
+from typing import Protocol, runtime_checkable
+
+from obstacle_perception.types import DetectionBatch, Obstacle
+
+from .interfaces import FrameBundle
+
+
+@runtime_checkable
+class Detector(Protocol):
+    """Shared local/remote inference; reset clears all episode history."""
+    def reset(self, *, episode_id: str) -> None: ...
+    def detect(self, frame: FrameBundle) -> DetectionBatch: ...
+    def track(self, frame: FrameBundle) -> DetectionBatch: ...
+    def close(self) -> None: ...
+
+
+@runtime_checkable
+class ObstacleSource(Protocol):
+    """Associate same-frame sensors; raise on invalid/missing required depth."""
+    def reset(self, *, episode_id: str) -> None: ...
+    def observe(self, frame: FrameBundle, detections: DetectionBatch) -> tuple[Obstacle, ...]: ...
+    def close(self) -> None: ...
