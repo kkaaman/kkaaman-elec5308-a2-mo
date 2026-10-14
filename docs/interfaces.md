@@ -43,6 +43,9 @@ intrinsics scaling and depth alignment. Ground projection belongs to workstream 
   match its polyline endpoint. Legal transitions are represented by edges;
   legality itself must be checked by the topology exporter and route planner.
   Elevation is recorded on nodes; the current controller remains planar.
+  BL-A-02's `planning.lane_graph.LaneTopology` retains lane/junction metadata,
+  explicit successors and XYZ polylines; its `.graph` property supplies this
+  unchanged contract. See [lane topology export](lane-topology.md).
 - `Diagnostics`: per-stage wall durations, observation validity and explicit
   failure reasons. Values are measurements, never substitute acceptance results.
 - `ControlPacket`: existing physical steering/pedal command, source frame and

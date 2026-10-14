@@ -1,5 +1,12 @@
 """Routes, corridor, speed governor and behaviour (workstreams A, D and E3/E5).
 
+Implemented:
+
+* ``lane_graph.py``: plain lane topology, deterministic JSON and conversion to
+  the existing LaneGraph contract (BL-A-02 Zhaolin)
+* ``lane_graph_audit.py``: independent raw OpenDRIVE connectivity/geometry
+  checks for the Town10HD fixture (BL-A-02)
+
 Planned modules:
 
 * ``route_manager.py``: continuous mission route (BL-A-04 Zhaolin)

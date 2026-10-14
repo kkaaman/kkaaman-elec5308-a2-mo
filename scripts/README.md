@@ -26,3 +26,10 @@ Command-line entry points. Run them from the repository root after
 | `benchmark_latency.py` | Loop timing and real-time factor | TEST-03 (Abdullah), TEST-17 (Mohammad) |
 | `evaluate_weather.py` | Recall and range across weather | E1-03 (Ricky) |
 | `latency_speed_test.py` | Local, LAN and cloud inference latency | E4-07 (Saviour) |
+
+## Lane topology (BL-A-02)
+
+`export_lane_graph.py` exports real lane topology, validates JSON without CARLA,
+and verifies saved geometry/connectivity against a live map or local OpenDRIVE
+file. Its `audit` command checks raw OpenDRIVE links/geometry independently,
+without CARLA. See [lane-topology](../docs/lane-topology.md) for commands and limitations.

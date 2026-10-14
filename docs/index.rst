@@ -26,3 +26,4 @@ demonstration for the autonomous perception and navigation library.
    depth-association
    interfaces
    geometry
+   lane-topology
