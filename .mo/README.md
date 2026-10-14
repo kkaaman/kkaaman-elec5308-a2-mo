@@ -34,6 +34,7 @@ python .mo/deliver.py sync                 # teammates' commits to merge into yo
 
 - **First delivery.** If team `main` is empty, add `--seed-team`, which pushes the A1 baseline (`a1-final`) as team `main`. If it has only a README, the A1 history is merged under it automatically.
 - **What reaches the team repo.** New commits made on your machine as `kkaaman`, one per task, with `Task:` and `AI-assisted:` lines and no co-author lines. `--keep-commits` copies the private commits instead, co-author lines included.
-- **AI Journal.** `--journal FILE` puts your exported journal (JSON, as in your A1 commits) into the requested task's commit message, above the `Task:`/`AI-assisted:` lines so git still reads them. Dependencies pulled in don't get it.
+- **AI Journal in VS Code.** Run `deliver <ID>` without `--commit`, open `../elec5308-a2-deliver` in VS Code, Ctrl+Shift+P → *Commit with AI Journal*, start the message with `[<ID>]`, then `python .mo/deliver.py pr deliver/<ID>` from the main folder. The tool recognises a task by `[ID]` at the start of the commit title or a `Task: ID` line anywhere in the message.
+- **AI Journal from a file.** `--journal FILE` puts your exported journal (JSON, as in your A1 commits) into the requested task's commit message, above the `Task:`/`AI-assisted:` lines so git still reads them. Dependencies pulled in don't get it.
 - **Conflict.** Delivery branches are built in a sibling folder `../elec5308-a2-deliver`. Resolve there, `git add`, commit, then `python .mo/deliver.py pr deliver/<ID>`.
 - **A teammate already delivered their own version.** Use `--skip <ID>` to leave yours out, then `sync` and merge theirs into your `main`.

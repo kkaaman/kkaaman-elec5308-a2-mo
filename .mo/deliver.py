@@ -108,21 +108,39 @@ def load_tasks() -> dict[str, dict]:
     return tasks
 
 
+_TASK_ID = r"[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+"
+_SUBJECT_IDS = re.compile(rf"^\[\s*({_TASK_ID}(?:\s*,\s*{_TASK_ID})*)\s*\]")
+_TASK_LINE = re.compile(rf"^Task:\s*({_TASK_ID}(?:\s*,\s*{_TASK_ID})*)\s*$", re.M)
+
+
+def task_ids_in_message(message: str) -> list[str]:
+    """Task IDs a commit message claims: ``[ID]`` / ``[ID, ID]`` at the start of the
+    subject, or ``Task: ID`` on any line (a trailer, or above an AI Journal block)."""
+    found: list[str] = []
+    subject = message.split("\n", 1)[0]
+    match = _SUBJECT_IDS.match(subject.strip())
+    groups = [match.group(1)] if match else []
+    groups += _TASK_LINE.findall(message)
+    for group in groups:
+        for tid in (t.strip() for t in group.split(",")):
+            if tid and tid not in found:
+                found.append(tid)
+    return found
+
+
 def task_commits(ref: str) -> dict[str, list[str]]:
     """Map Task ID -> commit hashes (oldest first) on ``ref``."""
     if not ref_exists(ref):
         return {}
-    out = git("log", ref, "--reverse",
-              "--format=%H%x1f%(trailers:key=Task,valueonly,separator=%x2C)%x1e")
+    out = git("log", ref, "--reverse", "--no-merges", "--format=%H%x1f%B%x1e")
     result: dict[str, list[str]] = {}
     for rec in out.split("\x1e"):
-        rec = rec.strip()
-        if not rec:
+        rec = rec.strip("\n")
+        if not rec.strip():
             continue
-        sha, _, ids = rec.partition("\x1f")
-        for tid in (t.strip() for t in ids.split(",")):
-            if tid:
-                result.setdefault(tid, []).append(sha)
+        sha, _, message = rec.partition("\x1f")
+        for tid in task_ids_in_message(message):
+            result.setdefault(tid, []).append(sha.strip())
     return result
 
 
@@ -332,7 +350,8 @@ def _task_groups(commits: list[str]) -> list[tuple[str, list[str]]]:
     """Split commits (in order) into consecutive runs belonging to one task."""
     groups: list[tuple[str, list[str]]] = []
     for c in commits:
-        tid = git("log", "-1", "--format=%(trailers:key=Task,valueonly,separator=%x2C)", c).split(",")[0].strip()
+        ids = task_ids_in_message(git("log", "-1", "--format=%B", c))
+        tid = ids[0] if ids else ""
         if groups and groups[-1][0] == tid:
             groups[-1][1].append(c)
         else:
@@ -483,10 +502,14 @@ def cmd_sync(_: argparse.Namespace) -> None:
     if not ref_exists(TEAM_MAIN):
         print("team main is empty; nothing to sync")
         return
-    out = git("log", f"{PRIVATE_MAIN}..{TEAM_MAIN}", "--no-merges",
-              "--format=%h%x1f%an%x1f%(trailers:key=Task,valueonly,separator=%x2C)%x1f%s")
-    theirs = [line.split("\x1f") for line in out.splitlines() if line]
-    theirs = [r for r in theirs if not r[2]]  # commits without our Task trailer
+    out = git("log", f"{PRIVATE_MAIN}..{TEAM_MAIN}", "--no-merges", "--format=%h%x1f%an%x1f%s%x1f%B%x1e")
+    theirs = []
+    for rec in out.split("\x1e"):
+        if not rec.strip():
+            continue
+        sha, author, subj, body = rec.strip("\n").split("\x1f", 3)
+        if not task_ids_in_message(body):  # commits that are not task deliveries
+            theirs.append((sha, author, "", subj))
     if not theirs:
         print("team main has nothing new from teammates")
         return
