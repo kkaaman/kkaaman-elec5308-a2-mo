@@ -449,8 +449,20 @@ def _fresh_worktree(branch: str, base: str) -> None:
     git("worktree", "add", "--quiet", "-B", branch, str(WORKTREE), base)
 
 
+def _issue_numbers() -> dict[str, str]:
+    """Task ID -> issue number, from import_issues.py's output (if it has been run)."""
+    path = HERE / "issue_numbers.csv"
+    if not path.exists():
+        return {}
+    with path.open(encoding="utf-8", newline="") as fh:
+        return {row["Task ID"]: row["GitHub Issue #"] for row in csv.DictReader(fh)
+                if row.get("GitHub Issue #")}
+
+
 def _pr_body(ids: list[str], tasks: dict, branch: str) -> str:
-    lines = ["## Tasks", ""]
+    issues = _issue_numbers()
+    closes = [f"Closes #{issues[t]}" for t in ids if t in issues]
+    lines = (closes + [""] if closes else []) + ["## Tasks", ""]
     for tid in ids:
         t = tasks[tid]
         lines.append(f"- **{tid}** {t['title']} (planned owner: {t['owner']}, due {t['due']})")

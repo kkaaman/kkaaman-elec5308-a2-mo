@@ -38,3 +38,15 @@ python .mo/deliver.py sync                 # teammates' commits to merge into yo
 - **AI Journal from a file.** `--journal FILE` puts your exported journal (JSON, as in your A1 commits) into the requested task's commit message, above the `Task:`/`AI-assisted:` lines so git still reads them. Dependencies pulled in don't get it.
 - **Conflict.** Delivery branches are built in a sibling folder `../elec5308-a2-deliver`. Resolve there, `git add`, commit, then `python .mo/deliver.py pr deliver/<ID>`.
 - **A teammate already delivered their own version.** Use `--skip <ID>` to leave yours out, then `sync` and merge theirs into your `main`.
+
+**GitHub issues from the task board (one-off, no sync)**
+```bash
+python -m pip install openpyxl                                  # once, to read .xlsx
+python .mo/import_issues.py BOARD.xlsx --dry-run                # offline; check .mo/issues_preview.md
+python .mo/import_issues.py BOARD.xlsx --limit 3                # first 3 only; look at them on GitHub
+python .mo/import_issues.py BOARD.xlsx --done RV-01             # the rest; RV-01 closed as completed
+```
+- One issue per Task ID, titled `[ID] Title`, with the board's labels, a G0–G5 milestone, the owner as assignee and the template's sections. Dependencies are issue links, created dependencies-first so every link resolves.
+- Reruns skip any Task ID that already has an issue, open or closed. Pull requests are ignored, and existing issues are never edited.
+- Issue numbers go to `.mo/issue_numbers.csv`, and `deliver` then adds `Closes #N` to each PR.
+- The token comes from `GH_TOKEN`, `gh auth token`, or the one Git stored when you pushed, so issues are created as you. No `@` mentions in bodies, but every watcher still gets an email per new issue.
