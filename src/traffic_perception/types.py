@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 from enum import Enum
 
+from obstacle_perception.types import PixelBox
+
 from ._validation import finite, probability
 
 
@@ -12,31 +14,15 @@ class TrafficCategory(str, Enum):
 
 
 @dataclass(frozen=True)
-class BoundingBox:
-    """Axis-aligned bounding box in image pixel coordinates."""
-
-    x_min: float
-    y_min: float
-    x_max: float
-    y_max: float
-
-    def __post_init__(self) -> None:
-        for name in ("x_min", "y_min", "x_max", "y_max"):
-            finite(name, getattr(self, name))
-
-        if self.x_max <= self.x_min:
-            raise ValueError("x_max must be greater than x_min")
-        if self.y_max <= self.y_min:
-            raise ValueError("y_max must be greater than y_min")
+class BoundingBox(PixelBox):
+    """Legacy constructor backed by the canonical validated XYXY contract."""
 
     @property
-    def width_px(self) -> float:
-        """Return bounding-box width in pixels."""
+    def width_px(self):
         return self.x_max - self.x_min
 
     @property
-    def height_px(self) -> float:
-        """Return bounding-box height in pixels."""
+    def height_px(self):
         return self.y_max - self.y_min
 
 
@@ -57,6 +43,9 @@ class TrafficDetection:
             raise ValueError("label must be a non-empty string")
 
         probability("confidence", self.confidence)
+        from obstacle_perception.boxes import canonical_box
+
+        object.__setattr__(self, "bounding_box", canonical_box(self.bounding_box))
 
         if self.distance_m is not None:
             finite("distance_m", self.distance_m)

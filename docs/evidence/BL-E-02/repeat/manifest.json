@@ -1,0 +1,715 @@
+{
+  "source_commit": "3a518cb87490509a55fc14044b0129a7892bef2f",
+  "runtime_sha256": "e8450d420215988843195a5f988a98dbfe17364b407daed36f340a551a92eec5",
+  "config_sha256": "5dcab8cba8db5128c203080eb2a4674934d2c95e01d3215cc40aaf5473667e0d",
+  "weather": {
+    "cloudiness": 20.0,
+    "dust_storm": 0.0,
+    "fog_density": 2.0,
+    "fog_distance": 0.75,
+    "fog_falloff": 0.10000000149011612,
+    "mie_scattering_scale": 0.029999999329447746,
+    "precipitation": 0.0,
+    "precipitation_deposits": 0.0,
+    "rayleigh_scattering_scale": 0.03310000151395798,
+    "scattering_intensity": 1.0,
+    "sun_altitude_angle": 45.0,
+    "sun_azimuth_angle": 300.0,
+    "wetness": 0.0,
+    "wind_intensity": 10.0
+  },
+  "opendrive_sha256": "5d883b799f634030af92be1e9d79d107845540ba04338e8c60e095be1aef7be7",
+  "server": "0.9.16",
+  "map": "Carla/Maps/Town10HD_Opt",
+  "config": {
+    "blueprint": "vehicle.tesla.model3",
+    "map": "Town10HD_Opt",
+    "spawn_index": 152,
+    "speeds_mps": [
+      2.0,
+      5.0,
+      8.0
+    ],
+    "angles_deg": [
+      2.0,
+      4.0,
+      6.0
+    ],
+    "fixed_delta_seconds": 0.05,
+    "sweep_seconds": 1.0,
+    "max_acceleration_seconds": 12.0,
+    "max_distance_from_spawn_m": 48.0,
+    "max_lateral_from_spawn_m": 1.4,
+    "automatic_adapter_update": false
+  },
+  "smoke_only": false,
+  "python": "3.12.10 (tags/v3.12.10:0cc8128, Apr  8 2025, 12:21:36) [MSC v.1943 64 bit (AMD64)]",
+  "initial_settings": {
+    "actor_active_distance": 2000.0,
+    "deterministic_ragdolls": true,
+    "fixed_delta_seconds": null,
+    "max_culling_distance": 0.0,
+    "max_substep_delta_time": 0.01,
+    "max_substeps": 10,
+    "no_rendering_mode": false,
+    "spectator_as_ego": true,
+    "substepping": true,
+    "synchronous_mode": false,
+    "tile_stream_distance": 3000.0
+  },
+  "trials": [
+    {
+      "trial": 1,
+      "target_speed_mps": 2.0,
+      "requested_deg": 2.0,
+      "geometry": {
+        "wheelbase_m": 3.0046463193137924,
+        "rear_axle_offset_m": 1.3864076283463085,
+        "physical_steering_limit_rad": 1.2217303432379762,
+        "controller_steering_limit_rad": 0.3490658503988659
+      },
+      "controller_cap_rejection": true,
+      "steering_curve_raw": [
+        [
+          0.0,
+          1.0
+        ],
+        [
+          20.0,
+          0.8999999761581421
+        ],
+        [
+          60.0,
+          0.800000011920929
+        ],
+        [
+          120.0,
+          0.699999988079071
+        ]
+      ],
+      "spawn": {
+        "x": 57.56834030151367,
+        "y": -67.849853515625,
+        "z": -0.0008691787370480597,
+        "yaw_deg": 179.9765625
+      }
+    },
+    {
+      "trial": 2,
+      "target_speed_mps": 2.0,
+      "requested_deg": -2.0,
+      "geometry": {
+        "wheelbase_m": 3.0046463193137924,
+        "rear_axle_offset_m": 1.3864076283463085,
+        "physical_steering_limit_rad": 1.2217303432379762,
+        "controller_steering_limit_rad": 0.3490658503988659
+      },
+      "controller_cap_rejection": true,
+      "steering_curve_raw": [
+        [
+          0.0,
+          1.0
+        ],
+        [
+          20.0,
+          0.8999999761581421
+        ],
+        [
+          60.0,
+          0.800000011920929
+        ],
+        [
+          120.0,
+          0.699999988079071
+        ]
+      ],
+      "spawn": {
+        "x": 57.56834030151367,
+        "y": -67.849853515625,
+        "z": -0.0008691787370480597,
+        "yaw_deg": 179.9765625
+      }
+    },
+    {
+      "trial": 3,
+      "target_speed_mps": 2.0,
+      "requested_deg": 4.0,
+      "geometry": {
+        "wheelbase_m": 3.0046463193137924,
+        "rear_axle_offset_m": 1.3864076283463085,
+        "physical_steering_limit_rad": 1.2217303432379762,
+        "controller_steering_limit_rad": 0.3490658503988659
+      },
+      "controller_cap_rejection": true,
+      "steering_curve_raw": [
+        [
+          0.0,
+          1.0
+        ],
+        [
+          20.0,
+          0.8999999761581421
+        ],
+        [
+          60.0,
+          0.800000011920929
+        ],
+        [
+          120.0,
+          0.699999988079071
+        ]
+      ],
+      "spawn": {
+        "x": 57.56834030151367,
+        "y": -67.849853515625,
+        "z": -0.0008691787370480597,
+        "yaw_deg": 179.9765625
+      }
+    },
+    {
+      "trial": 4,
+      "target_speed_mps": 2.0,
+      "requested_deg": -4.0,
+      "geometry": {
+        "wheelbase_m": 3.0046463193137924,
+        "rear_axle_offset_m": 1.3864076283463085,
+        "physical_steering_limit_rad": 1.2217303432379762,
+        "controller_steering_limit_rad": 0.3490658503988659
+      },
+      "controller_cap_rejection": true,
+      "steering_curve_raw": [
+        [
+          0.0,
+          1.0
+        ],
+        [
+          20.0,
+          0.8999999761581421
+        ],
+        [
+          60.0,
+          0.800000011920929
+        ],
+        [
+          120.0,
+          0.699999988079071
+        ]
+      ],
+      "spawn": {
+        "x": 57.56834030151367,
+        "y": -67.849853515625,
+        "z": -0.0008691787370480597,
+        "yaw_deg": 179.9765625
+      }
+    },
+    {
+      "trial": 5,
+      "target_speed_mps": 2.0,
+      "requested_deg": 6.0,
+      "geometry": {
+        "wheelbase_m": 3.0046463193137924,
+        "rear_axle_offset_m": 1.3864076283463085,
+        "physical_steering_limit_rad": 1.2217303432379762,
+        "controller_steering_limit_rad": 0.3490658503988659
+      },
+      "controller_cap_rejection": true,
+      "steering_curve_raw": [
+        [
+          0.0,
+          1.0
+        ],
+        [
+          20.0,
+          0.8999999761581421
+        ],
+        [
+          60.0,
+          0.800000011920929
+        ],
+        [
+          120.0,
+          0.699999988079071
+        ]
+      ],
+      "spawn": {
+        "x": 57.56834030151367,
+        "y": -67.849853515625,
+        "z": -0.0008691787370480597,
+        "yaw_deg": 179.9765625
+      }
+    },
+    {
+      "trial": 6,
+      "target_speed_mps": 2.0,
+      "requested_deg": -6.0,
+      "geometry": {
+        "wheelbase_m": 3.0046463193137924,
+        "rear_axle_offset_m": 1.3864076283463085,
+        "physical_steering_limit_rad": 1.2217303432379762,
+        "controller_steering_limit_rad": 0.3490658503988659
+      },
+      "controller_cap_rejection": true,
+      "steering_curve_raw": [
+        [
+          0.0,
+          1.0
+        ],
+        [
+          20.0,
+          0.8999999761581421
+        ],
+        [
+          60.0,
+          0.800000011920929
+        ],
+        [
+          120.0,
+          0.699999988079071
+        ]
+      ],
+      "spawn": {
+        "x": 57.56834030151367,
+        "y": -67.849853515625,
+        "z": -0.0008691787370480597,
+        "yaw_deg": 179.9765625
+      }
+    },
+    {
+      "trial": 7,
+      "target_speed_mps": 5.0,
+      "requested_deg": 2.0,
+      "geometry": {
+        "wheelbase_m": 3.0046463193137924,
+        "rear_axle_offset_m": 1.3864076283463085,
+        "physical_steering_limit_rad": 1.2217303432379762,
+        "controller_steering_limit_rad": 0.3490658503988659
+      },
+      "controller_cap_rejection": true,
+      "steering_curve_raw": [
+        [
+          0.0,
+          1.0
+        ],
+        [
+          20.0,
+          0.8999999761581421
+        ],
+        [
+          60.0,
+          0.800000011920929
+        ],
+        [
+          120.0,
+          0.699999988079071
+        ]
+      ],
+      "spawn": {
+        "x": 57.56834030151367,
+        "y": -67.849853515625,
+        "z": -0.0008691787370480597,
+        "yaw_deg": 179.9765625
+      }
+    },
+    {
+      "trial": 8,
+      "target_speed_mps": 5.0,
+      "requested_deg": -2.0,
+      "geometry": {
+        "wheelbase_m": 3.0046463193137924,
+        "rear_axle_offset_m": 1.3864076283463085,
+        "physical_steering_limit_rad": 1.2217303432379762,
+        "controller_steering_limit_rad": 0.3490658503988659
+      },
+      "controller_cap_rejection": true,
+      "steering_curve_raw": [
+        [
+          0.0,
+          1.0
+        ],
+        [
+          20.0,
+          0.8999999761581421
+        ],
+        [
+          60.0,
+          0.800000011920929
+        ],
+        [
+          120.0,
+          0.699999988079071
+        ]
+      ],
+      "spawn": {
+        "x": 57.56834030151367,
+        "y": -67.849853515625,
+        "z": -0.0008691787370480597,
+        "yaw_deg": 179.9765625
+      }
+    },
+    {
+      "trial": 9,
+      "target_speed_mps": 5.0,
+      "requested_deg": 4.0,
+      "geometry": {
+        "wheelbase_m": 3.0046463193137924,
+        "rear_axle_offset_m": 1.3864076283463085,
+        "physical_steering_limit_rad": 1.2217303432379762,
+        "controller_steering_limit_rad": 0.3490658503988659
+      },
+      "controller_cap_rejection": true,
+      "steering_curve_raw": [
+        [
+          0.0,
+          1.0
+        ],
+        [
+          20.0,
+          0.8999999761581421
+        ],
+        [
+          60.0,
+          0.800000011920929
+        ],
+        [
+          120.0,
+          0.699999988079071
+        ]
+      ],
+      "spawn": {
+        "x": 57.56834030151367,
+        "y": -67.849853515625,
+        "z": -0.0008691787370480597,
+        "yaw_deg": 179.9765625
+      }
+    },
+    {
+      "trial": 10,
+      "target_speed_mps": 5.0,
+      "requested_deg": -4.0,
+      "geometry": {
+        "wheelbase_m": 3.0046463193137924,
+        "rear_axle_offset_m": 1.3864076283463085,
+        "physical_steering_limit_rad": 1.2217303432379762,
+        "controller_steering_limit_rad": 0.3490658503988659
+      },
+      "controller_cap_rejection": true,
+      "steering_curve_raw": [
+        [
+          0.0,
+          1.0
+        ],
+        [
+          20.0,
+          0.8999999761581421
+        ],
+        [
+          60.0,
+          0.800000011920929
+        ],
+        [
+          120.0,
+          0.699999988079071
+        ]
+      ],
+      "spawn": {
+        "x": 57.56834030151367,
+        "y": -67.849853515625,
+        "z": -0.0008691787370480597,
+        "yaw_deg": 179.9765625
+      }
+    },
+    {
+      "trial": 11,
+      "target_speed_mps": 5.0,
+      "requested_deg": 6.0,
+      "geometry": {
+        "wheelbase_m": 3.0046463193137924,
+        "rear_axle_offset_m": 1.3864076283463085,
+        "physical_steering_limit_rad": 1.2217303432379762,
+        "controller_steering_limit_rad": 0.3490658503988659
+      },
+      "controller_cap_rejection": true,
+      "steering_curve_raw": [
+        [
+          0.0,
+          1.0
+        ],
+        [
+          20.0,
+          0.8999999761581421
+        ],
+        [
+          60.0,
+          0.800000011920929
+        ],
+        [
+          120.0,
+          0.699999988079071
+        ]
+      ],
+      "spawn": {
+        "x": 57.56834030151367,
+        "y": -67.849853515625,
+        "z": -0.0008691787370480597,
+        "yaw_deg": 179.9765625
+      }
+    },
+    {
+      "trial": 12,
+      "target_speed_mps": 5.0,
+      "requested_deg": -6.0,
+      "geometry": {
+        "wheelbase_m": 3.0046463193137924,
+        "rear_axle_offset_m": 1.3864076283463085,
+        "physical_steering_limit_rad": 1.2217303432379762,
+        "controller_steering_limit_rad": 0.3490658503988659
+      },
+      "controller_cap_rejection": true,
+      "steering_curve_raw": [
+        [
+          0.0,
+          1.0
+        ],
+        [
+          20.0,
+          0.8999999761581421
+        ],
+        [
+          60.0,
+          0.800000011920929
+        ],
+        [
+          120.0,
+          0.699999988079071
+        ]
+      ],
+      "spawn": {
+        "x": 57.56834030151367,
+        "y": -67.849853515625,
+        "z": -0.0008691787370480597,
+        "yaw_deg": 179.9765625
+      }
+    },
+    {
+      "trial": 13,
+      "target_speed_mps": 8.0,
+      "requested_deg": 2.0,
+      "geometry": {
+        "wheelbase_m": 3.0046463193137924,
+        "rear_axle_offset_m": 1.3864076283463085,
+        "physical_steering_limit_rad": 1.2217303432379762,
+        "controller_steering_limit_rad": 0.3490658503988659
+      },
+      "controller_cap_rejection": true,
+      "steering_curve_raw": [
+        [
+          0.0,
+          1.0
+        ],
+        [
+          20.0,
+          0.8999999761581421
+        ],
+        [
+          60.0,
+          0.800000011920929
+        ],
+        [
+          120.0,
+          0.699999988079071
+        ]
+      ],
+      "spawn": {
+        "x": 57.56834030151367,
+        "y": -67.849853515625,
+        "z": -0.0008691787370480597,
+        "yaw_deg": 179.9765625
+      }
+    },
+    {
+      "trial": 14,
+      "target_speed_mps": 8.0,
+      "requested_deg": -2.0,
+      "geometry": {
+        "wheelbase_m": 3.0046463193137924,
+        "rear_axle_offset_m": 1.3864076283463085,
+        "physical_steering_limit_rad": 1.2217303432379762,
+        "controller_steering_limit_rad": 0.3490658503988659
+      },
+      "controller_cap_rejection": true,
+      "steering_curve_raw": [
+        [
+          0.0,
+          1.0
+        ],
+        [
+          20.0,
+          0.8999999761581421
+        ],
+        [
+          60.0,
+          0.800000011920929
+        ],
+        [
+          120.0,
+          0.699999988079071
+        ]
+      ],
+      "spawn": {
+        "x": 57.56834030151367,
+        "y": -67.849853515625,
+        "z": -0.0008691787370480597,
+        "yaw_deg": 179.9765625
+      }
+    },
+    {
+      "trial": 15,
+      "target_speed_mps": 8.0,
+      "requested_deg": 4.0,
+      "geometry": {
+        "wheelbase_m": 3.0046463193137924,
+        "rear_axle_offset_m": 1.3864076283463085,
+        "physical_steering_limit_rad": 1.2217303432379762,
+        "controller_steering_limit_rad": 0.3490658503988659
+      },
+      "controller_cap_rejection": true,
+      "steering_curve_raw": [
+        [
+          0.0,
+          1.0
+        ],
+        [
+          20.0,
+          0.8999999761581421
+        ],
+        [
+          60.0,
+          0.800000011920929
+        ],
+        [
+          120.0,
+          0.699999988079071
+        ]
+      ],
+      "spawn": {
+        "x": 57.56834030151367,
+        "y": -67.849853515625,
+        "z": -0.0008691787370480597,
+        "yaw_deg": 179.9765625
+      }
+    },
+    {
+      "trial": 16,
+      "target_speed_mps": 8.0,
+      "requested_deg": -4.0,
+      "geometry": {
+        "wheelbase_m": 3.0046463193137924,
+        "rear_axle_offset_m": 1.3864076283463085,
+        "physical_steering_limit_rad": 1.2217303432379762,
+        "controller_steering_limit_rad": 0.3490658503988659
+      },
+      "controller_cap_rejection": true,
+      "steering_curve_raw": [
+        [
+          0.0,
+          1.0
+        ],
+        [
+          20.0,
+          0.8999999761581421
+        ],
+        [
+          60.0,
+          0.800000011920929
+        ],
+        [
+          120.0,
+          0.699999988079071
+        ]
+      ],
+      "spawn": {
+        "x": 57.56834030151367,
+        "y": -67.849853515625,
+        "z": -0.0008691787370480597,
+        "yaw_deg": 179.9765625
+      }
+    },
+    {
+      "trial": 17,
+      "target_speed_mps": 8.0,
+      "requested_deg": 6.0,
+      "geometry": {
+        "wheelbase_m": 3.0046463193137924,
+        "rear_axle_offset_m": 1.3864076283463085,
+        "physical_steering_limit_rad": 1.2217303432379762,
+        "controller_steering_limit_rad": 0.3490658503988659
+      },
+      "controller_cap_rejection": true,
+      "steering_curve_raw": [
+        [
+          0.0,
+          1.0
+        ],
+        [
+          20.0,
+          0.8999999761581421
+        ],
+        [
+          60.0,
+          0.800000011920929
+        ],
+        [
+          120.0,
+          0.699999988079071
+        ]
+      ],
+      "spawn": {
+        "x": 57.56834030151367,
+        "y": -67.849853515625,
+        "z": -0.0008691787370480597,
+        "yaw_deg": 179.9765625
+      }
+    },
+    {
+      "trial": 18,
+      "target_speed_mps": 8.0,
+      "requested_deg": -6.0,
+      "geometry": {
+        "wheelbase_m": 3.0046463193137924,
+        "rear_axle_offset_m": 1.3864076283463085,
+        "physical_steering_limit_rad": 1.2217303432379762,
+        "controller_steering_limit_rad": 0.3490658503988659
+      },
+      "controller_cap_rejection": true,
+      "steering_curve_raw": [
+        [
+          0.0,
+          1.0
+        ],
+        [
+          20.0,
+          0.8999999761581421
+        ],
+        [
+          60.0,
+          0.800000011920929
+        ],
+        [
+          120.0,
+          0.699999988079071
+        ]
+      ],
+      "spawn": {
+        "x": 57.56834030151367,
+        "y": -67.849853515625,
+        "z": -0.0008691787370480597,
+        "yaw_deg": 179.9765625
+      }
+    }
+  ],
+  "clipping_policy": "commands above controller cap rejected, not silently normalized to full lock",
+  "status": "COLLECTED",
+  "failure": null,
+  "settings_restored": true,
+  "no_actor_leaks": true
+}

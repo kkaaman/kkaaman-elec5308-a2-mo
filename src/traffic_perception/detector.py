@@ -19,6 +19,9 @@ class ModelPrediction:
 
     def __post_init__(self) -> None:
         probability("confidence", self.confidence)
+        from obstacle_perception.boxes import canonical_box
+
+        object.__setattr__(self, "bounding_box", canonical_box(self.bounding_box))
 
 
 DetectionBackend = Callable[[np.ndarray], Iterable[ModelPrediction]]

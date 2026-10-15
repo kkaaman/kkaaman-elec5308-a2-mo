@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "models": [
+    {
+      "name": "yolo26n",
+      "path": "yolo26n.pt",
+      "sha256": "9b09cc8bf347f0fc8a5f7657480587f25db09b34bf33b0652110fb03a8ad4fef",
+      "size_bytes": 5544453,
+      "backend": "ultralytics",
+      "backend_version": "8.4.177",
+      "version_status": "verified-local-load-and-inference",
+      "offline_only": true,
+      "validated_package_versions": {
+        "ultralytics": "8.4.177",
+        "torch": "2.14.1",
+        "numpy": "2.5.4"
+      },
+      "evidence": "docs/evidence/baseline-batch/detector.json"
+    }
+  ],
+  "fixtures": [
+    {
+      "path": "tests/fixtures/detector_sequence.json",
+      "origin": "synthetic",
+      "model_version": "fake-v1",
+      "sha256": "2a48a94baf2b89e13214c12a9fd5f9a0ff485b375027ace86eb4e51a2e354548"
+    }
+  ]
+}

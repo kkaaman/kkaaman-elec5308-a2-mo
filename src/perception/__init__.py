@@ -1,11 +1,13 @@
-"""Object detection and tracking."""
+"""Object detection and tracking, with lazy optional learned-backend loading."""
 
-from .object_detection import ObjectDetector
 from .types import BoundingBox, Detection, PerceptionConfig
 
-__all__ = [
-    "BoundingBox",
-    "Detection",
-    "ObjectDetector",
-    "PerceptionConfig",
-]
+__all__ = ["BoundingBox", "Detection", "ObjectDetector", "PerceptionConfig"]
+
+
+def __getattr__(name):
+    if name == "ObjectDetector":
+        from .object_detection import ObjectDetector
+
+        return ObjectDetector
+    raise AttributeError(name)
