@@ -1,0 +1,39 @@
+{
+  "samples": 274,
+  "nearest_lane_absolute_cte_m": {
+    "count": 274,
+    "mean": 0.9119677968210134,
+    "rms": 1.1247064310203845,
+    "max": 3.4276555903900157
+  },
+  "controller_cte_m_current_updates_only": {
+    "count": 211,
+    "mean": 6.283273717103894,
+    "rms": 6.554827204417418,
+    "max": 14.071976628335571
+  },
+  "speed_mps": {
+    "count": 274,
+    "mean": 1.9582563522359309,
+    "rms": 2.335637215052868,
+    "max": 4.9836218862092325
+  },
+  "supplied_prompt_results": {
+    "values_m": [
+      0.22,
+      1.14
+    ],
+    "status": "UNVERIFIED_SUPPLIED_RESULTS_NOT_MEASURED"
+  },
+  "capture_status": "CAPTURED",
+  "run_kind": "FULL_A1_SETTINGS_CAPTURE",
+  "video_frames": 274,
+  "video_readable": true,
+  "quit_requested": false,
+  "collision_events": [],
+  "cleanup_errors": [],
+  "error": null,
+  "elapsed_wall_s_including_model_load": 124.43800000000192,
+  "cte_definition": "perpendicular distance to nearest driving-lane tangent at command application; actor origin; evaluation only",
+  "controller_cte_definition": "A1 controller's current path diagnostic; local path can be replanned every cycle"
+}
