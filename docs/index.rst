@@ -41,3 +41,6 @@ demonstration for the autonomous perception and navigation library.
    simulator_boundary
    vehicle_adapter
    world_lifecycle
+   detector_lifecycle
+   test01_a1_baseline
+   evidence/TEST-01-baseline

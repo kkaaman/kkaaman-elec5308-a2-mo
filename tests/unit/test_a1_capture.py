@@ -208,6 +208,7 @@ def test_capture_pipeline_and_exception_cleanup(
             "size_bytes": 1,
         },
     )
+    monkeypatch.setattr(runner, "verify_sources", lambda *args: None)
 
     @dataclass
     class Config:
