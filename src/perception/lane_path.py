@@ -237,8 +237,16 @@ def extract_ego_path(
             "Lane mask must be a 2D NumPy array."
         )
 
+    if 0 in mask.shape:
+        raise ValueError("Lane mask cannot be empty.")
+    if not (np.issubdtype(mask.dtype, np.number) or mask.dtype == np.bool_):
+        raise ValueError("Lane mask must be numeric or boolean.")
+    if not np.isfinite(mask).all():
+        raise ValueError("Lane mask must contain finite values.")
+    if type(number_of_points) is not int or number_of_points < 6:
+        raise ValueError("number_of_points must be an integer of at least 6.")
+
     height, width = mask.shape
-    
     mask = _prepare_lane_mask(mask)
 
     left_points, right_points = (

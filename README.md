@@ -13,6 +13,7 @@ margin, holds while the road is blocked, and resumes after perceived clearance.
 
 - **A1 starting point and setup checklist:** [docs/repository_setup.md](docs/repository_setup.md)
 - **Decision log:** [docs/decisions.md](docs/decisions.md)
+- **BL-A-02 lane topology:** [export, offline loading and map validation](docs/lane-topology.md)
 
 ## Where things go (Assignment 2)
 

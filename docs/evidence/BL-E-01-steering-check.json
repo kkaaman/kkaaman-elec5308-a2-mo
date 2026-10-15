@@ -1,0 +1,23 @@
+{
+  "server": "0.9.16",
+  "map": "Carla/Maps/Town10HD_Opt",
+  "samples": [
+    {
+      "requested_turn": "left",
+      "carla_steer": -0.2,
+      "carla_yaw_change_deg": -2.875140815973282,
+      "core_yaw_change_deg": 2.875140815973282,
+      "peak_speed_mps": 2.3380543985361606,
+      "result": "PASS"
+    },
+    {
+      "requested_turn": "right",
+      "carla_steer": 0.2,
+      "carla_yaw_change_deg": 2.9216879308223724,
+      "core_yaw_change_deg": -2.9216879308223724,
+      "peak_speed_mps": 2.3430547473727357,
+      "result": "PASS"
+    }
+  ],
+  "status": "PASS"
+}

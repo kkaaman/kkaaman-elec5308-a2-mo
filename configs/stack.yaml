@@ -1,0 +1,6 @@
+{
+  "command_ttl_s": 0.1,
+  "max_observation_age_s": 0.5,
+  "max_step_wall_s": 0.1,
+  "require_depth": false
+}

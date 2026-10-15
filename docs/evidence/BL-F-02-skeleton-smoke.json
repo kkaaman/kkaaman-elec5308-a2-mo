@@ -1,0 +1,32 @@
+{
+  "packet": {
+    "episode_id": "fake-7",
+    "source_frame_id": 0,
+    "source_sim_time_s": 0.0,
+    "valid_until_sim_time_s": 0.1,
+    "command": {
+      "steering_angle_rad": 0,
+      "throttle": 0,
+      "brake": 1
+    },
+    "diagnostics": {
+      "stage_durations_s": [
+        [
+          "detector",
+          1.7300015315413475e-05
+        ],
+        [
+          "total",
+          6.790002225898206e-05
+        ]
+      ],
+      "observation_valid": true,
+      "reasons": [
+        "skeleton_hold"
+      ]
+    }
+  },
+  "next_frame_id": 1,
+  "status": "PASS",
+  "scope": "one stationary fake-world stack cycle; no CARLA or learned model"
+}

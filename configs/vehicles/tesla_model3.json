@@ -1,0 +1,12 @@
+{
+  "blueprint": "vehicle.tesla.model3",
+  "carla_version": "0.9.16",
+  "wheelbase_m": 3.00465,
+  "rear_axle_offset_m": 1.38641,
+  "physical_steering_limit_deg": 70.0,
+  "controller_steering_limit_deg": 20.0,
+  "controller_limit_status": "provisional; requires BL-E-02 tuning",
+  "steering_mapping_status": "nominal normalization; sign verified live; dynamic magnitude not calibrated",
+  "wheel_position_convention": "world centimetres; inverse actor transform to local metres",
+  "speed_convention": "forward longitudinal planar velocity; reverse beyond 0.05 m/s rejected"
+}
