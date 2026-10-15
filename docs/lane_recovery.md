@@ -12,10 +12,25 @@ Git-history comparison performed in this environment.
 | lane_inference.py | RGB accepted without channel swap | Converts BGR to RGB | Canonical RGB inference; legacy wrapper preserves BGR |
 | lane_path.py | Small-component removal, gap closing, horizontal-stripe suppression and global-median outlier filtering | Sequential nearest-boundary selection without those additions | Keep canonical implementation; preserve public extraction/drawing imports |
 | lane_segmentation.py | ResNet18 LaneUNet | Identical according to supplied git comparison | One canonical model definition, legacy re-exports |
+| lane_dataset.py | Not present | Dataset utilities used by the training pipeline | Retain under `autodrive.perception` for training compatibility |
+| losses.py | Not present | Training loss functions | Retain under `autodrive.perception` for training compatibility |
+
+Callers remain split across the compatibility boundary. Runtime demos such as
+`src/demo_fused_lane_following.py` and `src/demo_combined_perception.py` use the
+canonical `perception.*` modules, while `examples/run_carla_demo.py` and several
+compatibility tests still use `autodrive.perception.*`. The training pipeline
+also depends on `autodrive.perception.lane_dataset`,
+`autodrive.perception.lane_segmentation` and
+`autodrive.perception.losses`. These training-only modules therefore remain in
+the legacy package rather than being deleted during consolidation.
 
 The checkpoint identity reported on the university PC was
 `10dca01621fb8e110f1d5b8419e81fb616a8ce1b75d6aface11f5793af88e8ff`,
-size 57,385,466 bytes. `verify_assets.py` independently checks the current Git
+size 57,385,466 bytes. The RV-02 asset record is preserved in
+`evidence/RV-02-assets.json`. That evidence was captured on the combined
+pre-split working tree and therefore is not treated as independent proof of the
+final consolidated implementation. RV-03 subsequently verified the canonical
+offline loading path. `verify_assets.py` independently checks the current Git
 LFS pointer instead of trusting a hardcoded hash.
 
 ## Compatibility and deprecation
