@@ -1,0 +1,66 @@
+BL-F-03 verification — 15 Oct 2026 (Asia/Hong_Kong)
+
+Scope: CARLA-free KinematicWorld and scripted sensor fixtures.
+Owner implementation evidence; peer review remains pending.
+
+Full regression command (repository .venv Python):
+  python -m pytest -q -p no:cacheprovider
+Result:
+  428 passed, 1 skipped, 3 subtests passed in 21.54s
+
+The live topology test was skipped because CARLA_TOPOLOGY_LIVE was not set to 1.
+The local Python environment has CARLA client 0.9.16 installed; this full-suite
+run did not exercise a live simulator and is not a live simulator pass.
+The suite includes 72 new BL-F-03 cases in:
+  tests/unit/test_kinematic_world.py
+  tests/unit/test_synthetic_observations.py
+
+Windows execution note:
+  The first sandboxed full-suite attempt hit permission errors when existing
+  tests created/cleaned temporary directories. The successful full run used
+  normal host execution with TEMP/TMP set to the repository-local
+  runs/BL-F-03/temp and pytest's cache provider disabled. No product code or
+  original tests were changed to bypass these failures.
+
+Lint:
+  python -m ruff check --no-cache .
+  All checks passed!
+
+Simulator boundary:
+  python scripts/check_simulator_boundary.py --smoke
+  AST simulator boundary passed
+  Imported 54 core modules with simulator imports blocked
+
+Documentation:
+  python -m sphinx -W -b html docs runs/BL-F-03/docs
+  build succeeded.
+
+The Python example in docs/kinematic_world.md was extracted and executed:
+  observed ego XYZ (m): approximately (12.0, 1.5, 2.25)
+  next state: x_m=0.0006250000000000001, y_m=0.0,
+              yaw_rad=0.0, speed_mps=0.025
+  observation validity and next_frame_id == 1 assertions passed
+
+Acceptance covered:
+  - accelerating straight motion and signed constant-curvature arcs match
+    analytic distance/pose references at fixed dt;
+  - within-tick braking reaches zero without reverse, holds and restarts;
+  - PathFollower pauses/resumes while retaining route progress;
+  - straight and curved SkeletonStack/PathFollower routes reach FINISHED,
+    cross-track error stays below 0.5 m, final speed is at/below 0.1 m/s,
+    and final goal distance is at/below 1 m;
+  - repeated closed-loop runs have identical physical state traces;
+  - resets restore the script/vehicle with fresh episode and track namespaces;
+  - wrong-frame/time/episode packets select brake without consuming a tick;
+  - synthetic RGB-D, detections and metadata align; known optical depths
+    unproject to the expected ego coordinates;
+  - missing/invalid observations cannot silently authorize clearance;
+  - observation-source failure produces the existing stack's latched brake;
+  - idempotent cleanup and failed sensor-capture recovery are exercised.
+
+Limits:
+  No tire slip, collision physics, actuator lag or calibrated vehicle response.
+  Observation distances/visibility are scripted per frame, not actor truth or
+  automatically updated geometry. Extents/yaw are explicit fixed priors.
+  Full obstacle governor integration and production S1 acceptance are BL-F-06.
+  CI scenario wiring and metric aggregation remain BL-F-04 and BL-F-05.
