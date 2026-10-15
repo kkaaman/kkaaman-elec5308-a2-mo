@@ -21,6 +21,7 @@ demonstration for the autonomous perception and navigation library.
 
    repository_setup
    decisions
+   machines
    assets
    acceptance
    depth-association
@@ -36,5 +37,7 @@ demonstration for the autonomous perception and navigation library.
    detector_contracts
    lane_recovery
    stack_skeleton
+   kinematic_world
+   simulator_boundary
    vehicle_adapter
    world_lifecycle

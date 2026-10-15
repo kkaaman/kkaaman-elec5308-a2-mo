@@ -1,0 +1,40 @@
+============================= test session starts =============================
+platform win32 -- Python 3.12.10, pytest-9.1.1, pluggy-1.6.0 -- C:\Users\aalm2391\26-S2-Assignment2-Group7-1\.venv\Scripts\python.exe
+cachedir: .pytest_cache
+rootdir: C:\Users\aalm2391\26-S2-Assignment2-Group7-1
+configfile: pyproject.toml
+plugins: anyio-4.15.1
+collecting ... collected 30 items
+
+tests/test_perception.py::test_detect_converts_rgb_and_returns_expected_detection PASSED [  3%]
+tests/test_perception.py::test_track_returns_ids_and_persists_tracker_state PASSED [  6%]
+tests/test_perception.py::test_detect_returns_empty_tuple_when_result_has_no_boxes PASSED [ 10%]
+tests/test_perception.py::test_rejects_non_array_input[detect] PASSED    [ 13%]
+tests/test_perception.py::test_rejects_non_array_input[track] PASSED     [ 16%]
+tests/test_perception.py::test_rejects_arrays_that_are_not_rgb[detect-invalid_shape0] PASSED [ 20%]
+tests/test_perception.py::test_rejects_arrays_that_are_not_rgb[detect-invalid_shape1] PASSED [ 23%]
+tests/test_perception.py::test_rejects_arrays_that_are_not_rgb[detect-invalid_shape2] PASSED [ 26%]
+tests/test_perception.py::test_rejects_arrays_that_are_not_rgb[detect-invalid_shape3] PASSED [ 30%]
+tests/test_perception.py::test_rejects_arrays_that_are_not_rgb[track-invalid_shape0] PASSED [ 33%]
+tests/test_perception.py::test_rejects_arrays_that_are_not_rgb[track-invalid_shape1] PASSED [ 36%]
+tests/test_perception.py::test_rejects_arrays_that_are_not_rgb[track-invalid_shape2] PASSED [ 40%]
+tests/test_perception.py::test_rejects_arrays_that_are_not_rgb[track-invalid_shape3] PASSED [ 43%]
+tests/unit/test_detector_lifecycle.py::test_reset_discards_history_and_selects_tracker PASSED [ 46%]
+tests/unit/test_detector_lifecycle.py::test_missing_assets_never_call_yolo[missing] PASSED [ 50%]
+tests/unit/test_detector_lifecycle.py::test_missing_assets_never_call_yolo[empty] PASSED [ 53%]
+tests/unit/test_detector_lifecycle.py::test_missing_assets_never_call_yolo[pointer] PASSED [ 56%]
+tests/unit/test_detector_lifecycle.py::test_missing_assets_never_call_yolo[url] PASSED [ 60%]
+tests/unit/test_detector_lifecycle.py::test_timing_on_success_validation_and_backend_failure PASSED [ 63%]
+tests/unit/test_detector_lifecycle.py::test_custom_tracker_is_local_and_reid_disabled PASSED [ 66%]
+tests/unit/test_detector_lifecycle.py::test_failed_reset_cannot_reuse_old_tracker PASSED [ 70%]
+tests/unit/test_detector_lifecycle.py::test_invalid_configuration_rejected[config0] PASSED [ 73%]
+tests/unit/test_detector_lifecycle.py::test_invalid_configuration_rejected[config1] PASSED [ 76%]
+tests/unit/test_detector_lifecycle.py::test_invalid_configuration_rejected[config2] PASSED [ 80%]
+tests/unit/test_detector_lifecycle.py::test_invalid_configuration_rejected[config3] PASSED [ 83%]
+tests/unit/test_detector_lifecycle.py::test_invalid_configuration_rejected[config4] PASSED [ 86%]
+tests/unit/test_detector_lifecycle.py::test_invalid_configuration_rejected[config5] PASSED [ 90%]
+tests/unit/test_detector_lifecycle.py::test_close_releases_backend_and_empty_image_rejected PASSED [ 93%]
+tests/unit/test_detector_lifecycle.py::test_relative_weights_resolve_absolute_before_factory PASSED [ 96%]
+tests/unit/test_detector_lifecycle.py::test_missing_weights_on_reset_fail_closed PASSED [100%]
+
+============================= 30 passed in 1.52s ==============================

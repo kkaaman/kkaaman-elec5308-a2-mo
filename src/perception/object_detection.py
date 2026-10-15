@@ -20,7 +20,10 @@ def _resolve_model_path(name):
         )
     with path.open("rb") as stream:
         if stream.read(128).startswith(b"version https://git-lfs.github.com/spec/v1"):
-            raise ValueError("Model weights are a Git LFS pointer, not a downloaded asset")
+
+            raise ValueError(
+                "Model weights are a Git LFS pointer, not a downloaded asset"
+            )
     if path.suffix.lower() != ".pt":
         raise ValueError("Baseline detector requires local .pt weights")
     return str(path)
@@ -82,7 +85,9 @@ class ObjectDetector:
         self.last_call_timing = None
         new_model = self._factory(_resolve_model_path(self._model_path))
         if new_model is old_model:
-            raise RuntimeError("Model factory reused the old backend; history isolation failed")
+            raise RuntimeError(
+                "Model factory reused the old backend; history isolation failed"
+            )
         self.model = new_model
         self.class_ids = self._get_class_ids()
         self.episode_id = episode_id
@@ -119,7 +124,11 @@ class ObjectDetector:
             inference_start = time.perf_counter()
             try:
                 if tracking:
-                    results = self.model.track(bgr, persist=True, tracker=self._tracker, **options)
+
+                    results = self.model.track(
+                        bgr, persist=True, tracker=self._tracker, **options
+                    )
+
                 else:
                     results = self.model.predict(bgr, **options)
             finally:
@@ -128,7 +137,10 @@ class ObjectDetector:
                 raise ValueError("Expected one inference result for one image")
             return self._convert(results[0], include_track_ids=tracking)
         finally:
-            self.last_call_timing = CallTiming(time.perf_counter() - started, inference_wall_s)
+            self.last_call_timing = CallTiming(
+                time.perf_counter() - started, inference_wall_s
+            )
+
 
     @staticmethod
     def _validate_rgb_image(value: np.ndarray, parameter_name: str) -> None:
@@ -139,6 +151,9 @@ class ObjectDetector:
 
         if value.ndim != 3 or value.shape[2] != 3:
             raise ValueError(f"{parameter_name} must have shape (H, W, 3); got {value.shape}")
+
+        if value.dtype != np.uint8 or 0 in value.shape:
+            raise ValueError(f"{parameter_name} must be nonempty uint8 RGB")
 
         if value.dtype != np.uint8 or 0 in value.shape:
             raise ValueError(f"{parameter_name} must be nonempty uint8 RGB")

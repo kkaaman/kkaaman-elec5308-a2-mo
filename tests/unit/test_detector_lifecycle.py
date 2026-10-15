@@ -32,7 +32,11 @@ def detector(tmp_path, monkeypatch, tracker="botsort.yaml"):
     path = tmp_path / "local.pt"
     path.write_bytes(b"stub weights; never read by a real learned model")
     monkeypatch.setattr(object_detection, "YOLO", FakeBackend)
-    return ObjectDetector(PerceptionConfig(model_name=str(path), tracker_config=tracker))
+
+    return ObjectDetector(
+        PerceptionConfig(model_name=str(path), tracker_config=tracker)
+    )
+
 
 
 def test_reset_discards_history_and_selects_tracker(tmp_path, monkeypatch):
@@ -60,7 +64,11 @@ def test_missing_assets_never_call_yolo(tmp_path, monkeypatch, kind):
     if kind == "empty":
         path.write_bytes(b"")
     elif kind == "pointer":
-        path.write_text("version https://git-lfs.github.com/spec/v1\noid sha256:abc\nsize 1\n")
+
+        path.write_text(
+            "version https://git-lfs.github.com/spec/v1\noid sha256:abc\nsize 1\n"
+        )
+
     name = "https://example.com/model.pt" if kind == "url" else str(path)
     with pytest.raises((ValueError, FileNotFoundError)):
         ObjectDetector(PerceptionConfig(model_name=name))

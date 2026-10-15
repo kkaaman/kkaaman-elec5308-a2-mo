@@ -58,7 +58,11 @@ class PerceptionConfig:
 
     def __post_init__(self):
         for name in ("model_name", "tracker_config"):
-            if not isinstance(getattr(self, name), str) or not getattr(self, name).strip():
+
+            if (
+                not isinstance(getattr(self, name), str)
+                or not getattr(self, name).strip()
+            ):
                 raise ValueError(f"{name} must be a nonempty path/name")
         if (
             isinstance(self.confidence_threshold, bool)
@@ -72,6 +76,10 @@ class PerceptionConfig:
             if isinstance(self.allowed_classes, str):
                 raise ValueError("allowed_classes must be a sequence, not a string")
             values = tuple(self.allowed_classes)
-            if not values or any(not isinstance(v, str) or not v.strip() for v in values):
+
+            if not values or any(
+                not isinstance(v, str) or not v.strip() for v in values
+            ):
+
                 raise ValueError("allowed_classes must be nonempty class names or None")
             object.__setattr__(self, "allowed_classes", values)
