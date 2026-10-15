@@ -1,11 +1,18 @@
 """Automated tests for object detection and tracking."""
 
+from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
 import pytest
 
-from perception import BoundingBox, Detection, ObjectDetector, PerceptionConfig, object_detection
+from perception import (
+    BoundingBox,
+    Detection,
+    ObjectDetector,
+    PerceptionConfig,
+    object_detection,
+)
 
 
 class FakeModel:
@@ -49,6 +56,8 @@ def install_fake_model(monkeypatch, result, config=None):
 
     model = FakeModel(result)
     monkeypatch.setattr(object_detection, "YOLO", lambda model_name: model)
+    # Existing API tests stub inference; offline path validation is tested separately.
+    monkeypatch.setattr(object_detection, "_resolve_model_path", lambda name: name)
     return ObjectDetector(config), model
 
 
@@ -100,7 +109,7 @@ def test_track_returns_ids_and_persists_tracker_state(monkeypatch):
     frame_bgr, options = model.track_calls[0]
     np.testing.assert_array_equal(frame_bgr, frame_rgb[:, :, ::-1])
     assert options["persist"] is True
-    assert options["tracker"] == "botsort.yaml"
+    assert Path(options["tracker"]).name == "botsort.yaml"
 
 
 def test_detect_returns_empty_tuple_when_result_has_no_boxes(monkeypatch):
