@@ -1,0 +1,32 @@
+{
+  "status": "PASS",
+  "asset": {
+    "name": "yolo26n",
+    "path": "yolo26n.pt",
+    "sha256": "9b09cc8bf347f0fc8a5f7657480587f25db09b34bf33b0652110fb03a8ad4fef",
+    "size_bytes": 5544453,
+    "backend": "ultralytics",
+    "backend_version": "record-installed-version-at-validation",
+    "version_status": "pending-real-model-check",
+    "offline_only": true
+  },
+  "versions": {
+    "ultralytics": "8.4.177",
+    "torch": "2.14.1",
+    "numpy": "2.5.4"
+  },
+  "timing_scope": "backend construction separately from first inference and three subsequent inferences; wall time, sample only, not accuracy",
+  "construction_wall_s": 0.040022000001044944,
+  "first_call_wall_s": 1.5023120000041672,
+  "warm_calls_wall_s": [
+    0.055399900003976654,
+    0.027373299999453593,
+    0.026787300004798453
+  ],
+  "detection_counts": [
+    8,
+    8,
+    8,
+    8
+  ]
+}
