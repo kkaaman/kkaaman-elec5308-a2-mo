@@ -1,0 +1,28 @@
+{
+  "task": "PROC-02",
+  "member": "Abdullah Almutairi",
+  "verified_date": "2026-10-14",
+  "environment": {
+    "os": "Windows 11 Enterprise 10.0.26200 64-bit",
+    "gpu": "NVIDIA RTX 4000 SFF Ada Generation",
+    "vram_mib": 20475,
+    "nvidia_driver": "596.71",
+    "python": "3.12.10",
+    "carla_client": "0.9.16",
+    "carla_server": "0.9.16",
+    "pytorch": "2.14.1+cpu",
+    "cuda_available": false
+  },
+  "smoke_test": {
+    "map": "Carla/Maps/Town10HD_Opt",
+    "connection": "PASS",
+    "vehicle_spawn": "PASS",
+    "vehicle_blueprint": "vehicle.tesla.model3",
+    "vehicle_cleanup": "PASS"
+  },
+  "limitations": [
+    "Full driving performance was not benchmarked.",
+    "PyTorch was CPU-only in the recorded environment.",
+    "This record represents Abdullah's independently verified setup only."
+  ]
+}
