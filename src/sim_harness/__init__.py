@@ -1,6 +1,24 @@
-"""Simulator-free test world (workstream F).
+"""CARLA-free fixed-step world and scripted sensor fixtures (BL-F-03).
 
-``KinematicWorld`` implements the same simulator interface as CARLA with
-bicycle dynamics and synthetic obstacle observations, so the full stack runs
-in CI without CARLA (BL-F-03 Saviour).
+These fixtures support deterministic controller and contract checks, not claims
+of real perception, obstacle avoidance or calibrated vehicle performance.
 """
+
+from .kinematic import KinematicConfig, KinematicWorld
+from .synthetic import (
+    SyntheticDetection,
+    SyntheticDetector,
+    SyntheticFrame,
+    SyntheticObstacleSource,
+    SyntheticScenario,
+)
+
+__all__ = [
+    "KinematicConfig",
+    "KinematicWorld",
+    "SyntheticDetection",
+    "SyntheticDetector",
+    "SyntheticFrame",
+    "SyntheticObstacleSource",
+    "SyntheticScenario",
+]

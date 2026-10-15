@@ -45,6 +45,7 @@ contents and task owners until the code lands.
    :members:
 
 .. automodule:: sim_harness
+   :members:
 
 .. automodule:: geometry
 
