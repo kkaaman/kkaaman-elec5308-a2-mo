@@ -4,6 +4,8 @@ import math
 from dataclasses import dataclass
 from typing import Optional
 
+from obstacle_perception.types import PixelBox
+
 ROAD_RELEVANT_CLASSES = (
     "person",
     "bicycle",
@@ -17,13 +19,16 @@ ROAD_RELEVANT_CLASSES = (
 
 
 @dataclass(frozen=True)
-class BoundingBox:
-    """Object bounding box in image pixels."""
+class BoundingBox(PixelBox):
+    """Legacy constructor backed by the canonical validated XYXY contract."""
 
-    x_min: float
-    y_min: float
-    x_max: float
-    y_max: float
+    @property
+    def width_px(self):
+        return self.x_max - self.x_min
+
+    @property
+    def height_px(self):
+        return self.y_max - self.y_min
 
 
 @dataclass(frozen=True)
@@ -34,6 +39,11 @@ class Detection:
     confidence: float
     bounding_box: BoundingBox
     track_id: Optional[int] = None
+
+    def __post_init__(self):
+        from obstacle_perception.boxes import canonical_box
+
+        object.__setattr__(self, "bounding_box", canonical_box(self.bounding_box))
 
 
 @dataclass(frozen=True)
@@ -48,6 +58,7 @@ class PerceptionConfig:
 
     def __post_init__(self):
         for name in ("model_name", "tracker_config"):
+
             if (
                 not isinstance(getattr(self, name), str)
                 or not getattr(self, name).strip()
@@ -65,8 +76,10 @@ class PerceptionConfig:
             if isinstance(self.allowed_classes, str):
                 raise ValueError("allowed_classes must be a sequence, not a string")
             values = tuple(self.allowed_classes)
+
             if not values or any(
                 not isinstance(v, str) or not v.strip() for v in values
             ):
+
                 raise ValueError("allowed_classes must be nonempty class names or None")
             object.__setattr__(self, "allowed_classes", values)

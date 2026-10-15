@@ -20,6 +20,7 @@ def _resolve_model_path(name):
         )
     with path.open("rb") as stream:
         if stream.read(128).startswith(b"version https://git-lfs.github.com/spec/v1"):
+
             raise ValueError(
                 "Model weights are a Git LFS pointer, not a downloaded asset"
             )
@@ -123,9 +124,11 @@ class ObjectDetector:
             inference_start = time.perf_counter()
             try:
                 if tracking:
+
                     results = self.model.track(
                         bgr, persist=True, tracker=self._tracker, **options
                     )
+
                 else:
                     results = self.model.predict(bgr, **options)
             finally:
@@ -138,6 +141,7 @@ class ObjectDetector:
                 time.perf_counter() - started, inference_wall_s
             )
 
+
     @staticmethod
     def _validate_rgb_image(value: np.ndarray, parameter_name: str) -> None:
         """Validate an RGB image before it is passed to YOLO."""
@@ -146,9 +150,10 @@ class ObjectDetector:
             raise TypeError(f"{parameter_name} must be a NumPy array")
 
         if value.ndim != 3 or value.shape[2] != 3:
-            raise ValueError(
-                f"{parameter_name} must have shape (H, W, 3); got {value.shape}"
-            )
+            raise ValueError(f"{parameter_name} must have shape (H, W, 3); got {value.shape}")
+
+        if value.dtype != np.uint8 or 0 in value.shape:
+            raise ValueError(f"{parameter_name} must be nonempty uint8 RGB")
 
         if value.dtype != np.uint8 or 0 in value.shape:
             raise ValueError(f"{parameter_name} must be nonempty uint8 RGB")

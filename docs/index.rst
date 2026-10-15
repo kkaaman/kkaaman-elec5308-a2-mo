@@ -44,3 +44,8 @@ demonstration for the autonomous perception and navigation library.
    detector_lifecycle
    test01_a1_baseline
    evidence/TEST-01-baseline
+   batch_baseline
+   steering_calibration
+   gates/G0
+   evidence/BL-E-02/README
+   evidence/baseline-batch/README

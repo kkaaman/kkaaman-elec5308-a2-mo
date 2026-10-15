@@ -41,7 +41,9 @@ are never loaded by real YOLO. Learned-model inference and tracking accuracy nee
 separate asset-backed checks; no live CARLA test is required for this task.
 Owner in plan: Ricky. Reviewer: Saviour.
 
+
 ## Verified results
 
 All 30 focused detector tests and all 279 integrated regression tests passed.
 Evidence: docs/evidence/BL-C-02-detector-tests.txt.
+

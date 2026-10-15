@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "origin": "synthetic",
+  "source_id": "synthetic-rgb-front",
+  "model_version": "fake-v1",
+  "frames": [
+    {
+      "frame_id": 0,
+      "sim_time_s": 0.0,
+      "width": 32,
+      "height": 24,
+      "valid": true,
+      "invalid_reason": null,
+      "detections": [
+        {
+          "class_name": "car",
+          "confidence": 0.9,
+          "xyxy": [
+            8,
+            6,
+            20,
+            22
+          ],
+          "track_id": 1
+        }
+      ]
+    },
+    {
+      "frame_id": 1,
+      "sim_time_s": 0.05,
+      "width": 32,
+      "height": 24,
+      "valid": true,
+      "invalid_reason": null,
+      "detections": [
+        {
+          "class_name": "car",
+          "confidence": 0.9,
+          "xyxy": [
+            9,
+            6,
+            21,
+            22
+          ],
+          "track_id": 1
+        }
+      ]
+    },
+    {
+      "frame_id": 2,
+      "sim_time_s": 0.1,
+      "width": 32,
+      "height": 24,
+      "valid": true,
+      "invalid_reason": null,
+      "detections": []
+    },
+    {
+      "frame_id": 3,
+      "sim_time_s": 0.15000000000000002,
+      "width": 32,
+      "height": 24,
+      "valid": false,
+      "invalid_reason": "synthetic_missing_observation",
+      "detections": []
+    }
+  ]
+}

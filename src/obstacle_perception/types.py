@@ -2,6 +2,7 @@
 
 No simulator actor identity or obstacle ground truth belongs in these types.
 """
+
 from __future__ import annotations
 
 import math
@@ -23,6 +24,7 @@ def _number(name: str, value: float, minimum: float | None = None) -> None:
 @dataclass(frozen=True)
 class ObservationMetadata:
     """Identity of the source observation, not the inference completion frame."""
+
     episode_id: str
     frame_id: int
     sim_time_s: float
@@ -43,6 +45,7 @@ class ObservationMetadata:
 @dataclass(frozen=True)
 class TrackIdentity:
     """Tracker IDs are scoped to episode, source and model version."""
+
     episode_id: str
     source_id: str
     model_version: str
@@ -58,6 +61,7 @@ class TrackIdentity:
 @dataclass(frozen=True)
 class PixelBox:
     """Continuous XYXY pixel coordinates; right/bottom are exclusive limits."""
+
     x_min: float
     y_min: float
     x_max: float
@@ -69,10 +73,19 @@ class PixelBox:
         if self.x_max <= self.x_min or self.y_max <= self.y_min:
             raise ValueError("box must have positive width and height")
 
+    @property
+    def width_px(self):
+        return self.x_max - self.x_min
+
+    @property
+    def height_px(self):
+        return self.y_max - self.y_min
+
 
 @dataclass(frozen=True)
 class DetectionObservation:
     """One sensor detection. Track ID is absent for ordinary detection."""
+
     class_name: str
     confidence: float
     box: PixelBox
@@ -92,6 +105,7 @@ class DetectionObservation:
 @dataclass(frozen=True)
 class CallTiming:
     """Durations, not absolute timestamps; remote clocks need not match."""
+
     total_wall_s: float
     inference_wall_s: float | None = None
     transport_wall_s: float | None = None
@@ -117,7 +131,9 @@ class DetectionBatch:
     invalid_reason: str | None = None
 
     def __post_init__(self) -> None:
-        if not isinstance(self.metadata, ObservationMetadata) or not isinstance(self.timing, CallTiming):
+        if not isinstance(self.metadata, ObservationMetadata) or not isinstance(
+            self.timing, CallTiming
+        ):
             raise TypeError("metadata and timing must use contract types")
         for value in (self.image_width, self.image_height):
             if type(value) is not int or value <= 0:
@@ -152,6 +168,7 @@ class Obstacle:
     extent_m: full positive XYZ lengths in metres, not half extents.
     yaw_ego_rad: counterclockwise about ego +Z.
     """
+
     metadata: ObservationMetadata
     class_name: str
     confidence: float

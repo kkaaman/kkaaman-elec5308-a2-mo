@@ -1,0 +1,666 @@
+{
+  "status": "MEASURED_REVIEW_REQUIRED",
+  "server": "0.9.16",
+  "map": "Town10HD_Opt",
+  "topology_sha256": "a09db1c8d3a6e9723d07835a936b611aec5904df176ed63ba6e34fa0b3723adb",
+  "scope": "read-only installed-map legal route geometry; unsupported or ambiguous configurations rejected; no vehicle driven",
+  "accepted": [
+    {
+      "approach": "11:0:-1",
+      "maneuver": "right",
+      "segments": [
+        "11:0:-1",
+        "160:0:-1",
+        "9:0:-1"
+      ],
+      "points": 36
+    },
+    {
+      "approach": "11:0:-1",
+      "maneuver": "straight",
+      "segments": [
+        "11:0:-1",
+        "151:0:-1",
+        "12:0:-1"
+      ],
+      "points": 61
+    },
+    {
+      "approach": "11:0:1",
+      "maneuver": "right",
+      "segments": [
+        "11:0:1",
+        "712:0:1",
+        "1:0:2"
+      ],
+      "points": 90
+    },
+    {
+      "approach": "12:0:-1",
+      "maneuver": "right",
+      "segments": [
+        "12:0:-1",
+        "939:0:-1",
+        "14:0:-2"
+      ],
+      "points": 50
+    },
+    {
+      "approach": "12:0:1",
+      "maneuver": "left",
+      "segments": [
+        "12:0:1",
+        "172:0:1",
+        "9:0:-1"
+      ],
+      "points": 50
+    },
+    {
+      "approach": "12:0:1",
+      "maneuver": "straight",
+      "segments": [
+        "12:0:1",
+        "150:0:1",
+        "11:0:1"
+      ],
+      "points": 61
+    },
+    {
+      "approach": "13:0:-1",
+      "maneuver": "straight",
+      "segments": [
+        "13:0:-1",
+        "934:0:-1",
+        "14:0:-1"
+      ],
+      "points": 41
+    },
+    {
+      "approach": "13:0:-2",
+      "maneuver": "right",
+      "segments": [
+        "13:0:-2",
+        "900:0:-1",
+        "12:0:1"
+      ],
+      "points": 61
+    },
+    {
+      "approach": "13:0:-2",
+      "maneuver": "straight",
+      "segments": [
+        "13:0:-2",
+        "934:0:-2",
+        "14:0:-2"
+      ],
+      "points": 41
+    },
+    {
+      "approach": "13:0:1",
+      "maneuver": "right",
+      "segments": [
+        "13:0:1",
+        "469:0:1",
+        "5:0:-1"
+      ],
+      "points": 93
+    },
+    {
+      "approach": "13:0:2",
+      "maneuver": "right",
+      "segments": [
+        "13:0:2",
+        "472:0:1",
+        "5:0:-2"
+      ],
+      "points": 90
+    },
+    {
+      "approach": "14:0:-1",
+      "maneuver": "left",
+      "segments": [
+        "14:0:-1",
+        "256:0:-1",
+        "19:0:4"
+      ],
+      "points": 33
+    },
+    {
+      "approach": "14:0:-1",
+      "maneuver": "straight",
+      "segments": [
+        "14:0:-1",
+        "467:0:-1",
+        "15:0:-1"
+      ],
+      "points": 33
+    },
+    {
+      "approach": "14:0:-2",
+      "maneuver": "right",
+      "segments": [
+        "14:0:-2",
+        "344:0:-1",
+        "20:0:-2"
+      ],
+      "points": 49
+    },
+    {
+      "approach": "14:0:-2",
+      "maneuver": "straight",
+      "segments": [
+        "14:0:-2",
+        "467:0:-2",
+        "15:0:-2"
+      ],
+      "points": 33
+    },
+    {
+      "approach": "14:0:1",
+      "maneuver": "straight",
+      "segments": [
+        "14:0:1",
+        "933:0:1",
+        "13:0:1"
+      ],
+      "points": 41
+    },
+    {
+      "approach": "14:0:2",
+      "maneuver": "straight",
+      "segments": [
+        "14:0:2",
+        "933:0:2",
+        "13:0:2"
+      ],
+      "points": 41
+    },
+    {
+      "approach": "15:0:1",
+      "maneuver": "straight",
+      "segments": [
+        "15:0:1",
+        "466:0:1",
+        "14:0:1"
+      ],
+      "points": 33
+    },
+    {
+      "approach": "15:0:2",
+      "maneuver": "right",
+      "segments": [
+        "15:0:2",
+        "286:0:1",
+        "19:0:5"
+      ],
+      "points": 25
+    },
+    {
+      "approach": "15:0:2",
+      "maneuver": "straight",
+      "segments": [
+        "15:0:2",
+        "466:0:2",
+        "14:0:2"
+      ],
+      "points": 33
+    },
+    {
+      "approach": "19:0:-1",
+      "maneuver": "straight",
+      "segments": [
+        "19:0:-1",
+        "255:0:-1",
+        "20:0:-1"
+      ],
+      "points": 57
+    },
+    {
+      "approach": "19:0:-2",
+      "maneuver": "right",
+      "segments": [
+        "19:0:-2",
+        "268:0:-1",
+        "14:0:2"
+      ],
+      "points": 28
+    },
+    {
+      "approach": "19:0:-2",
+      "maneuver": "straight",
+      "segments": [
+        "19:0:-2",
+        "255:0:-2",
+        "20:0:-2"
+      ],
+      "points": 57
+    },
+    {
+      "approach": "1:0:-1",
+      "maneuver": "straight",
+      "segments": [
+        "1:0:-1",
+        "675:0:-1",
+        "2:0:-1"
+      ],
+      "points": 84
+    },
+    {
+      "approach": "1:0:-2",
+      "maneuver": "straight",
+      "segments": [
+        "1:0:-2",
+        "675:0:-2",
+        "2:0:-2"
+      ],
+      "points": 84
+    },
+    {
+      "approach": "20:0:-1",
+      "maneuver": "straight",
+      "segments": [
+        "20:0:-1",
+        "875:0:-1",
+        "21:0:-1"
+      ],
+      "points": 60
+    },
+    {
+      "approach": "20:0:-2",
+      "maneuver": "right",
+      "segments": [
+        "20:0:-2",
+        "848:0:-1",
+        "9:0:1"
+      ],
+      "points": 50
+    },
+    {
+      "approach": "20:0:-2",
+      "maneuver": "straight",
+      "segments": [
+        "20:0:-2",
+        "875:0:-2",
+        "21:0:-2"
+      ],
+      "points": 60
+    },
+    {
+      "approach": "20:0:4",
+      "maneuver": "left",
+      "segments": [
+        "20:0:4",
+        "338:0:1",
+        "14:0:1"
+      ],
+      "points": 54
+    },
+    {
+      "approach": "20:0:4",
+      "maneuver": "straight",
+      "segments": [
+        "20:0:4",
+        "254:0:4",
+        "19:0:4"
+      ],
+      "points": 57
+    },
+    {
+      "approach": "20:0:5",
+      "maneuver": "right",
+      "segments": [
+        "20:0:5",
+        "395:0:1",
+        "15:0:-2"
+      ],
+      "points": 46
+    },
+    {
+      "approach": "20:0:5",
+      "maneuver": "straight",
+      "segments": [
+        "20:0:5",
+        "254:0:5",
+        "19:0:5"
+      ],
+      "points": 57
+    },
+    {
+      "approach": "21:0:4",
+      "maneuver": "straight",
+      "segments": [
+        "21:0:4",
+        "876:0:4",
+        "20:0:4"
+      ],
+      "points": 60
+    },
+    {
+      "approach": "21:0:5",
+      "maneuver": "straight",
+      "segments": [
+        "21:0:5",
+        "876:0:5",
+        "20:0:5"
+      ],
+      "points": 60
+    },
+    {
+      "approach": "2:0:-1",
+      "maneuver": "straight",
+      "segments": [
+        "2:0:-1",
+        "566:0:-1",
+        "3:0:-1"
+      ],
+      "points": 36
+    },
+    {
+      "approach": "2:0:-2",
+      "maneuver": "straight",
+      "segments": [
+        "2:0:-2",
+        "566:0:-2",
+        "3:0:-2"
+      ],
+      "points": 36
+    },
+    {
+      "approach": "2:0:1",
+      "maneuver": "straight",
+      "segments": [
+        "2:0:1",
+        "676:0:1",
+        "1:0:1"
+      ],
+      "points": 84
+    },
+    {
+      "approach": "2:0:2",
+      "maneuver": "right",
+      "segments": [
+        "2:0:2",
+        "703:0:1",
+        "11:0:-1"
+      ],
+      "points": 36
+    },
+    {
+      "approach": "2:0:2",
+      "maneuver": "straight",
+      "segments": [
+        "2:0:2",
+        "676:0:2",
+        "1:0:2"
+      ],
+      "points": 84
+    },
+    {
+      "approach": "3:0:1",
+      "maneuver": "straight",
+      "segments": [
+        "3:0:1",
+        "565:0:1",
+        "2:0:1"
+      ],
+      "points": 36
+    },
+    {
+      "approach": "3:0:2",
+      "maneuver": "right",
+      "segments": [
+        "3:0:2",
+        "655:0:1",
+        "21:0:5"
+      ],
+      "points": 35
+    },
+    {
+      "approach": "3:0:2",
+      "maneuver": "straight",
+      "segments": [
+        "3:0:2",
+        "565:0:2",
+        "2:0:2"
+      ],
+      "points": 36
+    },
+    {
+      "approach": "4:0:-1",
+      "maneuver": "straight",
+      "segments": [
+        "4:0:-1",
+        "515:0:-1",
+        "5:0:-1"
+      ],
+      "points": 94
+    },
+    {
+      "approach": "4:0:-2",
+      "maneuver": "straight",
+      "segments": [
+        "4:0:-2",
+        "515:0:-2",
+        "5:0:-2"
+      ],
+      "points": 94
+    },
+    {
+      "approach": "5:0:-1",
+      "maneuver": "right",
+      "segments": [
+        "5:0:-1",
+        "795:0:-1",
+        "18:0:-1"
+      ],
+      "points": 81
+    },
+    {
+      "approach": "5:0:-1",
+      "maneuver": "straight",
+      "segments": [
+        "5:0:-1",
+        "736:0:-1",
+        "6:0:-1"
+      ],
+      "points": 124
+    },
+    {
+      "approach": "5:0:-2",
+      "maneuver": "right",
+      "segments": [
+        "5:0:-2",
+        "763:0:-1",
+        "18:0:-2"
+      ],
+      "points": 77
+    },
+    {
+      "approach": "5:0:1",
+      "maneuver": "straight",
+      "segments": [
+        "5:0:1",
+        "516:0:1",
+        "4:0:1"
+      ],
+      "points": 94
+    },
+    {
+      "approach": "5:0:2",
+      "maneuver": "straight",
+      "segments": [
+        "5:0:2",
+        "516:0:2",
+        "4:0:2"
+      ],
+      "points": 94
+    },
+    {
+      "approach": "6:0:-1",
+      "maneuver": "straight",
+      "segments": [
+        "6:0:-1",
+        "89:0:-1",
+        "7:0:-1"
+      ],
+      "points": 78
+    },
+    {
+      "approach": "6:0:-2",
+      "maneuver": "right",
+      "segments": [
+        "6:0:-2",
+        "125:0:-1",
+        "22:0:-2"
+      ],
+      "points": 74
+    },
+    {
+      "approach": "6:0:-2",
+      "maneuver": "straight",
+      "segments": [
+        "6:0:-2",
+        "89:0:-2",
+        "7:0:-2"
+      ],
+      "points": 78
+    },
+    {
+      "approach": "6:0:1",
+      "maneuver": "straight",
+      "segments": [
+        "6:0:1",
+        "735:0:1",
+        "5:0:1"
+      ],
+      "points": 124
+    },
+    {
+      "approach": "6:0:2",
+      "maneuver": "straight",
+      "segments": [
+        "6:0:2",
+        "735:0:2",
+        "5:0:2"
+      ],
+      "points": 124
+    },
+    {
+      "approach": "7:0:1",
+      "maneuver": "left",
+      "segments": [
+        "7:0:1",
+        "24:0:1",
+        "22:0:-1"
+      ],
+      "points": 46
+    },
+    {
+      "approach": "7:0:1",
+      "maneuver": "straight",
+      "segments": [
+        "7:0:1",
+        "90:0:1",
+        "6:0:1"
+      ],
+      "points": 78
+    },
+    {
+      "approach": "7:0:2",
+      "maneuver": "straight",
+      "segments": [
+        "7:0:2",
+        "90:0:2",
+        "6:0:2"
+      ],
+      "points": 78
+    },
+    {
+      "approach": "9:0:-1",
+      "maneuver": "right",
+      "segments": [
+        "9:0:-1",
+        "843:0:-1",
+        "21:0:-2"
+      ],
+      "points": 35
+    },
+    {
+      "approach": "9:0:1",
+      "maneuver": "left",
+      "segments": [
+        "9:0:1",
+        "152:0:1",
+        "11:0:1"
+      ],
+      "points": 37
+    },
+    {
+      "approach": "9:0:1",
+      "maneuver": "right",
+      "segments": [
+        "9:0:1",
+        "179:0:1",
+        "12:0:-1"
+      ],
+      "points": 50
+    }
+  ],
+  "rejected": [
+    {
+      "approach": "15:0:1",
+      "maneuver": "left",
+      "reason": "Expected exactly one legal left exit, found 2"
+    },
+    {
+      "approach": "18:0:4",
+      "maneuver": "left",
+      "reason": "Expected exactly one legal left exit, found 2"
+    },
+    {
+      "approach": "18:0:5",
+      "maneuver": "right",
+      "reason": "Expected exactly one legal right exit, found 2"
+    },
+    {
+      "approach": "19:0:-1",
+      "maneuver": "left",
+      "reason": "Expected exactly one legal left exit, found 2"
+    },
+    {
+      "approach": "21:0:-1",
+      "maneuver": "left",
+      "reason": "Expected exactly one legal left exit, found 2"
+    },
+    {
+      "approach": "21:0:-2",
+      "maneuver": "right",
+      "reason": "Expected exactly one legal right exit, found 2"
+    },
+    {
+      "approach": "22:0:1",
+      "maneuver": "left",
+      "reason": "Expected exactly one legal left exit, found 2"
+    },
+    {
+      "approach": "22:0:2",
+      "maneuver": "right",
+      "reason": "Expected exactly one legal right exit, found 2"
+    },
+    {
+      "approach": "2:0:-1",
+      "maneuver": "left",
+      "reason": "Expected exactly one legal left exit, found 2"
+    },
+    {
+      "approach": "4:0:-2",
+      "maneuver": "right",
+      "reason": "Expected exactly one legal right exit, found 2"
+    },
+    {
+      "approach": "6:0:1",
+      "maneuver": "left",
+      "reason": "Expected exactly one legal left exit, found 2"
+    }
+  ]
+}
