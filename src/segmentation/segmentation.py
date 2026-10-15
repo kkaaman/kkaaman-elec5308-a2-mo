@@ -64,7 +64,7 @@ class SemanticSegmenter:
         Accepts either a bare state dict or a checkpoint dict containing one
         under the key "model_state_dict".
         """
-        checkpoint = torch.load(weights_path, map_location=self.device)
+        checkpoint = torch.load(weights_path, map_location=self.device, weights_only=True)
         if isinstance(checkpoint, dict) and "model_state_dict" in checkpoint:
             state_dict = checkpoint["model_state_dict"]
         else:

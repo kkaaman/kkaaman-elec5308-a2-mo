@@ -21,3 +21,23 @@ demonstration for the autonomous perception and navigation library.
 
    repository_setup
    decisions
+   machines
+   assets
+   acceptance
+   depth-association
+   interfaces
+   geometry
+   lane-topology
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Task records
+
+   controller_audit
+   detector_contracts
+   lane_recovery
+   stack_skeleton
+   kinematic_world
+   simulator_boundary
+   vehicle_adapter
+   world_lifecycle

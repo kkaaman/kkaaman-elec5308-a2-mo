@@ -1,0 +1,63 @@
+{
+  "task": "BL-A-02",
+  "recorded_at_hk": "2026-10-14T18:38:40.500121+08:00",
+  "source": {
+    "kind": "real local CARLA OpenDRIVE map, parsed by carla.Map",
+    "path": "D:\\CARLA_0.9.16\\CarlaUE4\\Content\\Carla\\Maps\\OpenDrive\\Town10HD.xodr",
+    "raw_file_sha256": "5d883b799f634030af92be1e9d79d107845540ba04338e8c60e095be1aef7be7",
+    "opendrive_sha256": "5d883b799f634030af92be1e9d79d107845540ba04338e8c60e095be1aef7be7",
+    "sdk_version": "0.9.16"
+  },
+  "fixture": {
+    "path": "tests/fixtures/Town10HD.lane_graph.json",
+    "sha256": "300b5fba3c6119c4f2d606e0f7c8562560850a59878399ceb1864f074ae3e7be",
+    "bytes": 113834,
+    "lanes": 168,
+    "nodes": 336,
+    "edges": 368,
+    "junction_lanes": 82
+  },
+  "checks": {
+    "map": "Town10HD",
+    "graph_sha256": "300b5fba3c6119c4f2d606e0f7c8562560850a59878399ceb1864f074ae3e7be",
+    "lanes_checked": 168,
+    "points_checked": 3234,
+    "successors_checked": 200,
+    "max_point_error_m": 1.5472547931622767e-05,
+    "repeat_exports_identical": true,
+    "reversed_query_order_identical": true,
+    "saved_fixture_matches_export": true,
+    "json_round_trip": true,
+    "no_carla_import": "passed in fresh-process test; CLI also ran in SDK-free environment"
+  },
+  "regression": {
+    "tests": 220,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 1,
+    "report": "docs/evidence/BL-A-02-regression.xml",
+    "interpreter": "D:\\MJ_5308_Ass\\.venv-win\\Scripts\\python.exe",
+    "passed_junit_records_including_subtests": 219,
+    "pytest_summary": "216 passed, 1 skipped, 3 subtests passed",
+    "command": "python -m pytest -q -p no:cacheprovider --basetemp runs/BL-A-02/pytest-final-2 --junitxml=docs/evidence/BL-A-02-regression.xml"
+  },
+  "lint": {
+    "command": "python -m ruff check .",
+    "status": "passed"
+  },
+  "docs": {
+    "command": "python -m sphinx -W docs docs/_build/html",
+    "status": "passed"
+  },
+  "live_server": {
+    "status": "pending",
+    "host": "127.0.0.1",
+    "port": 2000,
+    "probe_result": "5-second timeout",
+    "launch_exit_code": 3,
+    "executable": "D:\\CARLA_0.9.16\\CarlaUE4\\Binaries\\Win64\\CarlaUE4-Win64-Shipping.exe",
+    "engine_directory_present": false,
+    "startup_cause": "not established"
+  },
+  "reviewer_walkthrough": "pending; no team approval recorded"
+}

@@ -1,9 +1,9 @@
-"""Camera model, rigid transforms and ground projection (workstream D).
+"""Camera geometry, rigid transforms and ground projection.
 
-Plain NumPy maths with explicit frames and SI units (metres, seconds,
-radians). No simulator imports.
+This package provides simulator-independent geometry utilities using explicit
+coordinate frames and SI units. Camera projection operates in optical
+coordinates, while vehicle and world transforms use the shared right-handed
+ego/world conventions.
 
-Planned modules: camera intrinsics/extrinsics, vehicle/world transforms, and
-the A1 ``ground_projection`` helpers moved here behind a compatibility shim
-(BL-D-02 Alan).
+Legacy ground-projection helpers are preserved through compatibility exports.
 """

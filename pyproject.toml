@@ -62,8 +62,22 @@ target-version = "py310"
 line-length = 100
 
 [tool.ruff.lint]
-select = ["E", "F", "I"]
+select = ["E", "F", "I", "TID251"]
 ignore = ["E501"]
 
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"carla".msg = "Keep simulator APIs in carla_adapter; core uses plain contracts."
+"carla_adapter".msg = "Core must not depend on the CARLA adapter."
+
 [tool.ruff.lint.per-file-ignores]
-"tests/test_carla_adapter.py" = ["E402"]
+# Adapter implementations and existing simulator entry points only. The AST
+# check independently prevents core from depending on these exempt modules.
+"src/carla_adapter/*.py" = ["TID251"]
+"src/demo_combined_perception.py" = ["TID251"]
+"src/demo_fused_lane_following.py" = ["TID251"]
+"examples/run_carla_demo.py" = ["TID251"]
+"scripts/export_lane_graph.py" = ["TID251"]
+"tests/test_carla_adapter.py" = ["E402", "TID251"]
+"tests/unit/test_world_lifecycle.py" = ["TID251"]
+"tests/unit/test_vehicle_geometry.py" = ["TID251"]
+"tests/unit/test_topology_export.py" = ["TID251"]

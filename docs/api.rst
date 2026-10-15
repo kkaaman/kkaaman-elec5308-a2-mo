@@ -45,12 +45,22 @@ contents and task owners until the code lands.
    :members:
 
 .. automodule:: sim_harness
+   :members:
 
 .. automodule:: geometry
 
 .. automodule:: obstacle_perception
 
 .. automodule:: planning
+
+.. automodule:: planning.lane_graph
+   :members:
+
+.. automodule:: planning.lane_graph_audit
+   :members:
+
+.. automodule:: carla_adapter.topology
+   :members:
 
 .. automodule:: evaluation
 
