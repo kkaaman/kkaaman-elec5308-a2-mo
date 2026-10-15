@@ -21,6 +21,7 @@ demonstration for the autonomous perception and navigation library.
 
    repository_setup
    decisions
+   machines
    assets
    acceptance
    depth-association

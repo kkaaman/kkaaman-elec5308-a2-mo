@@ -23,20 +23,25 @@ spawn/cleanup passed. Full driving performance has not been benchmarked.
 
 ## Team machines and demo arrangement
 
-Abdullah confirms that Mohammad, Alan, Zhaolin and Abdullah use university
-PCs with the same hardware specifications. The recorded hardware above
+Abdullah reports that Mohammad, Alan, Zhaolin and Abdullah use university PCs
+with the same nominal hardware specification. Only Abdullah's machine has an
+independently recorded PROC-02 smoke test so far. The recorded hardware above
 represents the shared specification, based on that confirmation.
 
-| Member | Hardware evidence | CARLA smoke-test evidence |
+| Member | Hardware information | CARLA smoke-test evidence |
 |---|---|---|
-| Abdullah | Measured locally | Connection, Town10HD_Opt, spawn and cleanup passed |
-| Mohammad | Same specifications, confirmed by Abdullah | Not independently recorded |
-| Alan | Same specifications, confirmed by Abdullah | Not independently recorded |
-| Zhaolin | Same specifications, confirmed by Abdullah | Not independently recorded |
+| Abdullah | Independently recorded | PASS — connection, Town10HD_Opt, spawn and cleanup |
+| Mohammad | Reported same university-PC specification | Pending independent verification |
+| Alan | Reported same university-PC specification | Pending independent verification |
+| Zhaolin | Reported same university-PC specification | Pending independent verification |
 
-Demo arrangement: university PC setup verified by Abdullah.
-A separate primary/backup ranking is omitted at Abdullah's direction
-because the team uses university PCs with the same specifications.
+## Demo arrangement
 
-Individual Python/client/server versions on the other PCs have not been
-independently recorded. Review requested from Zhaolin.
+Abdullah's verified university PC is currently a demonstrated CARLA-capable
+candidate. The team still needs to nominate a primary and backup demo machine
+after at least one additional machine completes the same smoke test.
+
+Individual Python, CARLA client/server and GPU-runtime configurations for
+Mohammad, Alan and Zhaolin remain to be independently recorded.
+
+Evidence: `docs/evidence/PROC-02-abdullah-smoke.json`.
