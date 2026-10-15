@@ -47,6 +47,15 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -e ".[test]"
 
+      - name: Verify CARLA is not installed
+        run: |
+          python -c "import importlib.util; assert importlib.util.find_spec('carla') is None, 'Core CI must not install CARLA'"
+
+      - name: Enforce simulator boundary
+        run: |
+          python scripts/check_simulator_boundary.py --smoke
+          python -m pytest tests/unit/test_boundary.py
+
       - name: Run tests
         run: |
           python -m pytest
