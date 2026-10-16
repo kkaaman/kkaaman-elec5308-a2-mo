@@ -61,7 +61,13 @@ def main(argv=None):
             validate_lane_topology_on_map,
         )
 
-        map_ = load_opendrive(args.xodr, mission.map_name) if args.xodr else connect_map("127.0.0.1", 2000, 30, mission.map_name)[0]
+        if args.xodr:
+            map_ = load_opendrive(args.xodr, mission.map_name)
+        else:
+            map_, _ = connect_map(
+                "127.0.0.1", 2000, 30, mission.map_name,
+                expected_opendrive_sha256=mission.opendrive_sha256,
+            )
         map_report = validate_lane_topology_on_map(map_, topology)
     if args.overlay:
         args.overlay.parent.mkdir(parents=True, exist_ok=True)

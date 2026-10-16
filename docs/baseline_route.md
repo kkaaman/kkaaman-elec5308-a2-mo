@@ -21,6 +21,10 @@ edits cannot change the executed route while retaining an old fingerprint.
 Route and effective configuration hashes use canonical JSON. Loading never
 queries the simulator or chooses a replacement route.
 
+Live verification accepts the Town10HD/Town10HD_Opt asset-name pair only after
+matching the frozen OpenDRIVE fingerprint. Other map names and modified road
+networks are rejected; an optimized asset name alone never proves equivalence.
+
 Validate without a simulator:
 
 ```powershell
