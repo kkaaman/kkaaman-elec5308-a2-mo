@@ -33,3 +33,17 @@ Command-line entry points. Run them from the repository root after
 and verifies saved geometry/connectivity against a live map or local OpenDRIVE
 file. Its `audit` command checks raw OpenDRIVE links/geometry independently,
 without CARLA. See [lane-topology](../docs/lane-topology.md) for commands and limitations.
+
+## Documentation and offline preflight (DOC-03 / DOC-05)
+
+- `python scripts/check_reproduction.py --assets-only`: verify the three model
+  binaries with the standard library before importing optional ML packages.
+- `python scripts/check_reproduction.py`: also compare the recorded runtime subset.
+- `python scripts/generate_module_notes.py`: regenerate the source inventory;
+  use `--check` in CI to reject stale documentation.
+
+These preparation/documentation utilities deliberately use only the standard
+library so they can diagnose an environment before the project is installed.
+They locate the source tree using their own file path. See
+[reproduction](../docs/reproduction.md) for disconnected installation and the
+read-only `python -m carla_adapter.environment_check` live prerequisite check.

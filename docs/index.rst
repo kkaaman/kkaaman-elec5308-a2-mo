@@ -11,6 +11,10 @@ demonstration for the autonomous perception and navigation library.
    :caption: Contents
 
    getting_started
+   reproduction
+   module_notes
+   report_outline
+   evidence_index
    api
    examples
    carla_demo

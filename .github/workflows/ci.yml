@@ -77,6 +77,16 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -e ".[docs]"
 
+      - name: Check module inventory
+        run: python scripts/generate_module_notes.py --check
+
       - name: Build documentation
         run: |
           sphinx-build -W docs docs/_build/html
+
+      - name: Preserve generated API and module documentation
+        uses: actions/upload-artifact@v4
+        with:
+          name: documentation-html
+          path: docs/_build/html
+          if-no-files-found: error

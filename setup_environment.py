@@ -8,6 +8,8 @@ activated) -- it installs into whichever interpreter runs it (via
 for you.
 
 Usage:
+    python setup_environment.py --offline --check-only
+    python setup_environment.py --offline --wheelhouse ./wheels --lock-file ./runtime-lock.txt
     python setup_environment.py --carla-wheel /path/to/carla-0.9.16-cp312-cp312-win_amd64.whl
     python setup_environment.py --carla-version 0.9.15   # falls back to PyPI if no wheel path given
     python setup_environment.py --cuda-tag cu121
@@ -54,7 +56,11 @@ def run(cmd: list[str], description: str) -> bool:
     """
     print(f"\n--- {description} ---")
     print(f"$ {' '.join(cmd)}")
-    result = subprocess.run(cmd)
+    try:
+        result = subprocess.run(cmd)
+    except OSError as exc:
+        print(f"[FAILED] {description}: {exc}")
+        return False
     if result.returncode != 0:
         print(f"[FAILED] {description} (exit code {result.returncode})")
         return False
@@ -78,7 +84,7 @@ def check_python_version() -> None:
         )
 
 
-def remove_conflicting_opencv() -> None:
+def remove_conflicting_opencv() -> bool:
     """opencv-python and opencv-python-headless both provide `cv2` --
     having both installed is a common cause of cv2.imshow failing with
     a "not implemented" error in the live demos, since pip doesn't
@@ -91,12 +97,13 @@ def remove_conflicting_opencv() -> None:
     if check.returncode == 0:
         print("\nFound opencv-python-headless installed -- removing it")
         print("(the live demos need the real GUI build of opencv, not headless).")
-        run(
+        return run(
             [sys.executable, "-m", "pip", "uninstall", "-y", "opencv-python-headless"],
             "Removing opencv-python-headless",
         )
     else:
         print("\nNo opencv-python-headless found -- nothing to remove.")
+    return True
 
 
 def install_requirements() -> bool:
@@ -295,13 +302,13 @@ def install_carla(version: str, wheel_path: Path | None) -> bool:
             print(f"\nFound a local CARLA wheel: {wheel_path}")
 
     if wheel_path is not None:
+        match = WHEEL_FILENAME_RE.match(wheel_path.name)
+        if match is None or match.group("version") != version:
+            print(f"[FAILED] Expected a carla-{version} wheel; got {wheel_path.name}")
+            return False
         if install_carla_from_wheel(wheel_path):
             return True
-        print(
-            "\nLocal wheel install failed/was skipped -- falling back to "
-            "trying PyPI naming schemes (unlikely to have a Windows wheel "
-            "for recent CARLA versions, but worth a real attempt)."
-        )
+        return False
 
     classic_name = f"carla=={version}"
     hyphen_name = "carla-" + version.replace(".", "-")
@@ -328,7 +335,7 @@ def install_carla(version: str, wheel_path: Path | None) -> bool:
     return False
 
 
-def pull_lfs_weights() -> None:
+def pull_lfs_weights() -> bool:
     """Run git lfs pull if we're inside a git repo with git-lfs available,
     so *.pth weight files are the real trained weights rather than LFS
     pointer stubs -- installing packages successfully does NOT guarantee
@@ -343,7 +350,7 @@ def pull_lfs_weights() -> None:
             "stub, not the actual weights -- install git and git-lfs, then "
             "run `git lfs pull` yourself from inside the repo."
         )
-        return
+        return False
 
     inside_repo = subprocess.run(
         ["git", "rev-parse", "--is-inside-work-tree"], capture_output=True
@@ -354,7 +361,7 @@ def pull_lfs_weights() -> None:
             "location -- run `git lfs pull` yourself from your repo root "
             "once cloned, to fetch the real .pth weight files."
         )
-        return
+        return False
 
     if shutil.which("git-lfs") is None:
         # `git lfs` is a git subcommand, not always a separate `git-lfs`
@@ -368,16 +375,17 @@ def pull_lfs_weights() -> None:
                 "lane_unet_best.pth will just be small pointer stubs and "
                 "every demo will fail loading weights with a torch error."
             )
-            return
+            return False
 
-    run(["git", "lfs", "install"], "Setting up git-lfs for this repo")
-    run(["git", "lfs", "pull"], "Pulling LFS weight files (segmentation_model.pth, lane_unet_best.pth)")
+    if not run(["git", "lfs", "install"], "Setting up git-lfs for this repo"):
+        return False
+    return run(["git", "lfs", "pull"], "Pulling LFS weight files (segmentation_model.pth, lane_unet_best.pth)")
 
 
 def print_manual_checklist(args: argparse.Namespace) -> None:
     print(
         "\n" + "=" * 70
-        + "\nEnvironment setup complete. Final checks:"
+        + "\nInstallation steps finished; environment validation is still required:"
         + "\n" + "=" * 70
         + "\n1. CARLA CLIENT/SERVER VERSION MATCH\n"
         + "   Confirm the running CarlaUE4.exe matches client version "
@@ -395,7 +403,7 @@ def print_manual_checklist(args: argparse.Namespace) -> None:
     )
 
 
-def main() -> None:
+def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--carla-version", default="0.9.16")
     parser.add_argument(
@@ -414,34 +422,90 @@ def main() -> None:
     parser.add_argument("--skip-carla", action="store_true")
     parser.add_argument("--skip-torch", action="store_true")
     parser.add_argument("--skip-lfs", action="store_true")
+    parser.add_argument("--check-only", action="store_true",
+                        help="Read-only asset and recorded-runtime checks; installs nothing")
+    parser.add_argument("--assets-only", action="store_true",
+                        help="With --check-only: verify binaries without checking installed packages")
+    parser.add_argument("--offline", action="store_true",
+                        help="No network: check-only or install from an explicit local wheelhouse")
+    parser.add_argument("--wheelhouse", type=Path,
+                        help="Prepared local wheels for the active Python/platform")
+    parser.add_argument("--lock-file", type=Path,
+                        help="Offline pip requirements: full pinned transitive lock with hashes")
     args = parser.parse_args()
+    root = PYPROJECT_FILE.resolve().parent
+    if args.assets_only and not args.check_only:
+        parser.error("--assets-only requires --check-only")
+    if args.check_only:
+        command = [sys.executable, str(root / "scripts/check_reproduction.py")]
+        if args.assets_only:
+            command.append("--assets-only")
+        return 0 if run(command, "Read-only reproduction preflight") else 1
+    if args.offline:
+        if not args.wheelhouse or not args.wheelhouse.is_dir():
+            parser.error("--offline installation needs --wheelhouse pointing to local wheels")
+        if not args.lock_file or not args.lock_file.is_file():
+            parser.error("--offline installation needs --lock-file with pinned packages and hashes")
+        # --no-index alone does not block direct URL requirements or nested -r files.
+        # Accept a deliberately narrow local hashed-lock format before running pip.
+        lock_text = args.lock_file.read_text(encoding="utf-8")
+        logical_lines = lock_text.replace("\\\n", " ").splitlines()
+        package_line = re.compile(
+            r"^[A-Za-z0-9][A-Za-z0-9_.-]*(?:\[[A-Za-z0-9_,.-]+\])?"
+            r"==[A-Za-z0-9_.+!-]+(?:\s+--hash=sha256:[a-fA-F0-9]{64})+$"
+        )
+        entries = [line.strip() for line in logical_lines
+                   if line.strip() and not line.lstrip().startswith("#")]
+        if not entries or any(package_line.fullmatch(line) is None for line in entries):
+            parser.error("Offline lock must contain only name==version entries with SHA-256 hashes; "
+                         "URL/VCS/options/nested requirements are not allowed")
+        local = ["--isolated", "--no-index", "--only-binary=:all:",
+                 "--find-links", str(args.wheelhouse.resolve())]
+        if not pip_install([*local, "--no-deps", "--require-hashes", "-r", str(args.lock_file.resolve())],
+                           "Installing the prepared offline runtime"):
+            return 1
+        # No build isolation: build requirements must also be included in the lock/wheelhouse.
+        if not pip_install([*local, "--no-deps", "--no-build-isolation", "-e", str(root)],
+                           "Installing local project without dependency resolution"):
+            return 1
+        if not run([sys.executable, "-m", "pip", "check"], "Checking installed dependency consistency"):
+            return 1
+        print("Offline install finished; no LFS pull was attempted. Run --offline --check-only.")
+        print("CARLA, CUDA and inference require the separate checks in docs/reproduction.md.")
+        return 0
 
     check_python_version()
-    remove_conflicting_opencv()
+    if not remove_conflicting_opencv():
+        return 1
 
     # Install torch/torchvision before the project dependencies so
     # ultralytics does not accidentally satisfy the torch dependency
     # with a CPU-only build from the default PyPI index.
     detect_cuda_tag()
     if not args.skip_torch:
-        install_torch(args.cuda_tag)
+        if not install_torch(args.cuda_tag):
+            return 1
     else:
         print("\n[SKIPPED] torch/torchvision (--skip-torch)")
 
-    install_requirements()
+    if not install_requirements():
+        return 1
 
     if not args.skip_carla:
-        install_carla(args.carla_version, args.carla_wheel)
+        if not install_carla(args.carla_version, args.carla_wheel):
+            return 1
     else:
         print("\n[SKIPPED] carla (--skip-carla)")
 
     if not args.skip_lfs:
-        pull_lfs_weights()
+        if not pull_lfs_weights():
+            return 1
     else:
         print("\n[SKIPPED] git-lfs weight pull (--skip-lfs)")
 
     print_manual_checklist(args)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
