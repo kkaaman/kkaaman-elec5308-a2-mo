@@ -28,6 +28,7 @@ demonstration for the autonomous perception and navigation library.
    interfaces
    geometry
    lane-topology
+   baseline_route
 
 .. toctree::
    :maxdepth: 1
