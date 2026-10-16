@@ -42,19 +42,54 @@ def stopped_margin(rows, config):
 def read_json(text):
     def reject(value):
         raise ValueError(f"nonfinite JSON value: {value}")
-    return json.loads(text, parse_constant=reject)
+
+    def validate(value):
+        if isinstance(value, float) and not math.isfinite(value):
+            reject(value)
+        if isinstance(value, dict):
+            for item in value.values():
+                validate(item)
+        elif isinstance(value, list):
+            for item in value:
+                validate(item)
+
+    data = json.loads(text, parse_constant=reject)
+    validate(data)
+    return data
+
+
+def validate_s0_criteria(acceptance, definitions):
+    """Refuse config drift against the team's authoritative metric sheet."""
+    metrics = {m["metric"]: m for m in definitions["metrics"] if m["scenario"] == "S0" and m["applicable"]}
+    expected = {
+        "Route completion (minimum per run)": (">=", 1.0, None),
+        "Collisions (maximum per run)": ("=", 0.0, 0.0),
+        "Unplanned lane invasions (max per run)": ("=", 0.0, 0.0),
+        "False stops (maximum per run)": ("=", 0.0, 0.0),
+        "Cross-track mean (worst run)": ("<=", None, acceptance["mean_cte_m"]),
+        "Cruise speed RMS (worst run)": ("<=", None, acceptance["cruise_rms_mps"]),
+        "Capture-to-apply p95 (worst run)": ("<=", None, acceptance["latency_p95_ms"]),
+    }
+    if metrics.keys() != expected.keys():
+        raise ValueError("S0 applicability changed; update the evaluator explicitly")
+    for name, limits in expected.items():
+        metric = metrics[name]
+        if (metric["rule"], metric["lower"], metric["upper"]) != limits or metric["required_runs"] != acceptance["trials"]:
+            raise ValueError(f"S0 configuration disagrees with team criteria: {name}")
 
 
 def evaluate_run(directory):
     directory = Path(directory)
     manifest = read_json((directory / "manifest.json").read_text())
-    if manifest["schema_version"] != 1:
+    if manifest["schema_version"] != 2:
         raise ValueError("unsupported log schema")
     c = manifest["config"]["acceptance"]
     if any(not isinstance(v, (int, float)) or isinstance(v, bool) or not math.isfinite(v) or v <= 0 for v in c.values()):
         raise ValueError("acceptance settings must be finite and positive")
     if not isinstance(c["trials"], int):
         raise ValueError("trials must be an integer")
+    if "acceptance_definitions" in manifest["config"]:
+        validate_s0_criteria(c, manifest["config"]["acceptance_definitions"])
     rows = [read_json(s) for s in (directory / "ticks.jsonl").read_text().splitlines()]
     events = [read_json(s) for s in (directory / "evaluation.jsonl").read_text().splitlines()]
     if not rows or len(rows) != len(events):
@@ -64,7 +99,9 @@ def evaluate_run(directory):
             raise ValueError("misaligned or unordered log")
         if i and (r["frame_id"] != rows[i-1]["frame_id"] + 1 or not math.isclose(r["sim_time_s"] - rows[i-1]["sim_time_s"], c["dt_s"], abs_tol=1e-8)):
             raise ValueError("missing frame or incorrect simulation step")
-        if not r["host_tick_s"] <= r["host_receive_s"] <= r["host_command_s"]:
+        if r["simulation_frame_age_s"] < 0:
+            raise ValueError("negative simulation frame age")
+        if not 0 <= r["host_receive_s"] <= r["host_applied_s"]:
             raise ValueError("invalid host clock order")
     complete = first_sustained(rows, lambda r: r["goal_distance_m"] <= c["goal_tolerance_m"] and abs(r["ego"]["speed_mps"]) <= c["stopped_speed_mps"], c["stopped_duration_s"], c["dt_s"]) is not None
     false_stops = 0
@@ -91,8 +128,8 @@ def evaluate_run(directory):
             stable_since = t if cruise else None
         if stable_since is not None and t - stable_since >= c["stable_cruise_s"] - 1e-9:
             errors.append((r["ego"]["speed_mps"] - target) ** 2)
-        latencies.append(1000 * (r["host_command_s"] - r["host_tick_s"]))
-        ages.append(1000 * (r["host_receive_s"] - r["host_tick_s"]))
+        latencies.append(1000 * (r["host_applied_s"] - r["host_receive_s"]))
+        ages.append(r["simulation_frame_age_s"])
         if d["signed_cte_m"] is not None:
             ctes.append(d["signed_cte_m"])
         for event in e["collisions"]:
@@ -106,19 +143,20 @@ def evaluate_run(directory):
     mean_cte = sum(map(abs, ctes)) / len(ctes) if len(ctes) == len(rows) else None
     metrics = {"route_complete": complete, "collisions": collisions, "lane_invasions": lane_events,
                "false_stops": false_stops, "cruise_rms_mps": rms, "cruise_samples": len(errors),
-               "mean_cte_m": mean_cte, "max_cte_m": max(map(abs, ctes)) if ctes else None,
+               "mean_cte_m": mean_cte, "cte_samples": len(ctes), "max_cte_m": max(map(abs, ctes)) if ctes else None,
                "latency_p50_ms": percentile(latencies, .5), "latency_p95_ms": percentile(latencies, .95),
-               "latency_max_ms": max(latencies), "frame_age_max_ms": max(ages),
+               "latency_max_ms": max(latencies), "simulation_frame_age_max_s": max(ages), "latency_samples": len(latencies),
                "missed_deadlines": sum(v > c["dt_s"] * 1000 for v in latencies)}
-    wall = rows[-1]["host_command_s"] - rows[0]["host_tick_s"]
+    wall = rows[-1]["host_applied_s"] - rows[0]["host_receive_s"]
     metrics["real_time_factor"] = (rows[-1]["sim_time_s"] - rows[0]["sim_time_s"]) / wall if wall > 0 else None
     checks = {"route_complete": complete, "collisions": collisions == 0, "lane_invasions": lane_events == 0,
               "false_stops": false_stops == 0, "cruise_rms_mps": None if rms is None else rms <= c["cruise_rms_mps"],
               "mean_cte_m": None if mean_cte is None else mean_cte <= c["mean_cte_m"],
               "latency_p95_ms": metrics["latency_p95_ms"] <= c["latency_p95_ms"]}
+    checks["observation_valid"] = all(r["diagnostics"].get("observation_valid", False) for r in rows)
     supported = manifest["config"]["scenario"] == "S0"
     status = "FAIL" if False in checks.values() else "BLOCKED" if not supported or None in checks.values() else "PASS"
-    return {"schema_version": 1, "status": status, "evidence_kind": manifest["config"].get("evidence_kind", "unspecified"),
+    return {"schema_version": 2, "status": status, "evidence_kind": manifest["config"].get("evidence_kind", "unspecified"),
             "metrics": metrics, "checks": checks, "scope": "S0 only; S1-S5 and dataset depth evaluation remain blocked"}
 
 
@@ -135,4 +173,9 @@ def aggregate(directories):
     status = "FAIL" if any(r["status"] == "FAIL" for r in runs) else "BLOCKED"
     if compatible and unique and seeds and len(runs) >= baseline["acceptance"]["trials"] and all(r["status"] == "PASS" for r in runs):
         status = "PASS"
-    return {"status": status, "runs": runs, "compatible_config": compatible, "unique_runs_and_seeds": unique and seeds}
+    worst = {}
+    for name in ("collisions", "lane_invasions", "false_stops", "cruise_rms_mps", "mean_cte_m", "latency_p95_ms"):
+        values = [r["metrics"][name] for r in runs]
+        worst[name] = None if None in values else max(values)
+    return {"status": status, "runs": runs, "worst_run_metrics": worst,
+            "compatible_config": compatible, "unique_runs_and_seeds": unique and seeds}

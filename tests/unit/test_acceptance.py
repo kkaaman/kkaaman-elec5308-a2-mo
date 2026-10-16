@@ -1,4 +1,5 @@
 """Known-answer and failure tests; unittest also runs these without pytest."""
+import copy
 import json
 import math
 import tempfile
@@ -7,8 +8,14 @@ from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
 
-from autonomy.interfaces import ControlPacket
-from evaluation.metrics import aggregate, evaluate_run, first_sustained, percentile, stopped_margin
+from evaluation.metrics import (
+    aggregate,
+    evaluate_run,
+    first_sustained,
+    percentile,
+    stopped_margin,
+    validate_s0_criteria,
+)
 from evaluation.run_log import RunLogger, write_json
 from navigation_control import Waypoint
 from navigation_control.path import ReferencePath
@@ -21,7 +28,7 @@ GOLDEN = json.loads((ROOT / "tests/fixtures/acceptance/golden.json").read_text()
 
 def synthetic(directory):
     config = dict(CONFIG, dt_s=0.1)
-    write_json(directory / "manifest.json", {"schema_version": 1, "seed": 1,
+    write_json(directory / "manifest.json", {"schema_version": 2, "seed": 1,
                "config": {"scenario": "S0", "acceptance": config, "evidence_kind": "known-answer fixture"}})
     rows, events = [], []
     for i in range(70):
@@ -29,12 +36,12 @@ def synthetic(directory):
         target = 0 if final or 30 <= i <= 40 else 5
         speed = 0 if final else 4.5
         rows.append({"frame_id": i, "sim_time_s": i / 10,
-                     "host_tick_s": i / 10, "host_receive_s": i / 10 + .01,
-                     "host_command_s": i / 10 + .02, "ego": {"speed_mps": speed},
+                     "host_receive_s": i / 10, "simulation_frame_age_s": 0,
+                     "host_applied_s": i / 10 + .02, "ego": {"speed_mps": speed},
                      "goal_distance_m": 0.5 if final else 10,
                      "planned_final_stop": final,
                      "diagnostics": {"target_speed_mps": target, "behaviour": "GOAL_STOP" if final else "CRUISE",
-                                     "speed_caps_mps": {}, "signed_cte_m": .2}})
+                                     "speed_caps_mps": {}, "signed_cte_m": .2, "observation_valid": True}})
         collision = [{"other_actor_id": 7}] if i in (0, 4, 10) else []
         events.append({"frame_id": i, "collisions": collision, "lane_invasions": [{}] if i == 2 else []})
     save_rows(directory, rows, events)
@@ -47,6 +54,16 @@ def save_rows(directory, rows, events):
 
 
 class AcceptanceTests(unittest.TestCase):
+    def test_authoritative_criteria_drift_rejected(self):
+        definitions = json.loads((ROOT / "tests/fixtures/acceptance_definitions.json").read_text())
+        validate_s0_criteria(CONFIG, definitions)
+        changed = copy.deepcopy(definitions)
+        changed["metrics"][0]["required_runs"] += 1
+        with self.assertRaises(ValueError):
+            validate_s0_criteria(CONFIG, changed)
+        with self.assertRaises(ValueError):
+            validate_s0_criteria(dict(CONFIG, mean_cte_m=.5), definitions)
+
     def test_geometry_and_stop_golden(self):
         g = GOLDEN
         path = ReferencePath(Waypoint(*p) for p in g["route"])
@@ -104,7 +121,25 @@ class AcceptanceTests(unittest.TestCase):
             save_rows(p, rows, events[:-1])
             with self.assertRaises(ValueError):
                 evaluate_run(p)
-            rows[0]["host_command_s"] = -1
+            rows[0]["host_applied_s"] = -1
+            save_rows(p, rows, events)
+            with self.assertRaises(ValueError):
+                evaluate_run(p)
+
+    def test_application_boundary_and_invalid_observation(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            p = Path(tmp)
+            rows, events = synthetic(p)
+            for r, e in zip(rows, events):
+                e["collisions"], e["lane_invasions"] = [], []
+                r["planned_final_stop"] = True
+            rows[0]["diagnostics"]["observation_valid"] = False
+            save_rows(p, rows, events)
+            result = evaluate_run(p)
+            self.assertFalse(result["checks"]["observation_valid"])
+            self.assertEqual(result["status"], "FAIL")
+            self.assertAlmostEqual(result["metrics"]["latency_p95_ms"], 20)
+            rows[0]["host_applied_s"] = float("nan")
             save_rows(p, rows, events)
             with self.assertRaises(ValueError):
                 evaluate_run(p)
@@ -122,9 +157,10 @@ class AcceptanceTests(unittest.TestCase):
             def deterministic(path):
                 rows = [json.loads(s) for s in (path / "ticks.jsonl").read_text().splitlines()]
                 for r in rows:
-                    for k in ("host_tick_s", "host_receive_s", "host_command_s"):
+                    for k in ("host_receive_s", "host_applied_s"):
                         r.pop(k)
-                    r["control"].pop("host_command_s")
+                    r["control"].pop("episode_id")
+                    r["control"]["diagnostics"].pop("stage_durations_s")
                     r["diagnostics"].pop("timings_ms")
                 return rows
             self.assertEqual(deterministic(directories[0]), deterministic(repeat))
@@ -143,11 +179,11 @@ class AcceptanceTests(unittest.TestCase):
             run_s0(Path(tmp) / "source", CONFIG, 1, ROOT)
             args, kwargs = records[0]
             bundle, packet, diagnostics, evaluation = args
-            with RunLogger(Path(tmp) / "log", config={}, seed=1, metadata={}, host_origin_s=bundle.host_tick_s) as logger:
+            with RunLogger(Path(tmp) / "log", config={}, seed=1, metadata={}, host_origin_s=bundle.received_monotonic_s) as logger:
                 with self.assertRaises(ValueError):
-                    logger.record(bundle, replace(packet, frame_id=999), diagnostics, evaluation, **kwargs)
+                    logger.record(bundle, replace(packet, source_frame_id=999), diagnostics, evaluation, **kwargs)
                 with self.assertRaises(ValueError):
-                    logger.record(bundle, ControlPacket.stop(bundle.frame_id, "fault"), diagnostics, evaluation, **kwargs)
+                    logger.record(bundle, replace(packet, episode_id="foreign"), diagnostics, evaluation, **kwargs)
                 with self.assertRaises(ValueError):
                     logger.record(*args, **dict(kwargs, goal_distance_m=math.nan))
                 logger.record(*args, **kwargs)
@@ -155,7 +191,7 @@ class AcceptanceTests(unittest.TestCase):
                     logger.record(*args, **kwargs)
             row = json.loads((Path(tmp) / "log/ticks.jsonl").read_text())
             self.assertNotIn("rgb", row)
-            self.assertEqual(row["host_tick_s"], 0)
+            self.assertEqual(row["host_receive_s"], 0)
 
 
 if __name__ == "__main__":

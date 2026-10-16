@@ -1,75 +1,104 @@
 # Offline acceptance logging (issue #37)
 
-The S0 component harness runs the inherited `PathFollower` against fixed-step
-bicycle dynamics on a straight 80 m route, without CARLA, neural models or network
-access. It starts at cruise speed, with a small seeded lateral offset, and must
-stop within goal tolerance for a continuous second. Five distinct seeds are used.
-This is **offline controller component evidence**, not a Town10HD result or
-validation of the complete autonomy/perception stack. The supplied snapshot has
-no `AutonomyStack` or `KinematicWorld`; integration with those upstream modules
-must be checked when they become available. Synthetic evaluation events are empty
-in this obstacle-free harness; collision sensing is not validated here.
+The S0 acceptance path uses the shared `KinematicWorld` and `SkeletonStack`
+with an `EmptyDetector` and the inherited `PathFollower` motion policy. No shared
+interfaces are modified. The world starts at cruise speed with a small seeded
+lateral offset on a straight 80 m legal graph edge. Completion requires endpoint
+proximity and speed <=0.1 m/s for a continuous second, not progress alone.
+Five distinct seeds are retained, including failures.
 
-From the repository root, after the documented editable install:
+This is **offline stack/world integration evidence with synthetic observations**.
+It does not validate learned perception, Town10HD, live collision/lane sensors,
+vehicle calibration, obstacle association or the complete CARLA stack. This
+kinematic world does not simulate physical contacts; its empty raw evaluation
+records are explicitly labelled synthetic. No real vehicle safety claim follows
+from their zero counts. No images/video are produced by this nonvisual harness.
+
+From the repository root after the documented editable install:
 
 ```powershell
 python scripts/run_s0_acceptance.py
 python -m pytest
-ruff check .
-sphinx-build -W docs docs/_build/html
+python -m ruff check .
+python -m sphinx -W -b html docs docs/_build/html
 ```
 
-The thresholds are in `configs/acceptance.json`, matching the provisional S0
-values in `acceptance.md`. Each invocation creates a new UTC-labelled batch and
-retains every trial. Existing directories are never overwritten. Rerun a saved
-batch using its five directory paths:
+`configs/acceptance.json` contains operational window settings and the S0
+thresholds. Before a run, the evaluator checks them against the authoritative
+`tests/fixtures/acceptance_definitions.json`; changed applicability, thresholds
+or run counts require an explicit evaluator update. The full source definitions
+are snapshotted in each manifest, so offline re-evaluation needs only the saved
+run files. Missing evidence never becomes zero or PASS.
+
+Each invocation creates a UTC-labelled batch under `runs/S0/`. Existing run
+folders are never overwritten. Re-evaluate a complete batch with its five paths:
 
 ```powershell
 python scripts/evaluate_runs.py runs/S0/<run-0> runs/S0/<run-1> runs/S0/<run-2> runs/S0/<run-3> runs/S0/<run-4> --output rechecked.json
 ```
 
-A non-PASS result exits nonzero. An incomplete or corrupt log raises an error;
-a missing metric is blocked. All supplied attempts are evaluated, including failed
-ones. A batch requires at least five distinct directories and seeds with identical
-configuration. Never select only successful attempts from a larger batch.
+All supplied attempts are evaluated. A batch requires at least five distinct
+run directories and seeds, identical configuration and a passing result from
+every attempt. Do not select only successful attempts from a larger batch.
+Non-PASS exits nonzero. Malformed/incomplete logs raise an error.
 
-Each directory contains:
+## Log schema 2
 
-- `manifest.json`: schema, configuration snapshot, seed, git hash/dirty state,
-  installed dependency versions and metadata hashes, model hashes (empty because
-  no models are used), Python and hardware details. Git information is null in
-  ZIP snapshots; run in a checkout to capture the commit.
-- `ticks.jsonl`: matched frame/time, rear-axle state, full command, reason, mode,
-  target, speed caps, gap, signed cross-track error, progress and stage timings.
-- `evaluation.jsonl`: raw evaluation-only truth and events, never supplied to
-  the controller.
-- `summary.json`: results recomputed from those files. No summary is trusted as
-  an input to metric calculation. The batch also has an aggregate JSON file.
+- `manifest.json`: schema, complete configuration, source criteria, seed,
+  git hash/dirty flag, dependency versions/metadata hashes, model hashes (empty
+  because no model is used), Python and hardware. Git information is null in
+  ZIP snapshots; execute in a checkout to record the actual commit.
+- `ticks.jsonl`: matched frame/time, rear-axle state, actual `ControlPacket`,
+  stack diagnostic reasons and stage durations, behaviour, governed target,
+  speed caps, signed CTE, progress, gap and final-stop classification. The
+  random anti-replay episode ID changes each reset.
+- `evaluation.jsonl`: raw evaluation-only state/events, never passed to policy
+  or stack. Synthetic event provenance is explicit.
+- `summary.json`: recomputed metrics/checks. Re-evaluation never trusts it as
+  input. A batch aggregate JSON retains each trial's result.
 
-Host timestamps are actual `perf_counter` readings relative to a shared run
-origin. Simulator time is separate. State/commands/reasons repeat for the same
-seed; host timestamps and measured timing naturally vary. No simulated timing
-is presented as measured performance. Real-time factor describes this unpaced
-component harness, not CARLA throughput. No image/video is produced by this
-nonvisual harness.
+Schema 1 logs from the earlier interface are rejected. State, command values and
+reason traces repeat for a given seed. Episode UUIDs, measured timings, metadata
+and host timestamps naturally vary and are excluded from repeatability comparison.
 
-Metric rules: completion requires endpoint proximity and sustained stopped
-speed, not monotonic progress. Cruise RMS starts after a target has stayed fixed
-for two seconds in CRUISE, with curve/endpoint phases excluded. CTE uses absolute
-rear-axle distance, with the signed trace retained. False-stop episodes require
-one continuous second below the target-speed threshold outside the declared
-final stop. Collision events are deduplicated by actor over 0.5 seconds; unknown
-actors count separately. Lane events are counted conservatively, without blanket
-junction exemptions. Latency uses linear-interpolated p95; deadline misses use
-strictly greater than dt. Missing frames and invalid clock order are rejected.
+## Clocks and metrics
 
-`tests/fixtures/acceptance/golden.json` fixes independent geometry, stopped-window,
-front-to-surface gap, percentile, RMS, collision and false-stop expectations.
-Unit tests also check missing evidence, interruption, truncation, bad timestamps,
-logger rejection and repeatability. Socket connections are blocked in offline
-pytest tests. Live CARLA tests retain their explicit marker exemption.
+Receipt and application use **the same `time.monotonic()` clock**. The application
+boundary is sampled immediately after `world.step(packet)` returns: a conservative
+upper bound on application, including the synchronous model advance. It is not a
+physical actuator timestamp. Capture-to-apply latency is this boundary minus the
+input frame's `received_monotonic_s`. Unknown latency before sensor receipt is
+excluded, as required by the current `acceptance.md`. Stack per-stage durations
+use their existing `perf_counter` durations and are never subtracted from the
+monotonic timestamps. Metadata collection happens before the first observation.
 
-S1-S5, depth-dataset evaluation, obstacle HOLD/resume and matched S3 slowdown are
-not implemented by this S0 evaluator. Those scenarios cannot receive PASS here;
-they require subsequent integration and evidence under the relevant issues.
-CI uploads S0 logs as `offline-s0-acceptance`, including failed-run artifacts.
+Simulation frame age is application simulation time minus observation simulation
+time. It is zero here because the current packet applies at the start of its
+fixed-step interval; world advancement produces the next observation afterward.
+Real-time factor uses elapsed simulation time divided by actual host elapsed
+time. This unpaced fixture is not a CARLA performance benchmark.
+
+Completion requires endpoint proximity and the continuous stopped window. Cruise
+RMS starts after two seconds at a fixed target in CRUISE and excludes active
+curve/endpoint caps. No stable samples is blocked. CTE averages absolute rear-axle
+distance over all sampled S0 states through final hold; signed trace and sample
+count are retained. False-stop episodes require a target below 0.1 m/s for one
+continuous second outside the planned endpoint braking/hold window. Collision
+callbacks are deduplicated per actor over 0.5 seconds; unknown actors count
+separately. Lane events are counted conservatively with no junction exemptions.
+Latency p95 uses linear interpolation; deadline misses use strictly greater than
+dt. Missing frames, invalid clocks, nonfinite JSON and invalid observations
+cannot pass. All run checks must pass separately, so pooled means cannot mask
+a failed trial.
+
+The golden fixture fixes independent projection geometry, sustained-stop timing,
+a first-stop front-to-surface-gap helper, percentile, RMS, event and false-stop
+expectations. The gap helper is not an implementation of the team's steady-HOLD
+S1-S5 metrics. Tests also check source-criteria drift, actual stack/world runs,
+repeatability, episode/frame mismatches, truncated logs and missing evidence.
+Socket connections are blocked in offline pytest tests; explicitly marked live
+CARLA tests retain their exemption.
+
+S1-S5, depth-dataset evaluation, steady-HOLD margin/speed, resume and matched S3
+slowdown remain outside this S0 evaluator. Those scenarios cannot receive PASS
+here. CI uploads S0 logs as `offline-s0-acceptance`, including failed-run artifacts.

@@ -1,4 +1,4 @@
-"""Versioned JSONL run logs; host times use one relative perf_counter origin."""
+"""Versioned JSONL run logs; host times use one relative monotonic origin."""
 from __future__ import annotations
 
 import hashlib
@@ -51,26 +51,32 @@ class RunLogger:
         self.directory.mkdir(parents=True, exist_ok=False)
         self.origin = host_origin_s
         self.last_frame, self.last_time = -1, -1.0
-        write_json(self.directory / "manifest.json", {"schema_version": 1, "config": config,
-                   "seed": seed, "provenance": metadata, "host_clock": "perf_counter relative to run origin"})
+        write_json(self.directory / "manifest.json", {"schema_version": 2, "config": config,
+                   "seed": seed, "provenance": metadata, "host_clock": "monotonic relative to run origin"})
         self.ticks = (self.directory / "ticks.jsonl").open("w", encoding="utf-8")
         self.events = (self.directory / "evaluation.jsonl").open("w", encoding="utf-8")
 
-    def record(self, bundle, packet, diagnostics, evaluation, *, goal_distance_m, planned_final_stop=False):
-        ids = (bundle.frame_id, packet.frame_id, diagnostics.frame_id, evaluation.frame_id)
+    def record(self, bundle, packet, diagnostics, evaluation, *, host_applied_monotonic_s,
+               applied_sim_time_s, goal_distance_m, planned_final_stop=False):
+        ids = (bundle.frame_id, packet.source_frame_id, diagnostics["frame_id"], evaluation["frame_id"])
         if len(set(ids)) != 1 or ids[0] <= self.last_frame:
             raise ValueError("frames must match and increase")
-        if bundle.sim_time_s <= self.last_time or diagnostics.sim_time_s != bundle.sim_time_s:
+        if packet.episode_id != bundle.episode_id or packet.source_sim_time_s != bundle.sim_time_s:
+            raise ValueError("command episode and simulation time must match observation")
+        if bundle.sim_time_s <= self.last_time or diagnostics["sim_time_s"] != bundle.sim_time_s:
             raise ValueError("simulation times must match and increase")
-        if packet.host_command_s is None or packet.host_command_s < bundle.host_receive_s:
-            raise ValueError("command timestamp must follow receive timestamp")
+        if not packet.is_current(bundle.episode_id, applied_sim_time_s):
+            raise ValueError("command must be current when applied")
+        if host_applied_monotonic_s < bundle.received_monotonic_s:
+            raise ValueError("application timestamp must follow receive timestamp")
+        if not diagnostics["reason"] or not packet.diagnostics.reasons:
+            raise ValueError("commands must include decision reasons")
         row = {"frame_id": bundle.frame_id, "sim_time_s": bundle.sim_time_s,
-               "host_tick_s": bundle.host_tick_s - self.origin,
-               "host_receive_s": bundle.host_receive_s - self.origin,
-               "host_command_s": packet.host_command_s - self.origin,
-               "ego": plain(bundle.ego), "control": plain(packet), "diagnostics": plain(diagnostics),
+               "host_receive_s": bundle.received_monotonic_s - self.origin,
+               "host_applied_s": host_applied_monotonic_s - self.origin,
+               "simulation_frame_age_s": applied_sim_time_s - bundle.sim_time_s,
+               "ego": plain(bundle.ego.state), "control": plain(packet), "diagnostics": plain(diagnostics),
                "goal_distance_m": goal_distance_m, "planned_final_stop": planned_final_stop}
-        row["control"]["host_command_s"] = row["host_command_s"]
         tick = json.dumps(row, sort_keys=True, allow_nan=False)
         event = json.dumps(plain(evaluation), sort_keys=True, allow_nan=False)
         self.ticks.write(tick + "\n")
