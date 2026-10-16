@@ -51,6 +51,17 @@ jobs:
         run: |
           python -m pytest
 
+      - name: Run five offline S0 acceptance trials
+        run: python scripts/run_s0_acceptance.py --output runs/S0
+
+      - name: Retain acceptance logs and results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: offline-s0-acceptance
+          path: runs/S0
+          if-no-files-found: warn
+
   docs:
     runs-on: ubuntu-latest
 

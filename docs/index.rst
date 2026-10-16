@@ -24,6 +24,7 @@ demonstration for the autonomous perception and navigation library.
    mission
    depth-association
    acceptance
+   acceptance-logging
 
 .. toctree::
    :maxdepth: 1

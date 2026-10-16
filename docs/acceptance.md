@@ -87,3 +87,8 @@ those files alone.
 A scenario passes only when all its applicable metrics pass in all 5 runs.
 A failed criterion may be reported as blocked or conditional, never as a
 pass.
+
+## Offline logging implementation
+
+See [acceptance-logging.md](acceptance-logging.md) for issue #37 commands,
+record formats, golden fixtures and the limits of the offline S0 evidence.

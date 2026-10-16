@@ -1,0 +1,10 @@
+{
+  "description": "Polyline from (0,0) to (10,0), off-route point (5,3); speed 0.1 inclusive for 1 second; first sustained stop gap is 3.0 m.",
+  "route": [[0, 0], [10, 0]], "point": [5, 3],
+  "projection_progress_m": 5.0, "projection_distance_m": 3.0,
+  "dt_s": 0.1, "speeds": [0.2, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1],
+  "stop_frame": 11, "stopped_margin_m": 3.0,
+  "percentile_input": [0, 10, 20, 30, 40], "p95": 38.0,
+  "cruise_rms_mps": 0.5, "false_stops": 1,
+  "collision_count": 2, "lane_invasion_count": 1
+}
