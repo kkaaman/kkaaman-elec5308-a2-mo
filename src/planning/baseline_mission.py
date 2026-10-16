@@ -154,6 +154,13 @@ def load_frozen_mission(config_path):
     runtime = config["runtime"]
     if runtime.get("fixed_delta_seconds") != 0.05:
         raise ValueError("Baseline physics timestep must remain 0.05 seconds")
+    if runtime.get("map_layers", "All") not in ("NONE", "All"):
+        raise ValueError("Baseline map_layers must be NONE or All")
+    if type(runtime.get("rgb_enabled", True)) is not bool:
+        raise ValueError("rgb_enabled must be bool")
+    stable_duration = config.get("measurement", {}).get("stable_target_duration_s", 2.0)
+    if isinstance(stable_duration, bool) or not isinstance(stable_duration, (int, float)) or not math.isfinite(stable_duration) or stable_duration <= 0:
+        raise ValueError("Stable cruise target duration must be finite and positive")
     for name in ("cruise_speed_mps", "curve_speed_mps", "curve_preview_m", "curve_heading_threshold_deg"):
         value = config[name]
         if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value <= 0:

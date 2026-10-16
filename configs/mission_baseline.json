@@ -18,7 +18,7 @@
   "hold_policy": "request_zero_speed_without_resetting_route",
   "resume_policy": "fresh_valid_clearance_then_positive_speed_without_set_path",
   "goal_policy": "latched_finished_until_explicit_reset",
-  "speed_status": "TUNING_PENDING_FROZEN_ACCEPTANCE",
+  "speed_status": "FROZEN_AFTER_NAVIGATION_TUNING_PENDING_CAMERA_ACCEPTANCE",
   "reverse_allowed": false,
   "ego_truth_for_navigation": "ALLOWED_BY_USER_COURSE_SCOPE_CONFIRMATION",
   "obstacle_truth_for_control": false,
@@ -47,7 +47,9 @@
     "max_simulation_seconds": 180.0,
     "settle_ticks": 20,
     "capture_timeout_s": 10.0,
-    "seed": 42
+    "seed": 42,
+    "map_layers": "NONE",
+    "rgb_enabled": true
   },
   "measurement": {
     "stable_target_duration_s": 2.0,

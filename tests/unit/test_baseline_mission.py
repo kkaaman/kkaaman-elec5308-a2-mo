@@ -64,3 +64,17 @@ def test_tampered_route_is_rejected(tmp_path, mutation):
     path.write_text(json.dumps(config))
     with pytest.raises(ValueError):
         load_frozen_mission(path)
+
+
+@pytest.mark.parametrize(("key", "value"), [
+    ("map_layers", "Buildings"), ("rgb_enabled", 0), ("fixed_delta_seconds", 0.1),
+])
+def test_runtime_contract_rejects_unsupported_scene_or_timing(tmp_path, key, value):
+    config = json.loads((ROOT / "configs/mission_baseline.json").read_text())
+    config["route_file"] = str(ROOT / "configs" / config["route_file"])
+    config["topology_file"] = str(ROOT / "tests/fixtures/Town10HD.lane_graph.json")
+    config["runtime"][key] = value
+    path = tmp_path / "mission.json"
+    path.write_text(json.dumps(config))
+    with pytest.raises(ValueError):
+        load_frozen_mission(path)
