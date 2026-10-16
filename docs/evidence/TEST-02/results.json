@@ -1,0 +1,251 @@
+{
+  "formal_s0_acceptance": "NOT RUN: installed RGB camera environment blocks complete trials",
+  "required_formal_runs": 5,
+  "passing_formal_runs": 0,
+  "scope": "Real navigation and explicit HOLD diagnostics; not obstacle perception acceptance",
+  "proof_runs": [
+    {
+      "run_folder": "runs/S0/navigation-proof/run-01",
+      "controller_lifecycle_verification": "PASS",
+      "s0_evaluator_status": "INSUFFICIENT_EVIDENCE",
+      "formal_acceptance": false,
+      "completed": true,
+      "route_install_count": 1,
+      "cleanup_ok": true,
+      "hold_samples": 0,
+      "hold_never_finished": true,
+      "hold_reached_stopped_speed": true,
+      "progress_monotonic": true,
+      "fresh_world_episode": true,
+      "source_bundle_sha256": "a8091160429ef37734c7f04a0f54aae70948fbdde00a5e8813cc1905dcae9ee4",
+      "route_sha256": "78b0235ad8788d03101bc027dfefa0f6bc6b89e309e4192ed3121742e14df06a",
+      "config_sha256": "f402bdd517874d75a1632be4215d129e97639020ef0974c78280c79a6d3faaeb",
+      "metrics": {
+        "route_completion": 1,
+        "mean_abs_cte_m": 0.020446294555183937,
+        "cruise_speed_rms_mps": 0.11125701255861821,
+        "collisions": 0,
+        "unplanned_lane_invasions": 0,
+        "capture_to_apply_p95_ms": null,
+        "false_stops": 0
+      }
+    },
+    {
+      "run_folder": "runs/S0/hold-straight-proof/run-01",
+      "controller_lifecycle_verification": "PASS",
+      "s0_evaluator_status": "FAIL",
+      "formal_acceptance": false,
+      "completed": true,
+      "route_install_count": 1,
+      "cleanup_ok": true,
+      "hold_samples": 40,
+      "hold_never_finished": true,
+      "hold_reached_stopped_speed": true,
+      "progress_monotonic": true,
+      "fresh_world_episode": true,
+      "source_bundle_sha256": "a8091160429ef37734c7f04a0f54aae70948fbdde00a5e8813cc1905dcae9ee4",
+      "route_sha256": "78b0235ad8788d03101bc027dfefa0f6bc6b89e309e4192ed3121742e14df06a",
+      "config_sha256": "e2c65a0f3c305e434a56dde2085e7f7b5ca34c27be0d0828d3fca4ea045a5c38",
+      "metrics": {
+        "route_completion": 1,
+        "mean_abs_cte_m": 0.019944363817985235,
+        "cruise_speed_rms_mps": 0.15135636631712224,
+        "collisions": 0,
+        "unplanned_lane_invasions": 0,
+        "capture_to_apply_p95_ms": null,
+        "false_stops": 1
+      }
+    },
+    {
+      "run_folder": "runs/S0/hold-curve-proof/run-01",
+      "controller_lifecycle_verification": "PASS",
+      "s0_evaluator_status": "FAIL",
+      "formal_acceptance": false,
+      "completed": true,
+      "route_install_count": 1,
+      "cleanup_ok": true,
+      "hold_samples": 40,
+      "hold_never_finished": true,
+      "hold_reached_stopped_speed": true,
+      "progress_monotonic": true,
+      "fresh_world_episode": true,
+      "source_bundle_sha256": "a8091160429ef37734c7f04a0f54aae70948fbdde00a5e8813cc1905dcae9ee4",
+      "route_sha256": "78b0235ad8788d03101bc027dfefa0f6bc6b89e309e4192ed3121742e14df06a",
+      "config_sha256": "e52382841d38f6bfd14367a19dacf6d9b905447593120c7df0618e1422b14fce",
+      "metrics": {
+        "route_completion": 1,
+        "mean_abs_cte_m": 0.021429382613934136,
+        "cruise_speed_rms_mps": 0.11765424449761283,
+        "collisions": 0,
+        "unplanned_lane_invasions": 0,
+        "capture_to_apply_p95_ms": null,
+        "false_stops": 1
+      }
+    },
+    {
+      "run_folder": "runs/S0/hold-near-goal-proof/run-01",
+      "controller_lifecycle_verification": "PASS",
+      "s0_evaluator_status": "INSUFFICIENT_EVIDENCE",
+      "formal_acceptance": false,
+      "completed": true,
+      "route_install_count": 1,
+      "cleanup_ok": true,
+      "hold_samples": 40,
+      "hold_never_finished": true,
+      "hold_reached_stopped_speed": true,
+      "progress_monotonic": true,
+      "fresh_world_episode": true,
+      "source_bundle_sha256": "a8091160429ef37734c7f04a0f54aae70948fbdde00a5e8813cc1905dcae9ee4",
+      "route_sha256": "78b0235ad8788d03101bc027dfefa0f6bc6b89e309e4192ed3121742e14df06a",
+      "config_sha256": "b904e39113642739b576b3ef293ffdbd50c261e07b71ed29a8e424a056c86acf",
+      "metrics": {
+        "route_completion": 1,
+        "mean_abs_cte_m": 0.020584481492371444,
+        "cruise_speed_rms_mps": 0.11125701255861821,
+        "collisions": 0,
+        "unplanned_lane_invasions": 0,
+        "capture_to_apply_p95_ms": null,
+        "false_stops": 0
+      }
+    }
+  ],
+  "all_retained_trials": [
+    {
+      "folder": "runs/S0/hold-curve-01/run-01",
+      "status": "FAIL",
+      "completed": true,
+      "failure_reason": null,
+      "cleanup_ok": false,
+      "formal_acceptance": false
+    },
+    {
+      "folder": "runs/S0/hold-curve-02/run-01",
+      "status": "FAIL",
+      "completed": true,
+      "failure_reason": null,
+      "cleanup_ok": true,
+      "formal_acceptance": false
+    },
+    {
+      "folder": "runs/S0/hold-curve-proof/run-01",
+      "status": "FAIL",
+      "completed": true,
+      "failure_reason": null,
+      "cleanup_ok": true,
+      "formal_acceptance": false
+    },
+    {
+      "folder": "runs/S0/hold-near-goal-01/run-01",
+      "status": "FAIL",
+      "completed": true,
+      "failure_reason": null,
+      "cleanup_ok": true,
+      "formal_acceptance": false
+    },
+    {
+      "folder": "runs/S0/hold-near-goal-02/run-01",
+      "status": "FAIL",
+      "completed": true,
+      "failure_reason": null,
+      "cleanup_ok": true,
+      "formal_acceptance": false
+    },
+    {
+      "folder": "runs/S0/hold-near-goal-proof/run-01",
+      "status": "INSUFFICIENT_EVIDENCE",
+      "completed": true,
+      "failure_reason": null,
+      "cleanup_ok": true,
+      "formal_acceptance": false
+    },
+    {
+      "folder": "runs/S0/hold-straight-01/run-01",
+      "status": "FAIL",
+      "completed": true,
+      "failure_reason": null,
+      "cleanup_ok": true,
+      "formal_acceptance": false
+    },
+    {
+      "folder": "runs/S0/hold-straight-02/run-01",
+      "status": "FAIL",
+      "completed": true,
+      "failure_reason": null,
+      "cleanup_ok": true,
+      "formal_acceptance": false
+    },
+    {
+      "folder": "runs/S0/hold-straight-proof/run-01",
+      "status": "FAIL",
+      "completed": true,
+      "failure_reason": null,
+      "cleanup_ok": true,
+      "formal_acceptance": false
+    },
+    {
+      "folder": "runs/S0/navigation-final/run-01",
+      "status": "INSUFFICIENT_EVIDENCE",
+      "completed": true,
+      "failure_reason": null,
+      "cleanup_ok": true,
+      "formal_acceptance": false
+    },
+    {
+      "folder": "runs/S0/navigation-proof/run-01",
+      "status": "INSUFFICIENT_EVIDENCE",
+      "completed": true,
+      "failure_reason": null,
+      "cleanup_ok": true,
+      "formal_acceptance": false
+    },
+    {
+      "folder": "runs/S0/navigation-smoke-01/run-01",
+      "status": "FAIL",
+      "completed": false,
+      "failure_reason": "TimeoutError: Mission exceeded the frozen simulation-time limit",
+      "cleanup_ok": true,
+      "formal_acceptance": false
+    },
+    {
+      "folder": "runs/S0/navigation-tuning-01/run-01",
+      "status": "INSUFFICIENT_EVIDENCE",
+      "completed": true,
+      "failure_reason": null,
+      "cleanup_ok": true,
+      "formal_acceptance": false
+    },
+    {
+      "folder": "runs/S0/smoke-01/run-01",
+      "status": "FAIL",
+      "completed": false,
+      "failure_reason": "RuntimeError: time-out of 10000ms while waiting for the simulator, make sure the simulator is ready and connected to 127.0.0.1:2000",
+      "cleanup_ok": false,
+      "formal_acceptance": false
+    },
+    {
+      "folder": "runs/S0/smoke-02/run-01",
+      "status": "FAIL",
+      "completed": false,
+      "failure_reason": "RuntimeError: time-out of 10000ms while waiting for the simulator, make sure the simulator is ready and connected to 127.0.0.1:2000",
+      "cleanup_ok": false,
+      "formal_acceptance": false
+    },
+    {
+      "folder": "runs/S0/smoke-03/run-01",
+      "status": "FAIL",
+      "completed": false,
+      "failure_reason": "RuntimeError: time-out of 10000ms while waiting for the simulator, make sure the simulator is ready and connected to 127.0.0.1:2000",
+      "cleanup_ok": false,
+      "formal_acceptance": false
+    }
+  ],
+  "camera_probe_observation": "Independent project-free RGB probes stall after a few receipts in both synchronous and asynchronous modes",
+  "tuning_rationale": {
+    "cruise_speed_mps": 4.0,
+    "curve_speed_mps": 2.5,
+    "lookahead_m": 4.0,
+    "controller": "Retained Pure Pursuit and public PID configuration; endpoint braking preserved",
+    "decision": "Initial measured full-route navigation met CTE/speed thresholds; no further gain changes justified",
+    "limitations": "RGB-disabled diagnostics cannot establish capture latency, frame age or full-stack real-time performance"
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "cpu": "AMD Ryzen 5 5600H with Radeon Graphics",
+  "gpu": "NVIDIA GeForce RTX 3050 Laptop GPU",
+  "gpu_memory_mib": 4096,
+  "nvidia_driver": "552.22",
+  "physical_memory_bytes": 17024741376,
+  "os": "Windows-10-10.0.19045-SP0",
+  "python": "3.12.14",
+  "carla_client": "0.9.16",
+  "carla_server": "0.9.16",
+  "simulator_path": "D:/CARLA_0.9.16",
+  "target_role": "Minimum-configuration validation machine",
+  "graphics_attempts": [
+    {
+      "backend": "DirectX 12",
+      "result": "Startup access violation in NVIDIA driver"
+    },
+    {
+      "backend": "DirectX 11 offscreen",
+      "result": "Loaded map; stalled during first camera warm-up"
+    },
+    {
+      "backend": "DirectX 11 hidden windowed",
+      "result": "Map loaded; camera warm-up stalled again"
+    },
+    {
+      "backend": "Vulkan",
+      "result": "Installed server exited with code 3"
+    },
+    {
+      "backend": "DirectX 11 visible window, optional map layers NONE",
+      "result": "Independent paced synchronous and asynchronous camera probes stall after a few receipts; GPU memory about 1962 MiB"
+    }
+  ],
+  "scope": "Minimum-spec hardware, startup/camera probes and navigation diagnostic observations",
+  "diagnostic_navigation": "Full route and straight/curve/near-goal HOLD completed using actual physics, collision/lane sensors and explicit RGB-disabled diagnostic mode",
+  "formal_s0_acceptance": "BLOCKED: RGB camera environment unresolved; no five-run pass claimed"
+}

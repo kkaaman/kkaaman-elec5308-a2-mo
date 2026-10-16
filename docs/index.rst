@@ -37,6 +37,7 @@ demonstration for the autonomous perception and navigation library.
    controller_audit
    mission_lifecycle
    s0_navigation_validation
+   evidence/TEST-02/README
    detector_contracts
    lane_recovery
    stack_skeleton

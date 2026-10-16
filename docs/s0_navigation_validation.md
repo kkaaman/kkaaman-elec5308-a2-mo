@@ -4,6 +4,10 @@ This entry point runs the frozen Town10HD mission only. It reuses the fixed
 Tesla adapter, Pure Pursuit and synchronous world owner. It does not implement
 the S1-S5 obstacle/perception stack.
 
+Current status: the installed RGB camera stalls on the minimum-spec laptop;
+full five-run acceptance remains incomplete. Use the diagnostic commands below
+for the independently validated navigation boundary.
+
 ## Reproduce
 
 Use the project environment with CARLA client/server 0.9.16. Start the simulator
