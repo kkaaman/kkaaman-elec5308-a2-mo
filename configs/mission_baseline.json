@@ -5,7 +5,14 @@
   "route_kind": "open_non_self_crossing",
   "pose_reference": "rear_axle",
   "coordinates": "right_handed_x_forward_y_left_z_up",
-  "tentative_manoeuvres": ["straight", "left", "straight", "right", "straight", "stop_at_goal"],
+  "tentative_manoeuvres": [
+    "straight",
+    "left",
+    "straight",
+    "right",
+    "straight",
+    "stop_at_goal"
+  ],
   "route_selection_status": "PENDING_TOPOLOGY_EXPORT_AND_LIVE_VALIDATION",
   "set_path_policy": "once_per_episode_before_first_update",
   "hold_policy": "request_zero_speed_without_resetting_route",
@@ -15,5 +22,31 @@
   "speed_status": "PROVISIONAL_PENDING_VEHICLE_CALIBRATION",
   "reverse_allowed": false,
   "ego_truth_for_navigation": "PENDING_TUTOR_SCOPE_CONFIRMATION",
-  "obstacle_truth_for_control": false
+  "obstacle_truth_for_control": false,
+  "baseline_threshold_freeze": {
+    "status": "PENDING_G1_MEASUREMENTS",
+    "required_evidence": {
+      "depth_accuracy": "BL-B-04",
+      "detector_range_and_latency": "BL-C-05",
+      "longitudinal_response": "BL-E-03"
+    },
+    "candidate_constraints": {
+      "cruise_speed_mps": 5.0,
+      "minimum_detection_range_m": 25.0,
+      "stop_margin_m": {
+        "minimum": 2.5,
+        "maximum": 6.0
+      },
+      "perception_latency_p95_s": 0.1
+    },
+    "frozen_values": {
+      "cruise_speed_mps": null,
+      "deceleration_mps2": null,
+      "lateral_acceleration_mps2": null,
+      "response_budget_s": null,
+      "stop_margin_m": null,
+      "emergency_margin_m": null
+    },
+    "freeze_rule": "Do not populate frozen_values until BL-B-04, BL-C-05 and BL-E-03 evidence has been reviewed."
+  }
 }
