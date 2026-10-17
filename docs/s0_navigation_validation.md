@@ -93,6 +93,18 @@ as proof of controller failure or successful full acceptance.
 Injected HOLD verifies the mission/controller boundary; it is not a claim that
 obstacle perception or a clearance governor has been validated.
 
+## Relationship to BL-D-06
+
+The S0 results in this record validate the navigation configuration used for
+these Town10HD trials, including the 4.0 m/s cruise target and current
+controller parameters.
+
+These values are not the final baseline speed and stopping safety freeze.
+BL-D-06 still requires measured depth/range evidence from BL-B-04, detector
+range/latency evidence from BL-C-05, and longitudinal response evidence from
+BL-E-03. If those measurements cannot safely support this navigation profile,
+the final cruise and stopping configuration must be reduced or adjusted.
+
 ## Current result
 
 Implementation checks and real navigation diagnostics are recorded in
