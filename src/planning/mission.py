@@ -134,6 +134,35 @@ def select_mission(topology):
     )
 
 
+def overlapping_junction_lane(topology, mission_segment_ids, segment_id):
+    """True if ``segment_id`` is a junction lane overlapping the mission's own.
+
+    Inside a junction, lanes that diverge from the same approach or merge into
+    the same exit share centreline geometry near that shared end, and CARLA's
+    ``get_waypoint`` can return either. Such a lane is accepted only if it lies
+    in the same junction as one of the mission's junction lanes and shares that
+    lane's predecessor or successor. It never admits a non-junction lane, a lane
+    of another junction, or a junction lane with no shared entry/exit.
+    """
+    by_id = {lane.segment_id: lane for lane in topology.lanes}
+    lane = by_id.get(segment_id)
+    if lane is None or lane.junction_id is None:
+        return False
+    predecessors = {}
+    for item in topology.lanes:
+        for successor in item.successor_ids:
+            predecessors.setdefault(successor, set()).add(item.segment_id)
+    for key in mission_segment_ids:
+        own = by_id[key]
+        if own.junction_id != lane.junction_id or key == segment_id:
+            continue
+        if set(own.successor_ids) & set(lane.successor_ids):
+            return True
+        if predecessors.get(key, set()) & predecessors.get(segment_id, set()):
+            return True
+    return False
+
+
 def route_graph(points):
     return LaneGraph(
         (GraphNode("start", *points[0]), GraphNode("goal", *points[-1])),
