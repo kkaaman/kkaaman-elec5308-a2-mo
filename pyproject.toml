@@ -95,8 +95,10 @@ ignore = ["E501"]
 "scripts/calibrate_depth.py" = ["TID251"]
 "scripts/calibrate_longitudinal.py" = ["TID251"]
 "scripts/capture_frames.py" = ["TID251"]
+"scripts/verify_event_sensors.py" = ["TID251"]
 
 "tests/unit/test_batch35_dataset.py" = ["TID251"]
 "tests/unit/test_batch35_calibration.py" = ["TID251"]
 
 "tests/unit/test_batch35_world_guards.py" = ["TID251"]
+"tests/unit/test_event_verification.py" = ["TID251"]

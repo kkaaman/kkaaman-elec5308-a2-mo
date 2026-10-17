@@ -2,8 +2,15 @@
 
 Synthetic coloured rectangles are sensed by a raster detector. Evaluation
 positions stay in the world; the production policy receives RGB-D only.
+
+``route="mission"`` drives the fixed Town10HD mission selected from the
+repository lane-graph fixture, places obstacles from ``configs/scenarios`` the
+same way ``CarlaWorld`` does, and renders flat-ground depth. That exercises the
+real junction geometry (camera field of view through the right turn), which a
+constant background depth cannot.
 """
 
+import json
 import math
 import time
 
@@ -24,6 +31,31 @@ from obstacle_perception.types import (
 from planning.corridor import RouteGeometry
 from planning.mission import route_graph
 from sim_harness.kinematic import KinematicConfig, KinematicWorld
+
+
+def mission_route():
+    """Fixed mission from the committed Town10HD lane-graph fixture (no CARLA)."""
+    from autonomy.paths import FIXTURES_DIR
+    from planning.lane_graph import LaneTopology
+    from planning.mission import select_mission
+
+    return select_mission(LaneTopology.load(FIXTURES_DIR / "Town10HD.lane_graph.json"))
+
+
+def scenario_definition(scenario):
+    from autonomy.paths import SCENARIO_DIR
+
+    return json.loads((SCENARIO_DIR / f"{scenario}.yaml").read_text(encoding="utf-8-sig"))
+
+
+def flat_ground_depth(calibration, width, height):
+    """Axial depth of a level road plane seen by a level camera; sky is NaN."""
+    camera_height = calibration.camera_to_ego[2][3]
+    rows = (np.arange(height, dtype=float) + 0.5 - calibration.cy_px) / calibration.fy_px
+    with np.errstate(divide="ignore", invalid="ignore"):
+        column = np.where(rows > 1e-6, camera_height / rows, np.nan)
+    column[column > 999] = np.nan
+    return np.repeat(column[:, None], width, axis=1).astype(np.float32)
 
 
 def fixture_route(curve=False):
@@ -83,14 +115,35 @@ class RasterDetector:
 
 
 class BaselineWorld(KinematicWorld):
-    def __init__(self, scenario="S0", *, curve=False, fault=None, seed=1):
+    def __init__(
+        self, scenario="S0", *, curve=False, fault=None, seed=1, route="fixture", ground=None
+    ):
         if scenario not in {f"S{x}" for x in range(6)}:
             raise ValueError("Unknown baseline scenario")
+        if route not in {"fixture", "mission"}:
+            raise ValueError("route must be 'fixture' or 'mission'")
         self.scenario_id, self.fault, self.seed = scenario, fault, seed
-        self.points = fixture_route(curve or scenario == "S5")
+        self.route_kind = route
+        self.remove_after_hold_s = 2.0
+        if route == "mission":
+            mission = mission_route()
+            definition = scenario_definition(scenario)
+            self.points = tuple(mission.points_xy_m)
+            self.object_s = (
+                mission.turn_exit_s_m + definition["after_turn_m"]
+                if definition.get("after_turn_m") is not None
+                else definition["obstacle_s_m"]
+            )
+            self.object_lateral = float(definition.get("lateral_m", 0.0))
+            if definition.get("remove_after_hold_s") is not None:
+                self.remove_after_hold_s = float(definition["remove_after_hold_s"])
+            self.mission = mission
+        else:
+            self.points = fixture_route(curve or scenario == "S5")
+            self.object_s = 85.0 if scenario == "S5" else 55.0
+            self.object_lateral = 4.5 if scenario == "S3" else 0.0
         self.route = RouteGeometry(self.points)
-        self.object_s = 85.0 if scenario == "S5" else 55.0
-        self.object_lateral = 4.5 if scenario == "S3" else 0.0
+        self.ground = route == "mission" if ground is None else bool(ground)
         self.person = scenario == "S2"
         self.present = scenario != "S0"
         self._hold_since = None
@@ -100,9 +153,11 @@ class BaselineWorld(KinematicWorld):
         self.calibration = CameraIntrinsics.from_horizontal_fov(640, 360, math.pi / 2).calibration(
             ((0, 0, 1, 2.88641), (-1, 0, 0, 0), (0, -1, 0, 2.0), (0, 0, 0, 1))
         )
+        self._ground_depth = flat_ground_depth(self.calibration, 640, 360)
+        (x0, y0), (x1, y1) = self.points[0], self.points[1]
         super().__init__(
             KinematicConfig(wheelbase_m=3.00465, max_steering_angle_rad=math.radians(20)),
-            initial_state=VehicleState(*self.points[0], 0, 0),
+            initial_state=VehicleState(x0, y0, math.atan2(y1 - y0, x1 - x0), 0),
             graph=route_graph(self.points),
         )
 
@@ -118,13 +173,15 @@ class BaselineWorld(KinematicWorld):
         ):
             if self._hold_since is None:
                 self._hold_since = now
-            if now - self._hold_since >= 2.0:
+            if now - self._hold_since >= self.remove_after_hold_s:
                 self.present = False
                 self.events.append(dict(type="obstacle_removed", sim_time_s=now, frame_id=frame_id))
         else:
             self._hold_since = None
         rgb = np.full((360, 640, 3), 25, np.uint8)
-        depth = np.full((360, 640), 100.0, np.float32)
+        depth = (
+            self._ground_depth.copy() if self.ground else np.full((360, 640), 100.0, np.float32)
+        )
         if self.present:
             x, y, yaw = self.route.at(self.object_s, self.object_lateral)
             half = (0.4, 0.3, 0.9) if self.person else (2.4, 1.0, 0.75)
@@ -155,7 +212,8 @@ class BaselineWorld(KinematicWorld):
                     leave = np.min(np.maximum(a, b), axis=-1)
                     hit = (entry > 0) & (leave >= entry)
                     rgb[roi][hit] = (240, 40, 0) if self.person else (0, 40, 240)
-                    depth[roi][hit] = entry[hit]
+                    view = depth[roi]
+                    view[hit] = np.fmin(view[hit], entry[hit])
         in_corridor = self.present and self.scenario_id != "S3" and gap > -6
         if in_corridor and gap <= 0 and not self._collision:
             self.events.append(

@@ -26,10 +26,13 @@ def main():
     args.output.mkdir(parents=True, exist_ok=False)
     attempts = []
     for scenario in ("S0",) if args.navigation_only else tuple(f"S{x}" for x in range(6)):
+        definition = json.loads((ROOT / f"configs/scenarios/{scenario}.yaml").read_text())
+        seeds = definition.get("acceptance_seeds") or [args.seed + i for i in range(5)]
         for repeat in range(args.repeats):
             run = copy.copy(args)
             run.scenario = scenario
-            run.seed = args.seed + repeat
+            # Seeds come from the versioned scenario definition (BL-B-06).
+            run.seed = seeds[repeat]
             run.output = args.output / f"{scenario}-{repeat + 1:02d}"
             try:
                 result = execute(run)

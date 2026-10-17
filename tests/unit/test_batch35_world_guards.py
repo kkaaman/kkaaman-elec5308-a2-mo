@@ -62,3 +62,12 @@ def test_current_control_is_applied_once_before_one_tick():
     assert calls == [command.command, "events", "tick"]
     assert world.last_simulation_age_s == pytest.approx(0.2)
     assert world.last_applied_monotonic_s > 0
+    # Latency is measured to the apply call, before the next tick runs.
+    assert 0 < world.last_command_sent_monotonic_s <= world.last_applied_monotonic_s
+
+
+def test_carla_world_reads_the_frame_it_just_ticked_by_default():
+    import inspect
+
+    default = inspect.signature(CarlaWorld.__init__).parameters["sensor_lag_frames"].default
+    assert default == 0

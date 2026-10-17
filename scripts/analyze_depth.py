@@ -10,7 +10,8 @@ import numpy as np
 from PIL import Image
 
 from evaluation.dataset import local_file, read_dataset, save_json, sha256
-from evaluation.perception_replay import axial_image
+from evaluation.masking import masking_decision
+from evaluation.perception_replay import axial_image, overlap
 from geometry.camera import CameraIntrinsics
 from obstacle_perception.box_depth import estimate_box_depth
 from obstacle_perception.types import PixelBox
@@ -22,6 +23,11 @@ def main():
         parser.add_argument("--" + name, type=Path, required=True)
     parser.add_argument("--split", choices=("val", "test"), default="val")
     parser.add_argument("--segmentation-weights", type=Path)
+    parser.add_argument(
+        "--weights",
+        type=Path,
+        help="Existing YOLO weights: also ablate masking on detector boxes (BL-B-05 decision)",
+    )
     args = parser.parse_args()
     manifest, rows = read_dataset(args.dataset)
     depth = json.loads(args.depth_calibration.read_text())
@@ -53,8 +59,19 @@ def main():
             "a631440d3fe2ccd2554631bb49b1352c0efbbaffc2316caa79c288757e8dde2a",
         )
         segmenter = SemanticSegmenter(str(args.segmentation_weights))
+    detector = None
+    if args.weights:
+        from perception import ObjectDetector, PerceptionConfig
+        from perception.recorded_detector import verify_local_asset
+
+        asset = json.loads(
+            (Path(__file__).resolve().parents[1] / "configs/models.yaml").read_text()
+        )["models"][0]
+        verify_local_asset(args.weights, asset["sha256"])
+        detector = ObjectDetector(PerceptionConfig(model_name=str(args.weights.resolve())))
     references = []
     pairs = []
+    detector_pairs = []
     timings = []
     for row in rows:
         for sample in row.get("surface_references", []):
@@ -75,9 +92,12 @@ def main():
             instance = np.asarray(image)
         ids = instance[:, :, 1].astype(np.uint32) * 256 + instance[:, :, 2]
         mask = None
-        if segmenter:
+        rgb = None
+        if segmenter or detector:
             with Image.open(local_file(args.dataset, row["rgb"])) as image:
-                rgb = np.asarray(image.convert("RGB"))
+                rgb = np.asarray(image.convert("RGB")).copy()
+        detections = detector.detect(rgb) if detector else ()
+        if segmenter:
             started = time.perf_counter()
             mask = segmenter.predict(rgb)
             timings.append(time.perf_counter() - started)
@@ -108,6 +128,37 @@ def main():
                     else None,
                 )
             )
+            if detector:
+                # Same truth object, but the box the runtime detector produced.
+                best, score = None, 0.5
+                for detection in detections:
+                    b = detection.bounding_box
+                    candidate = overlap((b.x_min, b.y_min, b.x_max, b.y_max), truth["xyxy"])
+                    if detection.class_name == name and candidate >= score:
+                        best, score = detection, candidate
+                if best is not None:
+                    b = best.bounding_box
+                    det_box = PixelBox(b.x_min, b.y_min, b.x_max, b.y_max)
+                    plain_det = estimate_box_depth(axial, det_box, cal)
+                    masked_det = None
+                    if mask is not None:
+                        candidate = axial.copy()
+                        candidate[mask != (11 if name == "person" else 13)] = np.nan
+                        masked_det = estimate_box_depth(candidate, det_box, cal)
+                    detector_pairs.append(
+                        dict(
+                            sample_id=row["sample_id"],
+                            class_name=name,
+                            distance_m=reference,
+                            iou=score,
+                            plain_error_m=plain_det.axial_depth_m - reference
+                            if plain_det.valid
+                            else None,
+                            masked_error_m=masked_det.axial_depth_m - reference
+                            if masked_det and masked_det.valid
+                            else None,
+                        )
+                    )
     bins = []
     for name in ("car", "person"):
         for centre in (5, 10, 15, 20, 25, 30):
@@ -145,8 +196,11 @@ def main():
         if paired
         else None
     )
+    mask_p95 = float(np.percentile(timings[1:], 95)) if len(timings) > 1 else None
+    decision = masking_decision(pairs, detector_pairs, mask_p95)
     report = dict(
         status="MEASURED_REVIEW_REQUIRED",
+        masking_decision=decision,
         split=args.split,
         depth_convention=depth["convention"],
         bins=bins,
@@ -162,6 +216,7 @@ def main():
         masked_invalid=sum(r["masked_error_m"] is None for r in pairs) if segmenter else None,
         scope="Ray geometry checks raw-depth convention/range; oracle visible boxes isolate masking effect. No driving false-stop/FPS benefit claimed; mask stays OFF pending end-to-end evidence.",
         pairs=pairs,
+        detector_pairs=detector_pairs,
         references=references,
     )
     save_json(args.output / "depth_analysis.json", report)
@@ -192,7 +247,10 @@ def main():
     fig.tight_layout()
     fig.savefig(args.output / "depth_ranges.png")
     plt.close(fig)
-    print(f"{len(references)} geometry samples; {len(pairs)} box comparisons | {args.output}")
+    print(
+        f"{len(references)} geometry samples; {len(pairs)} oracle / {len(detector_pairs)}"
+        f" detector box comparisons; masking: {decision['decision']} | {args.output}"
+    )
 
 
 if __name__ == "__main__":

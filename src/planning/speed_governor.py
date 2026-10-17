@@ -82,6 +82,10 @@ class SpeedGovernor:
         if hold or emergency:
             target = 0.0
         else:
-            target = min(ceiling, self.previous_target + c.acceleration_mps2 * dt)
+            # Rate-limit increases from whichever is higher: the last target or
+            # the measured speed. Restarting from a stale zero after a brief
+            # stop would otherwise command braking down to the ramp.
+            start = max(self.previous_target, min(speed, ceiling))
+            target = min(ceiling, start + c.acceleration_mps2 * dt)
         self.previous_target = target
         return target, emergency

@@ -90,6 +90,7 @@ def run_episode(
             truth = world.evaluation(frame.frame_id)
             next_frame = world.step(packet)
             applied_at = getattr(world, "last_applied_monotonic_s", time.monotonic())
+            sent_at = getattr(world, "last_command_sent_monotonic_s", applied_at)
             age = getattr(world, "last_simulation_age_s", 0.0)
             if not policy_record:
                 raise RuntimeError("No policy diagnostics")
@@ -100,7 +101,11 @@ def run_episode(
                 sim_time_s=frame.sim_time_s,
                 ego=asdict(frame.ego.state),
                 command=asdict(packet.command),
-                capture_apply_s=max(
+                # Board definition: sensor receipt on the host -> command applied.
+                capture_apply_s=max(0.0, sent_at - frame.received_monotonic_s),
+                # Conservative report-only interval: tick submission for this
+                # frame -> the next tick that carries the command has returned.
+                tick_to_apply_s=max(
                     0.0,
                     applied_at
                     - (

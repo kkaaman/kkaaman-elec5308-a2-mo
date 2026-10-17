@@ -59,6 +59,12 @@ def test_model_path_finds_weights_by_short_name(tmp_path):
     assert found == tmp_path / "segmentation_model.pth"
 
 
+def test_model_path_finds_repository_yolo_weights():
+    # yolo26n.pt is a normal Git file (not LFS), so it exists in every clone.
+    # Source-only exports omit it; run from a real clone.
+    assert paths.model_path("yolo").name == "yolo26n.pt"
+
+
 def test_model_path_finds_yolo_by_short_name(tmp_path):
     # Path resolution is a unit test. Real model identity/inference is checked
     # by check_detector_offline.py; source-only exports omit model binaries.

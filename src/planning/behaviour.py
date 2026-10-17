@@ -62,7 +62,11 @@ class Behaviour:
         if finished:
             self.state, self.reason = BehaviourState.FINISHED, "goal_reached"
             return self.state
-        if obstacle:
+        # Latch only once a stop has actually been required. Latching on any
+        # sighting turned one far, unconfirmed detection into a STOPPING episode
+        # as soon as it disappeared. Confirmed obstacles that flicker during an
+        # approach are retained spatially by the policy instead.
+        if must_stop or not observation_valid:
             self.blocked_latch = True
         if obstacle or not clear or not observation_valid:
             self.clear_count, self.clear_since = 0, None

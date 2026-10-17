@@ -1,0 +1,6 @@
+{
+  "schema_version": 1,
+  "status": "NONE_DECLARED",
+  "note": "Predeclared legal lane-marking crossings on the fixed mission (route s in metres, rear axle). Add an entry only for a mapped, planned legal manoeuvre after reviewing the live event log; never exempt a whole junction.",
+  "crossings": []
+}

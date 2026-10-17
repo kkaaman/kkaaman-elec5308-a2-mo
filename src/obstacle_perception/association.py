@@ -48,6 +48,8 @@ class AssociatedFrame:
     invalid_depth_count: int
     reasons: tuple[str, ...]
     invalid_boxes: tuple = ()
+    # Same order as invalid_boxes; keeps class/track identity for confirmation.
+    invalid_detections: tuple = ()
 
 
 def associate(frame, batch, policy=None):
@@ -59,13 +61,14 @@ def associate(frame, batch, policy=None):
     estimates = estimate_batch_depth(frame, batch, policy)
     state = frame.ego.state
     transform = ego_to_world_matrix(state.x_m, state.y_m, state.yaw_rad, frame.ego.z_m)
-    footprints, reasons, invalid_boxes = [], [], []
+    footprints, reasons, invalid_boxes, invalid_detections = [], [], [], []
     for detection, estimate in zip(batch.detections, estimates):
         if detection.class_name not in {"car", "truck", "bus", "person", "bicycle", "motorcycle"}:
             continue
         if not estimate.valid:
             reasons.append(f"{detection.class_name}:{estimate.reason}")
             invalid_boxes.append(detection.box)
+            invalid_detections.append(detection)
             continue
         box, depth = detection.box, estimate.axial_depth_m
         uncertainty = max(0.20, (estimate.spread_m or 0) / 2)
@@ -97,6 +100,7 @@ def associate(frame, batch, policy=None):
         if len(cloud) < 3:
             reasons.append(f"{detection.class_name}:insufficient_surface_support")
             invalid_boxes.append(box)
+            invalid_detections.append(detection)
             continue
         low, high = np.quantile(cloud, [0.01, 0.99], axis=0)
         low[:2] -= uncertainty
@@ -119,4 +123,10 @@ def associate(frame, batch, policy=None):
                 detection.confidence,
             )
         )
-    return AssociatedFrame(tuple(footprints), len(reasons), tuple(reasons), tuple(invalid_boxes))
+    return AssociatedFrame(
+        tuple(footprints),
+        len(reasons),
+        tuple(reasons),
+        tuple(invalid_boxes),
+        tuple(invalid_detections),
+    )
