@@ -6,7 +6,11 @@ from dataclasses import dataclass
 import numpy as np
 
 from geometry.transforms import ego_to_world_matrix, transform_point
-from obstacle_perception.box_depth import estimate_batch_depth
+from obstacle_perception.box_depth import (
+    GROUND_CLEARANCE_M,
+    LATERAL_TOLERANCE_M,
+    estimate_batch_depth,
+)
 from obstacle_perception.types import ObservationMetadata
 
 
@@ -57,6 +61,8 @@ def associate(frame, batch, policy=None):
 
     Occluded length is an explicit class prior, not a measured box. Unknown
     orientation and partial occlusion remain limitations. No ground truth used.
+    Supported pixels below ``GROUND_CLEARANCE_M`` (road, kerb, paint) are not
+    obstacle surface; obstacles lower than that are outside the baseline scope.
     """
     estimates = estimate_batch_depth(frame, batch, policy)
     state = frame.ego.state
@@ -97,14 +103,18 @@ def associate(frame, batch, policy=None):
         )
         matrix = np.asarray(cal.camera_to_ego)
         cloud = optical @ matrix[:3, :3].T + matrix[:3, 3]
+        # Ego frame: z is height above the ego's ground contact plane.
+        cloud = cloud[cloud[:, 2] >= GROUND_CLEARANCE_M]
         if len(cloud) < 3:
             reasons.append(f"{detection.class_name}:insufficient_surface_support")
             invalid_boxes.append(box)
             invalid_detections.append(detection)
             continue
         low, high = np.quantile(cloud, [0.01, 0.99], axis=0)
-        low[:2] -= uncertainty
-        high[:2] += uncertainty
+        low[0] -= uncertainty
+        high[0] += uncertainty
+        low[1] -= LATERAL_TOLERANCE_M
+        high[1] += LATERAL_TOLERANCE_M
         high[0] = max(high[0], low[0] + length)
         points = [
             (low[0], low[1], 0),

@@ -245,6 +245,9 @@ def test_clearance_memory_is_invalidated_by_occlusion_or_invalid_depth():
         def probe_status(self, point):
             return self.status
 
+        def probe_statuses(self, points):
+            return np.full(len(points), self.status, dtype=object)
+
     sequence = [
         (vis.CLEAR, 8.0),
         (vis.OCCLUDED, 0.0),

@@ -8,6 +8,18 @@ import numpy as np
 from geometry.camera import pixel_depth_to_ego, pixel_to_ground
 from obstacle_perception.boxes import canonical_box
 
+# Measured points lower than this above the ego ground plane are road surface,
+# kerb or lane paint, not obstacle surface. A box around a car seen at an angle
+# also contains the road beside it; counting those pixels dragged a kerb-side
+# parked SUV's footprint ~1 m into the lane on the first live S0 run. 0.4 m
+# leaves car bodies (sills ~0.3-0.4 m, mirrors ~1 m) and legs/torsos, and
+# absorbs braking pitch and gentle grade changes within the camera's range.
+GROUND_CLEARANCE_M = 0.4
+# Lateral footprint padding. Every supported pixel is projected at its own
+# measured depth, so the depth spread of an oblique surface is geometry, not
+# lateral error; padding by it moved roadside cars into the corridor.
+LATERAL_TOLERANCE_M = 0.2
+
 
 @dataclass(frozen=True)
 class DepthPolicy:
