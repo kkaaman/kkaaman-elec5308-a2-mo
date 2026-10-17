@@ -12,7 +12,7 @@ from evaluation.dataset import local_file, read_dataset, save_json
 from geometry.camera import CameraIntrinsics, pixel_to_ground
 from perception.lane_inference import LaneSegmenter
 from perception.lane_path import draw_ego_path, extract_ego_path
-from visualisation.lane_monitor import draw_monitor, monitor_lane
+from visualisation.lane_monitor import REFERENCE_X_M, draw_monitor, monitor_lane
 
 
 def main():
@@ -29,7 +29,8 @@ def main():
         raise ValueError("No validation frames")
     width, height = manifest["image_size_wh"]
     rig = manifest["camera"]
-    # Camera height includes the captured actor-origin height above the road.
+    # The Tesla actor origin is at road level, so the camera height above the
+    # road is the mount height, consistent with CarlaWorld and the replay tool.
     # Flat-plane projection is diagnostic and is unreliable on grades.
     model = LaneSegmenter(str(args.weights))
     args.output.mkdir(parents=True, exist_ok=False)
@@ -46,7 +47,7 @@ def main():
             (
                 (0, 0, 1, rig["x_actor_m"] + 1.38641),
                 (-1, 0, 0, 0),
-                (0, -1, 0, rig["z_actor_m"] + 0.6),
+                (0, -1, 0, rig["z_actor_m"]),
                 (0, 0, 0, 1),
             )
         )
@@ -56,7 +57,7 @@ def main():
                 if point is not None and 0 < point[0] < 30:
                     points.append(point[:2])
         points = sorted(points, key=lambda p: p[0])
-        departure = monitor_lane(points)
+        departure = monitor_lane(points, ego_x_m=REFERENCE_X_M)
         overlay = draw_monitor(draw_ego_path(rgb, path), departure)
         Image.fromarray(overlay).save(args.output / f"{row['sample_id']}.png")
         records.append(dict(sample_id=row["sample_id"], monitor=asdict(departure)))
@@ -66,7 +67,7 @@ def main():
             status="VISUAL_REVIEW_REQUIRED",
             records=records,
             control_coupling=False,
-            scope="Recorded diagnostic with flat-plane, 0.6 m actor-height assumption; inspect curve sign/overlays manually.",
+            scope="Parked dataset frames, flat-plane projection, offset 8 m ahead of the rear axle; use scripts/replay_lane_monitor.py on recorded runs for the map comparison on curves.",
         ),
     )
     print(f"Review {len(records)} overlays | {args.output}")

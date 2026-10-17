@@ -73,12 +73,27 @@ def test_confirmation_loss_and_namespace_isolation():
         f.update((), replace(expired, episode_id="other", frame_id=11, sim_time_s=2.0))
 
 
-def test_anonymous_never_fabricates_confirmation():
+def test_anonymous_confirms_only_by_spatial_persistence():
+    # Same place on consecutive frames: a persistent untracked object confirms.
     f = TrackFilter()
     f.reset("e")
-    for i in range(3):
+    rows = []
+    for i in range(2):
         a = footprint(i, i * 0.05, identity=None)
-        assert all(not x.confirmed for x in f.update((a,), a.metadata))
+        rows = f.update((a,), a.metadata)
+    assert len(rows) == 1 and rows[0].confirmed
+    # Flicker at places further apart than the gate never confirms.
+    f.reset("e")
+    for i in range(4):
+        x = 20 + 3 * i
+        a = footprint(i, i * 0.05, identity=None, corners=((x, -1), (x + 2, -1), (x + 2, 1), (x, 1)))
+        assert all(not row.confirmed for row in f.update((a,), a.metadata))
+    # Another source never merges into an anonymous record of the first.
+    f.reset("e")
+    a = footprint(0, 0.0, identity=None)
+    f.update((a,), a.metadata)
+    b = footprint(1, 0.05, identity=None, source="other")
+    assert all(not row.confirmed for row in f.update((b,), b.metadata))
 
 
 def test_stale_and_duplicate_observations_rejected():
@@ -182,3 +197,84 @@ def test_depth_clearance_requires_visible_fresh_pixels_not_blank_detections():
     assert not DepthVisibility(frame).footprint_clear(
         footprint(corners=((-10, -1), (-8, -1), (-8, 1), (-10, 1)))
     )
+
+
+def test_governor_resumes_ramp_from_measured_speed_not_zero():
+    g = SpeedGovernor()
+    for _ in range(100):
+        g.limit(speed=5, dt=0.05)
+    target, _ = g.limit(speed=4.8, dt=0.05, hold=True)
+    assert target == 0
+    target, _ = g.limit(speed=4.5, dt=0.05)
+    assert target == pytest.approx(4.55)
+    # From standstill the ramp is unchanged.
+    g.reset()
+    assert g.limit(speed=0, dt=0.05)[0] == pytest.approx(0.05)
+
+
+def test_far_sighting_that_disappears_does_not_latch_a_stop():
+    b = Behaviour()
+    assert (
+        b.update(time_s=0, speed=5, obstacle=True, must_stop=False, clear=False)
+        == BehaviourState.APPROACH
+    )
+    assert (
+        b.update(time_s=0.05, speed=5, obstacle=False, must_stop=False, clear=True)
+        == BehaviourState.CRUISE
+    )
+    # Once a stop was required, a flickering detection cannot release it.
+    b.update(time_s=0.1, speed=4, obstacle=True, must_stop=True, clear=False)
+    assert (
+        b.update(time_s=0.15, speed=3, obstacle=False, must_stop=False, clear=True)
+        == BehaviourState.STOPPING
+    )
+
+
+
+def test_clearance_memory_is_invalidated_by_occlusion_or_invalid_depth():
+    from obstacle_perception import visibility as vis
+
+    route = RouteGeometry(((0, 0), (100, 0)))
+    memory = vis.RouteClearanceMemory(15.0)
+
+    class Scripted(vis.DepthVisibility):
+        def __init__(self, status):
+            self.status = status
+            self.frame = SimpleFrame()
+
+        def probe_status(self, point):
+            return self.status
+
+    sequence = [
+        (vis.CLEAR, 8.0),
+        (vis.OCCLUDED, 0.0),
+        (vis.OUT_OF_VIEW, 0.0),
+        (vis.INVALID, 0.0),
+        (vis.OUT_OF_VIEW, 0.0),
+        (vis.CLEAR, 8.0),
+        (vis.OUT_OF_VIEW, 8.0),
+    ]
+    for step, (status, expected) in enumerate(sequence):
+        horizon = Scripted(status).route_horizon(
+            route, 0.0, 3.8, 1.2, 8.0, memory=memory, time_s=step * 0.05
+        )
+        assert horizon == expected, (step, status, horizon)
+
+
+class SimpleFrame:
+    ego = type("Ego", (), {"z_m": 0.0})()
+
+
+def test_expired_track_cannot_reuse_confirmation_after_a_frame_gap():
+    for identity in (1, None):
+        f = TrackFilter(TrackFilterConfig(2, 3, 0.6))
+        f.reset("e")
+        for i in range(2):
+            a = footprint(i, i * 0.05, identity=identity)
+            rows = f.update((a,), a.metadata)
+        assert rows[0].confirmed
+        later = footprint(200, 10.0, identity=identity)
+        rows = f.update((later,), later.metadata)
+        assert len(rows) == 1 and not rows[0].confirmed
+        again = footprint(201, 10.05, identity=identity)
+        assert f.update((again,), again.metadata)[0].confirmed

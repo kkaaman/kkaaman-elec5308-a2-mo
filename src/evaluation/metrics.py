@@ -6,6 +6,7 @@ from pathlib import Path
 
 import numpy as np
 
+from evaluation.event_checks import count_contacts, count_unplanned_invasions
 from evaluation.run_logger import file_sha256
 
 METRIC_KEYS = {
@@ -83,16 +84,9 @@ def summarize(rows, events, manifest):
             resume = resumed["sim_time_s"] - removals[0]
     sensor_events = manifest.get("event_sensors_verified", False)
     # Collision contacts are keyed by actor, separated by >=1 s of no callback.
-    contacts, last_contact = 0, {}
-    invasions = 0
-    for e in sorted(events, key=lambda e: e.get("sim_time_s", 0)):
-        if e["type"] == "collision":
-            key = e["other_actor_id"]
-            if key not in last_contact or e["sim_time_s"] - last_contact[key] >= 1.0:
-                contacts += 1
-            last_contact[key] = e["sim_time_s"]
-        if e["type"] == "lane_invasion" and not e.get("declared_legal", False):
-            invasions += 1
+    # The same functions are exercised live by scripts/verify_event_sensors.py.
+    contacts = count_contacts(events)
+    invasions = count_unplanned_invasions(events)
     metrics = dict(
         route_completion=1.0 if completed else 0.0,
         collisions=contacts if sensor_events else None,
@@ -106,6 +100,13 @@ def summarize(rows, events, manifest):
         cruise_mean_mps=float(np.mean([r["speed_mps"] for r in cruise])) if cruise else None,
         capture_apply_p95_ms=float(
             np.percentile([r["capture_apply_s"] * 1000 for r in rows], 95, method="linear")
+        ),
+        tick_to_apply_p95_ms=float(
+            np.percentile(
+                [r.get("tick_to_apply_s", r["capture_apply_s"]) * 1000 for r in rows],
+                95,
+                method="linear",
+            )
         ),
         false_stops=_false_stops(rows, dt) if manifest.get("truth_channel_complete") else None,
         hold_margin_min_m=min(margins) if margins else None,

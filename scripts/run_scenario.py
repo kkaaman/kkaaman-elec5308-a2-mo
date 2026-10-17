@@ -19,12 +19,26 @@ def arguments(parser=None):
     parser.add_argument("--config", type=Path, default=ROOT / "configs/baseline_stack.json")
     parser.add_argument("--mission", type=Path)
     parser.add_argument("--depth-calibration", type=Path)
+    parser.add_argument(
+        "--event-verification",
+        type=Path,
+        help="BL-B-07 live report; without it collision/lane metrics stay unscored",
+    )
+    parser.add_argument(
+        "--declared-crossings", type=Path, default=ROOT / "configs/declared_crossings.json"
+    )
     parser.add_argument("--weights", type=Path, default=ROOT / "yolo26n.pt")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=2000)
     parser.add_argument("--follow", action="store_true")
     parser.add_argument("--navigation-only", action="store_true")
     parser.add_argument("--max-sim-s", type=float, default=180)
+    parser.add_argument(
+        "--harness-route",
+        choices=("mission", "fixture"),
+        default="mission",
+        help="Harness only: real Town10HD mission with flat-ground depth, or the synthetic fixture",
+    )
     parser.add_argument("--output", type=Path, required=True)
     return parser
 
@@ -49,10 +63,13 @@ def execute(args):
     if args.engine == "harness":
         from sim_harness.baseline import BaselineWorld, RasterDetector
 
-        world = BaselineWorld(args.scenario, curve=True, seed=args.seed)
+        world = BaselineWorld(
+            args.scenario, curve=True, seed=args.seed, route=args.harness_route
+        )
         detector = RasterDetector()
         points = world.points
         manifest.update(
+            harness_route=args.harness_route,
             step_wall_budget_s=10.0,
             event_sensors_verified=True,
             truth_channel_complete=True,
@@ -63,6 +80,7 @@ def execute(args):
         import carla
 
         from carla_adapter.baseline_world import CarlaWorld
+        from evaluation.event_checks import load_declarations
         from perception.frame_detector import EmptyDetector, FrameDetector
         from planning.mission import Mission
 
@@ -88,6 +106,15 @@ def execute(args):
                 raise ValueError("Depth calibration changed after configuration freeze")
         scenario_path = ROOT / f"configs/scenarios/{args.scenario}.yaml"
         scenario = json.loads(scenario_path.read_text())
+        verification = None
+        if args.event_verification is not None:
+            verification = json.loads(args.event_verification.read_text(encoding="utf-8-sig"))
+            manifest["event_verification_sha256"] = file_sha256(args.event_verification)
+        declarations = load_declarations(
+            args.declared_crossings if args.declared_crossings.is_file() else None
+        )
+        if args.declared_crossings.is_file():
+            manifest["declared_crossings_sha256"] = file_sha256(args.declared_crossings)
         client = carla.Client(args.host, args.port)
         client.set_timeout(60)
         world = CarlaWorld(
@@ -98,6 +125,8 @@ def execute(args):
             depth_convention=depth["convention"],
             output=args.output,
             follow=args.follow,
+            event_verification=verification,
+            declared_crossings=declarations,
         )
         points = mission.points_xy_m
         manifest.update(

@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory=$true)]
-    [ValidateSet("Offline","LiveSetup","Capture","Perception","Tune","Navigation","Freeze","Smoke","Acceptance","ReplayFaults","Train","Evaluate","Audit","Archive")]
+    [ValidateSet("Offline","LiveSetup","Quick","Verify","Capture","Perception","Tune","Navigation","Freeze","Smoke","Acceptance","ReplayFaults","Train","Evaluate","Audit","Archive")]
     [string]$Stage,
     [int]$Samples = 12000,
     [double]$TrainingHours = 4,
@@ -51,9 +51,17 @@ function Save-BatchState {
     $batchState | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $StateFile -Encoding utf8
 }
 function Get-LiveArgs {
+    param([switch]$RequireEvents)
     $missionPath = Need-Result "mission"
     $depthPath = Need-Result "depth"
-    return @("--engine","carla","--mission",$missionPath,"--depth-calibration",$depthPath,"--follow")
+    $result = @("--engine","carla","--mission",$missionPath,"--depth-calibration",$depthPath,"--follow")
+    # Collision/lane metrics are only scored after the live BL-B-07 Verify stage.
+    if ($RequireEvents) {
+        $result += @("--event-verification",(Need-Result "event_verification"))
+    } elseif ($batchState.ContainsKey("event_verification") -and (Test-Path -LiteralPath $batchState["event_verification"])) {
+        $result += @("--event-verification",[string]$batchState["event_verification"])
+    }
+    return $result
 }
 
 try {
@@ -84,6 +92,33 @@ try {
             Invoke-ProjectPython -PythonArgs @("scripts/calibrate_longitudinal.py","--follow","--output",(Join-Path $stageFolder "braking"))
             $batchState["braking"] = Join-Path $stageFolder "braking\longitudinal.json"
         }
+        "Quick" {
+            # Early integration smoke on the PROVISIONAL config: one navigation-only
+            # S0, one full-stack S0 and one S1 stop/hold/resume. Diagnostic only;
+            # it does not replace Navigation/Freeze/Acceptance evidence.
+            $liveArgs = Get-LiveArgs
+            $quickRuns = @(
+                @{ Name = "S0-navigation"; Args = @("--scenario","S0","--navigation-only") },
+                @{ Name = "S0-full"; Args = @("--scenario","S0") },
+                @{ Name = "S1-full"; Args = @("--scenario","S1") }
+            )
+            foreach ($run in $quickRuns) {
+                Invoke-ProjectPython -PythonArgs (@("scripts/run_scenario.py") + $run.Args + @("--config","configs/baseline_stack.json","--max-sim-s","120","--output",(Join-Path $stageFolder $run.Name)) + $liveArgs)
+            }
+            # RV-06: lane monitor replayed on the recorded full-stack runs (diagnostic only).
+            if (Test-Path -LiteralPath "lane_unet_best.pth") {
+                foreach ($name in @("S0-full","S1-full")) {
+                    Invoke-ProjectPython -PythonArgs @("scripts/replay_lane_monitor.py","--run",(Join-Path $stageFolder $name),"--mission",(Need-Result "mission"),"--output",(Join-Path $stageFolder ($name + "-lane-monitor")))
+                }
+            }
+            $batchState["quick"] = $stageFolder
+        }
+        "Verify" {
+            # BL-B-07: live known-distance truth gap, collision dedup and lane-invasion checks.
+            $missionPath = Need-Result "mission"
+            Invoke-ProjectPython -PythonArgs @("scripts/verify_event_sensors.py","--mission",$missionPath,"--follow","--output",(Join-Path $stageFolder "events"))
+            $batchState["event_verification"] = Join-Path $stageFolder "events\event_verification.json"
+        }
         "Capture" {
             $null = Need-Result "depth"
             Invoke-ProjectPython -PythonArgs @("scripts/capture_frames.py","--samples",[string]$Samples,"--sequence-frames","20","--ray-reference","--output",(Join-Path $stageFolder "dataset"))
@@ -98,7 +133,7 @@ try {
             Invoke-ProjectPython -PythonArgs @("scripts/benchmark_perception.py","--dataset",$datasetPath,"--weights","yolo26n.pt","--depth-calibration",$depthPath,"--output",(Join-Path $stageFolder "detector"))
             $batchState["perception"] = Join-Path $stageFolder "detector\perception.json"
             Save-BatchState
-            Invoke-ProjectPython -PythonArgs @("scripts/analyze_depth.py","--dataset",$datasetPath,"--depth-calibration",$depthPath,"--segmentation-weights","segmentation_model.pth","--output",(Join-Path $stageFolder "depth_analysis"))
+            Invoke-ProjectPython -PythonArgs @("scripts/analyze_depth.py","--dataset",$datasetPath,"--depth-calibration",$depthPath,"--segmentation-weights","segmentation_model.pth","--weights","yolo26n.pt","--output",(Join-Path $stageFolder "depth_analysis"))
             $batchState["depth_analysis"] = Join-Path $stageFolder "depth_analysis\depth_analysis.json"
             Invoke-ProjectPython -PythonArgs @("scripts/preview_lane_monitor.py","--dataset",$datasetPath,"--weights","lane_unet_best.pth","--output",(Join-Path $stageFolder "lane_monitor"))
             $batchState["lane_monitor"] = Join-Path $stageFolder "lane_monitor\monitor.json"
@@ -107,14 +142,14 @@ try {
             $batchState["candidate"] = Join-Path $stageFolder "candidate.json"
         }
         "Tune" {
-            $liveArgs = Get-LiveArgs
+            $liveArgs = Get-LiveArgs -RequireEvents
             $candidatePath = Need-Result "candidate"
             Invoke-ProjectPython -PythonArgs (@("scripts/tune_controller.py","--config",$candidatePath,"--output",(Join-Path $stageFolder "sweep")) + $liveArgs)
             $batchState["candidate"] = Join-Path $stageFolder "sweep\selected.json"
             $batchState["tuning"] = Join-Path $stageFolder "sweep\tuning.json"
         }
         "Navigation" {
-            $liveArgs = Get-LiveArgs
+            $liveArgs = Get-LiveArgs -RequireEvents
             $candidatePath = Need-Result "candidate"
             Invoke-ProjectPython -PythonArgs (@("scripts/run_acceptance_suite.py","--navigation-only","--config",$candidatePath,"--output",(Join-Path $stageFolder "runs")) + $liveArgs)
             $batchState["navigation"] = Join-Path $stageFolder "runs\acceptance.json"
@@ -129,13 +164,13 @@ try {
             $batchState["frozen"] = Join-Path $stageFolder "frozen.json"
         }
         "Smoke" {
-            $liveArgs = Get-LiveArgs
+            $liveArgs = Get-LiveArgs -RequireEvents
             $frozenPath = Need-Result "frozen"
             Invoke-ProjectPython -PythonArgs (@("scripts/run_scenario.py","--scenario","S1","--config",$frozenPath,"--output",(Join-Path $stageFolder "S1")) + $liveArgs)
             $batchState["s1"] = Join-Path $stageFolder "S1"
         }
         "Acceptance" {
-            $liveArgs = Get-LiveArgs
+            $liveArgs = Get-LiveArgs -RequireEvents
             $frozenPath = Need-Result "frozen"
             $null = Need-Result "s1"
             Invoke-ProjectPython -PythonArgs (@("scripts/run_acceptance_suite.py","--config",$frozenPath,"--output",(Join-Path $stageFolder "runs")) + $liveArgs)

@@ -4,6 +4,7 @@ import math
 import threading
 import time
 import uuid
+from dataclasses import asdict
 from pathlib import Path
 
 import cv2
@@ -14,6 +15,7 @@ from carla_adapter.mission import assert_current_map
 from carla_adapter.sensors import RGBDCapture
 from carla_adapter.vehicle import FixedVehicleAdapter
 from carla_adapter.world import SynchronousWorldSession, WorldTiming, _settings_record
+from evaluation.event_checks import annotate_invasion
 from geometry.camera import CameraIntrinsics
 from planning.corridor import RouteGeometry
 from planning.mission import route_graph
@@ -24,6 +26,11 @@ class CarlaWorld:
 
     Camera pipeline delay is explicit. Commands expire against current world
     simulation time, not the older camera timestamp. No autopilot is enabled.
+
+    The default reads the frame just ticked (``sensor_lag_frames=0``). The
+    world is synchronous, so the simulator is paused while the client waits
+    for that frame's callbacks; a fixed pipeline lag would only make control
+    act on older pose/images and inflate capture-to-apply latency.
     """
 
     def __init__(
@@ -36,7 +43,9 @@ class CarlaWorld:
         depth_convention,
         output,
         follow=False,
-        sensor_lag_frames=4,
+        sensor_lag_frames=0,
+        event_verification=None,
+        declared_crossings=(),
     ):
         if depth_convention not in {"axial", "radial"}:
             raise ValueError("Calibrated depth convention required")
@@ -49,6 +58,10 @@ class CarlaWorld:
             sensor_lag_frames,
         )
         self.output = Path(output)
+        # Collision/lane-invasion metrics are scored only after a live BL-B-07
+        # verification for this map build has passed; otherwise they stay None.
+        self.event_verification = event_verification
+        self.declared_crossings = tuple(declared_crossings)
         self.route = RouteGeometry(mission.points_xy_m)
         self.owner = self.capture = self.adapter = self.vehicle = self.obstacle = None
         self._world = None
@@ -144,13 +157,25 @@ class CarlaWorld:
             map=world.get_map().name,
             mission_sha256=self.mission.sha256,
             opendrive_sha256=self.mission.opendrive_sha256,
-            event_sensors_verified=True,
+            event_sensors_verified=self._events_verified(),
+            event_verification_status=(self.event_verification or {}).get("status"),
+            declared_crossings=list(self.declared_crossings),
             truth_channel_complete=True,
-            capture_timing="host tick submission for sensor frame to confirmed control-application tick; conservative wall interval",
+            capture_timing=(
+                "capture_apply_s: host-monotonic first sensor callback receipt for the"
+                " frame to the apply_control call (board definition). tick_to_apply_s:"
+                " tick submission to the confirmed application tick (report-only)."
+            ),
             depth_convention=self.depth_convention,
             sensor_lag_frames=self.sensor_lag,
+            # Rear-axle camera calibration, so recorded frames can be replayed
+            # (RV-06 lane monitor) with exactly the rig used live.
+            camera_calibration=asdict(self.calibration),
             collision_metric="contact episodes per actor; >=1 s gap splits contact",
-            lane_metric="all recorded crossings count; no blanket junction exemptions",
+            lane_metric=(
+                "all recorded crossings count unless inside a predeclared legal"
+                " (route s interval, marking types) crossing; no junction exemptions"
+            ),
             margin_metric="front bumper edge to obstacle bounding-box perimeter, metres",
         )
         return self.refresh(), route_graph(self.mission.points_xy_m)
@@ -189,6 +214,7 @@ class CarlaWorld:
         bottom = min(p.z for p in self.obstacle.bounding_box.get_world_vertices(transform))
         transform.location.z += ground.location.z + 0.01 - bottom
         self.obstacle.set_transform(transform)
+        placement = self._placement_record(kind, s, transform)
         self.events.append(
             dict(
                 type="obstacle_spawned",
@@ -196,7 +222,52 @@ class CarlaWorld:
                 actor_id=self.obstacle.id,
                 route_s_m=s,
                 lateral_m=self.scenario.get("lateral_m", 0),
+                **placement,
             )
+        )
+        if placement["in_corridor"] != placement["expected_in_corridor"]:
+            raise RuntimeError(
+                "Scenario obstacle placement contradicts its definition: " + str(placement)
+            )
+
+    def _placement_record(self, kind, s, transform):
+        """BL-B-06: record where the actor landed and check corridor intent."""
+        import carla
+
+        from carla_adapter.ground_truth import footprint_xy
+
+        half_width = self.config.ego_half_width_m + self.config.lateral_padding_m
+        corners = footprint_xy(self.obstacle)
+        interval = self.route.footprint_interval(corners, half_width_m=half_width)
+        waypoint = self._world.get_map().get_waypoint(
+            transform.location, project_to_road=False, lane_type=carla.LaneType.Any
+        )
+        lane = (
+            dict(
+                road_id=waypoint.road_id,
+                lane_id=waypoint.lane_id,
+                lane_type=str(waypoint.lane_type),
+                is_junction=waypoint.is_junction,
+            )
+            if waypoint is not None
+            else None
+        )
+        return dict(
+            obstacle_class=kind,
+            blueprint=self.obstacle.type_id,
+            corners_world_m=[list(p) for p in corners],
+            in_corridor=interval is not None,
+            expected_in_corridor=abs(self.scenario.get("lateral_m", 0)) < half_width,
+            corridor_interval_s_m=list(interval) if interval else None,
+            map_lane=lane,
+        )
+
+    def _events_verified(self):
+        report = self.event_verification
+        return bool(
+            report
+            and report.get("status") == "MEASURED_PASS"
+            and report.get("opendrive_sha256") == self.mission.opendrive_sha256
         )
 
     def _install_event_sensors(self):
@@ -236,6 +307,14 @@ class CarlaWorld:
         state = self.adapter.state()
         pose = self.vehicle.get_transform()
         self.capture.record_snapshot(frame, EgoPose(state, pose.location.z))
+        route_s = self.route.project(state.x_m, state.y_m).s_m
+        with self._event_lock:
+            for index, event in enumerate(self.events):
+                if event.get("type") == "lane_invasion" and "route_s_m" not in event:
+                    # Callback happened during the tick that just completed.
+                    self.events[index] = annotate_invasion(
+                        event, route_s, self.declared_crossings
+                    )
         self._truth[frame] = truth_record(self.vehicle, self.obstacle, self.route, state)
         self._frames.append(frame)
         if len(self._frames) > 40:
@@ -284,6 +363,7 @@ class CarlaWorld:
             self.adapter.stop()
             raise ValueError("Foreign, expired or wrong-frame control packet")
         self.adapter.apply(packet.command)
+        self.last_command_sent_monotonic_s = time.monotonic()
         self.last_simulation_age_s = now - packet.source_sim_time_s
         self._scenario_events(now)
         self._tick()

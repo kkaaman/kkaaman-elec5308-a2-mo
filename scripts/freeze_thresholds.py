@@ -29,8 +29,14 @@ def derive(config, braking, perception, depth):
             "Perception p95 exceeds 100 ms; fix device/performance before timing acceptance"
         )
     decel = min(config.governor.deceleration_mps2, braking["deceleration_mps2"])
+    # One fixed tick between capture and the command taking effect (the current
+    # frame is read; there is no pipeline lag), measured perception latency, the
+    # N-of-M confirmation window and a 50 ms reserve.
+    confirmation_s = config.tracks.window_frames * config.dt_s
     response = max(
-        config.governor.response_budget_s, braking["response_budget_s"], 0.2 + latency + 0.15 + 0.05
+        config.governor.response_budget_s,
+        braking["response_budget_s"],
+        config.dt_s + latency + confirmation_s + 0.05,
     )
     # One metre camera-to-bumper allowance and one metre depth/extent reserve.
     speed = min(

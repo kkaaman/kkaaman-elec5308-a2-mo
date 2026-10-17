@@ -117,7 +117,7 @@ def test_config_roundtrip_and_unknown_key_rejection(tmp_path):
 def test_monitor_sign_and_no_control_output():
     left = monitor_lane([(0, -1), (10, -1)])
     right = monitor_lane([(0, 1), (10, 1)])
-    assert left.side == "left" and left.signed_offset_m == 1
-    assert right.side == "right" and right.signed_offset_m == -1
+    assert left.side == "left" and left.signed_offset_m == pytest.approx(1)
+    assert right.side == "right" and right.signed_offset_m == pytest.approx(-1)
     assert not monitor_lane([]).valid
     assert not hasattr(left, "command")
