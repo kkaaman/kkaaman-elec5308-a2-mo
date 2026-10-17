@@ -24,7 +24,6 @@ demonstration for the autonomous perception and navigation library.
    machines
    assets
    acceptance
-   acceptance-logging
    depth-association
    interfaces
    geometry
@@ -39,7 +38,6 @@ demonstration for the autonomous perception and navigation library.
    mission_lifecycle
    s0_navigation_validation
    carla_rgb_readback_fix
-   ai_journal
    evidence/TEST-02/README
    detector_contracts
    lane_recovery
