@@ -231,3 +231,8 @@ are English. AI assistance was used for implementation, review and test design;
 human source review remains outstanding. Current live acceptance and the
 separate server compatibility repair are documented above. Significant AI
 interactions are recorded in the [AI journal](ai-journal.md).
+
+```{toctree}
+:hidden:
+
+ai-journal
