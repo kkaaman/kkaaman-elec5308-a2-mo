@@ -1,0 +1,77 @@
+Batch35 local verification -- implementation evidence, NOT live acceptance
+Recorded UTC: 2026-10-16T07:55:17.680358+00:00
+Base snapshot commit: f5437cd75d9f3f9a2e12e50780d7f09c5eda6577
+Actual runtime-source SHA-256: 7f7a71d56c2016b72f2abfc00a9e0af560eaf8b6720d156e02599a2de3be6e0a
+Environment: Linux, Python 3.12, torch 2.10.0+cpu, torchvision 0.25.0+cpu, ultralytics 8.4.177.
+Thread limits: OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1
+No CARLA server, Windows host, real model assets or CUDA GPU were available for this verification.
+
+Command: python -m pytest -m "not carla" -q
+........................................................................ [ 12%]
+........................................................................ [ 24%]
+........................................................................ [ 36%]
+........................................................................ [ 48%]
+..................................................................... [ 60%]
+........................................................................ [ 72%]
+........................................................................ [ 84%]
+........................................................................ [ 96%]
+......................                                                   [100%]
+595 passed, 1 deselected, 3 subtests passed in 95.68s (0:01:35)
+
+Command: python -m ruff check .
+All checks passed!
+Command: python scripts/check_simulator_boundary.py --smoke
+AST simulator boundary passed
+Imported 81 core modules with simulator imports blocked
+Command: python -m sphinx -W -b html docs /tmp/group7_batch35_docs
+Build succeeded with warnings treated as errors.
+
+New command-line entry points:
+scripts/aggregate_acceptance.py: PASS
+scripts/analyze_depth.py: PASS
+scripts/benchmark_perception.py: PASS
+scripts/benchmark_yolo.py: PASS
+scripts/calibrate_depth.py: PASS
+scripts/calibrate_longitudinal.py: PASS
+scripts/capture_frames.py: PASS
+scripts/check_gates.py: PASS
+scripts/compare_runs.py: PASS
+scripts/freeze_thresholds.py: PASS
+scripts/prepare_mission.py: PASS
+scripts/preview_lane_monitor.py: PASS
+scripts/review_dataset.py: PASS
+scripts/run_acceptance_suite.py: PASS
+scripts/run_fault_suite.py: PASS
+scripts/run_scenario.py: PASS
+scripts/tune_controller.py: PASS
+training/batch35/evaluate_lane.py: PASS
+training/batch35/train_lane.py: PASS
+CLI help: 19/19 passed
+
+Synthetic CLI scenario checks (one each; cannot be live acceptance):
+S0: COLLECTED | /workspace/scratch/9e915c8004fe/batch35_cli_harness/S0-01
+S1: COLLECTED | /workspace/scratch/9e915c8004fe/batch35_cli_harness/S1-01
+S2: COLLECTED | /workspace/scratch/9e915c8004fe/batch35_cli_harness/S2-01
+S3: COLLECTED | /workspace/scratch/9e915c8004fe/batch35_cli_harness/S3-01
+S4: COLLECTED | /workspace/scratch/9e915c8004fe/batch35_cli_harness/S4-01
+S5: COLLECTED | /workspace/scratch/9e915c8004fe/batch35_cli_harness/S5-01
+NOT_ACCEPTED | /workspace/scratch/9e915c8004fe/batch35_cli_harness/acceptance.json
+The CLI captures preceded the final command-clock guard fix; the final full suite above reran all six policy scenarios.
+
+Fault CLI:
+HARNESS_FAULTS_PASS | /workspace/scratch/9e915c8004fe/batch35_faults
+
+Lane training software smoke:
+Epoch 1: loss=1.7793 val IoU=0.0111 best=0.0111
+Candidate: /tmp/group7_batch35_training_smoke/trained/lane_candidate.pth
+Use evaluate_lane.py once settings are frozen. Existing project weights were not overwritten.
+One CPU epoch on three generated images in disjoint synthetic splits, initialized from random weights.
+Checkpoint evaluation completed for baseline/candidate; candidate was NOT_DEPLOYED.
+The artificial result has lane IoU 0.0111. It is execution evidence only, not useful learned-model accuracy.
+The fixture images and random/candidate checkpoints are not included in this delivery.
+Training source SHA-256: 81bf6af9ccb4ab9e7616d700a28394f58251a00196e5341dac522eef2f155d6d
+Evaluation source SHA-256: 6f086ca51a86f4b6508421133756d27757a33ef327e9c370e4406f34d47ccd1b
+
+Outstanding: real Windows install/stages, CUDA timings, CARLA map/rig/physics measurements, real detector/depth ranges,
+independent navigation and 30 scenario acceptance runs, held-out dataset audit, comparable A1/A2 definitions and team review.
+PowerShell scripts were statically reviewed, not executed in this environment.

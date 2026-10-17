@@ -175,3 +175,17 @@ def test_rgbd_sensor_cleanup_on_partial_start_failure(monkeypatch):
             pass
     assert not sensor.is_alive and sensor.stopped
     assert owner._actors == [sensor]
+
+
+def test_capture_timestamp_includes_queue_wait(monkeypatch):
+    now = [100.0]
+    monkeypatch.setattr("carla_adapter.sensors.time.monotonic", lambda: now[0])
+    joiner = FrameJoiner("e")
+    put(joiner, "rgb")
+    now[0] = 100.2
+    put(joiner, "depth")
+    put(joiner, "ego")
+    now[0] = 100.3
+    frame = joiner.wait(1, 1, lambda: pytest.fail("unexpected stop"))
+    assert frame.received_monotonic_s == 100.0
+    assert not joiner._received

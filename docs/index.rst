@@ -49,3 +49,11 @@ demonstration for the autonomous perception and navigation library.
    gates/G0
    evidence/BL-E-02/README
    evidence/baseline-batch/README
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Baseline batch and training
+
+   batch35_baseline
+   batch35_tasks
+   batch35_training

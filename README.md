@@ -440,3 +440,7 @@ python demo_fused_lane_following.py --town Town10HD
 A recorded CARLA demonstration should also be kept as a backup for the live
 presentation.
 
+
+## Baseline batch implementation and validation
+
+See [the batch execution guide](docs/batch35_baseline.md), [35-task acceptance record](docs/batch35_tasks.md), and [lane training guide](docs/batch35_training.md). Live acceptance remains pending until measured evidence and review are complete.

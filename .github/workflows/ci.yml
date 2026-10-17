@@ -32,6 +32,10 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
+    env:
+      OMP_NUM_THREADS: "1"
+      OPENBLAS_NUM_THREADS: "1"
+      MKL_NUM_THREADS: "1"
 
     steps:
       - name: Checkout repository
@@ -59,6 +63,16 @@ jobs:
       - name: Run tests
         run: |
           python -m pytest
+
+      - name: Record CARLA-free S0 evidence
+        run: python scripts/run_scenario.py --engine harness --scenario S0 --output runs/ci-S0
+
+      - name: Upload harness evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: harness-S0
+          path: runs/ci-S0
 
   docs:
     runs-on: ubuntu-latest
