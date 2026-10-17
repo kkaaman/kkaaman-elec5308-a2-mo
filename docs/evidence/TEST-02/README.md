@@ -61,6 +61,46 @@ additional parameter search was justified. The traces retain transient turn
 error and braking behavior. Camera-disabled timing cannot establish full-stack
 real-time performance or sensor-to-command latency.
 
+## User-run verification on 17 October 2026
+
+The user repeated the live map audit, navigation diagnostic and three HOLD
+regressions on the same minimum-configuration laptop. The map audit passed
+with 168 lanes, 3,234 points and 200 successor connections checked. All four
+driving diagnostics completed, installed the route exactly once and verified
+cleanup, with zero collisions and zero unplanned lane invasions.
+
+| Diagnostic | Mean absolute CTE (m) | Cruise RMS error (m/s) | Recorded status |
+|---|---|---|---|
+| Navigation | 0.02045 | 0.11126 | INSUFFICIENT_EVIDENCE |
+| Straight HOLD | 0.01994 | 0.15136 | FAIL: one intentionally injected false stop |
+| Curve HOLD | 0.02143 | 0.11765 | FAIL: one intentionally injected false stop |
+| Near-goal HOLD | 0.02058 | 0.11126 | INSUFFICIENT_EVIDENCE |
+
+Each HOLD contained 40 samples at a 0.05 s simulation step, reached zero
+speed, kept throttle at zero and remained in `stopping` throughout the hold.
+The straight and curve trials finished after release. The near-goal trial
+released and finished at step 1047, with no earlier completion. RGB was
+disabled in these four diagnostics; none is a formal S0 acceptance pass.
+
+The local raw directories are under `runs/manual/20261017-103510/`:
+`navigation`, `hold-straight-104018`, `hold-curve-103910` and
+`hold-near-goal-104026`. These new raw directories remain ignored by Git and
+are not included in the earlier evidence archive.
+
+A separate RGB-enabled trial in `runs/manual/rgb-rhi-20261017-104814/` used
+DX11, `-norhithread`, a 640x360 Low-quality window and the unchanged frozen
+320x180 camera configuration. It received five camera frames before
+`world.tick()` timed out after 10 seconds during camera warm-up. A subsequent
+two-second server health check also timed out, leaving actor, timing and
+environment cleanup unverified. The run is retained as `FAIL`, with
+`completed=false` and `cleanup_ok=false`. Disabling the independent RHI
+thread did not resolve the camera stall. The observed NVIDIA driver was
+552.22; a driver update has been proposed but has not been tested.
+
+All five trials recorded the same execution source bundle SHA256:
+`a8091160429ef37734c7f04a0f54aae70948fbdde00a5e8813cc1905dcae9ee4`.
+Full five-run S0 acceptance remains open.
+
 ## Camera blocker and retained failures
 
 - Default DX12 startup crashed in the NVIDIA driver / D3D12 stack.
