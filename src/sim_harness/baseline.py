@@ -72,6 +72,15 @@ def fixture_route(curve=False):
     return tuple(points)
 
 
+CAR_RGB = (0, 40, 240)
+PERSON_RGB = (240, 40, 0)
+# Static roadside cars stand in for Town10HD's parked-vehicle map layer: they
+# are not scenario actors, have no truth record and are never removed.
+PARKED_RGB = (10, 40, 240)
+CAR_HALF_EXTENT = (2.4, 1.0, 0.75)
+PERSON_HALF_EXTENT = (0.4, 0.3, 0.9)
+
+
 class RasterDetector:
     """Test-only colour segmentation, not a model accuracy benchmark."""
 
@@ -83,8 +92,13 @@ class RasterDetector:
             raise ValueError("Raster detector episode mismatch")
         started = time.perf_counter()
         found = []
-        for class_name, channel, identity in (("car", 2, 1), ("person", 0, 2)):
-            mask = ((frame.rgb[:, :, channel] == 240) & (frame.rgb[:, :, 1] == 40)).astype(np.uint8)
+        rgb = frame.rgb
+        for class_name, colour, identity in (
+            ("car", CAR_RGB, 1),
+            ("person", PERSON_RGB, 2),
+            ("car", PARKED_RGB, 3),
+        ):
+            mask = np.all(rgb == np.array(colour, np.uint8), axis=-1).astype(np.uint8)
             count, _, stats, _ = cv2.connectedComponentsWithStats(mask)
             for x, y, w, h, area in stats[1:count]:
                 if area >= 6:
@@ -116,7 +130,15 @@ class RasterDetector:
 
 class BaselineWorld(KinematicWorld):
     def __init__(
-        self, scenario="S0", *, curve=False, fault=None, seed=1, route="fixture", ground=None
+        self,
+        scenario="S0",
+        *,
+        curve=False,
+        fault=None,
+        seed=1,
+        route="fixture",
+        ground=None,
+        parked=(),
     ):
         if scenario not in {f"S{x}" for x in range(6)}:
             raise ValueError("Unknown baseline scenario")
@@ -143,6 +165,8 @@ class BaselineWorld(KinematicWorld):
             self.object_s = 85.0 if scenario == "S5" else 55.0
             self.object_lateral = 4.5 if scenario == "S3" else 0.0
         self.route = RouteGeometry(self.points)
+        # (route s, signed lateral) centres; lateral is left-positive.
+        self.parked = tuple((float(s), float(lateral)) for s, lateral in parked)
         self.ground = route == "mission" if ground is None else bool(ground)
         self.person = scenario == "S2"
         self.present = scenario != "S0"
@@ -182,38 +206,22 @@ class BaselineWorld(KinematicWorld):
         depth = (
             self._ground_depth.copy() if self.ground else np.full((360, 640), 100.0, np.float32)
         )
+        world_to_camera = inverse_rigid(self.calibration.camera_to_ego) @ inverse_rigid(
+            ego_to_world_matrix(state.x_m, state.y_m, state.yaw_rad)
+        )
+        for s_parked, lateral in self.parked:
+            x, y, yaw = self.route.at(s_parked, lateral)
+            _render_box(rgb, depth, world_to_camera, (x, y, yaw), CAR_HALF_EXTENT, PARKED_RGB)
         if self.present:
             x, y, yaw = self.route.at(self.object_s, self.object_lateral)
-            half = (0.4, 0.3, 0.9) if self.person else (2.4, 1.0, 0.75)
-            object_to_world = ego_to_world_matrix(x, y, yaw, half[2])
-            world_to_camera = inverse_rigid(self.calibration.camera_to_ego) @ inverse_rigid(
-                ego_to_world_matrix(state.x_m, state.y_m, state.yaw_rad)
+            _render_box(
+                rgb,
+                depth,
+                world_to_camera,
+                (x, y, yaw),
+                PERSON_HALF_EXTENT if self.person else CAR_HALF_EXTENT,
+                PERSON_RGB if self.person else CAR_RGB,
             )
-            corners = [
-                world_to_camera @ object_to_world @ np.array([dx, dy, dz, 1])
-                for dx in (-half[0], half[0])
-                for dy in (-half[1], half[1])
-                for dz in (-half[2], half[2])
-            ]
-            if min(p[2] for p in corners) > 0.1:
-                uv = np.array([(320 + 320 * p[0] / p[2], 180 + 320 * p[1] / p[2]) for p in corners])
-                lo = np.maximum(0, np.floor(uv.min(axis=0)).astype(int))
-                hi = np.minimum((640, 360), np.ceil(uv.max(axis=0)).astype(int))
-                if (hi > lo).all():
-                    roi = (slice(lo[1], hi[1]), slice(lo[0], hi[0]))
-                    vv, uu = np.mgrid[lo[1] : hi[1], lo[0] : hi[0]]
-                    rays = np.stack(((uu - 320) / 320, (vv - 180) / 320, np.ones_like(uu)), axis=-1)
-                    camera_to_object = np.linalg.inv(world_to_camera @ object_to_world)
-                    direction = rays @ camera_to_object[:3, :3].T
-                    origin = camera_to_object[:3, 3]
-                    safe = np.where(abs(direction) < 1e-12, 1e-12, direction)
-                    a, b = (-np.array(half) - origin) / safe, (np.array(half) - origin) / safe
-                    entry = np.max(np.minimum(a, b), axis=-1)
-                    leave = np.min(np.maximum(a, b), axis=-1)
-                    hit = (entry > 0) & (leave >= entry)
-                    rgb[roi][hit] = (240, 40, 0) if self.person else (0, 40, 240)
-                    view = depth[roi]
-                    view[hit] = np.fmin(view[hit], entry[hit])
         in_corridor = self.present and self.scenario_id != "S3" and gap > -6
         if in_corridor and gap <= 0 and not self._collision:
             self.events.append(
@@ -230,7 +238,11 @@ class BaselineWorld(KinematicWorld):
         if self.fault == "flicker" and frame_id % 5 in (0, 1):
             rgb[:] = 25
         self.control_clock_s = time.monotonic()
-        received = self.control_clock_s - (2.0 if self.fault == "stale" and frame_id >= 80 else 0)
+        # "stale": receipt permanently 2 s old. "stall": one 1.3 s host hitch
+        # at frame 80, as recorded on the first live full-stack S0 run.
+        lag = 2.0 if self.fault == "stale" and frame_id >= 80 else 0.0
+        lag = 1.3 if self.fault == "stall" and frame_id == 80 else lag
+        received = self.control_clock_s - lag
         return FrameBundle(
             episode,
             frame_id,
@@ -253,3 +265,37 @@ class BaselineWorld(KinematicWorld):
     def close(self):
         super().close()
         self.cleanup = dict(ok=True, scope="synthetic world; no CARLA actors")
+
+
+def _render_box(rgb, depth, world_to_camera, pose, half, colour):
+    """Ray-cast one ground-standing cuboid into the RGB and axial-depth images."""
+    x, y, yaw = pose
+    object_to_world = ego_to_world_matrix(x, y, yaw, half[2])
+    corners = [
+        world_to_camera @ object_to_world @ np.array([dx, dy, dz, 1])
+        for dx in (-half[0], half[0])
+        for dy in (-half[1], half[1])
+        for dz in (-half[2], half[2])
+    ]
+    if min(p[2] for p in corners) <= 0.1:
+        return
+    uv = np.array([(320 + 320 * p[0] / p[2], 180 + 320 * p[1] / p[2]) for p in corners])
+    lo = np.maximum(0, np.floor(uv.min(axis=0)).astype(int))
+    hi = np.minimum((640, 360), np.ceil(uv.max(axis=0)).astype(int))
+    if not (hi > lo).all():
+        return
+    roi = (slice(lo[1], hi[1]), slice(lo[0], hi[0]))
+    vv, uu = np.mgrid[lo[1] : hi[1], lo[0] : hi[0]]
+    rays = np.stack(((uu - 320) / 320, (vv - 180) / 320, np.ones_like(uu)), axis=-1)
+    camera_to_object = np.linalg.inv(world_to_camera @ object_to_world)
+    direction = rays @ camera_to_object[:3, :3].T
+    origin = camera_to_object[:3, 3]
+    safe = np.where(abs(direction) < 1e-12, 1e-12, direction)
+    a, b = (-np.array(half) - origin) / safe, (np.array(half) - origin) / safe
+    entry = np.max(np.minimum(a, b), axis=-1)
+    leave = np.min(np.maximum(a, b), axis=-1)
+    view = depth[roi]
+    # Nearest surface wins where cuboids overlap in the image.
+    hit = (entry > 0) & (leave >= entry) & ~(view < entry)
+    rgb[roi][hit] = colour
+    view[hit] = entry[hit]

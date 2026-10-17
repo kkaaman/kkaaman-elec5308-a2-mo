@@ -134,6 +134,9 @@ def execute(args):
             depth_calibration_sha256=file_sha256(args.depth_calibration),
             scenario_sha256=file_sha256(scenario_path),
             step_wall_budget_s=0.1,
+            # Synchronous world: wall stalls (UE GC, GPU hitches) pause the sim
+            # too, so only a hung pipeline latches; overruns are reported.
+            wall_guard=dict(mode="synchronous_watchdog", observation_age_s=5.0, step_wall_s=1.0),
         )
         if args.navigation_only:
             detector = EmptyDetector()

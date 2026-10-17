@@ -13,12 +13,18 @@ def run_episode(
     world, detector, points, config, folder, manifest, *, max_sim_s=120, navigation_only=False
 ):
     policy = BaselinePolicy(points, config, navigation_only=navigation_only)
+    # A synchronous simulator is paused while the client computes, so a host
+    # stall cannot make the observation stale relative to the world (sim-time
+    # freshness is enforced by frame-matched packets and the sim-time command
+    # TTL). There the wall-clock guards are hang watchdogs; the per-step
+    # budget is measured, counted and scored (capture-to-apply p95) instead.
+    guard = manifest.get("wall_guard") or {}
     stack = SkeletonStack(
         detector,
         StackConfig(
             command_ttl_s=0.3,
-            max_observation_age_s=0.5,
-            max_step_wall_s=manifest.get("step_wall_budget_s", 0.1),
+            max_observation_age_s=guard.get("observation_age_s", 0.5),
+            max_step_wall_s=guard.get("step_wall_s", manifest.get("step_wall_budget_s", 0.1)),
             require_depth=not navigation_only,
         ),
         policy,
@@ -41,7 +47,11 @@ def run_episode(
     hold_since = None
     try:
         logger.manifest["guard_clock_scope"] = (
-            "fixture frozen within step" if hasattr(world, "control_clock") else "host monotonic"
+            "fixture frozen within step"
+            if hasattr(world, "control_clock")
+            else "host monotonic hang watchdog (synchronous world)"
+            if guard
+            else "host monotonic"
         )
         frame, graph = world.reset(seed=manifest["seed"])
         stack.reset(episode_id=frame.episode_id, graph=graph)

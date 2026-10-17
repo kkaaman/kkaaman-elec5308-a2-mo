@@ -10,7 +10,7 @@ from evaluation.runner import run_episode
 from sim_harness.baseline import BaselineWorld, RasterDetector
 
 
-def run(tmp_path, scenario, fault=None):
+def run(tmp_path, scenario, fault=None, **extra):
     config = BaselineConfig()
     world = BaselineWorld(scenario, fault=fault)
     return run_episode(
@@ -26,6 +26,7 @@ def run(tmp_path, scenario, fault=None):
             step_wall_budget_s=10.0,
             event_sensors_verified=True,
             truth_channel_complete=True,
+            **extra,
         ),
         max_sim_s=150,
     )
@@ -63,3 +64,30 @@ def test_configuration_preserves_public_controller_types():
     c = BaselineConfig()
     with pytest.raises(ValueError):
         replace(c, dt_s=float("nan"))
+
+
+SYNC_WATCHDOG = dict(mode="synchronous_watchdog", observation_age_s=5.0, step_wall_s=1.0)
+
+
+def test_single_host_stall_latches_without_watchdog(tmp_path):
+    result = run(tmp_path, "S0", "stall")
+    assert result["collection_status"] == "INCOMPLETE"
+    assert "stale" in result["error"]
+
+
+def test_synchronous_watchdog_survives_and_reports_a_host_stall(tmp_path):
+    result = run(tmp_path, "S0", "stall", wall_guard=SYNC_WATCHDOG)
+    assert result["collection_status"] == "COLLECTED", result["error"]
+    assert result["metrics"]["route_completion"] == 1
+    timing = result["timing"]
+    assert timing["capture_apply_over_100ms"] == 1
+    assert timing["capture_apply_max_ms"] >= 1300
+    assert timing["guard"] == SYNC_WATCHDOG
+    # One outlier frame does not move the scored percentile.
+    assert result["metrics"]["capture_apply_p95_ms"] < 100
+
+
+def test_synchronous_watchdog_still_latches_a_hung_pipeline(tmp_path):
+    result = run(tmp_path, "S0", "stale", wall_guard=dict(SYNC_WATCHDOG, observation_age_s=1.0))
+    assert result["collection_status"] == "INCOMPLETE"
+    assert "stale" in result["error"]

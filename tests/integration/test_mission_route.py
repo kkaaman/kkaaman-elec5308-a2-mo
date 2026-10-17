@@ -183,3 +183,38 @@ def test_persistent_unknown_depth_box_still_stops(tmp_path):
     window = rows[200:400]
     assert any(r["state"] in {"STOPPING", "HOLD"} for r in window)
     assert window[-1]["speed_mps"] <= 0.1
+
+
+# Live S0 (17 Oct): a Town10HD map-layer SUV parked at the kerb, its near side
+# ~2.0 m right of the lane centre, stopped every full-stack run at s ~ 13 m.
+# Road pixels inside its oblique detection box were treated as car surface.
+@pytest.mark.parametrize(
+    ("scenario", "lateral"),
+    [("S0", -3.0), ("S0", -2.75), ("S1", -2.75)],
+)
+def test_kerbside_parked_car_does_not_stop_the_mission(tmp_path, scenario, lateral):
+    # lateral -2.75: near side exactly on the 1.75 m lane edge (0.52 m outside
+    # the swept corridor); -3.0 matches the live SUV.
+    world = BaselineWorld(scenario, route="mission", parked=[(23.0, lateral)])
+    result = run_episode(
+        world,
+        RasterDetector(),
+        world.points,
+        BaselineConfig(),
+        tmp_path / scenario,
+        manifest(scenario),
+        max_sim_s=150,
+    )
+    assert result["collection_status"] == "COLLECTED", result["error"]
+    metrics = result["metrics"]
+    assert metrics["route_completion"] == 1
+    assert metrics["collisions"] == 0
+    rows = [json.loads(x) for x in (tmp_path / scenario / "samples.jsonl").read_text().splitlines()]
+    passing = [r for r in rows if r["progress_m"] < 25.0]
+    assert passing and not any(r["state"] in {"STOPPING", "HOLD"} for r in passing)
+    assert not any(r["unknown_in_route"] for r in passing)
+    if scenario == "S0":
+        assert min(r["speed_mps"] for r in passing if r["progress_m"] > 10.0) > 4.5
+        assert metrics["false_stops"] == 0
+    else:
+        assert 2.5 <= metrics["hold_margin_min_m"] <= metrics["hold_margin_max_m"] <= 6.0

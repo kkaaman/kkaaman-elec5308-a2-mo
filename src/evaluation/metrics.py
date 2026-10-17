@@ -58,6 +58,24 @@ def _false_stops(rows, dt):
     return count
 
 
+def _timing(rows, manifest):
+    """Wall-clock budget overruns; report-only next to the scored p95."""
+    budget = manifest.get("step_wall_budget_s", 0.1)
+    capture = [r["capture_apply_s"] for r in rows]
+    steps = [r.get("stages", {}).get("total") for r in rows]
+    steps = [s for s in steps if s is not None]
+    return dict(
+        step_budget_s=budget,
+        step_over_budget=sum(s > budget for s in steps),
+        step_max_ms=max(steps) * 1000 if steps else None,
+        capture_apply_over_100ms=sum(c > 0.1 for c in capture),
+        capture_apply_max_ms=max(capture) * 1000,
+        tick_to_apply_max_ms=max(r.get("tick_to_apply_s", 0.0) for r in rows) * 1000,
+        stalls_over_500ms=sum(r.get("tick_to_apply_s", 0.0) > 0.5 for r in rows),
+        guard=manifest.get("wall_guard"),
+    )
+
+
 def summarize(rows, events, manifest):
     dt = manifest["dt_s"]
     if not rows:
@@ -126,6 +144,7 @@ def summarize(rows, events, manifest):
         metrics["route_completion"] = None
     return dict(
         samples=len(rows),
+        timing=_timing(rows, manifest),
         cruise_samples=len(cruise),
         moving_samples=len(moving),
         metrics=metrics,

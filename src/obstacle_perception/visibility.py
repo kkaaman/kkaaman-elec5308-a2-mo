@@ -5,6 +5,7 @@ import math
 import numpy as np
 
 from geometry.transforms import ego_to_world_matrix, inverse_rigid
+from obstacle_perception.box_depth import GROUND_CLEARANCE_M
 
 CLEAR = "clear"
 OUT_OF_VIEW = "out_of_view"
@@ -62,29 +63,54 @@ class DepthVisibility:
 
     def probe_status(self, point_world_m):
         """CLEAR, OUT_OF_VIEW, OCCLUDED (nearer surface) or INVALID depth."""
+        return self.probe_statuses([point_world_m])[0]
+
+    def probe_statuses(self, points_world_m):
+        """Vectorised :meth:`probe_status` for an (N, 3) array of world points.
+
+        Each probe projects to its nearest pixel; the 3x3 patch around it needs
+        8 finite depths (else INVALID) and no surface nearer than the probe
+        plus ``clearance_m`` (else OCCLUDED). Off-image or behind-camera probes
+        are OUT_OF_VIEW.
+        """
+        points = np.asarray(points_world_m, dtype=float).reshape(-1, 3)
+        status = np.full(len(points), OUT_OF_VIEW, dtype=object)
         depth = self.frame.depth_m
         if depth is None:
-            return INVALID
+            status[:] = INVALID
+            return status
+        if not len(points):
+            return status
         h, w = depth.shape
         cal = self.frame.calibration
-        optical = self.world_to_optical @ np.r_[point_world_m, 1.0]
-        if optical[2] <= 0:
-            return OUT_OF_VIEW
-        u = int(round(cal.cx_px + cal.fx_px * optical[0] / optical[2]))
-        v = int(round(cal.cy_px + cal.fy_px * optical[1] / optical[2]))
-        if not (1 <= u < w - 1 and 1 <= v < h - 1):
-            return OUT_OF_VIEW
-        patch = depth[v - 1 : v + 2, u - 1 : u + 2]
-        if np.isfinite(patch).sum() < 8:
-            return INVALID
-        if float(np.nanmin(patch)) < optical[2] + self.clearance_m:
-            return OCCLUDED
-        return CLEAR
+        optical = (self.world_to_optical @ np.c_[points, np.ones(len(points))].T).T
+        z = optical[:, 2]
+        front = z > 0
+        safe = np.where(front, z, 1.0)
+        # np.rint and Python round() both round half to even.
+        u = np.rint(cal.cx_px + cal.fx_px * optical[:, 0] / safe)
+        v = np.rint(cal.cy_px + cal.fy_px * optical[:, 1] / safe)
+        inside = front & (u >= 1) & (u < w - 1) & (v >= 1) & (v < h - 1)
+        if not inside.any():
+            return status
+        ui, vi = u[inside].astype(int), v[inside].astype(int)
+        patch = np.stack(
+            [depth[vi + dv, ui + du] for dv in (-1, 0, 1) for du in (-1, 0, 1)], axis=1
+        )
+        finite = np.isfinite(patch)
+        nearest = np.where(finite, patch, np.inf).min(axis=1)
+        result = np.where(
+            finite.sum(axis=1) < 8,
+            INVALID,
+            np.where(nearest < z[inside] + self.clearance_m, OCCLUDED, CLEAR),
+        )
+        status[inside] = result
+        return status
 
     def clear_points(self, points_world_m):
-        if self.frame.depth_m is None or not points_world_m:
+        if self.frame.depth_m is None or not len(points_world_m):
             return False
-        return all(self.probe_status(point) == CLEAR for point in points_world_m)
+        return bool((self.probe_statuses(points_world_m) == CLEAR).all())
 
     def footprint_clear(self, footprint):
         corners = np.asarray(footprint.corners_world_m)
@@ -112,14 +138,13 @@ class DepthVisibility:
         )
         if interval is None:
             return True
-        points = []
-        for s in np.linspace(
+        s_values = np.linspace(
             interval[0], interval[1], max(2, math.ceil((interval[1] - interval[0]) / 0.5) + 1)
-        ):
-            for lateral in np.linspace(-half_width, half_width, 7):
-                x, y, _ = route.at(s, lateral)
-                points.extend((x, y, self.frame.ego.z_m + z) for z in (0.6, 1.0))
-        return self.clear_points(points)
+        )
+        points = self._route_points(
+            route, s_values, np.linspace(-half_width, half_width, 7), (0.6, 1.0), extend=False
+        )
+        return self.clear_points(points.reshape(-1, 3))
 
     def box_may_overlap_route(self, box, route, ego_s, front_offset, half_width, horizon_m):
         """Conservative image overlap for an unknown-depth box.
@@ -147,9 +172,19 @@ class DepthVisibility:
                 ).reshape(-1, 3)
                 optical_to_world = np.linalg.inv(self.world_to_optical)
                 cloud = optical @ optical_to_world[:3, :3].T + optical_to_world[:3, 3]
-                lo, hi = cloud[:, :2].min(axis=0) - 0.3, cloud[:, :2].max(axis=0) + 0.3
-                polygon = ((lo[0], lo[1]), (hi[0], lo[1]), (hi[0], hi[1]), (lo[0], hi[1]))
-                if (
+                # Measured road surface inside the box is not obstacle surface
+                # (every pixel is still required to be valid above). A box with
+                # no raised surface at all proves nothing and falls through.
+                cloud = cloud[cloud[:, 2] >= self.frame.ego.z_m + GROUND_CLEARANCE_M]
+                if len(cloud) >= 9:
+                    lo, hi = cloud[:, :2].min(axis=0) - 0.3, cloud[:, :2].max(axis=0) + 0.3
+                    polygon = (
+                        (lo[0], lo[1]),
+                        (hi[0], lo[1]),
+                        (hi[0], hi[1]),
+                        (lo[0], hi[1]),
+                    )
+                if len(cloud) >= 9 and (
                     route.footprint_interval(
                         polygon,
                         half_width_m=half_width,
@@ -159,38 +194,63 @@ class DepthVisibility:
                     is None
                 ):
                     return False
-        for distance in np.arange(0.5, horizon_m + 0.5, 0.5):
-            pixels = []
-            for side in (-half_width - 0.3, half_width + 0.3):
-                x, y, _ = route.at(ego_s + front_offset + distance, side)
-                for z in (-0.3, 2.5):
-                    optical = self.world_to_optical @ np.array([x, y, self.frame.ego.z_m + z, 1])
-                    if optical[2] > 0.05:
-                        pixels.append(
-                            (
-                                cal.cx_px + cal.fx_px * optical[0] / optical[2],
-                                cal.cy_px + cal.fy_px * optical[1] / optical[2],
-                            )
-                        )
-            if pixels:
-                lo, hi = np.min(pixels, axis=0) - 3, np.max(pixels, axis=0) + 3
-                if (
-                    box.x_max >= lo[0]
-                    and box.x_min <= hi[0]
-                    and box.y_max >= lo[1]
-                    and box.y_min <= hi[1]
-                ):
-                    return True
-        return False
+        distances = np.arange(0.5, horizon_m + 0.5, 0.5)
+        points = self._route_points(
+            route,
+            ego_s + front_offset + distances,
+            (-half_width - 0.3, half_width + 0.3),
+            (-0.3, 2.5),
+            extend=False,
+        ).reshape(len(distances), 4, 3)
+        homogeneous = np.concatenate((points, np.ones((*points.shape[:2], 1))), axis=-1)
+        optical = homogeneous @ self.world_to_optical.T
+        z = optical[..., 2]
+        valid = z > 0.05
+        safe = np.where(valid, z, 1.0)
+        u = cal.cx_px + cal.fx_px * optical[..., 0] / safe
+        v = cal.cy_px + cal.fy_px * optical[..., 1] / safe
+        rows = valid.any(axis=1)
+        if not rows.any():
+            return False
+        lo_u = np.where(valid, u, np.inf).min(axis=1) - 3
+        hi_u = np.where(valid, u, -np.inf).max(axis=1) + 3
+        lo_v = np.where(valid, v, np.inf).min(axis=1) - 3
+        hi_v = np.where(valid, v, -np.inf).max(axis=1) + 3
+        overlap = (
+            rows
+            & (box.x_max >= lo_u)
+            & (box.x_min <= hi_u)
+            & (box.y_max >= lo_v)
+            & (box.y_min <= hi_v)
+        )
+        return bool(overlap.any())
 
-    def _route_point(self, route, s, lateral, z):
-        x, y, yaw = route.at(s, lateral)
-        # Visibility continues past the rear-axle goal to cover the front
-        # bumper; this does not extend the controller route.
-        if s > route.length_m:
-            x += (s - route.length_m) * math.cos(yaw)
-            y += (s - route.length_m) * math.sin(yaw)
-        return (x, y, self.frame.ego.z_m + z)
+    def _route_points(self, route, s_values, laterals, heights, *, extend=True):
+        """World probes, shape (len(s), len(laterals), len(heights), 3).
+
+        Matches ``route.at``: s is clipped to the route; with ``extend`` the
+        part beyond the rear-axle goal continues along the final heading, so
+        visibility covers the front bumper. The controller route is unchanged.
+        """
+        s_values = np.asarray(s_values, dtype=float)
+        laterals = np.asarray(laterals, dtype=float)
+        heights = np.asarray(heights, dtype=float)
+        if not (np.isfinite(s_values).all() and np.isfinite(laterals).all()):
+            raise ValueError("Route coordinates must be finite")
+        clipped = np.clip(s_values, 0, route.length_m)
+        index = np.minimum(
+            np.searchsorted(route.arc, clipped, side="right") - 1, len(route.lengths) - 1
+        )
+        along = clipped - route.arc[index]
+        if extend:
+            along = along + np.maximum(0.0, s_values - route.length_m)
+        base = route.points[index] + along[:, None] * route.tangents[index]
+        xy = base[:, None, :] + laterals[None, :, None] * route.normals[index][:, None, :]
+        shape = (len(s_values), len(laterals), len(heights))
+        out = np.empty((*shape, 3))
+        out[..., :2] = xy[:, :, None, :]
+        out[..., 2] = self.frame.ego.z_m + heights[None, None, :]
+        return out
 
     def route_horizon(
         self, route, ego_s, front_offset, half_width, horizon_m=35.0, *, memory=None, time_s=None
@@ -208,30 +268,31 @@ class DepthVisibility:
         in-view clear cell along the whole horizon refreshes the memory.
         """
         distances = np.arange(3.0, horizon_m + 0.1, 1.0)
+        laterals = (-half_width, 0.0, half_width)
+        heights = (0.6, 1.0)
         if memory is None:
-            covered = 0.0
-            for distance in distances:
-                s = ego_s + front_offset + distance
-                points = [
-                    self._route_point(route, s, lateral, z)
-                    for lateral in (-half_width, 0.0, half_width)
-                    for z in (0.6, 1.0)
-                ]
-                if not self.clear_points(points):
-                    return covered
-                covered = float(distance)
-            return covered
+            points = self._route_points(route, ego_s + front_offset + distances, laterals, heights)
+            statuses = self.probe_statuses(points.reshape(-1, 3)).reshape(len(distances), -1)
+            blocked = ~(statuses == CLEAR).all(axis=1)
+            if not blocked.any():
+                return float(distances[-1]) if len(distances) else 0.0
+            first = int(np.argmax(blocked))
+            return float(distances[first - 1]) if first else 0.0
         if time_s is None or not math.isfinite(time_s):
             raise ValueError("Memory-backed visibility needs the frame simulation time")
+        # Cells sit on a fixed 1 m route grid so different frames share keys.
+        cells = [math.floor(ego_s + front_offset + distance) for distance in distances]
+        points = self._route_points(route, cells, laterals, heights)
+        statuses = self.probe_statuses(points.reshape(-1, 3)).reshape(
+            len(cells), len(laterals), len(heights)
+        )
         covered, blocked = 0.0, False
-        for distance in distances:
-            # Cells sit on a fixed 1 m route grid so different frames share keys.
-            cell = math.floor(ego_s + front_offset + distance)
+        for row, (distance, cell) in enumerate(zip(distances, cells)):
             known = True
-            for index, lateral in enumerate((-half_width, 0.0, half_width)):
-                for z in (0.6, 1.0):
+            for index in range(len(laterals)):
+                for column, z in enumerate(heights):
                     key = (cell, index, z)
-                    status = self.probe_status(self._route_point(route, cell, lateral, z))
+                    status = statuses[row, index, column]
                     if status == CLEAR:
                         memory.mark(key, time_s)
                     elif status in (OCCLUDED, INVALID):
