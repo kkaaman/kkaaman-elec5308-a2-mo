@@ -237,7 +237,9 @@ class CarlaWorld:
         from carla_adapter.ground_truth import footprint_xy
 
         half_width = self.config.ego_half_width_m + self.config.lateral_padding_m
-        corners = footprint_xy(self.obstacle)
+        # The actor was placed this tick; get_transform() is not updated until
+        # the next tick in synchronous mode, so use the pose that was applied.
+        corners = footprint_xy(self.obstacle, transform)
         interval = self.route.footprint_interval(corners, half_width_m=half_width)
         waypoint = self._world.get_map().get_waypoint(
             transform.location, project_to_road=False, lane_type=carla.LaneType.Any

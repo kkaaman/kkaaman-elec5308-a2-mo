@@ -5,12 +5,17 @@ import math
 from evaluation.ground_truth import front_edge_gap
 
 
-def footprint_xy(actor):
-    """Actor bounding box XY polygon, including its local centre and yaw."""
+def footprint_xy(actor, pose=None):
+    """Actor bounding box XY polygon, including its local centre and yaw.
+
+    Pass ``pose`` for an actor spawned or moved since the last tick: in
+    synchronous mode ``get_transform()`` still reports the old (or origin)
+    pose until the world ticks.
+    """
     import carla
 
     box = actor.bounding_box
-    pose = actor.get_transform()
+    pose = actor.get_transform() if pose is None else pose
     yaw = math.radians(box.rotation.yaw)
     c, s = math.cos(yaw), math.sin(yaw)
     points = []

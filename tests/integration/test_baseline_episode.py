@@ -91,3 +91,23 @@ def test_synchronous_watchdog_still_latches_a_hung_pipeline(tmp_path):
     result = run(tmp_path, "S0", "stale", wall_guard=dict(SYNC_WATCHDOG, observation_age_s=1.0))
     assert result["collection_status"] == "INCOMPLETE"
     assert "stale" in result["error"]
+
+
+def test_reset_failure_keeps_a_traceback(tmp_path):
+    class Hung(BaselineWorld):
+        def reset(self, *, seed):
+            raise RuntimeError("time-out of 60000ms while waiting for the simulator")
+
+    world = Hung("S1")
+    result = run_episode(
+        world,
+        RasterDetector(),
+        world.points,
+        BaselineConfig(),
+        tmp_path / "S1",
+        dict(engine="harness", scenario="S1", seed=1, step_wall_budget_s=10.0),
+        max_sim_s=5,
+    )
+    assert result["collection_status"] == "INCOMPLETE"
+    manifest = json.loads((tmp_path / "S1" / "manifest.json").read_text())
+    assert "in reset" in manifest["error_traceback"]
