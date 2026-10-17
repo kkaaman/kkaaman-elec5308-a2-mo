@@ -11,7 +11,7 @@ import numpy as np
 
 from carla_adapter.topology import export_lane_topology
 from planning.corridor import RouteGeometry
-from planning.mission import select_mission
+from planning.mission import overlapping_junction_lane, select_mission
 
 
 def prepare(client, output):
@@ -32,6 +32,7 @@ def prepare(client, output):
     max_error = 0.0
     widths = []
     checked = 0
+    overlaps = {}
     for a, b in zip(mission.points_xyz_m, mission.points_xyz_m[1:]):
         for ratio in np.linspace(0, 1, max(2, math.ceil(math.dist(a, b) / 0.25) + 1)):
             p = np.asarray(a) + ratio * (np.asarray(b) - a)
@@ -42,10 +43,18 @@ def prepare(client, output):
             )
             key = (wp.road_id, wp.section_id, wp.lane_id)
             error = math.hypot(wp.transform.location.x - p[0], -wp.transform.location.y - p[1])
-            if key not in allowed or error > 0.20:
+            segment = ":".join(map(str, key))
+            # Merging/diverging junction lanes share geometry with the mission's
+            # own junction lane; CARLA may report either. Record, don't reject.
+            overlap = key not in allowed and overlapping_junction_lane(
+                topology, mission.segment_ids, segment
+            )
+            if (key not in allowed and not overlap) or error > 0.20:
                 raise ValueError(
                     f"Mission sample is outside its declared legal lane: {key}, offset {error:.3f}"
                 )
+            if overlap:
+                overlaps[segment] = overlaps.get(segment, 0) + 1
             max_error = max(max_error, error)
             widths.append(wp.lane_width)
             checked += 1
@@ -56,6 +65,12 @@ def prepare(client, output):
         server=client.get_server_version(),
         samples=checked,
         max_lane_center_error_m=max_error,
+        junction_overlap_samples=overlaps,
+        junction_overlap_rule=(
+            "inside a junction, a sample reported on another lane of the same junction"
+            " that shares the mission lane's entry or exit (merge/diverge) is accepted"
+            " if within 0.20 m; all other samples must lie on a mission lane"
+        ),
         minimum_lane_width_m=min(widths),
         spawn_actor_pose=dict(
             x=x, y=-y, z=mission.points_xyz_m[0][2] + 0.5, yaw_deg=-math.degrees(yaw)
