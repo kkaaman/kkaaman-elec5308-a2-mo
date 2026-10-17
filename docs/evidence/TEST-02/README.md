@@ -1,15 +1,87 @@
 # TEST-02 navigation evidence
 
-**Full S0 acceptance is incomplete.** The implementation and real navigation
-diagnostics are available, but this machine's installed RGB-camera environment
-stalls after a few frames. No five-run S0 pass, capture latency pass, or G1
-approval is claimed. All failed trials remain in the raw archive.
+**Current result: five-run RGB-enabled S0 acceptance passed on the repaired
+Windows runtime.** The original package's readback task-routing deadlock was
+diagnosed using local PDB thread stacks. The final isolated runtime also enables
+D3D11 immediate-context threading protection. It passed two complete five-run
+suites and three RGB HOLD regressions in one uninterrupted server session.
+This is navigation/S0 evidence; G1 approval remains a reviewer decision.
+Earlier failed trials and the intermediate device-error runs are retained.
 
-Author checks: **640 tests passed, 1 live-CARLA test deselected, and 3 subtests
+Current offline checks: **653 passed, 1 skipped**, including 106 legacy A1
+test cases. Ruff and the simulator-boundary smoke check passed (64 core modules
+imported with simulator imports blocked). The current JUnit report is
+[retained separately](rgb-repair-regression.xml) from the historical report.
+The current `sphinx-build -W docs docs/_build/html` build also passed.
+
+Pre-repair author checks: **640 tests passed, 1 live-CARLA test deselected, and 3 subtests
 passed**. Ruff passed; the simulator-boundary smoke check imported 64 core
 modules with simulator imports blocked; the Sphinx documentation build passed
 with warnings treated as errors. The actual driving diagnostics below are
 separate from these offline checks.
+
+## RGB repair and current acceptance
+
+The validated machine is the Ryzen 5 5600H / RTX 3050 Laptop 4 GB / 16 GB
+laptop, now using NVIDIA driver 617.42. Updating the driver alone did not
+resolve the original five-frame camera stall.
+
+The deployed repair has two parts: route readback tasks to an unnamed worker
+instead of StatsThread, and protect the D3D11 immediate context used by the
+rendering/readback threads. The native guard log confirms protection changed
+from disabled to enabled. No navigation/controller settings, metric limits or
+frozen input files were changed. The route SHA256 remains
+`78b0235ad8788d03101bc027dfefa0f6bc6b89e309e4192ed3121742e14df06a` and
+the configuration SHA256 remains
+`bb87140f121390f4abf6c995093fc0cc45ee4ce939ee7888ce2efb618c0ae7b9`.
+
+All five runs in each passing suite used fresh world episodes, completed the
+mission, installed the route once, verified cleanup and retained real RGB
+timing evidence. Earlier task-only and RHI-only trials were separate diagnostic
+experiments; their failures were not omitted from a five-run suite.
+
+The reproducible builder's final runtime passed another complete five-run
+suite, `packaged-acceptance`, after the two stability suites. The three final
+profile suites contain 15 passing runs in total across two server sessions;
+the primary acceptance cohort is the final five, without combining cohorts.
+
+| Primary RGB cohort | Result / worst value | Frozen limit |
+|---|---|---|
+| Complete S0 runs | 5 / 5 PASS | 5 |
+| Route completion | 100% in each run | 100% |
+| Mean absolute CTE | 0.02045 m | <= 0.3 m |
+| Cruise speed RMS error | 0.11126 m/s | <= 0.5 m/s |
+| RGB callback receipt to control application, p95 | 16.0 ms | <= 100 ms |
+| Collisions / unplanned lane invasions / false stops | 0 / 0 / 0 | 0 / 0 / 0 |
+| Route installation / cleanup | Once per run / verified | Once / verified |
+
+Each run retained 1,016 control samples and 1,026-1,027 RGB receipts. The latency
+column measures the defined host callback-to-application interval, not the
+entire GPU capture pipeline. The separate straight, curve and near-goal RGB
+HOLD regressions each retained 40 held samples, reached zero speed, kept
+throttle at zero and completed only after release. Straight/curve intentionally
+fail the ordinary no-false-stop metric; all three lifecycle checks pass.
+
+The independent camera probe advanced 300 ticks and received 299 images with
+the expected pipeline delay. Its first valid image matched the original
+server's first-image SHA256. The Low-quality image is retained below.
+
+![First real RGB frame from the repaired runtime](rgb-first-frame.png)
+
+The original executable is preserved. The reproducible builder creates an
+isolated runtime, verifies the exact supported executable hash, compiles the
+local guard from source and shares the existing assets through junctions.
+The tested result requires this repaired runtime; it does not establish that
+the original executable or every other hardware/driver configuration works.
+See [repair and startup instructions](../../carla_rgb_readback_fix.md).
+
+Current detailed results and every preliminary failure are in
+[the RGB repair report](rgb-repair-results.json). The newer
+[RGB repair archive](rgb-repair-evidence.zip) retains the raw runs, capture
+probe, thread stacks, source/instruction checks, build identity and GPU logs.
+Its [SHA256 file](rgb-repair-evidence.sha256) is separate from the unchanged
+historical archive below. Generated executables, DLLs and shared asset trees
+are excluded from the archive and Git; their source/build hashes are retained.
 
 ## Frozen mission and measured navigation
 
@@ -95,13 +167,14 @@ two-second server health check also timed out, leaving actor, timing and
 environment cleanup unverified. The run is retained as `FAIL`, with
 `completed=false` and `cleanup_ok=false`. Disabling the independent RHI
 thread did not resolve the camera stall. The observed NVIDIA driver was
-552.22; a driver update has been proposed but has not been tested.
+552.22. At that point a driver update had been proposed but not tested; the
+subsequent 617.42 retest and source-level diagnosis are recorded above.
 
 All five trials recorded the same execution source bundle SHA256:
 `a8091160429ef37734c7f04a0f54aae70948fbdde00a5e8813cc1905dcae9ee4`.
-Full five-run S0 acceptance remains open.
+Full five-run S0 acceptance was still open at the time of those diagnostics.
 
-## Camera blocker and retained failures
+## Historical camera blocker and retained failures
 
 - Default DX12 startup crashed in the NVIDIA driver / D3D12 stack.
 - DX11 loaded Town10HD_Opt successfully. Offscreen and hidden-window camera
@@ -113,9 +186,10 @@ Full five-run S0 acceptance remains open.
 - A project-independent asynchronous probe also stalled after a few receipts.
 - The installed Vulkan launch exited with code 3.
 
-The underlying camera/renderer problem remains unresolved. These observations
-do not establish that a driver update alone will fix it. No drivers, simulator
-installation files or system graphics settings were changed.
+Those observations did not establish the root cause. The later stack-level
+diagnosis and isolated-runtime repair are recorded above. No drivers, simulator
+installation files or system graphics settings were changed during the
+original trials; the user subsequently installed driver 617.42.
 
 The archive also retains the intentionally time-limited navigation smoke run
 and an earlier mid-turn run whose light-restoration check failed. That failure
@@ -139,11 +213,11 @@ committed source revision, actual source hashes, world episode IDs and cleanup
 details. HOLD/diagnostic overrides have distinct identities and cannot be
 aggregated into formal acceptance.
 
-After repairing the installed camera environment, rerun a short RGB-enabled
-probe, then the unchanged five-run command from the execution guide. Retain
-all five raw folders and evaluate each applicable metric. Any route/control
-change requires another complete frozen suite. Until then, TEST-02 and the
-five-run evidence requirement remain open.
+Reproduction now uses the repaired runtime and the unchanged five-run command
+from the execution guide. Retain every raw folder and evaluate each applicable
+metric. Any route/control/configuration change requires another frozen suite.
+The pending-status labels inside the frozen configuration are historical
+freeze metadata; current acceptance is recorded externally to preserve its hash.
 
 ## Local review units
 
@@ -154,4 +228,6 @@ lifecycle, and S0 tooling can be reviewed as three dependent groups; the last
 group contains separate metric and simulator commits. Evidence is committed
 separately. All authored code, comments, diagnostic messages and documentation
 are English. AI assistance was used for implementation, review and test design;
-human review and complete live acceptance remain outstanding.
+human source review remains outstanding. Current live acceptance and the
+separate server compatibility repair are documented above. Significant AI
+interactions are recorded in the [AI journal](../../ai_journal.md).

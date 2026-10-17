@@ -4,20 +4,27 @@ This entry point runs the frozen Town10HD mission only. It reuses the fixed
 Tesla adapter, Pure Pursuit and synchronous world owner. It does not implement
 the S1-S5 obstacle/perception stack.
 
-Current status: the installed RGB camera stalls on the minimum-spec laptop;
-full five-run acceptance remains incomplete. Use the diagnostic commands below
-for the independently validated navigation boundary.
+Current status: RGB-enabled five-run S0 acceptance passed on the minimum-spec
+laptop using the isolated Windows readback/thread-protection repair. The
+original executable still has the diagnosed camera defect. See the
+[repair instructions](carla_rgb_readback_fix.md) and retained failed trials.
 
 ## Reproduce
 
-Use the project environment with CARLA client/server 0.9.16. Start the simulator
-with Low quality; this laptop requires DirectX 11 to avoid its observed DX12
-startup crash. The diagnostic window was explicitly authorized by the user.
+Use the project environment with CARLA client/server 0.9.16 and the verified
+isolated runtime. Close existing CARLA instances before launching. This
+machine has the existing MinGW-w64 compiler shown below.
 
 ```powershell
-Start-Process D:/CARLA_0.9.16/CarlaUE4.exe -ArgumentList '-dx11 -windowed -ResX=640 -ResY=360 -quality-level=Low -nosound'
-python scripts/check_baseline_mission.py --verify-map
-python scripts/run_scenario.py --runs 5 --output runs/S0/acceptance-NEW-ID
+$py = '.\.venv\Scripts\python.exe'
+$runtime = 'D:\26-S2-Assignment2-Group7\runs\carla-rgb-runtime'
+& $py scripts/patch_carla_rgb_readback.py --carla-root 'D:\CARLA_0.9.16' --runtime $runtime --cxx 'D:\mingw64\bin\g++.exe'
+if ($LASTEXITCODE -ne 0) { throw 'Runtime verification failed.' }
+Start-Process -FilePath "$runtime\CarlaUE4\Binaries\Win64\CarlaUE4-Win64-Shipping.exe" -WorkingDirectory $runtime -ArgumentList '-dx11 -windowed -ResX=640 -ResY=360 -quality-level=Low -nosound' -WindowStyle Normal
+# Wait for the map before running the following commands.
+& $py scripts/check_baseline_mission.py --verify-map
+$runId = Get-Date -Format 'yyyyMMdd-HHmmss'
+& $py scripts/run_scenario.py --runs 5 --output "runs/S0/acceptance-$runId"
 ```
 
 Every output directory must be new. Five-run mode rejects smoke time limits,
@@ -90,7 +97,7 @@ obstacle perception or a clearance governor has been validated.
 
 Implementation checks and real navigation diagnostics are recorded in
 [the evidence report](evidence/TEST-02/README.md). Full five-run S0 acceptance
-remains blocked by the installed simulator's RGB camera stall. Independent
-camera probes reproduce it without importing the navigation stack, including
-an asynchronous probe. The report retains failures and does not substitute
-navigation-only or kinematic results for five passing real S0 trials.
+has now passed on the repaired Windows runtime. Independent camera probes and
+thread stacks reproduced and localized the original package's stall without
+importing the navigation stack. The report retains all earlier failures and
+does not substitute navigation-only or kinematic results for real RGB trials.

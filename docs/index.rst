@@ -37,6 +37,8 @@ demonstration for the autonomous perception and navigation library.
    controller_audit
    mission_lifecycle
    s0_navigation_validation
+   carla_rgb_readback_fix
+   ai_journal
    evidence/TEST-02/README
    detector_contracts
    lane_recovery
