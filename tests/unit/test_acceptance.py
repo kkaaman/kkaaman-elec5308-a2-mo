@@ -66,17 +66,110 @@ class AcceptanceTests(unittest.TestCase):
 
     def test_geometry_and_stop_golden(self):
         g = GOLDEN
+
         path = ReferencePath(Waypoint(*p) for p in g["route"])
-        projected = path.project(*g["point"])
-        self.assertEqual(projected.progress_m, g["projection_progress_m"])
-        self.assertEqual(projected.distance_m, g["projection_distance_m"])
-        rows = [{"sim_time_s": i * .1, "frame_id": i, "ego": {"speed_mps": v}, "truth_front_gap_m": 4.1 - i * .1} for i, v in enumerate(g["speeds"])]
-        c = dict(CONFIG, dt_s=.1)
-        stop = first_sustained(rows, lambda r: r["ego"]["speed_mps"] <= .1, 1, .1)
+
+        obstacle_x, obstacle_y = g["obstacle_point"]
+        projection = path.project(obstacle_x, obstacle_y)
+
+        ego_x, ego_y = g["ego_rear_axle"]
+        euclidean_distance = math.hypot(
+            obstacle_x - ego_x,
+            obstacle_y - ego_y,
+        )
+
+        rear_axle_route_gap = projection.progress_m
+        front_surface_gap = (
+            rear_axle_route_gap - g["ego_front_offset_m"]
+        )
+
+        self.assertAlmostEqual(
+            projection.progress_m,
+            g["expected"]["route_progress_m"],
+        )
+        self.assertAlmostEqual(
+            euclidean_distance,
+            g["expected"]["euclidean_distance_m"],
+        )
+        self.assertAlmostEqual(
+            rear_axle_route_gap,
+            g["expected"]["rear_axle_route_gap_m"],
+        )
+        self.assertAlmostEqual(
+            front_surface_gap,
+            g["expected"]["front_surface_gap_m"],
+        )
+
+        self.assertNotAlmostEqual(
+            euclidean_distance,
+            rear_axle_route_gap,
+        )
+        self.assertNotAlmostEqual(
+            rear_axle_route_gap,
+            front_surface_gap,
+        )
+
+        rows = [
+            {
+                "sim_time_s": i * 0.1,
+                "frame_id": i,
+                "ego": {"speed_mps": value},
+                "truth_front_gap_m": 4.1 - i * 0.1,
+            }
+            for i, value in enumerate(g["speeds"])
+        ]
+
+        config = dict(CONFIG, dt_s=0.1)
+
+        stop = first_sustained(
+            rows,
+            lambda row: row["ego"]["speed_mps"] <= 0.1,
+            1,
+            0.1,
+        )
+
         self.assertEqual(stop["frame_id"], g["stop_frame"])
-        self.assertAlmostEqual(stopped_margin(rows, c), g["stopped_margin_m"])
-        self.assertIsNone(stopped_margin(rows[:-1], c))
-        self.assertEqual(percentile(g["percentile_input"], .95), g["p95"])
+        self.assertAlmostEqual(
+            stopped_margin(rows, config),
+            g["stopped_margin_m"],
+        )
+        self.assertIsNone(stopped_margin(rows[:-1], config))
+        self.assertEqual(
+            percentile(g["percentile_input"], 0.95),
+            g["p95"],
+        )
+
+    def test_signed_corridor_pose_golden(self):
+        g = GOLDEN
+        path = ReferencePath(Waypoint(*p) for p in g["route"])
+
+        x_m, y_m = g["signed_corridor_point"]
+        projection = path.project(x_m, y_m)
+
+        epsilon_m = 0.05
+        before = path.point_at(
+            max(0.0, projection.progress_m - epsilon_m)
+        )
+        after = path.point_at(
+            min(path.length_m, projection.progress_m + epsilon_m)
+        )
+
+        tangent_x = after.x_m - before.x_m
+        tangent_y = after.y_m - before.y_m
+        offset_x = x_m - projection.point.x_m
+        offset_y = y_m - projection.point.y_m
+
+        cross = tangent_x * offset_y - tangent_y * offset_x
+        signed_lateral = (
+            projection.distance_m
+            if cross >= 0
+            else -projection.distance_m
+        )
+
+        self.assertAlmostEqual(
+            signed_lateral,
+            g["expected"]["signed_lateral_m"],
+        )
 
     def test_interrupted_stop_and_time_gap(self):
         rows = [{"sim_time_s": i * .1, "ego": {"speed_mps": 0}} for i in range(12)]
