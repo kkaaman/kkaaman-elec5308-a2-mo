@@ -32,9 +32,7 @@ def test_core_packages_import_without_carla():
         "    assert 'carla' not in sys.modules, name\n"
     )
     env = dict(os.environ, PYTHONPATH=str(paths.SRC_DIR))
-    result = subprocess.run(
-        [sys.executable, "-c", code], env=env, capture_output=True, text=True
-    )
+    result = subprocess.run([sys.executable, "-c", code], env=env, capture_output=True, text=True)
     assert result.returncode == 0, result.stderr
 
 
@@ -61,9 +59,11 @@ def test_model_path_finds_weights_by_short_name(tmp_path):
     assert found == tmp_path / "segmentation_model.pth"
 
 
-def test_model_path_finds_repository_yolo_weights():
-    # yolo26n.pt is a normal Git file (not LFS), so it exists in every clone.
-    assert paths.model_path("yolo").name == "yolo26n.pt"
+def test_model_path_finds_yolo_by_short_name(tmp_path):
+    # Path resolution is a unit test. Real model identity/inference is checked
+    # by check_detector_offline.py; source-only exports omit model binaries.
+    (tmp_path / "yolo26n.pt").write_bytes(b"path-resolution fixture, not model weights")
+    assert paths.model_path("yolo", root=tmp_path) == tmp_path / "yolo26n.pt"
 
 
 def test_model_path_explains_lfs_pointer(tmp_path):

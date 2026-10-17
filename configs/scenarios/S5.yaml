@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "id": "S5",
+  "obstacle_class": "car",
+  "obstacle_s_m": 40.0,
+  "lateral_m": 0.0,
+  "remove_after_hold_s": 2.0,
+  "after_turn_m": 6.0,
+  "acceptance_seeds": [
+    5308,
+    5309,
+    5310,
+    5311,
+    5312
+  ]
+}

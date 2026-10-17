@@ -71,6 +71,7 @@ class FrameJoiner:
             raise ValueError("Positive queue capacity required")
         self.episode_id, self.capacity = episode_id, capacity
         self._streams = {key: {} for key in ("rgb", "depth", "ego")}
+        self._received = {}
         self._condition = threading.Condition()
         self._retired = -1
         self._closed = False
@@ -99,13 +100,18 @@ class FrameJoiner:
                 value = np.array(value, copy=True)
                 value.setflags(write=False)
             stream[frame] = (timestamp, value)
+            if kind in ("rgb", "depth"):
+                self._received.setdefault(frame, time.monotonic())
             while len(stream) > self.capacity:
                 del stream[min(stream)]
                 self.events["overflow"] += 1
+            live_frames = set().union(*(set(s) for s in self._streams.values()))
+            self._received = {k: v for k, v in self._received.items() if k in live_frames}
             self._condition.notify_all()
 
     def _retire(self, frame):
         self._retired = max(self._retired, frame)
+        self._received = {k: v for k, v in self._received.items() if k > frame}
         for stream in self._streams.values():
             for key in list(stream):
                 if key <= frame:
@@ -146,7 +152,7 @@ class FrameJoiner:
                             self.episode_id,
                             frame,
                             ego[0],
-                            time.monotonic(),
+                            self._received.get(frame, time.monotonic()),
                             ego[1],
                             rgb[1],
                             depth[1],
@@ -173,6 +179,7 @@ class FrameJoiner:
             self._closed = True
             for stream in self._streams.values():
                 stream.clear()
+            self._received.clear()
             self._condition.notify_all()
 
 

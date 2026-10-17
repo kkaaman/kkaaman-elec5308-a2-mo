@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "status": "PROVISIONAL",
+  "runtime": {
+    "planned_min_brake": 0.4,
+    "dt_s": 0.05,
+    "front_bumper_from_rear_axle_m": 3.81152,
+    "ego_half_width_m": 1.08173,
+    "lateral_padding_m": 0.15,
+    "visible_horizon_m": 35.0,
+    "controller": {
+      "wheelbase_m": 3.00465,
+      "max_steering_angle_rad": 0.3490658503988659,
+      "lookahead_m": 4.0,
+      "kp": 0.45,
+      "ki": 0.15,
+      "kd": 0.0,
+      "stopping_deceleration_mps2": 1.0,
+      "goal_tolerance_m": 1.0,
+      "stopped_speed_mps": 0.1,
+      "hold_brake": 0.5
+    },
+    "governor": {
+      "cruise_mps": 5.0,
+      "deceleration_mps2": 1.5,
+      "lateral_acceleration_mps2": 1.0,
+      "response_budget_s": 0.5,
+      "stop_margin_m": 4.0,
+      "acceleration_mps2": 1.0,
+      "emergency_margin_m": 2.5
+    },
+    "behaviour": {
+      "stopped_speed_mps": 0.1,
+      "clear_frames": 5,
+      "clear_duration_s": 0.4
+    },
+    "tracks": {
+      "required_hits": 2,
+      "window_frames": 3,
+      "expiry_s": 0.6
+    }
+  },
+  "runtime_sha256": "b926709fd2a4107c3ac256d37c420cd1bf12be82a83696d5df19142075eb6995",
+  "evidence": {}
+}

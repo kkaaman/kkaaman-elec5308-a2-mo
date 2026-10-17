@@ -13,6 +13,9 @@ dependencies = [
     "torch",
     "torchvision",
     "ultralytics",
+    "PyYAML",
+    "matplotlib",
+    "lap>=0.5.12",
 ]
 
 [project.optional-dependencies]
@@ -86,3 +89,14 @@ ignore = ["E501"]
 "tests/unit/test_world_lifecycle.py" = ["TID251"]
 "tests/unit/test_vehicle_geometry.py" = ["TID251"]
 "tests/unit/test_topology_export.py" = ["TID251"]
+
+"scripts/run_scenario.py" = ["TID251"]
+"scripts/prepare_mission.py" = ["TID251"]
+"scripts/calibrate_depth.py" = ["TID251"]
+"scripts/calibrate_longitudinal.py" = ["TID251"]
+"scripts/capture_frames.py" = ["TID251"]
+
+"tests/unit/test_batch35_dataset.py" = ["TID251"]
+"tests/unit/test_batch35_calibration.py" = ["TID251"]
+
+"tests/unit/test_batch35_world_guards.py" = ["TID251"]

@@ -60,7 +60,8 @@ def estimate_box_depth(depth_m, box, calibration, policy=None):
     cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
     dx, dy = (x1 - x0) * policy.inner_fraction / 2, (y1 - y0) * policy.inner_fraction / 2
     roi = depth_m[
-        math.ceil(cy - dy) : math.floor(cy + dy), math.ceil(cx - dx) : math.floor(cx + dx)
+        max(0, math.ceil(cy - dy - 0.5)) : min(h, math.floor(cy + dy - 0.5) + 1),
+        max(0, math.ceil(cx - dx - 0.5)) : min(w, math.floor(cx + dx - 0.5) + 1),
     ]
     values = roi[np.isfinite(roi) & (roi > 0) & (roi < policy.max_depth_m)]
     count, fraction = len(values), len(values) / roi.size if roi.size else 0
