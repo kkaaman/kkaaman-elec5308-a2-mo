@@ -136,6 +136,49 @@ class RouteGeometry:
             None if not intervals else (min(p[0] for p in intervals), max(p[1] for p in intervals))
         )
 
+    def points_in_corridor(self, points_xy_m, *, half_width_m, minimum_s=0.0, maximum_s=None):
+        """Boolean mask: which XY points lie in the swept corridor.
+
+        Same per-segment rectangles as :meth:`footprint_interval`, tested point
+        by point. A bounding box around a scattered cloud (a roadside car plus
+        far background in one detector box) can straddle a turning corridor
+        that no measured point actually enters.
+        """
+        points = np.asarray(points_xy_m, dtype=float).reshape(-1, 2)
+        if not np.isfinite(points).all():
+            raise ValueError("Points must be finite")
+        if not math.isfinite(half_width_m) or half_width_m <= 0:
+            raise ValueError("Corridor half-width must be positive")
+        maximum_s = self.length_m if maximum_s is None else maximum_s
+        lo = np.maximum(0.0, minimum_s - self.arc[:-1])
+        hi = np.minimum(self.lengths, maximum_s - self.arc[:-1])
+        segments = np.flatnonzero(lo <= hi)
+        inside = np.zeros(len(points), dtype=bool)
+        if not len(segments) or not len(points):
+            return inside
+        starts = self.points[segments] + lo[segments, None] * self.tangents[segments]
+        ends = self.points[segments] + hi[segments, None] * self.tangents[segments]
+        pad = half_width_m + 1e-9
+        # Groups of consecutive segments with padded bounding boxes keep the
+        # exact per-segment test to the few points near each group.
+        for first in range(0, len(segments), 16):
+            group = segments[first : first + 16]
+            ends_xy = np.concatenate((starts[first : first + 16], ends[first : first + 16]))
+            low, high = ends_xy.min(axis=0) - pad, ends_xy.max(axis=0) + pad
+            near = np.flatnonzero(~inside & ((points >= low) & (points <= high)).all(axis=1))
+            if not len(near):
+                continue
+            relative = points[near, None, :] - self.points[None, group, :]
+            along = np.einsum("nkj,kj->nk", relative, self.tangents[group])
+            normal = np.einsum("nkj,kj->nk", relative, self.normals[group])
+            hit = (
+                (along >= lo[group] - 1e-9)
+                & (along <= hi[group] + 1e-9)
+                & (np.abs(normal) <= pad)
+            )
+            inside[near] = hit.any(axis=1)
+        return inside
+
     def gap(self, footprint, ego_s_m, front_bumper_from_rear_axle_m, half_width_m):
         """Front-bumper gap; the rear-axle offset is applied exactly once."""
         interval = self.footprint_interval(

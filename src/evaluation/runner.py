@@ -1,6 +1,7 @@
 """Shared episode loop. Evaluation truth is logged after control computation."""
 
 import time
+import traceback
 from dataclasses import asdict
 
 from autonomy.baseline import BaselinePolicy
@@ -163,6 +164,8 @@ def run_episode(
             error = "Simulation time budget reached without scenario completion"
     except BaseException as exc:
         error = f"{type(exc).__name__}: {exc}"
+        # Where a simulator time-out or reset failure happened (manifest only).
+        logger.manifest["error_traceback"] = traceback.format_exc(limit=12)
     finally:
         for component in (world, stack):
             try:

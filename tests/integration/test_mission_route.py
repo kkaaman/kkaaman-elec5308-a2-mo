@@ -218,3 +218,73 @@ def test_kerbside_parked_car_does_not_stop_the_mission(tmp_path, scenario, later
         assert metrics["false_stops"] == 0
     else:
         assert 2.5 <= metrics["hold_margin_min_m"] <= metrics["hold_margin_max_m"] <= 6.0
+
+
+def test_points_in_corridor_matches_footprint_interval():
+    route = RouteGeometry(mission_route().points_xy_m)
+    rng = np.random.default_rng(5)
+    for _ in range(400):
+        s = rng.uniform(0, route.length_m)
+        x, y, _ = route.at(s, rng.uniform(-3, 3))
+        square = (
+            (x - 0.01, y - 0.01),
+            (x + 0.01, y - 0.01),
+            (x + 0.01, y + 0.01),
+            (x - 0.01, y + 0.01),
+        )
+        expected = (
+            route.footprint_interval(square, half_width_m=HALF_WIDTH, minimum_s=20, maximum_s=70)
+            is not None
+        )
+        inside = route.points_in_corridor(
+            [(x, y)], half_width_m=HALF_WIDTH, minimum_s=20, maximum_s=70
+        )[0]
+        # Only points within 1.5 cm of a rectangle edge may disagree.
+        if inside != expected:
+            far = route.points_in_corridor(
+                [(x, y)], half_width_m=HALF_WIDTH + 0.015, minimum_s=19.985, maximum_s=70.015
+            )[0]
+            near = route.points_in_corridor(
+                [(x, y)], half_width_m=HALF_WIDTH - 0.015, minimum_s=20.015, maximum_s=69.985
+            )[0]
+            assert far and not near
+
+
+def test_unknown_box_with_background_is_excluded_point_by_point():
+    # Live S0 (17 Oct): a parked car ~10 m before the right turn, its YOLO box
+    # also holding background ~33 m away. The box's bounding rectangle
+    # straddled the turning corridor, so the car braked from 5 to 2.3 m/s.
+    from geometry.transforms import ego_to_world_matrix, inverse_rigid
+    from sim_harness.baseline import CAR_HALF_EXTENT, PARKED_RGB, _render_box
+
+    world = BaselineWorld("S0", route="mission")
+    route = RouteGeometry(world.points)
+    s = 26.0
+    x, y, yaw = route.at(s)
+    rgb = np.zeros((360, 640, 3), np.uint8)
+    depth = flat_ground_depth(world.calibration, 640, 360)
+    world_to_camera = inverse_rigid(world.calibration.camera_to_ego) @ inverse_rigid(
+        ego_to_world_matrix(x, y, yaw)
+    )
+    _render_box(rgb, depth, world_to_camera, route.at(37.3, -3.6), CAR_HALF_EXTENT, PARKED_RGB)
+    rows, cols = np.nonzero(np.all(rgb == PARKED_RGB, axis=-1))
+    box = PixelBox(
+        float(cols.min()), float(rows.min()), float(cols.max() + 1), float(rows.max() + 1)
+    )
+    # Background (a building corner) seen past the car in the box's top-left.
+    depth[rows.min() : rows.min() + 4, cols.min() : cols.min() + 12] = 33.0
+    frame = FrameBundle(
+        "e", 1, 0.0, 0.0, EgoPose(VehicleState(x, y, yaw, 5.0)), rgb, world.calibration, depth, 1
+    )
+    vis = DepthVisibility(frame)
+    assert not vis.box_may_overlap_route(box, route, s, FRONT, HALF_WIDTH, 35.0)
+    # The same box over a car actually in the lane is still in the route.
+    rgb[:] = 0
+    lane = flat_ground_depth(world.calibration, 640, 360)
+    _render_box(rgb, lane, world_to_camera, route.at(37.3, 0.0), CAR_HALF_EXTENT, PARKED_RGB)
+    rows, cols = np.nonzero(np.all(rgb == PARKED_RGB, axis=-1))
+    box = PixelBox(
+        float(cols.min()), float(rows.min()), float(cols.max() + 1), float(rows.max() + 1)
+    )
+    blocked = replace(frame, depth_m=lane)
+    assert DepthVisibility(blocked).box_may_overlap_route(box, route, s, FRONT, HALF_WIDTH, 35.0)

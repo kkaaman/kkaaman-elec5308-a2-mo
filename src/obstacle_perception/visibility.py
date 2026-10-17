@@ -161,7 +161,13 @@ class DepthVisibility:
             x0, y0, x1, y1 = map(int, (box.x_min, box.y_min, box.x_max, box.y_max))
             depths = self.frame.depth_m[y0:y1, x0:x1]
             if depths.size >= 9 and np.isfinite(depths).all():
+                # Near (large) boxes are subsampled to ~4k pixels; at the
+                # depths where that matters the stride stays well under the
+                # 0.3 m guard, and validity was checked on every pixel above.
+                stride = max(1, math.ceil(math.sqrt(depths.size / 4096)))
+                depths = depths[::stride, ::stride]
                 vv, uu = np.indices(depths.shape)
+                vv, uu = vv * stride, uu * stride
                 optical = np.stack(
                     (
                         (uu + x0 - cal.cx_px) * depths / cal.fx_px,
@@ -176,22 +182,17 @@ class DepthVisibility:
                 # (every pixel is still required to be valid above). A box with
                 # no raised surface at all proves nothing and falls through.
                 cloud = cloud[cloud[:, 2] >= self.frame.ego.z_m + GROUND_CLEARANCE_M]
-                if len(cloud) >= 9:
-                    lo, hi = cloud[:, :2].min(axis=0) - 0.3, cloud[:, :2].max(axis=0) + 0.3
-                    polygon = (
-                        (lo[0], lo[1]),
-                        (hi[0], lo[1]),
-                        (hi[0], hi[1]),
-                        (lo[0], hi[1]),
-                    )
-                if len(cloud) >= 9 and (
-                    route.footprint_interval(
-                        polygon,
-                        half_width_m=half_width,
+                # Point by point, with a 0.3 m guard. One bounding box around
+                # a roadside car plus far background straddled the turning
+                # corridor on live S0 and stopped the car for a parked car.
+                if (
+                    len(cloud) >= 9
+                    and not route.points_in_corridor(
+                        cloud[:, :2],
+                        half_width_m=half_width + 0.3,
                         minimum_s=ego_s,
-                        maximum_s=ego_s + front_offset + horizon_m,
-                    )
-                    is None
+                        maximum_s=ego_s + front_offset + horizon_m + 0.3,
+                    ).any()
                 ):
                     return False
         distances = np.arange(0.5, horizon_m + 0.5, 0.5)

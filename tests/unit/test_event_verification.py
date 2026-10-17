@@ -182,3 +182,54 @@ def test_partial_overlap_case_counts_as_in_corridor(fixture):
     result = instance.gap_case(owner, ego, "car", 6.0, 0.8)
     assert result["status"] == "PASS", result
     assert result["truth_in_corridor"]
+
+
+class UntickedActor(Actor):
+    """Synchronous CARLA: a pose set this tick is not reported until the next."""
+
+    def get_transform(self):
+        return Transform()
+
+
+@pytest.mark.parametrize(("scenario", "expected"), [("S1", True), ("S3", False)])
+def test_obstacle_placement_record_uses_applied_pose_before_a_tick(monkeypatch, scenario, expected):
+    fake = SimpleNamespace(
+        Location=Location,
+        Rotation=Rotation,
+        Transform=Transform,
+        LaneType=SimpleNamespace(Any="Any"),
+    )
+    monkeypatch.setitem(sys.modules, "carla", fake)
+    from autonomy.baseline import BaselineConfig
+    from carla_adapter.baseline_world import CarlaWorld
+    from planning.corridor import RouteGeometry
+    from sim_harness.baseline import scenario_definition
+
+    # Mission far from the CARLA origin, heading -X like the live Town10HD start.
+    points = tuple((27.0 - float(i), -66.3) for i in range(0, 120))
+    world = CarlaWorld.__new__(CarlaWorld)
+    world.scenario = scenario_definition(scenario)
+    world.config = BaselineConfig()
+    world.route = RouteGeometry(points)
+    world.mission = SimpleNamespace(
+        turn_exit_s_m=70.0, points_xyz_m=tuple((x, y, 0.0) for x, y in points)
+    )
+    world.events = []
+    lane = SimpleNamespace(road_id=12, lane_id=-1, lane_type="Driving", is_junction=False)
+    world._world = SimpleNamespace(
+        ground_projection=lambda location, distance: SimpleNamespace(location=Location(z=0.0)),
+        get_blueprint_library=lambda: SimpleNamespace(
+            find=lambda name: SimpleNamespace(
+                id=name, has_attribute=lambda key: False, set_attribute=lambda *a: None
+            )
+        ),
+        get_map=lambda: SimpleNamespace(get_waypoint=lambda *a, **k: lane),
+        get_snapshot=lambda: SimpleNamespace(timestamp=SimpleNamespace(elapsed_seconds=1.0)),
+    )
+    world.owner = SimpleNamespace(try_spawn=lambda bp, transform: UntickedActor(bp.id, transform))
+    world._spawn_obstacle()
+    (event,) = world.events
+    assert event["in_corridor"] is expected
+    centre = [sum(c[i] for c in event["corners_world_m"]) / 4 for i in (0, 1)]
+    x, y, _ = world.route.at(40.0, world.scenario["lateral_m"])
+    assert centre == pytest.approx([x, y], abs=1e-6)
