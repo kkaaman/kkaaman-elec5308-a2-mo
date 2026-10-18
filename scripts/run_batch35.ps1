@@ -56,6 +56,18 @@ function Need-Result {
     }
     return [string]$batchState[$Name]
 }
+function Get-DrivenDetectorArgs {
+    # Offline replays must measure the detector settings that were driven
+    # (frozen config, else the current candidate), not the 640 px defaults.
+    $configPath = if ($batchState.ContainsKey("frozen") -and (Test-Path -LiteralPath $batchState["frozen"])) { [string]$batchState["frozen"] } else { Need-Result "candidate" }
+    $runtime = (Get-Content -LiteralPath $configPath -Raw | ConvertFrom-Json).runtime
+    if ($null -eq $runtime.detector_image_size -or $null -eq $runtime.detector_confidence) {
+        throw "$configPath has no detector settings. Re-run Perception and Freeze."
+    }
+    $confidence = ([double]$runtime.detector_confidence).ToString([System.Globalization.CultureInfo]::InvariantCulture)
+    Write-Host "Detector settings from $configPath : $($runtime.detector_image_size) px, confidence $confidence"
+    return @("--image-size",[string]$runtime.detector_image_size,"--confidence",$confidence)
+}
 function Save-BatchState {
     $batchState | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $StateFile -Encoding utf8
 }
@@ -200,8 +212,10 @@ try {
         "ReplayFaults" {
             $datasetPath = Need-Result "dataset"
             $depthPath = Need-Result "depth"
+            # The Perception stage's replay at the same settings is the clean reference.
+            $detectorArgs = Get-DrivenDetectorArgs
             foreach ($faultName in @("flicker","id_reset")) {
-                Invoke-ProjectPython -PythonArgs @("scripts/benchmark_perception.py","--dataset",$datasetPath,"--weights","yolo26n.pt","--depth-calibration",$depthPath,"--fault",$faultName,"--output",(Join-Path $stageFolder $faultName))
+                Invoke-ProjectPython -PythonArgs (@("scripts/benchmark_perception.py","--dataset",$datasetPath,"--weights","yolo26n.pt","--depth-calibration",$depthPath,"--fault",$faultName,"--output",(Join-Path $stageFolder $faultName)) + $detectorArgs)
             }
             $batchState["replay_faults"] = $stageFolder
         }
@@ -223,7 +237,7 @@ try {
         "Audit" {
             $datasetPath = Need-Result "dataset"
             $depthPath = Need-Result "depth"
-            Invoke-ProjectPython -PythonArgs @("scripts/benchmark_perception.py","--dataset",$datasetPath,"--weights","yolo26n.pt","--depth-calibration",$depthPath,"--split","test","--output",(Join-Path $stageFolder "heldout"))
+            Invoke-ProjectPython -PythonArgs (@("scripts/benchmark_perception.py","--dataset",$datasetPath,"--weights","yolo26n.pt","--depth-calibration",$depthPath,"--split","test","--output",(Join-Path $stageFolder "heldout")) + (Get-DrivenDetectorArgs))
             $batchState["heldout"] = Join-Path $stageFolder "heldout\perception.json"
         }
         "Archive" {
