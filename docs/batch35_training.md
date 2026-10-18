@@ -10,6 +10,16 @@ Road IDs and whole sequences are assigned to train, validation and test splits. 
 
 The scenes contain parked actors and repeated views; 12,000 frames are not 12,000 independent scenes. This dataset does not demonstrate generalization to other towns or dynamic pedestrians. It is a controlled first fine-tuning dataset and an offline replay source.
 
+## Keep training data off the demo map
+
+The Town10HD capture is the measurement dataset. Perception, depth analysis and threshold freezing use it, and Evaluate tests on its held-out roads. Fine-tuning on it would train on the map being demonstrated. To train on another town, capture a second dataset; the town is loaded for the capture and Town10HD is restored afterwards:
+
+```powershell
+& .\scripts\run_batch35.ps1 -Stage Capture -Map Town05
+```
+
+`-Map` accepts Town01–Town07 (optionally `_Opt`), Town10HD and Town10HD_Opt; large maps are not supported. A capture on another town is stored as `training_dataset` in the state file and never replaces the Town10HD `dataset`. The dataset manifest records `map` and `demo_map`. `train_lane.py` refuses a dataset recorded on the demo map unless `--allow-demo-map` (`-AllowDemoMap` in the stage script) is given, and `training.json` records `dataset_map` and `trained_on_demo_map`. Evaluate then measures the candidate on Town10HD's held-out test roads: a cross-town result.
+
 ## Train a separate candidate
 
 After Capture succeeds:
@@ -17,6 +27,8 @@ After Capture succeeds:
 ```powershell
 & .\scripts\run_batch35.ps1 -Stage Train -TrainingHours 4
 ```
+
+Train uses `training_dataset` when one exists, otherwise `dataset`; the latter requires `-AllowDemoMap`.
 
 The script fine-tunes the canonical ResNet18 LaneUNet from the existing local lane checkpoint, without downloading pretrained weights. RGB/255 preprocessing matches the recovered lane inference contract. It uses cross-entropy plus Dice loss and AdamW, saving the best validation candidate and a separate resumable training checkpoint. The existing `lane_unet_best.pth` remains unchanged.
 

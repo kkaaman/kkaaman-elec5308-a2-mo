@@ -9,6 +9,8 @@
     "visible_horizon_m": 35.0,
     "planned_min_brake": 0.4,
     "visibility_memory_s": 15.0,
+    "detector_image_size": 640,
+    "detector_confidence": 0.25,
     "controller": {
       "wheelbase_m": 3.00465,
       "max_steering_angle_rad": 0.3490658503988659,
@@ -42,6 +44,6 @@
       "anonymous_gate_m": 1.5
     }
   },
-  "runtime_sha256": "640d66813f2500e0c21f9df39705aebfdb6ad89242cfbe889a1095bca00ec534",
+  "runtime_sha256": "7777e72f7d914b6f8ae7130f248fb9c2e8a7f2b5843bdb14bdd2f62b6f30e0e2",
   "evidence": {}
 }

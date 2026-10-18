@@ -23,6 +23,8 @@ def main():
         parser.add_argument("--" + name, type=Path, required=True)
     parser.add_argument("--split", choices=("val", "test"), default="val")
     parser.add_argument("--segmentation-weights", type=Path)
+    parser.add_argument("--image-size", type=int, default=640)
+    parser.add_argument("--confidence", type=float, default=0.25)
     parser.add_argument(
         "--weights",
         type=Path,
@@ -68,7 +70,13 @@ def main():
             (Path(__file__).resolve().parents[1] / "configs/models.yaml").read_text()
         )["models"][0]
         verify_local_asset(args.weights, asset["sha256"])
-        detector = ObjectDetector(PerceptionConfig(model_name=str(args.weights.resolve())))
+        detector = ObjectDetector(
+            PerceptionConfig(
+                model_name=str(args.weights.resolve()),
+                image_size=args.image_size,
+                confidence_threshold=args.confidence,
+            )
+        )
     references = []
     pairs = []
     detector_pairs = []

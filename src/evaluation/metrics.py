@@ -41,11 +41,20 @@ def _max_duration(rows, predicate, dt):
     return duration
 
 
-def _false_stops(rows, dt):
+def _false_stops(rows, dt, waiting=None):
+    """Stops >= 1 s outside the goal window with no obstacle in the corridor.
+
+    ``waiting`` is the (removal, motion) interval after a scripted removal:
+    holding until fresh depth confirms clearance is the expected resume
+    behaviour, reported as the resume delay, not a false stop. A run that
+    never moves again after a removal gets no exemption.
+    """
     count, elapsed, counted = 0, 0.0, False
     for row in rows:
+        exempt = waiting is not None and waiting[0] <= row["sim_time_s"] < waiting[1]
         qualifies = (
-            row["target_mps"] < 0.1
+            not exempt
+            and row["target_mps"] < 0.1
             and row["distance_to_goal_m"] > 2.0
             and not row.get("truth_in_corridor", False)
         )
@@ -93,13 +102,14 @@ def summarize(rows, events, manifest):
         and last["distance_to_goal_m"] <= manifest.get("goal_tolerance_m", 1.0)
     )
     removals = [e["sim_time_s"] for e in events if e["type"] == "obstacle_removed"]
-    resume = None
+    resume = waiting = None
     if removals:
         resumed = next(
             (r for r in rows if r["sim_time_s"] >= removals[0] and r["speed_mps"] > 0.1), None
         )
         if resumed:
             resume = resumed["sim_time_s"] - removals[0]
+            waiting = (removals[0], resumed["sim_time_s"])
     sensor_events = manifest.get("event_sensors_verified", False)
     # Collision contacts are keyed by actor, separated by >=1 s of no callback.
     # The same functions are exercised live by scripts/verify_event_sensors.py.
@@ -126,7 +136,9 @@ def summarize(rows, events, manifest):
                 method="linear",
             )
         ),
-        false_stops=_false_stops(rows, dt) if manifest.get("truth_channel_complete") else None,
+        false_stops=(
+            _false_stops(rows, dt, waiting) if manifest.get("truth_channel_complete") else None
+        ),
         hold_margin_min_m=min(margins) if margins else None,
         hold_margin_max_m=max(margins) if margins else None,
         hold_max_speed_mps=max((r["speed_mps"] for r in hold), default=None),

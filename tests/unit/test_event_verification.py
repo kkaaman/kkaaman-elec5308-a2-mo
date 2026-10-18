@@ -233,3 +233,76 @@ def test_obstacle_placement_record_uses_applied_pose_before_a_tick(monkeypatch, 
     centre = [sum(c[i] for c in event["corners_world_m"]) / 4 for i in (0, 1)]
     x, y, _ = world.route.at(40.0, world.scenario["lateral_m"])
     assert centre == pytest.approx([x, y], abs=1e-6)
+
+
+class StreamingActor(UntickedActor):
+    """bounding_box is a server call; while cameras stream it hung 60 s live."""
+
+    streaming = False
+
+    @property
+    def bounding_box(self):
+        if StreamingActor.streaming:
+            raise RuntimeError("time-out of 60000ms while waiting for the simulator")
+        return self._box
+
+    @bounding_box.setter
+    def bounding_box(self, value):
+        self._box = value
+
+
+def test_truth_during_streaming_uses_boxes_cached_before_sensors(monkeypatch):
+    fake = SimpleNamespace(
+        Location=Location,
+        Rotation=Rotation,
+        Transform=Transform,
+        LaneType=SimpleNamespace(Any="Any"),
+    )
+    monkeypatch.setitem(sys.modules, "carla", fake)
+    from autonomy.baseline import BaselineConfig
+    from carla_adapter.baseline_world import CarlaWorld
+    from planning.corridor import RouteGeometry
+    from sim_harness.baseline import scenario_definition
+
+    points = tuple((27.0 - float(i), -66.3) for i in range(0, 120))
+    world = CarlaWorld.__new__(CarlaWorld)
+    world.scenario = scenario_definition("S1")
+    world.config = BaselineConfig()
+    world.route = RouteGeometry(points)
+    world.mission = SimpleNamespace(
+        turn_exit_s_m=70.0, points_xyz_m=tuple((x, y, 0.0) for x, y in points)
+    )
+    world.events = []
+    world._hold_since = None
+    lane = SimpleNamespace(road_id=12, lane_id=-1, lane_type="Driving", is_junction=False)
+    world._world = SimpleNamespace(
+        ground_projection=lambda location, distance: SimpleNamespace(location=Location(z=0.0)),
+        get_blueprint_library=lambda: SimpleNamespace(
+            find=lambda name: SimpleNamespace(
+                id=name, has_attribute=lambda key: False, set_attribute=lambda *a: None
+            )
+        ),
+        get_map=lambda: SimpleNamespace(get_waypoint=lambda *a, **k: lane),
+        get_snapshot=lambda: SimpleNamespace(timestamp=SimpleNamespace(elapsed_seconds=1.0)),
+    )
+    StreamingActor.streaming = False
+    world.owner = SimpleNamespace(try_spawn=lambda bp, transform: StreamingActor(bp.id, transform))
+    # Ego rear axle at s = 30 heading -X (CARLA yaw 180); actor centre is
+    # 1.38641 m ahead of the rear axle. Its pose comes from the snapshot.
+    ego = Actor(
+        "vehicle.tesla.model3",
+        Transform(Location(27.0 - 30 - 1.38641, 66.3, 0.0), Rotation(yaw=180.0)),
+    )
+    world.vehicle = ego
+    world._ego_box = ego.bounding_box
+    world._spawn_obstacle()
+    world.adapter = SimpleNamespace(state=lambda: VehicleState(27.0 - 30, -66.3, math.pi, 0.0))
+    StreamingActor.streaming = True
+    try:
+        truth = world._truth_now(world.adapter.state())
+        world._scenario_events(2.0)
+    finally:
+        StreamingActor.streaming = False
+    assert truth["truth_in_corridor"]
+    # Obstacle near face at s = 40 - 2.396; ego bumper 1.38641 + 2.396 ahead.
+    assert truth["truth_gap_m"] == pytest.approx(40 - 2.396 - 30 - 1.38641 - 2.396, abs=1e-6)

@@ -106,6 +106,24 @@ def test_one_second_false_stop_and_goal_exclusion():
     assert summarize(rows, [], manifest("S0"))["metrics"]["false_stops"] == 0
 
 
+def test_wait_for_clearance_after_removal_is_resume_delay_not_false_stop():
+    # Live S1 (18 Oct): HOLD continued 1.0 s after the scripted removal while
+    # fresh depth confirmed clearance; that is the resume delay.
+    rows = [row(i, speed_mps=0, target_mps=0, truth_in_corridor=True) for i in range(20)]
+    rows += [row(i, speed_mps=0, target_mps=0, truth_in_corridor=False) for i in range(20, 42)]
+    rows += [row(i, speed_mps=0.5, target_mps=1, truth_in_corridor=False) for i in range(42, 50)]
+    removed = [dict(type="obstacle_removed", sim_time_s=20 * 0.05)]
+    metrics = summarize(rows, removed, manifest("S1"))["metrics"]
+    assert metrics["false_stops"] == 0
+    assert metrics["resume_delay_s"] == pytest.approx(22 * 0.05)
+    assert summarize(rows, [], manifest("S1"))["metrics"]["false_stops"] == 1
+    # Never moving again after a removal is not exempt.
+    stuck = rows[:42] + [
+        row(i, speed_mps=0, target_mps=0, truth_in_corridor=False) for i in range(42, 70)
+    ]
+    assert summarize(stuck, removed, manifest("S1"))["metrics"]["false_stops"] == 1
+
+
 def test_front_bumper_distance_known_fixture():
     assert front_edge_gap(((0, -1), (0, 1)), ((4, -1), (6, -1), (6, 1), (4, 1))) == 4
     assert front_edge_gap(((0, -1), (0, 1)), ((-1, -0.5), (1, -0.5), (1, 0.5), (-1, 0.5))) == 0

@@ -71,6 +71,8 @@ class CarlaWorld:
         self._lights = []
         self._sensors = []
         self._truth = {}
+        self._ego_box = self._obstacle_box = self._obstacle_corners = None
+        self._spectator_actor = None
         self._capture_wall = {}
         self._frames = []
         self._hold_since = None
@@ -105,7 +107,8 @@ class CarlaWorld:
             )
         self._settings = _settings_record(world.get_settings())
         self._weather = world.get_weather()
-        self._spectator = world.get_spectator().get_transform()
+        self._spectator_actor = world.get_spectator()
+        self._spectator = self._spectator_actor.get_transform()
         self._episode = f"carla-{seed}-{uuid.uuid4().hex}"
         self.owner = SynchronousWorldSession(
             self.client, WorldTiming(fixed_delta_seconds=self.config.dt_s)
@@ -129,6 +132,8 @@ class CarlaWorld:
         )
         if self.vehicle is None:
             raise RuntimeError("Fixed mission spawn occupied")
+        # Bounding boxes are server calls; read them before cameras stream.
+        self._ego_box = self.vehicle.bounding_box
         self.vehicle.apply_control(carla.VehicleControl(brake=1))
         for _ in range(20):
             self.owner.tick()
@@ -211,10 +216,13 @@ class CarlaWorld:
         if self.obstacle is None:
             raise RuntimeError("Scenario obstacle spawn failed")
         self.obstacle.set_simulate_physics(False)
-        bottom = min(p.z for p in self.obstacle.bounding_box.get_world_vertices(transform))
+        self._obstacle_box = self.obstacle.bounding_box
+        bottom = min(p.z for p in self._obstacle_box.get_world_vertices(transform))
         transform.location.z += ground.location.z + 0.01 - bottom
         self.obstacle.set_transform(transform)
         placement = self._placement_record(kind, s, transform)
+        # Static obstacle (physics off): its footprint is fixed until removal.
+        self._obstacle_corners = tuple(tuple(p) for p in placement["corners_world_m"])
         self.events.append(
             dict(
                 type="obstacle_spawned",
@@ -239,7 +247,7 @@ class CarlaWorld:
         half_width = self.config.ego_half_width_m + self.config.lateral_padding_m
         # The actor was placed this tick; get_transform() is not updated until
         # the next tick in synchronous mode, so use the pose that was applied.
-        corners = footprint_xy(self.obstacle, transform)
+        corners = footprint_xy(self.obstacle, transform, self._obstacle_box)
         interval = self.route.footprint_interval(corners, half_width_m=half_width)
         waypoint = self._world.get_map().get_waypoint(
             transform.location, project_to_road=False, lane_type=carla.LaneType.Any
@@ -317,7 +325,7 @@ class CarlaWorld:
                     self.events[index] = annotate_invasion(
                         event, route_s, self.declared_crossings
                     )
-        self._truth[frame] = truth_record(self.vehicle, self.obstacle, self.route, state)
+        self._truth[frame] = self._truth_now(state)
         self._frames.append(frame)
         if len(self._frames) > 40:
             old = self._frames.pop(0)
@@ -327,7 +335,9 @@ class CarlaWorld:
             import carla
 
             yaw = math.radians(pose.rotation.yaw)
-            self._world.get_spectator().set_transform(
+            if self._spectator_actor is None:
+                self._spectator_actor = self._world.get_spectator()
+            self._spectator_actor.set_transform(
                 carla.Transform(
                     carla.Location(
                         x=pose.location.x - 8 * math.cos(yaw),
@@ -380,7 +390,7 @@ class CarlaWorld:
         ):
             return
         state = self.adapter.state()
-        truth = truth_record(self.vehicle, self.obstacle, self.route, state)
+        truth = self._truth_now(state)
         held = state.speed_mps <= 0.1 and truth["truth_in_corridor"] and truth["truth_gap_m"] < 8
         self._hold_since = (now if self._hold_since is None else self._hold_since) if held else None
         if (
@@ -393,6 +403,16 @@ class CarlaWorld:
                 dict(type="obstacle_removed", sim_time_s=now, actor_id=self.obstacle.id)
             )
             self.obstacle = None
+
+    def _truth_now(self, state):
+        return truth_record(
+            self.vehicle,
+            self.obstacle,
+            self.route,
+            state,
+            ego_box=self._ego_box,
+            obstacle_corners=self._obstacle_corners if self.obstacle is not None else None,
+        )
 
     def capture_monotonic(self, frame_id):
         return self._capture_wall[frame_id]

@@ -46,6 +46,7 @@ def test_closed_loop_baseline_scenarios(tmp_path, scenario):
     if scenario in {"S1", "S2", "S5"}:
         assert result["metrics"]["resume_delay_s"] is not None
         assert result["metrics"]["hold_margin_min_m"] >= 2.5
+        assert result["metrics"]["false_stops"] == 0
 
 
 @pytest.mark.parametrize("fault", ["missing_depth", "stale"])
