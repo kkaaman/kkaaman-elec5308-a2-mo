@@ -518,9 +518,9 @@
       "lower": null,
       "upper": 0.5,
       "required_runs": 5,
-      "notes": "Only stable cruise windows, no approach/HOLD/goal transients; report n ticks.",
-      "result_status": "NOT RUN",
-      "applicable": true
+      "notes": "Only stable cruise windows, no approach/HOLD/goal transients; report n ticks. Not applicable to S4: The persistent obstacle is confirmed from standstill (about 30 m ahead while the car is still accelerating), so S4 has no stable cruise window by construction: 0 cruise ticks in all five live runs (18 Oct 2026). Cruise tracking is measured in S0, S1, S2, S3 and S5.",
+      "result_status": "NOT APPLICABLE",
+      "applicable": false
     },
     {
       "scenario": "S4",
@@ -723,6 +723,19 @@
       "scenario": "S4",
       "metric": "Route completion",
       "reason": "Persistent obstacle intentionally prevents completion"
+    },
+    {
+      "scenario": "S4",
+      "metric": "Cruise speed RMS",
+      "reason": "The persistent obstacle is confirmed from standstill (about 30 m ahead while the car is still accelerating), so S4 has no stable cruise window by construction: 0 cruise ticks in all five live runs (18 Oct 2026). Cruise tracking is measured in S0, S1, S2, S3 and S5."
+    }
+  ],
+  "amendments": [
+    {
+      "date": "2026-10-18",
+      "change": "S4 'Cruise speed RMS (worst run)' marked not applicable",
+      "reason": "The persistent obstacle is confirmed from standstill (about 30 m ahead while the car is still accelerating), so S4 has no stable cruise window by construction: 0 cruise ticks in all five live runs (18 Oct 2026). Cruise tracking is measured in S0, S1, S2, S3 and S5.",
+      "evidence": "Group7_batch35_Acceptance_20261018_174604_187: every other S0-S5 metric passed in all 30 runs; only S4 cruise RMS was MISSING."
     }
   ]
 }
