@@ -29,12 +29,17 @@ demonstration for the autonomous perception and navigation library.
    interfaces
    geometry
    lane-topology
+   baseline_route
 
 .. toctree::
    :maxdepth: 1
    :caption: Task records
 
    controller_audit
+   mission_lifecycle
+   s0_navigation_validation
+   carla_rgb_readback_fix
+   evidence/TEST-02/README
    detector_contracts
    lane_recovery
    stack_skeleton
