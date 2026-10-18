@@ -48,5 +48,6 @@ demonstration for the autonomous perception and navigation library.
    batch_baseline
    steering_calibration
    gates/G0
+   gates/G1
    evidence/BL-E-02/README
    evidence/baseline-batch/README
