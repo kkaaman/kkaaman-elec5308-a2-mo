@@ -151,11 +151,21 @@ def execute(args):
             asset = json.loads((ROOT / "configs/models.yaml").read_text())["models"][0]
             verify_local_asset(args.weights, asset["sha256"])
             detector = FrameDetector(
-                ObjectDetector(PerceptionConfig(model_name=str(args.weights.resolve()))),
+                ObjectDetector(
+                    PerceptionConfig(
+                        model_name=str(args.weights.resolve()),
+                        image_size=config.detector_image_size,
+                        confidence_threshold=config.detector_confidence,
+                    )
+                ),
                 model_version=asset["sha256"],
             )
             manifest.update(
                 model_sha256=asset["sha256"],
+                detector=dict(
+                    image_size=config.detector_image_size,
+                    confidence=config.detector_confidence,
+                ),
                 torch=torch.__version__,
                 ultralytics=ultralytics.__version__,
                 cuda_available=torch.cuda.is_available(),

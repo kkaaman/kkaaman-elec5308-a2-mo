@@ -26,6 +26,10 @@ class BaselineConfig:
     planned_min_brake: float = 0.4
     # Stationary-scene memory of corridor cells seen clear (tight-turn FOV).
     visibility_memory_s: float = 15.0
+    # Detector input size (long side, px) and confidence. The Perception stage
+    # measures range/latency with these; freezing copies the measured values.
+    detector_image_size: int = 640
+    detector_confidence: float = 0.25
     controller: ControllerConfig = field(
         default_factory=lambda: ControllerConfig(
             wheelbase_m=3.00465,
@@ -62,6 +66,18 @@ class BaselineConfig:
                 raise ValueError(f"{name} must be finite and positive")
         if self.dt_s > 0.1:
             raise ValueError("Baseline requires dt <= 0.1 seconds")
+        if (
+            type(self.detector_image_size) is not int
+            or not 320 <= self.detector_image_size <= 1920
+            or self.detector_image_size % 32
+        ):
+            raise ValueError("Detector image size must be a multiple of 32 in [320, 1920]")
+        if (
+            isinstance(self.detector_confidence, bool)
+            or not isinstance(self.detector_confidence, (float, int))
+            or not 0.05 <= self.detector_confidence <= 0.95
+        ):
+            raise ValueError("Detector confidence must lie in [0.05, 0.95]")
 
     @classmethod
     def from_dict(cls, values):

@@ -233,3 +233,19 @@ class ManifestTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_capture_maps_and_demo_map_guard():
+    from carla_adapter.dataset_capture import is_demo_map, same_map, supported_capture_map
+    from evaluation.dataset import recorded_on_demo_map
+
+    assert supported_capture_map("Town05") and supported_capture_map("Carla/Maps/Town03_Opt")
+    assert supported_capture_map("Town10HD_Opt")
+    assert not supported_capture_map("Town12") and not supported_capture_map("Town10")
+    assert same_map("Carla/Maps/Town10HD_Opt", "Town10HD")
+    assert not same_map("Carla/Maps/Town05", "Town10HD_Opt")
+    assert is_demo_map("Carla/Maps/Town10HD_Opt") and not is_demo_map("Town05")
+    assert recorded_on_demo_map({"map": "Carla/Maps/Town10HD_Opt"})
+    assert not recorded_on_demo_map({"map": "Carla/Maps/Town05", "demo_map": False})
+    assert not recorded_on_demo_map({"map": "Carla/Maps/Town05"})
+    assert recorded_on_demo_map({})  # unknown provenance is treated as the demo map

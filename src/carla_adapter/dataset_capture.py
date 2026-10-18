@@ -5,6 +5,7 @@ import hashlib
 import json
 import math
 import random
+import re
 import threading
 import time
 from collections import Counter
@@ -15,10 +16,12 @@ import numpy as np
 from PIL import Image
 
 from evaluation.dataset import (
+    DEMO_MAPS,
     KIT_VERSION,
     ROADLINE_TAG,
     decode_bgra,
     decode_depth,
+    map_short_name,
     road_splits,
     save_json,
     sha256,
@@ -64,6 +67,32 @@ class FrameBuffer:
         ):
             raise ValueError("Camera transforms differ for joined frame")
         return images
+
+
+# Small towns only: large maps stream tiles around the ego and are not set up here.
+_CAPTURE_MAP = re.compile(r"Town(0[1-7]|10HD)(_Opt)?")
+
+
+def supported_capture_map(name):
+    return _CAPTURE_MAP.fullmatch(map_short_name(name)) is not None
+
+
+def same_map(a, b):
+    """Town10HD and Town10HD_Opt share one OpenDRIVE; other towns compare by name."""
+    a, b = map_short_name(a), map_short_name(b)
+    return a == b or (a in DEMO_MAPS and b in DEMO_MAPS)
+
+
+def is_demo_map(name):
+    return map_short_name(name) in DEMO_MAPS
+
+
+def _box_values(box):
+    """Plain copy of a carla.BoundingBox (local centre and half extents)."""
+    return {
+        "centre_m": [box.location.x, box.location.y, box.location.z],
+        "extent_m": [box.extent.x, box.extent.y, box.extent.z],
+    }
 
 
 def transform_dict(transform):
@@ -117,7 +146,18 @@ def main():
     )
     parser.add_argument("--camera-x", type=float, default=1.5)
     parser.add_argument("--follow", action="store_true")
+    parser.add_argument(
+        "--map",
+        default="Town10HD_Opt",
+        help=(
+            "Town to collect in (Town01-Town07, Town10HD[_Opt]). The demo map is the"
+            " measurement dataset; another town keeps training data off the demo map."
+            " A different town is loaded for the capture and the original map restored."
+        ),
+    )
     args = parser.parse_args()
+    if not supported_capture_map(args.map):
+        parser.error("--map must be Town01-Town07 (optionally _Opt), Town10HD or Town10HD_Opt")
     if (
         args.samples < 3
         or args.rounds < 1
@@ -155,6 +195,7 @@ def main():
         "failure": None,
     }
     world = None
+    original_map = None
     original_settings = original_weather = original_view = None
     owned = []
     sensors = []
@@ -169,6 +210,14 @@ def main():
                 "This label mapping requires matching CARLA 0.9.16 client and server"
             )
         world = client.get_world()
+        current_map = map_short_name(world.get_map().name)
+        if not same_map(current_map, args.map):
+            if world.get_settings().synchronous_mode:
+                raise RuntimeError("Another client owns synchronous ticks; close that client first")
+            print(f"Loading {args.map} for capture (was {current_map}); restored afterwards.")
+            world = client.load_world(args.map)
+            original_map = current_map
+            report["loaded_map_from"] = current_map
         if world.get_settings().synchronous_mode:
             raise RuntimeError("Another client owns synchronous ticks; close that client first")
         busy = [
@@ -183,8 +232,9 @@ def main():
         report["opendrive_sha256"] = hashlib.sha256(
             carla_map.to_opendrive().replace("\r\n", "\n").encode()
         ).hexdigest()
-        if carla_map.name.split("/")[-1] not in ("Town10HD_Opt", "Town10HD"):
-            raise RuntimeError("Load Town10HD_Opt before collecting this baseline dataset")
+        if not same_map(carla_map.name, args.map):
+            raise RuntimeError(f"Server map {carla_map.name} is not the requested {args.map}")
+        report["demo_map"] = is_demo_map(carla_map.name)
         points = [
             p
             for p in carla_map.generate_waypoints(args.spacing_m)
@@ -244,6 +294,27 @@ def main():
         if ego is None:
             raise RuntimeError("No free Tesla spawn point")
         ego.set_simulate_physics(False)
+        # actor.bounding_box is a server call that keeps the Python GIL; with
+        # camera callbacks streaming it hung for the 60 s client timeout on the
+        # live baseline runs. Read every box needed before the cameras exist.
+        ego_box = _box_values(ego.bounding_box)
+        target_boxes = {}
+        parking = carla.Transform(
+            carla.Location(spawn.location.x, spawn.location.y, spawn.location.z + 200.0)
+        )
+        for candidate in sorted(bp_library.filter("walker.pedestrian.*"), key=lambda b: b.id) + [
+            bp_library.find("vehicle.tesla.model3")
+        ]:
+            probe = world.try_spawn_actor(candidate, parking)
+            if probe is None:
+                continue
+            try:
+                target_boxes[candidate.id] = _box_values(probe.bounding_box)
+            finally:
+                probe.destroy()
+        if "vehicle.tesla.model3" not in target_boxes:
+            raise RuntimeError("Could not read the target vehicle bounding box")
+        report["target_bounding_boxes"] = len(target_boxes)
         frames = FrameBuffer(("rgb", "instance", "depth"))
         mount = carla.Transform(carla.Location(x=args.camera_x, z=args.camera_z))
         for name, blueprint in (
@@ -292,9 +363,7 @@ def main():
                         owned.remove(spawned_target)
                         spawned_target = None
                     pose = point.transform
-                    pose.location.z += (
-                        0.02 - ego.bounding_box.location.z + ego.bounding_box.extent.z
-                    )
+                    pose.location.z += 0.02 - ego_box["centre_m"][2] + ego_box["extent_m"][2]
                     pose.rotation.yaw += rng.uniform(-4, 4)
                     ego.set_transform(pose)
                     sample_number = report["sample_count"]
@@ -328,7 +397,14 @@ def main():
                             if ground is None:
                                 raise RuntimeError("No ground at collected target site")
                             candidates = (
-                                sorted(bp_library.filter("walker.pedestrian.*"), key=lambda b: b.id)
+                                sorted(
+                                    (
+                                        b
+                                        for b in bp_library.filter("walker.pedestrian.*")
+                                        if b.id in target_boxes
+                                    ),
+                                    key=lambda b: b.id,
+                                )
                                 if target_kind == "person"
                                 else [bp_library.find("vehicle.tesla.model3")]
                             )
@@ -339,11 +415,10 @@ def main():
                             if spawned_target is not None:
                                 owned.append(spawned_target)
                                 spawned_target.set_simulate_physics(False)
+                                target_box = target_boxes[bp.id]
                                 target_pose.location.z = ground.location.z
                                 target_pose.location.z += (
-                                    0.02
-                                    - spawned_target.bounding_box.location.z
-                                    + spawned_target.bounding_box.extent.z
+                                    0.02 - target_box["centre_m"][2] + target_box["extent_m"][2]
                                 )
                                 spawned_target.set_transform(target_pose)
                                 target_metadata.update(
@@ -402,18 +477,9 @@ def main():
                             target_metadata["transform"] = transform_dict(
                                 actor_snapshot.get_transform()
                             )
-                            target_metadata["bounding_box_local"] = {
-                                "centre_m": [
-                                    spawned_target.bounding_box.location.x,
-                                    spawned_target.bounding_box.location.y,
-                                    spawned_target.bounding_box.location.z,
-                                ],
-                                "extent_m": [
-                                    spawned_target.bounding_box.extent.x,
-                                    spawned_target.bounding_box.extent.y,
-                                    spawned_target.bounding_box.extent.z,
-                                ],
-                            }
+                            target_metadata["bounding_box_local"] = dict(
+                                target_boxes[spawned_target.type_id]
+                            )
                         split = splits[point.road_id]
                         run_id = f"{split}-road{point.road_id}-round{round_index:03d}"
                         folder = output / "data" / run_id
@@ -544,6 +610,14 @@ def main():
                 report["no_actor_leaks"] = not any(actor.id in ids for actor in world.get_actors())
             except Exception as error:
                 cleanup.append(str(error))
+        if original_map is not None:
+            # Later stages (Tune, Navigation, Acceptance) run on the demo map.
+            try:
+                restored = client.load_world(original_map)
+                report["map_restored"] = same_map(restored.get_map().name, original_map)
+            except Exception as error:
+                report["map_restored"] = False
+                print(f"WARNING: could not reload {original_map}: {error}. Load it before Tune.")
         report["cleanup_errors"] = cleanup
         report["split_counts"] = dict(counts)
         if index_path.exists():

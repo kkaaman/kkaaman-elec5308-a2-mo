@@ -15,8 +15,10 @@ from evaluation.dataset import (
     KIT_VERSION,
     confusion,
     local_file,
+    map_short_name,
     metrics,
     read_dataset,
+    recorded_on_demo_map,
     save_json,
     sha256,
 )
@@ -100,6 +102,11 @@ def main():
     parser.add_argument(
         "--resume", action="store_true", help="Resume last checkpoint in the SAME output directory"
     )
+    parser.add_argument(
+        "--allow-demo-map",
+        action="store_true",
+        help="Deliberately fine-tune on images recorded on the demo map (Town10HD)",
+    )
     args = parser.parse_args()
     if (
         args.epochs < 1
@@ -125,6 +132,14 @@ def main():
         torch.cuda.manual_seed_all(args.seed)
     device = torch.device(args.device)
     manifest, rows = read_dataset(args.dataset)
+    dataset_map = map_short_name(manifest.get("map", "unknown"))
+    on_demo_map = recorded_on_demo_map(manifest)
+    if on_demo_map and not args.allow_demo_map and not args.smoke:
+        raise ValueError(
+            f"Dataset was recorded on the demo map ({dataset_map}). Capture another town"
+            " (run_batch35.ps1 -Stage Capture -Map Town05) or pass --allow-demo-map to"
+            " train on the demo map deliberately"
+        )
     groups = {name: [r for r in rows if r["split"] == name] for name in ("train", "val", "test")}
     for name, group in groups.items():
         minimum = 1 if args.smoke else 50
@@ -194,6 +209,8 @@ def main():
         "baseline_validation": baseline,
         "best_validation_iou": best,
         "smoke_only": args.smoke,
+        "dataset_map": dataset_map,
+        "trained_on_demo_map": on_demo_map,
         "test_set_used_for_selection": False,
         "promotion": "NOT_DEPLOYED",
         "preprocessing": "640x360 RGB /255; matches canonical LaneSegmenter",

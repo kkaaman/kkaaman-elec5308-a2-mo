@@ -37,6 +37,22 @@ def local_file(root, relative):
     return path
 
 
+# The baseline demo runs on Town10HD (Town10HD_Opt shares its OpenDRIVE).
+DEMO_MAPS = ("Town10HD_Opt", "Town10HD")
+
+
+def map_short_name(name):
+    return str(name).replace("\\", "/").rsplit("/", 1)[-1]
+
+
+def recorded_on_demo_map(manifest):
+    """True unless the dataset manifest shows another town (unknown counts as demo)."""
+    if "demo_map" in manifest:
+        return bool(manifest["demo_map"])
+    name = map_short_name(manifest.get("map", ""))
+    return not name or name in DEMO_MAPS
+
+
 def road_splits(road_ids):
     """Fixed grouping independent of collection seed, weather or frame order."""
     ids = sorted(

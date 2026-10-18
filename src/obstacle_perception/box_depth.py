@@ -71,31 +71,73 @@ def estimate_box_depth(depth_m, box, calibration, policy=None):
         return DepthEstimate(False, "empty_roi")
     cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
     dx, dy = (x1 - x0) * policy.inner_fraction / 2, (y1 - y0) * policy.inner_fraction / 2
+    r0, c0 = max(0, math.ceil(cy - dy - 0.5)), max(0, math.ceil(cx - dx - 0.5))
     roi = depth_m[
-        max(0, math.ceil(cy - dy - 0.5)) : min(h, math.floor(cy + dy - 0.5) + 1),
-        max(0, math.ceil(cx - dx - 0.5)) : min(w, math.floor(cx + dx - 0.5) + 1),
+        r0 : min(h, math.floor(cy + dy - 0.5) + 1),
+        c0 : min(w, math.floor(cx + dx - 0.5) + 1),
     ]
-    values = roi[np.isfinite(roi) & (roi > 0) & (roi < policy.max_depth_m)]
+    usable = np.isfinite(roi) & (roi > 0) & (roi < policy.max_depth_m)
+    values = roi[usable]
     count, fraction = len(values), len(values) / roi.size if roi.size else 0
     if count < policy.min_pixels or fraction < policy.min_valid_fraction:
         return DepthEstimate(
             False, "insufficient_valid_depth", valid_pixels=count, valid_fraction=fraction
         )
+    # Road, kerb and paint inside the ROI are not obstacle surface.
+    vv, uu = np.nonzero(usable)
+    raised = values[_heights(uu + c0, vv + r0, values, calibration) >= GROUND_CLEARANCE_M]
+    if len(raised) >= policy.min_pixels:
+        values = raised
+    source = "aligned_depth"
     median = float(np.median(values))
     q10, q90 = np.quantile(values, [0.1, 0.9])
     spread = float(q90 - q10)
-    # Conservative: reject substantial multiple surfaces rather than selecting
-    # a background median and manufacturing clearance.
     if spread > max(policy.max_spread_m, policy.max_relative_spread * median):
-        return DepthEstimate(
-            False,
-            "mixed_or_spread_depth",
-            valid_pixels=count,
-            valid_fraction=fraction,
-            spread_m=spread,
-        )
+        # Never a background median (that would manufacture clearance). A thin
+        # pedestrian's box is mostly background; its NEAREST substantial surface
+        # is the object (or a nearer occluder): conservative either way.
+        cluster = _foreground_cluster(values, policy)
+        if cluster is None:
+            return DepthEstimate(
+                False,
+                "mixed_or_spread_depth",
+                valid_pixels=count,
+                valid_fraction=fraction,
+                spread_m=spread,
+            )
+        source = "foreground_cluster"
+        median = float(np.median(cluster))
+        q10, q90 = np.quantile(cluster, [0.1, 0.9])
+        spread = float(q90 - q10)
     point = tuple(float(x) for x in pixel_depth_to_ego(cx, cy, median, calibration))
-    return DepthEstimate(True, None, median, point, count, fraction, spread)
+    return DepthEstimate(True, None, median, point, count, fraction, spread, source)
+
+
+def _heights(us, vs, depths, calibration):
+    """Ego-frame z (height above the ego ground plane) of ROI pixels."""
+    optical = np.column_stack(
+        (
+            (us - calibration.cx_px) * depths / calibration.fx_px,
+            (vs - calibration.cy_px) * depths / calibration.fy_px,
+            depths,
+        )
+    )
+    matrix = np.asarray(calibration.camera_to_ego, dtype=float)
+    return optical @ matrix[2, :3] + matrix[2, 3]
+
+
+def _foreground_cluster(values, policy, minimum_share=0.3):
+    """Pixels within one spread tolerance behind the 10th-percentile surface.
+
+    Accepted only if they form a substantial share of the ROI; otherwise the box
+    stays unknown. A small near patch over a far background is not a surface.
+    """
+    near = float(np.quantile(values, 0.1))
+    width = max(policy.max_spread_m, policy.max_relative_spread * near)
+    cluster = values[(values >= near - 0.25 * width) & (values <= near + width)]
+    if len(cluster) < policy.min_pixels or len(cluster) < minimum_share * len(values):
+        return None
+    return cluster
 
 
 def ground_fallback(box, calibration):

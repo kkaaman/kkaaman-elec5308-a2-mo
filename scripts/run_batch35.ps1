@@ -5,7 +5,16 @@ param(
     [int]$Samples = 12000,
     [double]$TrainingHours = 4,
     [string]$CarlaExe = "",
-    [string]$StateFile = ""
+    [string]$StateFile = "",
+    # Capture: town to record. The demo map (default) is the measurement dataset;
+    # another town (e.g. Town05) is stored separately as the training dataset.
+    [string]$Map = "Town10HD_Opt",
+    # Train: explicitly allow fine-tuning on the demo map's own images.
+    [switch]$AllowDemoMap,
+    # Perception: detector input size/confidence to measure; Freeze copies them
+    # into the candidate config so Tune/Navigation/Acceptance run with them.
+    [int]$DetectorImageSize = 640,
+    [double]$DetectorConfidence = 0.25
 )
 $ErrorActionPreference = "Stop"
 Set-Location (Split-Path $PSScriptRoot -Parent)
@@ -97,13 +106,20 @@ try {
             # S0, one full-stack S0 and one S1 stop/hold/resume. Diagnostic only;
             # it does not replace Navigation/Freeze/Acceptance evidence.
             $liveArgs = Get-LiveArgs
+            # After Perception/Tune, smoke the actual candidate (detector size,
+            # derived cruise, tuned gains) before Navigation locks the source.
+            $quickConfig = "configs/baseline_stack.json"
+            if ($batchState.ContainsKey("candidate") -and (Test-Path -LiteralPath $batchState["candidate"])) {
+                $quickConfig = [string]$batchState["candidate"]
+            }
+            Write-Host "Quick config: $quickConfig"
             $quickRuns = @(
                 @{ Name = "S0-navigation"; Args = @("--scenario","S0","--navigation-only") },
                 @{ Name = "S0-full"; Args = @("--scenario","S0") },
                 @{ Name = "S1-full"; Args = @("--scenario","S1") }
             )
             foreach ($run in $quickRuns) {
-                Invoke-ProjectPython -PythonArgs (@("scripts/run_scenario.py") + $run.Args + @("--config","configs/baseline_stack.json","--max-sim-s","120","--output",(Join-Path $stageFolder $run.Name)) + $liveArgs)
+                Invoke-ProjectPython -PythonArgs (@("scripts/run_scenario.py") + $run.Args + @("--config",$quickConfig,"--max-sim-s","120","--output",(Join-Path $stageFolder $run.Name)) + $liveArgs)
             }
             # RV-06: lane monitor replayed on the recorded full-stack runs (diagnostic only).
             if (Test-Path -LiteralPath "lane_unet_best.pth") {
@@ -121,19 +137,24 @@ try {
         }
         "Capture" {
             $null = Need-Result "depth"
-            Invoke-ProjectPython -PythonArgs @("scripts/capture_frames.py","--samples",[string]$Samples,"--sequence-frames","20","--ray-reference","--output",(Join-Path $stageFolder "dataset"))
-            $batchState["dataset"] = Join-Path $stageFolder "dataset"
+            $datasetFolder = Join-Path $stageFolder "dataset"
+            Invoke-ProjectPython -PythonArgs @("scripts/capture_frames.py","--samples",[string]$Samples,"--sequence-frames","20","--ray-reference","--map",$Map,"--output",$datasetFolder)
+            # Perception/Freeze measure the demo map; a capture on another town is
+            # kept apart as training data so it never replaces those measurements.
+            $datasetKey = if ($Map -in @("Town10HD_Opt","Town10HD")) { "dataset" } else { "training_dataset" }
+            $batchState[$datasetKey] = $datasetFolder
             Save-BatchState
-            Invoke-ProjectPython -PythonArgs @("scripts/review_dataset.py",$batchState["dataset"])
-            Start-Process (Join-Path $batchState["dataset"] "review.html")
+            Invoke-ProjectPython -PythonArgs @("scripts/review_dataset.py",$datasetFolder)
+            Start-Process (Join-Path $datasetFolder "review.html")
         }
         "Perception" {
             $datasetPath = Need-Result "dataset"
             $depthPath = Need-Result "depth"
-            Invoke-ProjectPython -PythonArgs @("scripts/benchmark_perception.py","--dataset",$datasetPath,"--weights","yolo26n.pt","--depth-calibration",$depthPath,"--output",(Join-Path $stageFolder "detector"))
+            $detectorArgs = @("--image-size",[string]$DetectorImageSize,"--confidence",[string]$DetectorConfidence)
+            Invoke-ProjectPython -PythonArgs (@("scripts/benchmark_perception.py","--dataset",$datasetPath,"--weights","yolo26n.pt","--depth-calibration",$depthPath,"--output",(Join-Path $stageFolder "detector")) + $detectorArgs)
             $batchState["perception"] = Join-Path $stageFolder "detector\perception.json"
             Save-BatchState
-            Invoke-ProjectPython -PythonArgs @("scripts/analyze_depth.py","--dataset",$datasetPath,"--depth-calibration",$depthPath,"--segmentation-weights","segmentation_model.pth","--weights","yolo26n.pt","--output",(Join-Path $stageFolder "depth_analysis"))
+            Invoke-ProjectPython -PythonArgs (@("scripts/analyze_depth.py","--dataset",$datasetPath,"--depth-calibration",$depthPath,"--segmentation-weights","segmentation_model.pth","--weights","yolo26n.pt","--output",(Join-Path $stageFolder "depth_analysis")) + $detectorArgs)
             $batchState["depth_analysis"] = Join-Path $stageFolder "depth_analysis\depth_analysis.json"
             Invoke-ProjectPython -PythonArgs @("scripts/preview_lane_monitor.py","--dataset",$datasetPath,"--weights","lane_unet_best.pth","--output",(Join-Path $stageFolder "lane_monitor"))
             $batchState["lane_monitor"] = Join-Path $stageFolder "lane_monitor\monitor.json"
@@ -185,8 +206,12 @@ try {
             $batchState["replay_faults"] = $stageFolder
         }
         "Train" {
-            $datasetPath = Need-Result "dataset"
-            Invoke-ProjectPython -PythonArgs @("training/batch35/train_lane.py","--repo",".","--dataset",$datasetPath,"--initial","lane_unet_best.pth","--output",(Join-Path $stageFolder "training"),"--hours",[string]$TrainingHours)
+            # Prefer a dataset recorded on another town; train_lane.py refuses the
+            # demo map's own images unless -AllowDemoMap is given.
+            $datasetPath = if ($batchState.ContainsKey("training_dataset")) { Need-Result "training_dataset" } else { Need-Result "dataset" }
+            $trainArgs = @("training/batch35/train_lane.py","--repo",".","--dataset",$datasetPath,"--initial","lane_unet_best.pth","--output",(Join-Path $stageFolder "training"),"--hours",[string]$TrainingHours)
+            if ($AllowDemoMap) { $trainArgs += "--allow-demo-map" }
+            Invoke-ProjectPython -PythonArgs $trainArgs
             $batchState["training"] = Join-Path $stageFolder "training"
         }
         "Evaluate" {

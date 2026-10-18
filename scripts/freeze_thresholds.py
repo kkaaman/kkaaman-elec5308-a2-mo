@@ -46,8 +46,13 @@ def derive(config, braking, perception, depth):
     speed = int(speed * 10) / 10
     if speed < 1:
         raise ValueError("Measured stopping envelope cannot support baseline cruise")
+    # Range and latency were measured with these detector settings, so the
+    # runtime must use them. Reports from before this field used the defaults.
+    detector = perception.get("detector") or dict(image_size=640, confidence=0.25)
     return replace(
         config,
+        detector_image_size=int(detector["image_size"]),
+        detector_confidence=float(detector["confidence"]),
         governor=replace(
             config.governor, cruise_mps=speed, deceleration_mps2=decel, response_budget_s=response
         ),
@@ -79,6 +84,9 @@ def main():
         usable_range_lower_bound_m=reports["perception"]["usable_range_lower_bound_m"],
         pedestrian_25m_covered=reports["perception"]["pedestrian_25m_covered"],
         model_sha256=reports["perception"]["model_sha256"],
+        detector=dict(
+            image_size=candidate.detector_image_size, confidence=candidate.detector_confidence
+        ),
         rationale="Measured brake >=0.4, 30% deceleration reserve, camera/filter/compute lag, 2 m range reserve; lower cruise if necessary.",
     )
     if args.navigation_report:
