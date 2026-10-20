@@ -1,0 +1,370 @@
+{
+  "status": "COMPARABLE_DEFINITION_MEASURED_REVIEW_REQUIRED",
+  "cte_definition": "signed perpendicular offset of the actor origin from the nearest driving-lane centreline tangent (A1 TEST-01 definition); positive left of lane direction",
+  "a1_mean_abs_cte_m": 0.9178495129395766,
+  "a2_worst_run_mean_abs_cte_m": 0.023863772558750666,
+  "cte_ratio_a2_over_a1": 0.02599965704870582,
+  "a1_cycle_p95_ms": 467.4209356307983,
+  "a2_worst_capture_apply_p95_ms": 16.000000000076398,
+  "a1_real_time_factor": 1.0005599995026129,
+  "a2_real_time_factor": [
+    9.840992971927948,
+    10.02370151219295,
+    10.899914251768575,
+    10.27952213008608,
+    10.790984638791029
+  ],
+  "a2_live_carla": true,
+  "known_differences": [
+    "Route: A1 follows lane estimates with a local junction rule from its own spawn; A2 follows one fixed legal mission. Different roads are driven, so CTE is compared as a distribution, not sample by sample.",
+    "Timing: A1 runs asynchronously (variable control period); A2 runs synchronously at a fixed 0.05 s step, reading the frame it just ticked.",
+    "Speed: A1 cruises at 3 m/s; the retained A2 TEST-02 acceptance runs use a 4.0 m/s mission cruise target; final BL-D-06 safety freeze remains separate.",
+    "Vehicle/geometry: A1 used its demo's first blueprint match, 2.5 m wheelbase and 0.6 rad normalisation; A2 uses the measured Tesla Model 3 geometry (BL-E-01).",
+    "Latency: A1 cycle_wall_before_apply includes all A1 perception for that cycle; A2 capture_apply is first sensor receipt to apply_control. Both are host wall clock."
+  ],
+  "note": "Values are measured, not a claim of improvement; review the listed differences before quoting a ratio. Harness A2 runs are not live evidence.",
+  "a1": {
+    "samples": 274,
+    "moving_samples": 258,
+    "cte_a1_definition_abs_m": {
+      "count": 258,
+      "mean": 0.9178495129395766,
+      "rms": 1.1311858268377497,
+      "p95": 1.7293406008482322,
+      "max": 3.4276555903900157
+    },
+    "cycle_wall_before_apply_ms": {
+      "count": 274,
+      "mean": 317.2113538658532,
+      "rms": 325.8252705945446,
+      "p95": 467.4209356307983,
+      "max": 693.002462387085
+    },
+    "control_period_sim_s": {
+      "count": 273,
+      "mean": 0.427303651313642,
+      "rms": 0.43075742580115167,
+      "p95": 0.5,
+      "max": 0.5
+    },
+    "speed_mps": {
+      "count": 258,
+      "mean": 2.0790092725196843,
+      "rms": 2.4069619224903205,
+      "p95": 4.26889752102009,
+      "max": 4.9836218862092325
+    },
+    "real_time_factor": 1.0005599995026129,
+    "offline_definition_check_abs_diff_m": {
+      "count": 274,
+      "mean": 0.005579181386461908,
+      "rms": 0.008685457996848346,
+      "p95": 0.020444302281427983,
+      "max": 0.030258486119628447
+    },
+    "capture_status": "CAPTURED"
+  },
+  "a2": [
+    {
+      "run": "runs/TEST-03/source-rgb-repair/runs/rgb-repair/20261017-035730/packaged-acceptance/run-01",
+      "engine": "carla",
+      "scenario": "S0",
+      "mode": "rgb",
+      "seed": 42,
+      "samples": 1016,
+      "moving_samples": 1006,
+      "cte_a1_definition_abs_m": {
+        "count": 1006,
+        "mean": 0.023863772558750666,
+        "rms": 0.057559368225042984,
+        "p95": 0.1704286377575353,
+        "max": 0.2163545696636248
+      },
+      "cte_a1_definition_abs_m_outside_junctions": {
+        "count": 529,
+        "mean": 0.0012610513735146812,
+        "rms": 0.00303095061658304,
+        "p95": 0.00575123459770839,
+        "max": 0.01884199287334854
+      },
+      "cte_route_rear_axle_abs_m": {
+        "count": 1006,
+        "mean": 0.02044629455518394,
+        "rms": 0.04470754457046026,
+        "p95": 0.12085865086952932,
+        "max": 0.16403740678637707
+      },
+      "capture_apply_ms": {
+        "count": 1016,
+        "mean": 2.014763779527584,
+        "rms": 5.699927475710774,
+        "p95": 16.000000000076398,
+        "max": 32.000000000152795
+      },
+      "tick_to_apply_ms": {
+        "count": 1016,
+        "mean": 2.014763779527584,
+        "rms": 5.699927475710774,
+        "p95": 16.000000000076398,
+        "max": 32.000000000152795
+      },
+      "simulation_age_s": {
+        "count": 1016,
+        "mean": 0.11304133858267716,
+        "rms": 0.11515352641438863,
+        "p95": 0.15000000000000002,
+        "max": 0.15000000000000002
+      },
+      "control_period_sim_s": 0.05,
+      "speed_mps": {
+        "count": 1006,
+        "mean": 3.367534383948626,
+        "rms": 3.4501920036217677,
+        "p95": 3.9901528520267395,
+        "max": 4.029410557637166
+      },
+      "real_time_factor": 9.840992971927948
+    },
+    {
+      "run": "runs/TEST-03/source-rgb-repair/runs/rgb-repair/20261017-035730/packaged-acceptance/run-02",
+      "engine": "carla",
+      "scenario": "S0",
+      "mode": "rgb",
+      "seed": 42,
+      "samples": 1016,
+      "moving_samples": 1006,
+      "cte_a1_definition_abs_m": {
+        "count": 1006,
+        "mean": 0.023863772558750666,
+        "rms": 0.057559368225042984,
+        "p95": 0.1704286377575353,
+        "max": 0.2163545696636248
+      },
+      "cte_a1_definition_abs_m_outside_junctions": {
+        "count": 529,
+        "mean": 0.0012610513735146812,
+        "rms": 0.00303095061658304,
+        "p95": 0.00575123459770839,
+        "max": 0.01884199287334854
+      },
+      "cte_route_rear_axle_abs_m": {
+        "count": 1006,
+        "mean": 0.02044629455518394,
+        "rms": 0.04470754457046026,
+        "p95": 0.12085865086952932,
+        "max": 0.16403740678637707
+      },
+      "capture_apply_ms": {
+        "count": 1016,
+        "mean": 4.428149606299012,
+        "rms": 8.321126229802331,
+        "p95": 16.000000000076398,
+        "max": 16.000000000076398
+      },
+      "tick_to_apply_ms": {
+        "count": 1016,
+        "mean": 4.428149606299012,
+        "rms": 8.321126229802331,
+        "p95": 16.000000000076398,
+        "max": 16.000000000076398
+      },
+      "simulation_age_s": {
+        "count": 1016,
+        "mean": 0.14999999999999997,
+        "rms": 0.15000000000000005,
+        "p95": 0.15000000000000002,
+        "max": 0.15000000000000002
+      },
+      "control_period_sim_s": 0.05,
+      "speed_mps": {
+        "count": 1006,
+        "mean": 3.367534383948626,
+        "rms": 3.4501920036217677,
+        "p95": 3.9901528520267395,
+        "max": 4.029410557637166
+      },
+      "real_time_factor": 10.02370151219295
+    },
+    {
+      "run": "runs/TEST-03/source-rgb-repair/runs/rgb-repair/20261017-035730/packaged-acceptance/run-03",
+      "engine": "carla",
+      "scenario": "S0",
+      "mode": "rgb",
+      "seed": 42,
+      "samples": 1016,
+      "moving_samples": 1006,
+      "cte_a1_definition_abs_m": {
+        "count": 1006,
+        "mean": 0.023863772558750666,
+        "rms": 0.057559368225042984,
+        "p95": 0.1704286377575353,
+        "max": 0.2163545696636248
+      },
+      "cte_a1_definition_abs_m_outside_junctions": {
+        "count": 529,
+        "mean": 0.0012610513735146812,
+        "rms": 0.00303095061658304,
+        "p95": 0.00575123459770839,
+        "max": 0.01884199287334854
+      },
+      "cte_route_rear_axle_abs_m": {
+        "count": 1006,
+        "mean": 0.02044629455518394,
+        "rms": 0.04470754457046026,
+        "p95": 0.12085865086952932,
+        "max": 0.16403740678637707
+      },
+      "capture_apply_ms": {
+        "count": 1016,
+        "mean": 4.198818897637871,
+        "rms": 8.104023497647429,
+        "p95": 16.000000000076398,
+        "max": 16.000000000076398
+      },
+      "tick_to_apply_ms": {
+        "count": 1016,
+        "mean": 4.198818897637871,
+        "rms": 8.104023497647429,
+        "p95": 16.000000000076398,
+        "max": 16.000000000076398
+      },
+      "simulation_age_s": {
+        "count": 1016,
+        "mean": 0.14999999999999997,
+        "rms": 0.15000000000000005,
+        "p95": 0.15000000000000002,
+        "max": 0.15000000000000002
+      },
+      "control_period_sim_s": 0.05,
+      "speed_mps": {
+        "count": 1006,
+        "mean": 3.367534383948626,
+        "rms": 3.4501920036217677,
+        "p95": 3.9901528520267395,
+        "max": 4.029410557637166
+      },
+      "real_time_factor": 10.899914251768575
+    },
+    {
+      "run": "runs/TEST-03/source-rgb-repair/runs/rgb-repair/20261017-035730/packaged-acceptance/run-04",
+      "engine": "carla",
+      "scenario": "S0",
+      "mode": "rgb",
+      "seed": 42,
+      "samples": 1016,
+      "moving_samples": 1006,
+      "cte_a1_definition_abs_m": {
+        "count": 1006,
+        "mean": 0.023863772558750666,
+        "rms": 0.057559368225042984,
+        "p95": 0.1704286377575353,
+        "max": 0.2163545696636248
+      },
+      "cte_a1_definition_abs_m_outside_junctions": {
+        "count": 529,
+        "mean": 0.0012610513735146812,
+        "rms": 0.00303095061658304,
+        "p95": 0.00575123459770839,
+        "max": 0.01884199287334854
+      },
+      "cte_route_rear_axle_abs_m": {
+        "count": 1006,
+        "mean": 0.02044629455518394,
+        "rms": 0.04470754457046026,
+        "p95": 0.12085865086952932,
+        "max": 0.16403740678637707
+      },
+      "capture_apply_ms": {
+        "count": 1016,
+        "mean": 3.6309055118113243,
+        "rms": 7.537243486189773,
+        "p95": 16.000000000076398,
+        "max": 16.000000000076398
+      },
+      "tick_to_apply_ms": {
+        "count": 1016,
+        "mean": 3.6309055118113243,
+        "rms": 7.537243486189773,
+        "p95": 16.000000000076398,
+        "max": 16.000000000076398
+      },
+      "simulation_age_s": {
+        "count": 1016,
+        "mean": 0.1389763779527559,
+        "rms": 0.1405136807865661,
+        "p95": 0.15000000000000002,
+        "max": 0.15000000000000002
+      },
+      "control_period_sim_s": 0.05,
+      "speed_mps": {
+        "count": 1006,
+        "mean": 3.367534383948626,
+        "rms": 3.4501920036217677,
+        "p95": 3.9901528520267395,
+        "max": 4.029410557637166
+      },
+      "real_time_factor": 10.27952213008608
+    },
+    {
+      "run": "runs/TEST-03/source-rgb-repair/runs/rgb-repair/20261017-035730/packaged-acceptance/run-05",
+      "engine": "carla",
+      "scenario": "S0",
+      "mode": "rgb",
+      "seed": 42,
+      "samples": 1016,
+      "moving_samples": 1006,
+      "cte_a1_definition_abs_m": {
+        "count": 1006,
+        "mean": 0.023863772558750666,
+        "rms": 0.057559368225042984,
+        "p95": 0.1704286377575353,
+        "max": 0.2163545696636248
+      },
+      "cte_a1_definition_abs_m_outside_junctions": {
+        "count": 529,
+        "mean": 0.0012610513735146812,
+        "rms": 0.00303095061658304,
+        "p95": 0.00575123459770839,
+        "max": 0.01884199287334854
+      },
+      "cte_route_rear_axle_abs_m": {
+        "count": 1006,
+        "mean": 0.02044629455518394,
+        "rms": 0.04470754457046026,
+        "p95": 0.12085865086952932,
+        "max": 0.16403740678637707
+      },
+      "capture_apply_ms": {
+        "count": 1016,
+        "mean": 4.235236220473669,
+        "rms": 8.14442710774978,
+        "p95": 16.000000000076398,
+        "max": 16.000000000076398
+      },
+      "tick_to_apply_ms": {
+        "count": 1016,
+        "mean": 4.235236220473669,
+        "rms": 8.14442710774978,
+        "p95": 16.000000000076398,
+        "max": 16.000000000076398
+      },
+      "simulation_age_s": {
+        "count": 1016,
+        "mean": 0.14999999999999997,
+        "rms": 0.15000000000000005,
+        "p95": 0.15000000000000002,
+        "max": 0.15000000000000002
+      },
+      "control_period_sim_s": 0.05,
+      "speed_mps": {
+        "count": 1006,
+        "mean": 3.367534383948626,
+        "rms": 3.4501920036217677,
+        "p95": 3.9901528520267395,
+        "max": 4.029410557637166
+      },
+      "real_time_factor": 10.790984638791029
+    }
+  ],
+  "topology": "tests/fixtures/Town10HD.lane_graph.json"
+}
