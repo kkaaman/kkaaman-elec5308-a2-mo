@@ -15,10 +15,13 @@ extensions = [
 autodoc_mock_imports = ["carla"]
 
 templates_path = ["_templates"]
-exclude_patterns = ["_build", "evidence/BL-C-04-06/ai-journal.md"]
+
+exclude_patterns = [
+    "_build",
+    "evidence/BL-C-04-06/ai-journal.md",
+    "evidence/TEST-13/ai-journal.md",
+]
 
 html_theme = "alabaster"
 
 autodoc_member_order = "bysource"
-
-exclude_patterns = ["_build", "evidence/TEST-13/ai-journal.md"]
