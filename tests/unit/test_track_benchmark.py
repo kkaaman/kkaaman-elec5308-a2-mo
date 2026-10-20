@@ -50,6 +50,7 @@ def document(tmp_path):
                         frame_id=i,
                         sim_time_s=i / 10,
                         total_wall_s=0.05,
+                        sensor_read_wall_s=0.0,
                         depth_npy="depth.npy",
                         target_gap_m=4.0 - i,
                         target_detection_indices=[0],
@@ -142,4 +143,76 @@ def test_depth_artifact_hash_mismatch_rejected(tmp_path):
     doc = document(tmp_path)
     doc["sequences"][0]["frames"][0]["depth_sha256"] = "wrong"
     with pytest.raises(ValueError, match="hash"):
+        module.benchmark(doc, tmp_path)
+
+
+def waited_sequence(tmp_path):
+    from copy import deepcopy
+
+    doc = document(tmp_path)
+    template = doc["sequences"][0]["frames"][0]
+    rows = []
+    for i, wait in enumerate((0.0, 0.5, 1.0, 0.0, 0.0)):
+        row = deepcopy(template)
+        row.update(
+            frame_id=i,
+            sim_time_s=i * 0.25,
+            target_gap_m=8.0,
+            total_wall_s=0.125,
+            sensor_read_wall_s=wait,
+        )
+        if i in (1, 2):
+            row.update(
+                valid=False,
+                invalid_reason="TimeoutError: missing RGB-D",
+                total_wall_s=None,
+                detections=[],
+                target_detection_indices=[],
+            )
+        rows.append(row)
+    doc["sequences"][0]["frames"] = rows
+    return doc
+
+
+def test_failure_waits_accumulate_before_confirmation_and_speed_screen(tmp_path):
+    import math
+
+    doc = waited_sequence(tmp_path)
+    result = module.benchmark(doc, tmp_path)
+    row = result["sequences"][0]
+    # Serial live timeline: .125, .75, 1.75, 1.875, 2.0 seconds.
+    assert row["first_confirmed"]["frame_id"] == 4
+    assert row["first_confirmed"]["latency_s"] == 2.0
+    assert row["first_confirmed_response_s"] == 1.0
+    expected = math.floor((math.sqrt((2 * 1.2) ** 2 + 2 * 2 * 6) - 2 * 1.2) * 10) / 10
+    assert result["measured_speed_cap_mps"] == expected == 3.0
+    assert result["recommended_speed_mps"] == 3.0
+    assert result["screening_decision"] == "FAILED"
+    assert result["timing"]["proposed_cruise_supported"] is False
+    for frame in doc["sequences"][0]["frames"]:
+        frame["sensor_read_wall_s"] = 0.0
+    optimistic = module.benchmark(doc, tmp_path)
+    assert optimistic["sequences"][0]["first_confirmed"]["latency_s"] == 1.125
+    assert optimistic["measured_speed_cap_mps"] > result["measured_speed_cap_mps"]
+
+
+def test_legacy_missing_read_time_blocks_measured_screen(tmp_path):
+    doc = waited_sequence(tmp_path)
+    del doc["sequences"][0]["frames"][1]["sensor_read_wall_s"]
+    result = module.benchmark(doc, tmp_path)
+    assert result["status"] == "BLOCKED_INCOMPLETE_TIMING"
+    assert result["measured_speed_cap_mps"] is None
+    assert result["screening_decision"] == "BLOCKED"
+    assert result["recommended_speed_mps"] == 0.0
+    assert result["timing"]["proposed_cruise_supported"] is None
+    doc.update(schema_version=3, settings_restored=True, no_actor_leaks=True)
+    with pytest.raises(ValueError, match="Missing measured sensor read timing"):
+        module.benchmark(doc, tmp_path)
+
+
+@pytest.mark.parametrize("wait", [-0.1, float("nan"), float("inf"), True])
+def test_invalid_read_timing_rejected(tmp_path, wait):
+    doc = document(tmp_path)
+    doc["sequences"][0]["frames"][0]["sensor_read_wall_s"] = wait
+    with pytest.raises(ValueError, match="Invalid sensor read timing"):
         module.benchmark(doc, tmp_path)

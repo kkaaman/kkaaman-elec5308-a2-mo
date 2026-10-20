@@ -24,7 +24,7 @@ def benchmark(document, root):
     """Schema documented in docs/track_stabilisation.md; one target per sequence."""
     if document.get("capture_status", "COMPLETE") != "COMPLETE":
         raise ValueError("Capture incomplete; retained frames are diagnostic only")
-    if document.get("schema_version") == 2 and (
+    if document.get("schema_version", 0) >= 2 and (
         not document.get("settings_restored") or not document.get("no_actor_leaks")
     ):
         raise ValueError("Capture cleanup/provenance incomplete")
@@ -48,6 +48,7 @@ def benchmark(document, root):
         raise ValueError("Sequence names must be unique")
     policy = TrackPolicy(**document["track_policy"])
     rows = []
+    missing_read_timing = 0
     for sequence in document["sequences"]:
         t = TrackDepthFilter(
             source_id=sequence["source_id"], model_version=settings["model_version"], policy=policy
@@ -97,6 +98,14 @@ def benchmark(document, root):
                 raise ValueError("Valid observation missing actual detector timing")
             sensor_delay = row.get("sensor_delay_s", 0.0)
             filter_wall = row.get("filter_wall_s") or 0.0
+            read_wall = row.get("sensor_read_wall_s")
+            if read_wall is None:
+                if document.get("schema_version", 0) >= 3:
+                    raise ValueError("Missing measured sensor read timing")
+                missing_read_timing += 1
+                read_wall = 0.0  # Legacy diagnostic lower bound, never a measured cap.
+            if isinstance(read_wall, bool) or not math.isfinite(read_wall) or read_wall < 0:
+                raise ValueError("Invalid sensor read timing")
             if any(not math.isfinite(x) or x < 0 for x in (sensor_delay, filter_wall)):
                 raise ValueError("Invalid sensor/filter delay")
             batch = DetectionBatch(
@@ -118,7 +127,12 @@ def benchmark(document, root):
                 raise ValueError("Invalid sequence start time")
             # Serial inference must account for backlog: slow earlier calls cannot
             # disappear when a later frame confirms the target.
-            ready_s = max(capture_elapsed + sensor_delay, ready_s) + (wall or 0.0) + filter_wall
+            ready_s = (
+                max(capture_elapsed + sensor_delay, ready_s)
+                + read_wall
+                + (wall or 0.0)
+                + filter_wall
+            )
             response_s = ready_s - capture_elapsed
             if not batch.valid:
                 if labels:
@@ -189,9 +203,26 @@ def benchmark(document, root):
         track_policy=asdict(policy),
         sequences=rows,
         proposed_cruise_mps=speed,
-        measured_speed_cap_mps=cap,
-        recommended_speed_mps=min(speed, cap),
-        status="SYNTHETIC_ONLY" if document["origin"] == "synthetic" else "MEASURED",
+        measured_speed_cap_mps=None if missing_read_timing else cap,
+        recommended_speed_mps=0.0 if missing_read_timing else min(speed, cap),
+        status=(
+            "BLOCKED_INCOMPLETE_TIMING"
+            if missing_read_timing
+            else "SYNTHETIC_ONLY"
+            if document["origin"] == "synthetic"
+            else "MEASURED"
+        ),
+        screening_decision=(
+            "BLOCKED" if missing_read_timing else "SUPPORTED" if speed <= cap else "FAILED"
+        ),
+        timing=dict(
+            missing_sensor_read_timing_frames=missing_read_timing,
+            latency_basis="legacy_lower_bound"
+            if missing_read_timing
+            else "serial_sim_schedule_plus_measured_read_detector_filter",
+            legacy_optimistic_speed_cap_mps=cap if missing_read_timing else None,
+            proposed_cruise_supported=(None if missing_read_timing else speed <= cap),
+        ),
         assumptions={
             k: document[k]
             for k in ("braking_deceleration_mps2", "additional_response_s", "stopping_margin_m")

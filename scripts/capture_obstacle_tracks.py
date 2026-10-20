@@ -33,6 +33,7 @@ from perception.recorded_detector import verify_local_asset
 
 SCENARIOS = ("approach", "short_occlusion", "continuity_risk")
 SENSOR_LAG_TICKS = 4
+SENSOR_READ_TIMEOUT_S = 5.0
 
 
 def sha256(path):
@@ -146,6 +147,7 @@ def serialise_frame(
     rgb_file,
     filter_wall_s,
     sensor_delay_s,
+    sensor_read_wall_s=None,
 ):
     if valid and timing is None:
         raise ValueError("Valid inference requires actual detector timing")
@@ -157,6 +159,7 @@ def serialise_frame(
         total_wall_s=None if timing is None else timing.total_wall_s,
         filter_wall_s=filter_wall_s,
         sensor_delay_s=sensor_delay_s,
+        sensor_read_wall_s=sensor_read_wall_s,
         depth_npy=depth_file,
         rgb_npy=rgb_file,
         valid=valid,
@@ -188,12 +191,18 @@ def capture_observation(
     reason = None
     rgb = None
     axial = np.full((rig.height, rig.width), np.nan, np.float32)
+    read_started = time.perf_counter()
     try:
-        aligned = capture.read(metadata.frame_id, 5)
-        bundle = aligned.to_bundle(
-            calibration,
-            established_depth_convention=convention,
-        )
+        try:
+            aligned = capture.read(metadata.frame_id, SENSOR_READ_TIMEOUT_S)
+            bundle = aligned.to_bundle(
+                calibration,
+                established_depth_convention=convention,
+            )
+        finally:
+            # Includes failed join waits, stop callback and depth conversion;
+            # ends before inference, so replay cannot double-count detector time.
+            sensor_read_wall = time.perf_counter() - read_started
         axial, rgb = bundle.depth_m, bundle.rgb
         detections = detector.track(rgb)
         timing = detector.last_call_timing
@@ -229,7 +238,7 @@ def capture_observation(
     started = time.perf_counter()
     result = temporal.update(frame, batch)
     filter_wall = time.perf_counter() - started
-    return detections, timing, bundle, reason, rgb, axial, filter_wall, result
+    return detections, timing, bundle, reason, rgb, axial, filter_wall, result, sensor_read_wall
 
 
 def straight_site(map_):
@@ -321,7 +330,9 @@ def collect(args):
     policy = TrackPolicy()
     dt = baseline["runtime"]["fixed_delta_seconds"]
     document = dict(
-        schema_version=2,
+        schema_version=3,
+        timing_contract="serial_sensor_read_detector_filter_v1",
+        sensor_read_timeout_s=SENSOR_READ_TIMEOUT_S,
         origin="recorded",
         capture_status="INCOMPLETE",
         scope="Parked ego, kinematic target approach; real RGB-D and YOLO tracking; not closed-loop driving acceptance",
@@ -527,17 +538,25 @@ def collect(args):
                             "front-rgbd",
                             document["settings"]["model_version"],
                         )
-                        detections, timing, bundle, reason, rgb, axial, filter_wall, _ = (
-                            capture_observation(
-                                capture,
-                                detector,
-                                temporal,
-                                metadata,
-                                snap["ego_pose"],
-                                calibration,
-                                rig,
-                                depth_evidence["convention"],
-                            )
+                        (
+                            detections,
+                            timing,
+                            bundle,
+                            reason,
+                            rgb,
+                            axial,
+                            filter_wall,
+                            _,
+                            sensor_read_wall,
+                        ) = capture_observation(
+                            capture,
+                            detector,
+                            temporal,
+                            metadata,
+                            snap["ego_pose"],
+                            calibration,
+                            rig,
+                            depth_evidence["convention"],
                         )
                         depth_file = f"{scenario}/{snap['frame_id']}-depth.npy"
                         rgb_file = (
@@ -561,6 +580,7 @@ def collect(args):
                             rgb_file=rgb_file,
                             filter_wall_s=filter_wall,
                             sensor_delay_s=now - snap["sim_time_s"],
+                            sensor_read_wall_s=sensor_read_wall,
                         )
                         row["evaluation"] = dict(
                             target_box=snap["reference"], scripted_occlusion=snap["hidden"]

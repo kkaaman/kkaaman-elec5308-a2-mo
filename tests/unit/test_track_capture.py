@@ -159,6 +159,16 @@ def test_live_sensor_failures_match_serialised_replay_at_each_frame(tmp_path, mo
     temporal = TrackDepthFilter(source_id="rgb", model_version="v")
     temporal.reset(episode_id="e")
     detector = SimpleNamespace(track=lambda rgb: (detection(1),), last_call_timing=CallTiming(0.01))
+    from scripts import capture_obstacle_tracks as capture_module
+
+    clock = SimpleNamespace(now=0.0)
+    monkeypatch.setattr(capture_module, "time", SimpleNamespace(perf_counter=lambda: clock.now))
+
+    class WaitedStream(SensorStream):
+        def read(self, frame_id, timeout_s):
+            clock.now += {2: 0.5, 3: 1.0, 4: 0.25}.get(frame_id, 0.0)
+            return super().read(frame_id, timeout_s)
+
     live, rows = [], []
     for frame_id, sim_time in enumerate((0.0, 0.1, 0.2, 0.3, 0.8)):
         frame = FrameBundle(
@@ -173,8 +183,8 @@ def test_live_sensor_failures_match_serialised_replay_at_each_frame(tmp_path, mo
             frame_id,
         )
         metadata = ObservationMetadata("e", frame_id, sim_time, "rgb", "v")
-        ds, timing, bundle, reason, rgb, depth, wall, result = capture_observation(
-            SensorStream(frame), detector, temporal, metadata, pose, calibration, rig, "axial"
+        ds, timing, bundle, reason, rgb, depth, wall, result, read_wall = capture_observation(
+            WaitedStream(frame), detector, temporal, metadata, pose, calibration, rig, "axial"
         )
         live.append(result)
         np.save(tmp_path / f"{frame_id}.npy", depth)
@@ -192,11 +202,13 @@ def test_live_sensor_failures_match_serialised_replay_at_each_frame(tmp_path, mo
                 rgb_file=None,
                 filter_wall_s=wall,
                 sensor_delay_s=0,
+                sensor_read_wall_s=read_wall,
             )
         )
         if frame_id >= 2:
             assert bundle is None and rgb is None and np.isnan(depth).all()
             assert timing is None and "TimeoutError" in reason
+            assert read_wall == {2: 0.5, 3: 1.0, 4: 0.25}[frame_id]
             assert not result.usable_for_clearance
             assert all(not t.current and not t.depth_valid for t in result.tracks)
     assert live[1].tracks[0].confirmed
@@ -280,3 +292,55 @@ def test_invalid_failure_requires_matching_metadata(field, value):
     # Rejection must not consume the correctly associated source observation.
     result = temporal.update(frame, replace(invalid, metadata=metadata))
     assert not result.usable_for_clearance and not result.tracks
+
+
+@pytest.mark.parametrize("failure", [False, True])
+def test_measured_read_duration_excludes_detector_and_filter(monkeypatch, failure):
+    from scripts import capture_obstacle_tracks as capture_module
+
+    clock = SimpleNamespace(now=10.0)
+    monkeypatch.setattr(capture_module, "time", SimpleNamespace(perf_counter=lambda: clock.now))
+    pose = EgoPose(VehicleState(0, 0, 0, 0))
+    calibration = CameraIntrinsics(40, 40, 20, 20, 20, 20).calibration(np.eye(4))
+    frame = FrameBundle(
+        "e",
+        1,
+        0.1,
+        0,
+        pose,
+        np.zeros((40, 40, 3), np.uint8),
+        calibration,
+        np.full((40, 40), 10.0),
+        1,
+    )
+
+    class Reader:
+        def read(self, frame_id, timeout_s):
+            assert frame_id == 1 and timeout_s == 5.0
+            clock.now += 0.75
+            if failure:
+                raise TimeoutError("missing frame")
+            return SimpleNamespace(to_bundle=lambda *a, **kw: frame)
+
+    class Detector:
+        last_call_timing = CallTiming(0.5)
+
+        def track(self, rgb):
+            clock.now += 0.5
+            return (detection(1),)
+
+    temporal = TrackDepthFilter(source_id="rgb", model_version="v")
+    temporal.reset(episode_id="e")
+    result = capture_observation(
+        Reader(),
+        Detector(),
+        temporal,
+        ObservationMetadata("e", 1, 0.1, "rgb", "v"),
+        pose,
+        calibration,
+        CameraRig(width=40, height=40),
+        "axial",
+    )
+    assert result[-1] == 0.75
+    assert not result[-2].usable_for_clearance
+    assert clock.now == (10.75 if failure else 11.25)

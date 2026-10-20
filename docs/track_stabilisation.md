@@ -94,7 +94,8 @@ source_id, start_sim_time_s, calibration (CameraCalibration fields), and frames.
 Each frame contains frame_id, sim_time_s, total_wall_s, depth_npy, detections,
 target_gap_m, target_detection_indices, and optional valid/invalid_reason.
 Detections contain class_name, confidence, original-image xyxy and nullable track_id.
-Live captures additionally retain rgb_npy, filter_wall_s, sensor_delay_s, artifact
+Live captures additionally retain rgb_npy, filter_wall_s, sensor_delay_s,
+sensor_read_wall_s (required for schema 3), artifact
 hashes and evaluation-only target-box/occlusion information. A sensor failure has
 null detector timing and NaN placeholder depth explicitly marked invalid; no
 successful inference timing or depth observation is fabricated.
@@ -110,7 +111,7 @@ from independent actor bounding vertices. One evaluation target is used per sequ
 The report pairs first raw and first confirmed-with-valid-depth detection on the
 same frames, with evaluation gap and latency from sequence start. Serial availability
 is computed as max(capture time + sensor delay, previous result availability) plus
-actual detector and filter wall durations. Slow earlier calls therefore remain in
+actual sensor-read/conversion, detector and filter wall durations. Slow earlier calls therefore remain in
 the backlog. Missing events remain null. Invalid observations advance filtering as
 misses and never create target events. Recorded depth hashes are verified on replay.
 
@@ -122,7 +123,7 @@ This is first-confirmation screening, not ongoing real-time or closed-loop safet
 certification. A synchronous scripted capture does not reproduce live traffic
 advancing while a slow model call blocks.
 
-## Measured run — 20 October 2026
+## Historical measured run — 20 October 2026 (timing screen superseded)
 
 [Benchmark JSON](evidence/BL-C-04-06/benchmark.json) and
 [capture/identity/provenance summary](evidence/BL-C-04-06/capture-summary.json).
@@ -142,10 +143,11 @@ one ID change. Detector: local yolo26n, confidence 0.25, inference size 640,
 BoT-SORT, CUDA:0. The report records the full model SHA, resolved tracker settings
 and installed package versions. Cold first-call time is included, not discarded.
 
-Worst first-confirmation screening cap: **4.9 m/s**. Recommendation: **retain the
-proposed 4.0 m/s** for this screening result; no increase is recommended and no
-acceptance threshold is changed. Closed-loop HOLD/resume and stopping evidence
-remain separate obligations.
+The original first-confirmation screening cap was **4.9 m/s**, with a recommendation
+then to retain **4.0 m/s**. That screening conclusion is **superseded by the
+incomplete-timing audit below**: read waits were not instrumented, so the original
+report is retained as historical evidence, not a current measured speed approval.
+Closed-loop HOLD/resume and stopping evidence remain separate obligations.
 
 Depth convention provenance:
 [BL-B-04 source evidence](evidence/BL-C-04-06/depth-calibration.json).
@@ -198,3 +200,102 @@ PR #93 review validation: **52 focused tests passed**, including RGB-D joiner
 contracts; **705 full-suite tests passed, 1 skipped, 3 subtests passed**.
 Ruff, Sphinx `-W` and `git diff --check` passed.
 [Sensor-failure regression JUnit evidence](evidence/BL-C-04-06/sensor-failure-tests.xml).
+
+
+## Sensor-read wall timing correction (PR #93 follow-up)
+
+**Current screening: BLOCKED_INCOMPLETE_TIMING.**
+[Versioned timing review](evidence/BL-C-04-06/sensor-wait-timing-review.json)
+retains the original report, audited replay and deterministic regression result.
+The original benchmark JSON is unchanged so the historical result remains visible.
+
+The live helper calls the existing join/read path with a **5.0 s** timeout.
+FrameJoiner waits on its condition until the monotonic deadline; failures call
+emergency stop and raise. Early retired-frame/alignment failures can return much
+sooner. The configured timeout is not an observed duration and does not bound
+all conversion/stop-callback overhead. No fixed five-second penalty is fabricated.
+
+Schema **3** records `sensor_read_wall_s` on **every** attempted frame, including
+successful reads and failures. A host `perf_counter()` interval spans read plus
+axial-depth conversion, including exception/stop handling, and ends before the
+tracking call. `total_wall_s` remains actual detector duration (null when no call
+occurred); `filter_wall_s` remains separate. `sensor_delay_s` is the existing
+simulator scheduling lag, not a host-wall timeout measurement. Episode/frame/time,
+source/model context, invalid reason and failed NaN depth artifacts remain retained.
+Invalid batches still advance the temporal filter and can never establish clearance.
+
+Replay advances serial availability by:
+
+`ready = max(source_elapsed + sensor_delay_s, previous_ready)`
+`        + sensor_read_wall_s + detector_wall_s + filter_wall_s`
+
+The read interval is charged exactly once, including on invalid frames. The first
+confirmed event reports `ready` relative to sequence start. Its response duration
+is `ready - source_elapsed` for that confirmed frame. The speed formula uses that
+response plus the separately measured BL-E-03 vehicle lag once; it does not add
+sequence-start latency again. Range remains the evaluation gap at the source
+frame. This is serial first-confirmation screening, not a full live controller or
+physical stopping certificate.
+
+Legacy files remain replayable for temporal diagnostics. Missing read timing is
+counted explicitly; diagnostic latencies are labelled **legacy lower bounds**,
+`measured_speed_cap_mps` is null, cruise support is unknown, and the screening
+recommendation is HOLD (0 m/s) until measured timing is available. That output
+does not change the proposed 4.0 m/s baseline or acceptance thresholds. Schema 3
+rejects missing timing, and all schemas reject negative/nonfinite/bool durations.
+
+### Historical evidence audit and recapture status
+
+The retained 600-frame capture contains **zero invalid frames**, but **all 600
+lack measured read duration**. Consequently there is no measured timeout penalty
+to reconstruct, and successful read/conversion durations are also unknown.
+The old numeric events remain lower-bound diagnostics, not corrected measurements:
+
+| Sequence | Historical first-confirmation latency | Corrected measured latency |
+|---|---:|---|
+| Approach | 6.202 s | Unavailable; recapture required |
+| Short occlusion | 2.734 s | Unavailable; recapture required |
+| Continuity risk | 1.412 s | Unavailable; recapture required |
+
+Old screening cap: **4.9 m/s**. Corrected measured cap: **unavailable**, screening
+**BLOCKED**. Retaining 4.0 m/s is **not established by corrected timing evidence**;
+this audit does not claim that a new live measurement has proved it unsupported.
+The earlier 4.9 result is retained only as an optimistic cap calculated from
+lower-bound latency; it is not a conservative speed bound.
+
+Fresh live capture is required and was **not performed**: a WSL TCP check of
+`172.28.176.1:2000` timed out. No synthetic result is substituted for CARLA evidence.
+With the server available, run from this branch with the existing local model:
+
+```bash
+PYTHONPATH=src .venv/bin/python scripts/capture_obstacle_tracks.py \
+  --host 172.28.176.1 \
+  --depth-evidence docs/evidence/BL-C-04-06/depth-calibration.json \
+  --braking-evidence docs/evidence/BL-C-04-06/longitudinal.json \
+  --output runs/track-depth-capture-timed-v3
+PYTHONPATH=src .venv/bin/python scripts/benchmark_obstacle_tracks.py \
+  --input runs/track-depth-capture-timed-v3/sequences.json \
+  --output runs/track-depth-capture-timed-v3/benchmark.json
+```
+
+Capture verifies CARLA 0.9.16 / Town10HD_Opt and unchanged rig/convention provenance;
+it records model/hash, 640 inference size, confidence 0.25, resolved BoT-SORT,
+device/dependencies and unchanged 2-of-3 track policy. Preserve the new run alongside
+the old run, and version its benchmark/provenance before restoring a speed claim.
+
+### Deterministic regression evidence
+
+Two consecutive failed reads wait **0.5 s** and **1.0 s**. The serial availability
+at each frame is **0.125, 0.750, 1.750, 1.875, 2.000 s**. The final confirmation
+therefore occurs at exactly **2.000 s**, versus the old omitted-wait **1.125 s**.
+Its source-relative response is **1.000 s**, and the fixture's corrected speed cap
+is **3.0 m/s** (synthetic parameters only). Tests independently apply the speed
+formula to this corrected response. The live helper's fake monotonic clock also
+proves measured failure waits survive serialization and per-frame temporal replay;
+read timing excludes detector/filter work, and invalid frames never clear HOLD.
+
+
+Timing-follow-up validation: **60 focused tests passed** (including RGB-D joins),
+**713 full-suite tests passed, 1 skipped, 3 subtests passed**. Ruff, Sphinx `-W`
+and `git diff --check` passed.
+[Timing regression JUnit](evidence/BL-C-04-06/sensor-wait-tests.xml).
