@@ -16,7 +16,7 @@ from pathlib import Path
 
 import numpy as np
 
-from autonomy.interfaces import EgoPose
+from autonomy.interfaces import EgoPose, FrameBundle
 from carla_adapter.sensors import CameraRig, RGBDCapture
 from carla_adapter.vehicle import FixedVehicleAdapter
 from carla_adapter.world import SynchronousWorldSession, WorldTiming, _settings_record
@@ -178,6 +178,58 @@ def serialise_frame(
             for d in detections
         ],
     )
+
+
+def capture_observation(
+    capture, detector, temporal, metadata, ego_pose, calibration, rig, convention
+):
+    """Advance every attempted source frame, including failed RGB-D reads."""
+    detections, timing, bundle = (), None, None
+    reason = None
+    rgb = None
+    axial = np.full((rig.height, rig.width), np.nan, np.float32)
+    try:
+        aligned = capture.read(metadata.frame_id, 5)
+        bundle = aligned.to_bundle(
+            calibration,
+            established_depth_convention=convention,
+        )
+        axial, rgb = bundle.depth_m, bundle.rgb
+        detections = detector.track(rgb)
+        timing = detector.last_call_timing
+    except Exception as exc:
+        reason = f"{type(exc).__name__}: {exc}"
+        if bundle is not None:
+            timing = detector.last_call_timing
+        detections = ()
+    frame = bundle
+    if frame is None:
+        # Shape-only carrier for an invalid batch; never detector input or valid depth.
+        frame = FrameBundle(
+            metadata.episode_id,
+            metadata.frame_id,
+            metadata.sim_time_s,
+            0,
+            ego_pose,
+            np.zeros((rig.height, rig.width, 3), np.uint8),
+            calibration,
+        )
+    batch = DetectionBatch(
+        metadata,
+        tuple(
+            DetectionObservation(d.class_name, d.confidence, d.bounding_box, d.track_id)
+            for d in detections
+        ),
+        rig.width,
+        rig.height,
+        timing or CallTiming(0),
+        reason is None,
+        reason,
+    )
+    started = time.perf_counter()
+    result = temporal.update(frame, batch)
+    filter_wall = time.perf_counter() - started
+    return detections, timing, bundle, reason, rgb, axial, filter_wall, result
 
 
 def straight_site(map_):
@@ -460,29 +512,33 @@ def collect(args):
                                     gap=gap,
                                     reference=reference,
                                     hidden=hidden,
+                                    ego_pose=EgoPose(
+                                        adapter.state(), ego.get_transform().location.z
+                                    ),
                                 )
                             )
                         if index < SENSOR_LAG_TICKS:
                             continue
                         snap = pending[index - SENSOR_LAG_TICKS]
-                        detections, timing, bundle = (), None, None
-                        reason = None
-                        rgb = None
-                        axial = np.full((rig.height, rig.width), np.nan, np.float32)
-                        try:
-                            aligned = capture.read(snap["frame_id"], 5)
-                            bundle = aligned.to_bundle(
+                        metadata = ObservationMetadata(
+                            episode,
+                            snap["frame_id"],
+                            snap["sim_time_s"],
+                            "front-rgbd",
+                            document["settings"]["model_version"],
+                        )
+                        detections, timing, bundle, reason, rgb, axial, filter_wall, _ = (
+                            capture_observation(
+                                capture,
+                                detector,
+                                temporal,
+                                metadata,
+                                snap["ego_pose"],
                                 calibration,
-                                established_depth_convention=depth_evidence["convention"],
+                                rig,
+                                depth_evidence["convention"],
                             )
-                            axial, rgb = bundle.depth_m, bundle.rgb
-                            detections = detector.track(rgb)
-                            timing = detector.last_call_timing
-                        except Exception as exc:
-                            reason = f"{type(exc).__name__}: {exc}"
-                            if bundle is not None:
-                                timing = detector.last_call_timing
-                            detections = ()
+                        )
                         depth_file = f"{scenario}/{snap['frame_id']}-depth.npy"
                         rgb_file = (
                             f"{scenario}/{snap['frame_id']}-rgb.npy" if rgb is not None else None
@@ -490,32 +546,6 @@ def collect(args):
                         np.save(args.output / depth_file, axial, allow_pickle=False)
                         if rgb_file:
                             np.save(args.output / rgb_file, rgb, allow_pickle=False)
-                        filter_wall = None
-                        if bundle is not None:
-                            metadata = ObservationMetadata(
-                                episode,
-                                snap["frame_id"],
-                                snap["sim_time_s"],
-                                "front-rgbd",
-                                document["settings"]["model_version"],
-                            )
-                            batch = DetectionBatch(
-                                metadata,
-                                tuple(
-                                    DetectionObservation(
-                                        d.class_name, d.confidence, d.bounding_box, d.track_id
-                                    )
-                                    for d in detections
-                                ),
-                                rig.width,
-                                rig.height,
-                                timing or CallTiming(0),
-                                reason is None,
-                                reason,
-                            )
-                            started = time.perf_counter()
-                            temporal.update(bundle, batch)
-                            filter_wall = time.perf_counter() - started
                         # Evaluation starts only after detector and filter calls have completed.
                         labels = target_indices(detections, axial, calibration, snap["reference"])
                         row = serialise_frame(

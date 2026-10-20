@@ -1,16 +1,20 @@
 """Capture schema, evidence compatibility and evaluation-only target association."""
 
 import json
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from types import SimpleNamespace
 
 import numpy as np
 import pytest
 
+from autonomy.interfaces import EgoPose, FrameBundle, VehicleState
 from carla_adapter.sensors import CameraRig
 from geometry.camera import CameraIntrinsics
-from obstacle_perception.types import CallTiming, PixelBox
+from obstacle_perception.tracking import TrackDepthFilter
+from obstacle_perception.types import CallTiming, DetectionBatch, ObservationMetadata, PixelBox
+from scripts import benchmark_obstacle_tracks as replay
 from scripts.capture_obstacle_tracks import (
+    capture_observation,
     projected_target,
     read_evidence,
     serialise_frame,
@@ -135,3 +139,144 @@ def test_projected_bbox_uses_carla_forward_axis_and_image_clipping():
     assert result["xyxy"] == [18, 18, 22, 22]
     assert result["axial_min_m"] == 10
     assert projected_target([[-1, 0, 0]], np.eye(4), intrinsics) is None
+
+
+class SensorStream:
+    def __init__(self, frame):
+        self.frame = frame
+
+    def read(self, frame_id, timeout_s):
+        assert frame_id == self.frame.frame_id
+        if frame_id >= 2:
+            raise TimeoutError("RGB-D source frame unavailable")
+        return SimpleNamespace(to_bundle=lambda *args, **kwargs: self.frame)
+
+
+def test_live_sensor_failures_match_serialised_replay_at_each_frame(tmp_path, monkeypatch):
+    calibration = CameraIntrinsics(40, 40, 20, 20, 20, 20).calibration(np.eye(4))
+    pose = EgoPose(VehicleState(0, 0, 0, 0))
+    rig = CameraRig(width=40, height=40)
+    temporal = TrackDepthFilter(source_id="rgb", model_version="v")
+    temporal.reset(episode_id="e")
+    detector = SimpleNamespace(track=lambda rgb: (detection(1),), last_call_timing=CallTiming(0.01))
+    live, rows = [], []
+    for frame_id, sim_time in enumerate((0.0, 0.1, 0.2, 0.3, 0.8)):
+        frame = FrameBundle(
+            "e",
+            frame_id,
+            sim_time,
+            0,
+            pose,
+            np.zeros((40, 40, 3), np.uint8),
+            calibration,
+            np.full((40, 40), 10.0),
+            frame_id,
+        )
+        metadata = ObservationMetadata("e", frame_id, sim_time, "rgb", "v")
+        ds, timing, bundle, reason, rgb, depth, wall, result = capture_observation(
+            SensorStream(frame), detector, temporal, metadata, pose, calibration, rig, "axial"
+        )
+        live.append(result)
+        np.save(tmp_path / f"{frame_id}.npy", depth)
+        rows.append(
+            serialise_frame(
+                frame_id,
+                sim_time,
+                ds,
+                timing,
+                valid=reason is None,
+                reason=reason,
+                gap=20,
+                labels=[0] if ds else [],
+                depth_file=f"{frame_id}.npy",
+                rgb_file=None,
+                filter_wall_s=wall,
+                sensor_delay_s=0,
+            )
+        )
+        if frame_id >= 2:
+            assert bundle is None and rgb is None and np.isnan(depth).all()
+            assert timing is None and "TimeoutError" in reason
+            assert not result.usable_for_clearance
+            assert all(not t.current and not t.depth_valid for t in result.tracks)
+    assert live[1].tracks[0].confirmed
+    assert live[2].tracks[0].confirmed and not live[2].tracks[0].current
+    assert not live[3].tracks[0].confirmed
+    assert not live[4].tracks and len(live[4].expired) == 1
+    doc = dict(
+        origin="synthetic",
+        settings=dict(
+            confidence=0.25,
+            image_size=640,
+            tracker="botsort",
+            tracker_settings={},
+            model_version="v",
+            model_sha256="fixture",
+            device="cpu",
+            versions={},
+        ),
+        track_policy={},
+        proposed_cruise_mps=4,
+        braking_deceleration_mps2=1.5,
+        additional_response_s=0.35,
+        stopping_margin_m=6,
+        sequences=[
+            dict(
+                name="approach",
+                episode_id="e",
+                source_id="rgb",
+                calibration=asdict(calibration),
+                start_sim_time_s=0,
+                frames=rows,
+            )
+        ],
+    )
+    path = tmp_path / "sequences.json"
+    path.write_text(json.dumps(doc, allow_nan=False))
+    replayed = []
+
+    class RecordingFilter(TrackDepthFilter):
+        def update(self, frame, batch):
+            result = super().update(frame, batch)
+            replayed.append(result)
+            return result
+
+    monkeypatch.setattr(replay, "TrackDepthFilter", RecordingFilter)
+    replay.benchmark(json.loads(path.read_text()), tmp_path)
+    assert len(replayed) == len(live)
+    for recorded, actual in zip(live, replayed):
+        assert actual == recorded
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("episode_id", "other"),
+        ("source_id", "other"),
+        ("model_version", "other"),
+        ("frame_id", 7),
+        ("sim_time_s", 0.7),
+    ],
+)
+def test_invalid_failure_requires_matching_metadata(field, value):
+    calibration = CameraIntrinsics(40, 40, 20, 20, 20, 20).calibration(np.eye(4))
+    frame = FrameBundle(
+        "e",
+        2,
+        0.2,
+        0,
+        EgoPose(VehicleState(0, 0, 0, 0)),
+        np.zeros((40, 40, 3), np.uint8),
+        calibration,
+    )
+    metadata = ObservationMetadata("e", 2, 0.2, "rgb", "v")
+    temporal = TrackDepthFilter(source_id="rgb", model_version="v")
+    temporal.reset(episode_id="e")
+    invalid = DetectionBatch(
+        replace(metadata, **{field: value}), (), 40, 40, CallTiming(0), False, "sensor_timeout"
+    )
+    with pytest.raises(ValueError):
+        temporal.update(frame, invalid)
+    # Rejection must not consume the correctly associated source observation.
+    result = temporal.update(frame, replace(invalid, metadata=metadata))
+    assert not result.usable_for_clearance and not result.tracks

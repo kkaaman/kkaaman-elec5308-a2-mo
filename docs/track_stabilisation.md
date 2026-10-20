@@ -175,3 +175,26 @@ Final local validation on 20 October 2026: **46 focused tests passed**;
 **699 full-suite tests passed, 1 skipped, 3 subtests passed**. Repository Ruff,
 Sphinx with -W and git diff --check passed. Test XML includes the focused capture,
 track/depth and benchmark cases.
+
+
+## Sensor-read failure semantics (PR #93 review)
+
+Every attempted sampled source frame advances the temporal filter, including
+RGB-D read/conversion failures. An invalid empty detection batch carries the
+attempted episode, frame, simulation time, source and model, with the explicit
+exception reason. A shape-only RGB carrier retains the captured ego pose and
+calibration but has no depth; it is never passed to inference. The retained
+evidence row has no detections, labels, RGB image or invented detector timing;
+its depth artifact is all NaN. Replay advances the same invalid batch as a miss.
+Neither loss of confirmation nor expiry authorises clearance or resume.
+
+The live-helper/replay regression compares every TrackBatch through two
+consecutive read failures and subsequent expiry after a confirmed object.
+Additional tests reject mismatched episode/frame/time/source/model metadata
+and verify invalid frames cannot authorise clearance. The measured 600-frame
+run above contained no invalid observations, so its results are unchanged.
+
+PR #93 review validation: **52 focused tests passed**, including RGB-D joiner
+contracts; **705 full-suite tests passed, 1 skipped, 3 subtests passed**.
+Ruff, Sphinx `-W` and `git diff --check` passed.
+[Sensor-failure regression JUnit evidence](evidence/BL-C-04-06/sensor-failure-tests.xml).
