@@ -48,6 +48,7 @@ demonstration for the autonomous perception and navigation library.
    vehicle_adapter
    world_lifecycle
    detector_lifecycle
+   track_stabilisation
    test01_a1_baseline
    evidence/TEST-01-baseline
    evidence/TEST-03/README
