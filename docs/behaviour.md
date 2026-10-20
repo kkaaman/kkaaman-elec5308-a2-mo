@@ -4,6 +4,25 @@ This document defines the conservative obstacle-clearance rules introduced by
 BL-D-05. It does not define the complete stop/hold/resume state machine; that
 belongs to BL-D-08.
 
+## Route-corridor boundaries
+
+`planning.corridor.RouteGeometry` intersects obstacle footprints with swept
+route segments and round joins at interior vertices. The joins include the
+outside of left and right turns, including footprints whose edges intersect a
+join even when all their corners lie outside it. A join contributes its vertex's
+arc coordinate and obeys the requested arc interval.
+
+The route goal is a rear-axle position. `gap()` therefore extends the final
+segment along its tangent by `front_bumper_from_rear_axle_m` to cover the nose
+at the goal. It then subtracts that offset exactly once to obtain the bumper
+gap. An obstacle beyond the last waypoint can consequently have a negative gap
+when it overlaps the nose.
+
+Direct `footprint_interval()` calls keep the original route-length boundary by
+default. Callers may request a finite nonnegative `end_extension_m`; returned arc
+coordinates can then exceed `length_m`. An explicit `maximum_s` still clips the
+extension.
+
 ## Clearance semantics
 
 A route that has previously been blocked remains blocked until fresh perception

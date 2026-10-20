@@ -27,11 +27,30 @@ def _clip(poly, axis, bound, sign):
     return result
 
 
+def _intersects_disk(corners, center, radius):
+    """Include edge tangencies and polygons enclosing a round corridor join."""
+    relative = corners - center
+    inside = False
+    for a, b in zip(relative, np.roll(relative, -1, axis=0)):
+        edge = b - a
+        length_squared = float(edge @ edge)
+        fraction = float(np.clip(-(a @ edge) / length_squared, 0, 1)) if length_squared else 0
+        nearest = a + fraction * edge
+        if float(nearest @ nearest) <= radius**2 + 1e-9:
+            return True
+        if (a[1] > 0) != (b[1] > 0):
+            crossing_x = a[0] - a[1] * edge[0] / edge[1]
+            if crossing_x > 0:
+                inside = not inside
+    return inside
+
+
 class RouteGeometry:
     """Copied open polyline. Positive lateral distance is left of travel.
 
     Obstacles are intersected with each swept segment, rather than projecting
-    their centres onto a single infinite tangent. That matters after a bend.
+    their centres onto a single infinite tangent. Round joins cover the lateral
+    sweep between adjacent segment headings, including the outside of a bend.
     """
 
     def __init__(self, points_xy_m):
@@ -97,17 +116,31 @@ class RouteGeometry:
                 )
         return tuple(result)
 
-    def footprint_interval(self, corners_xy_m, *, half_width_m, minimum_s=0.0, maximum_s=None):
-        """Arc interval overlapping the corridor, or None. No bumper offset here."""
+    def footprint_interval(
+        self, corners_xy_m, *, half_width_m, minimum_s=0.0, maximum_s=None, end_extension_m=0.0
+    ):
+        """Arc interval overlapping the corridor, or None.
+
+        Interior round joins are associated with their vertex's arc coordinate.
+        An optional extension follows the final tangent beyond the route goal;
+        coordinates in that extension may exceed length_m. No bumper subtraction
+        happens here, and an explicit maximum_s still bounds the whole query.
+        """
         corners = np.asarray(corners_xy_m, dtype=float)
         if corners.shape != (4, 2) or not np.isfinite(corners).all():
             raise ValueError("Footprint requires four ordered finite XY corners")
         if not math.isfinite(half_width_m) or half_width_m <= 0:
             raise ValueError("Corridor half-width must be positive")
-        maximum_s = self.length_m if maximum_s is None else maximum_s
+        if not math.isfinite(end_extension_m) or end_extension_m < 0:
+            raise ValueError("End extension must be finite and nonnegative")
+        maximum_s = self.length_m + end_extension_m if maximum_s is None else maximum_s
+        if not math.isfinite(minimum_s) or not math.isfinite(maximum_s):
+            raise ValueError("Corridor interval must be finite")
         intervals = []
         for i, length in enumerate(self.lengths):
-            lo, hi = max(0.0, minimum_s - self.arc[i]), min(length, maximum_s - self.arc[i])
+            segment_end = length + (end_extension_m if i == len(self.lengths) - 1 else 0.0)
+            lo = max(0.0, minimum_s - self.arc[i])
+            hi = min(segment_end, maximum_s - self.arc[i])
             if lo > hi:
                 continue
             relative = corners - self.points[i]
@@ -132,14 +165,24 @@ class RouteGeometry:
                         float(self.arc[i] + max(p[0] for p in poly)),
                     )
                 )
+        for center, s in zip(self.points[1:-1], self.arc[1:-1]):
+            if minimum_s <= s <= maximum_s and _intersects_disk(corners, center, half_width_m):
+                intervals.append((float(s), float(s)))
         return (
             None if not intervals else (min(p[0] for p in intervals), max(p[1] for p in intervals))
         )
 
     def gap(self, footprint, ego_s_m, front_bumper_from_rear_axle_m, half_width_m):
-        """Front-bumper gap; the rear-axle offset is applied exactly once."""
+        """Front-bumper gap, including nose coverage beyond the rear-axle goal.
+
+        Extend collision coverage by the front offset, then subtract that offset
+        exactly once when converting the obstacle coordinate to a bumper gap.
+        """
         interval = self.footprint_interval(
-            footprint.corners_world_m, half_width_m=half_width_m, minimum_s=max(0.0, ego_s_m - 2.0)
+            footprint.corners_world_m,
+            half_width_m=half_width_m,
+            minimum_s=max(0.0, ego_s_m - 2.0),
+            end_extension_m=front_bumper_from_rear_axle_m,
         )
         if interval is None or interval[1] < ego_s_m:
             return None
