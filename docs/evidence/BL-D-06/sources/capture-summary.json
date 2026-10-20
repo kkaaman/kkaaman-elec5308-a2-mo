@@ -1,0 +1,206 @@
+{
+  "capture_status": "COMPLETE",
+  "settings_restored": true,
+  "no_actor_leaks": true,
+  "scope": "Parked ego, kinematic target approach; real RGB-D and YOLO tracking; not closed-loop driving acceptance",
+  "environment": {
+    "server": "0.9.16",
+    "client": "0.9.16",
+    "map": "Carla/Maps/Town10HD_Opt",
+    "opendrive_sha256": "5d883b799f634030af92be1e9d79d107845540ba04338e8c60e095be1aef7be7",
+    "rig": {
+      "width": 640,
+      "height": 360,
+      "fov_deg": 90,
+      "x_actor_m": 1.5,
+      "z_actor_m": 2.0
+    },
+    "site": 10,
+    "fixed_delta_seconds": 0.05,
+    "depth_convention": "axial",
+    "weather": "WeatherParameters(cloudiness=20.000000, precipitation=0.000000, precipitation_deposits=0.000000, wind_intensity=10.000000, sun_azimuth_angle=300.000000, sun_altitude_angle=45.000000, fog_density=2.000000, fog_distance=0.750000, fog_falloff=0.100000, wetness=0.000000, scattering_intensity=1.000000, mie_scattering_scale=0.030000, rayleigh_scattering_scale=0.033100, dust_storm=0.000000)"
+  },
+  "provenance": {
+    "depth": {
+      "path": "/home/alan/26-S2-Assignment2-Group7/runs/BL-B-04/depth-calibration/depth_calibration.json",
+      "sha256": "89d64df2475790eea16a0fc2b862a9fcbafdf125c9f3fd5ef3f74453afc9cf5f"
+    },
+    "braking": {
+      "path": "/home/alan/26-S2-Assignment2-Group7/runs/BL-E-03/longitudinal/longitudinal.json",
+      "sha256": "f718d60b26416675e563bb92099d01aebd95c4aa7011e141414cb82ec2f3ee73"
+    },
+    "baseline": {
+      "path": "/home/alan/26-S2-Assignment2-Group7/configs/mission_baseline.json",
+      "sha256": "06f6fa7ce24d399f4ec731b77230836881ac05832f5a1858d724032d12cfdbd1"
+    },
+    "acceptance": {
+      "path": "/home/alan/26-S2-Assignment2-Group7/configs/acceptance.json",
+      "sha256": "9f8ba3cf712dedd6d0483eb228a6df8155e9f2e65880bd6a560ec07495c6c7d8"
+    },
+    "models_manifest": {
+      "path": "/home/alan/26-S2-Assignment2-Group7/configs/models.yaml",
+      "sha256": "a8e1a7956ed5646593167694264235dcd106c4d4eb4cb0cf97f4527191117533"
+    },
+    "tracker": {
+      "path": "/home/alan/26-S2-Assignment2-Group7/.venv/lib/python3.12/site-packages/ultralytics/cfg/trackers/botsort.yaml",
+      "sha256": "8cd88930d3be5557be0777f384eecff0a36a7011850fe613fc0a68178bfd5b01"
+    }
+  },
+  "scenario_settings": {
+    "frames": 200,
+    "start_distance_m": 50.0,
+    "relative_speed_mps": 4.0,
+    "short_occlusion_indices": [
+      60,
+      63
+    ],
+    "continuity_occlusion_indices": [
+      80,
+      100
+    ],
+    "lateral_amplitude_m": 0.8
+  },
+  "label_policy": {
+    "iou_min": 0.3,
+    "depth_tolerance_m": 0.5,
+    "ambiguous_matches": "unlabelled",
+    "ground_truth_use": "evaluation_only"
+  },
+  "owned_actor_ids": [
+    30,
+    31,
+    32,
+    33,
+    34,
+    35,
+    36,
+    37,
+    38,
+    39,
+    40,
+    41,
+    42,
+    43
+  ],
+  "cleanup_retries": [
+    {
+      "actor_id": 30,
+      "error": "unable to destroy actor: not found"
+    },
+    {
+      "actor_id": 31,
+      "error": "unable to destroy actor: not found"
+    },
+    {
+      "actor_id": 32,
+      "error": "unable to destroy actor: not found"
+    },
+    {
+      "actor_id": 33,
+      "error": "unable to destroy actor: not found"
+    },
+    {
+      "actor_id": 34,
+      "error": "unable to destroy actor: not found"
+    },
+    {
+      "actor_id": 35,
+      "error": "unable to destroy actor: not found"
+    },
+    {
+      "actor_id": 36,
+      "error": "unable to destroy actor: not found"
+    },
+    {
+      "actor_id": 37,
+      "error": "unable to destroy actor: not found"
+    },
+    {
+      "actor_id": 38,
+      "error": "unable to destroy actor: not found"
+    },
+    {
+      "actor_id": 39,
+      "error": "unable to destroy actor: not found"
+    },
+    {
+      "actor_id": 40,
+      "error": "unable to destroy actor: not found"
+    },
+    {
+      "actor_id": 41,
+      "error": "unable to destroy actor: not found"
+    },
+    {
+      "actor_id": 42,
+      "error": "unable to destroy actor: not found"
+    },
+    {
+      "actor_id": 43,
+      "error": "unable to destroy actor: not found"
+    }
+  ],
+  "captured_script_sha256": {
+    "capture_obstacle_tracks.py": "2c2baa4df697793a33d6452dbac2de11f962e2857825038368fa70f19ecd5613",
+    "benchmark_obstacle_tracks.py": "c516d842496ae86f7ec441f04ee8de7f19884b3b4c493979064e0344a429650d"
+  },
+  "manifest_sha256": "08252a7e0090b2335f69ab38b7fd31cd46e1b5fedb74720b7430925cffbd7a81",
+  "raw_directory": "runs/track-depth-capture-v2",
+  "sequences": [
+    {
+      "name": "approach",
+      "frames": 200,
+      "invalid_observations": 0,
+      "evaluation_target_match_frames": 162,
+      "matched_target_track_ids": [
+        3
+      ],
+      "observed_id_changes": 0,
+      "scripted_occlusion_frames": 0,
+      "target_matches_during_occlusion": 0,
+      "callback_errors": [],
+      "queue_events": {
+        "overflow": 1,
+        "discarded": 635,
+        "joined": 200
+      }
+    },
+    {
+      "name": "short_occlusion",
+      "frames": 200,
+      "invalid_observations": 0,
+      "evaluation_target_match_frames": 143,
+      "matched_target_track_ids": [
+        14
+      ],
+      "observed_id_changes": 0,
+      "scripted_occlusion_frames": 3,
+      "target_matches_during_occlusion": 0,
+      "callback_errors": [],
+      "queue_events": {
+        "overflow": 1,
+        "discarded": 635,
+        "joined": 200
+      }
+    },
+    {
+      "name": "continuity_risk",
+      "frames": 200,
+      "invalid_observations": 0,
+      "evaluation_target_match_frames": 161,
+      "matched_target_track_ids": [
+        8,
+        31
+      ],
+      "observed_id_changes": 1,
+      "scripted_occlusion_frames": 20,
+      "target_matches_during_occlusion": 0,
+      "callback_errors": [],
+      "queue_events": {
+        "overflow": 1,
+        "discarded": 635,
+        "joined": 200
+      }
+    }
+  ]
+}

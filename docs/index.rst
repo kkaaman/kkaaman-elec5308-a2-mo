@@ -30,6 +30,8 @@ demonstration for the autonomous perception and navigation library.
    geometry
    lane-topology
    baseline_route
+   behaviour
+   baseline_threshold_freeze
 
 .. toctree::
    :maxdepth: 1
