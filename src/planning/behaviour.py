@@ -58,6 +58,11 @@ class ClearanceGuard:
 
         return self._clear_count
 
+    def invalidate(self) -> None:
+        """Discard partial clearance evidence without releasing a blocked latch."""
+        self._clear_count = 0
+        self._clear_since_s = None
+
     def update(
         self,
         *,

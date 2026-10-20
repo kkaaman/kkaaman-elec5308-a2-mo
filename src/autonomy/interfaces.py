@@ -3,6 +3,7 @@
 World and ego coordinates are right-handed: +X forward, +Y left, +Z up.
 Angles are radians; pose reference is the rear axle. See docs/interfaces.md.
 """
+
 from __future__ import annotations
 
 import math
@@ -34,6 +35,7 @@ def _frame(value: int) -> None:
 @dataclass(frozen=True)
 class EgoPose:
     """Rear-axle pose and speed in the shared world coordinate frame."""
+
     state: VehicleState
     z_m: float = 0.0
 
@@ -50,6 +52,7 @@ class CameraCalibration:
     camera_to_ego maps optical coordinates (+X right,+Y down,+Z forward)
     to ego coordinates in metres. It is a row-major rigid 4x4 transform.
     """
+
     fx_px: float
     fy_px: float
     cx_px: float
@@ -82,6 +85,7 @@ class FrameBundle:
     depth, not radial range. NaN represents invalid pixels; infinity, zero and
     negative values are rejected. None means no depth sensor was provided.
     """
+
     episode_id: str
     frame_id: int
     sim_time_s: float
@@ -91,6 +95,7 @@ class FrameBundle:
     calibration: CameraCalibration
     depth_m: np.ndarray | None = None
     depth_frame_id: int | None = None
+    capture_started_monotonic_s: float | None = None
 
     def __post_init__(self) -> None:
         _identifier("episode_id", self.episode_id)
@@ -99,6 +104,10 @@ class FrameBundle:
             _finite(name, getattr(self, name))
             if getattr(self, name) < 0:
                 raise ValueError(f"{name} must be nonnegative")
+        if self.capture_started_monotonic_s is not None:
+            _finite("capture_started_monotonic_s", self.capture_started_monotonic_s)
+            if not 0 <= self.capture_started_monotonic_s <= self.received_monotonic_s:
+                raise ValueError("Capture clock must precede receipt on the same host")
         if not isinstance(self.ego, EgoPose) or not isinstance(self.calibration, CameraCalibration):
             raise TypeError("ego and calibration must use contract types")
         if not isinstance(self.rgb, np.ndarray) or self.rgb.dtype != np.uint8:
@@ -116,7 +125,7 @@ class FrameBundle:
             raise ValueError("RGB and depth frame IDs must match")
         if not isinstance(self.depth_m, np.ndarray) or self.depth_m.shape != rgb.shape[:2]:
             raise ValueError("depth must align with RGB dimensions")
-        if self.depth_m.dtype not in (np.dtype('float32'), np.dtype('float64')):
+        if self.depth_m.dtype not in (np.dtype("float32"), np.dtype("float64")):
             raise ValueError("depth must be float32 or float64 metres")
         if np.isinf(self.depth_m).any() or (self.depth_m <= 0).any():
             raise ValueError("invalid depth pixels must be NaN")
@@ -165,6 +174,7 @@ class GraphEdge:
 @dataclass(frozen=True)
 class LaneGraph:
     """Directed legal transitions. Absence of an edge forbids that transition."""
+
     nodes: tuple[GraphNode, ...]
     edges: tuple[GraphEdge, ...]
 
@@ -183,7 +193,10 @@ class LaneGraph:
             if pair in pairs:
                 raise ValueError("duplicate directed edge")
             pairs.add(pair)
-            for key, point in ((edge.start_id, edge.points_xy_m[0]), (edge.end_id, edge.points_xy_m[-1])):
+            for key, point in (
+                (edge.start_id, edge.points_xy_m[0]),
+                (edge.end_id, edge.points_xy_m[-1]),
+            ):
                 node = nodes[key]
                 if math.hypot(node.x_m - point[0], node.y_m - point[1]) > 1e-4:
                     raise ValueError("edge endpoints must match graph nodes")
@@ -192,6 +205,7 @@ class LaneGraph:
 @dataclass(frozen=True)
 class Diagnostics:
     """Per-stage wall durations, validity and reasons; no simulator objects."""
+
     stage_durations_s: tuple[tuple[str, float], ...] = ()
     observation_valid: bool = True
     reasons: tuple[str, ...] = ()
@@ -219,12 +233,14 @@ class Diagnostics:
 @dataclass(frozen=True)
 class ControlPacket:
     """Command tied to an episode and observation, with simulation expiry."""
+
     episode_id: str
     source_frame_id: int
     source_sim_time_s: float
     valid_until_sim_time_s: float
     command: ControlCommand
     diagnostics: Diagnostics
+    valid_until_monotonic_s: float | None = None
 
     def __post_init__(self) -> None:
         _identifier("episode_id", self.episode_id)
@@ -233,17 +249,33 @@ class ControlPacket:
             _finite(name, getattr(self, name))
         if self.source_sim_time_s < 0 or self.valid_until_sim_time_s < self.source_sim_time_s:
             raise ValueError("invalid command validity interval")
-        if not isinstance(self.command, ControlCommand) or not isinstance(self.diagnostics, Diagnostics):
+        if self.valid_until_monotonic_s is not None:
+            _finite("valid_until_monotonic_s", self.valid_until_monotonic_s)
+            if self.valid_until_monotonic_s < 0:
+                raise ValueError("Host expiry must be nonnegative")
+        if not isinstance(self.command, ControlCommand) or not isinstance(
+            self.diagnostics, Diagnostics
+        ):
             raise TypeError("command and diagnostics must use contract types")
 
-    def is_current(self, episode_id: str, sim_time_s: float) -> bool:
+    def is_current(self, episode_id: str, sim_time_s: float, *, monotonic_s=None) -> bool:
         _finite("sim_time_s", sim_time_s)
-        return self.episode_id == episode_id and self.source_sim_time_s <= sim_time_s <= self.valid_until_sim_time_s
+        if self.valid_until_monotonic_s is not None:
+            if monotonic_s is None:
+                return False
+            _finite("monotonic_s", monotonic_s)
+            if monotonic_s > self.valid_until_monotonic_s:
+                return False
+        return (
+            self.episode_id == episode_id
+            and self.source_sim_time_s <= sim_time_s <= self.valid_until_sim_time_s
+        )
 
 
 @runtime_checkable
 class World(Protocol):
     """One owner advances time; close restores settings and destroys owned actors."""
+
     def reset(self, *, seed: int) -> tuple[FrameBundle, LaneGraph]: ...
     def step(self, packet: ControlPacket) -> FrameBundle: ...
     def close(self) -> None: ...

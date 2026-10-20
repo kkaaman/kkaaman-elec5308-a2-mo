@@ -18,9 +18,9 @@
   "hold_policy": "request_zero_speed_without_resetting_route",
   "resume_policy": "fresh_valid_clearance_then_positive_speed_without_set_path",
   "goal_policy": "latched_finished_until_explicit_reset",
-  "speed_status": "NAVIGATION_TUNED_PENDING_BL_D_06_SAFETY_FREEZE",
+  "speed_status": "NAVIGATION_TUNED_BL_D_06_BLOCKED_PENDING_FRESH_BL_C_CAPTURE",
   "reverse_allowed": false,
-  "speed_note": "The 4.0 m/s cruise and current controller stopping parameters are the configuration validated by the Town10HD S0 navigation runs. They are not the final BL-D-06 perception/stopping safety freeze, which remains dependent on BL-B-04, BL-C-05 and BL-E-03 evidence.",
+  "speed_note": "Retain the accepted 4.0 m/s navigation setting; it is not an admitted obstacle-perception stopping freeze. BL-D-06 is blocked pending fresh measured-wait BL-C capture and range review.",
   "ego_truth_for_navigation": "ALLOWED_BY_USER_COURSE_SCOPE_CONFIRMATION",
   "obstacle_truth_for_control": false,
   "route_file": "routes/town10hd_baseline_v1.json",
@@ -60,7 +60,7 @@
     "percentile_rule": "Linear interpolation at (n-1)*0.95"
   },
   "baseline_threshold_freeze": {
-    "status": "PENDING_G1_MEASUREMENTS",
+    "status": "BLOCKED_PENDING_FRESH_BL_C_CAPTURE",
     "required_evidence": {
       "depth_accuracy": "BL-B-04",
       "detector_range_and_latency": "BL-C-05",
@@ -77,12 +77,109 @@
     },
     "frozen_values": {
       "cruise_speed_mps": null,
-      "deceleration_mps2": null,
-      "lateral_acceleration_mps2": null,
+      "deceleration_mps2": 1.497566177392398,
       "response_budget_s": null,
-      "stop_margin_m": null,
-      "emergency_margin_m": null
+      "stop_margin_m": 6.0
     },
-    "freeze_rule": "Do not populate frozen_values until BL-B-04, BL-C-05 and BL-E-03 evidence has been reviewed."
-  }
+    "freeze_rule": "Do not enable the frozen operational loader until fresh measured-wait BL-C capture and first-confirmation range/timing review establish usable bumper visibility. Age/TTL/vehicle-lag composition remains a conditional candidate, not a freeze.",
+    "review_date": "2026-10-20",
+    "review_report": "../docs/evidence/BL-D-06/review.json",
+    "decision_record": "../docs/baseline_threshold_freeze.md",
+    "candidate_constraints_note": "Historical G1 constraints and proposed 4.0 m/s navigation cruise are unchanged; corrected BL-C screening does not currently establish support for the operational freeze.",
+    "implementation_policy": {
+      "acceleration_mps2": 1.0,
+      "lateral_acceleration_mps2": 1.5,
+      "emergency_margin_m": 2.0,
+      "provenance": "Existing BL-D-07 tests/unit/test_speed_governor.py config fixture; explicitly policy, not newly measured physical limits."
+    },
+    "parameter_kinds": {
+      "cruise_speed_mps": "Unfrozen navigation candidate; obstacle usable range and first-confirmation support unestablished",
+      "deceleration_mps2": "BL-E-03 calibration with existing reserve",
+      "response_budget_s": "Independently justified age/delivery/vehicle-lag candidate; not an accepted obstacle cruise freeze",
+      "stop_margin_m": "Unchanged acceptance upper bound",
+      "lateral_acceleration_mps2": "Existing implementation policy, not physical calibration",
+      "emergency_margin_m": "Existing emergency policy, not normal stopped acceptance margin"
+    },
+    "operational_gate": {
+      "command_ttl_s": 0.1,
+      "max_observation_age_s": 0.5,
+      "max_step_wall_s": 0.1,
+      "require_depth": true
+    },
+    "track_policy": {
+      "hits": 2,
+      "window": 3,
+      "expiry_s": 0.5,
+      "distance_samples": 5
+    },
+    "detector": {
+      "confidence": 0.25,
+      "image_size": 640,
+      "model_sha256": "9b09cc8bf347f0fc8a5f7657480587f25db09b34bf33b0652110fb03a8ad4fef",
+      "tracker": "botsort.yaml",
+      "tracker_settings": {
+        "tracker_type": "botsort",
+        "track_high_thresh": 0.25,
+        "track_low_thresh": 0.1,
+        "new_track_thresh": 0.25,
+        "track_buffer": 30,
+        "match_thresh": 0.8,
+        "fuse_score": true,
+        "gmc_method": "sparseOptFlow",
+        "proximity_thresh": 0.5,
+        "appearance_thresh": 0.8,
+        "with_reid": false,
+        "model": "auto"
+      },
+      "device": "cuda:0",
+      "versions": {
+        "ultralytics": "8.4.177",
+        "torch": "2.6.0+cu124",
+        "numpy": "2.5.2",
+        "lap": "0.5.13"
+      },
+      "allowed_classes": [
+        "person",
+        "bicycle",
+        "car",
+        "motorcycle",
+        "bus",
+        "truck",
+        "traffic light",
+        "stop sign"
+      ]
+    },
+    "fixed_delta_seconds": 0.05,
+    "response_composition": {
+      "measured_perception_control_max_s": 0.18552801799978624,
+      "measured_vehicle_response_s": 0.3500000052154064,
+      "measured_total_s": 0.5355280232151927,
+      "enforced_capture_age_budget_s": 0.5,
+      "post_decision_delivery_reserve_s": 0.1,
+      "note": "Sensor, detector, filter and control availability appear once in measured end-to-end response. Candidate covers the enforced admission bound, plus distinct command-delivery reserve and vehicle lag once.",
+      "candidate_total_response_budget_s": 0.9500000052154064
+    },
+    "depth_policy": {
+      "inner_fraction": 0.5,
+      "min_valid_fraction": 0.6,
+      "min_pixels": 9,
+      "max_depth_m": 25.0,
+      "max_spread_m": 1.0,
+      "max_relative_spread": 0.1
+    },
+    "camera_rig": {
+      "width": 640,
+      "height": 360,
+      "fov_deg": 90,
+      "x_actor_m": 1.5,
+      "z_actor_m": 2.0
+    },
+    "candidate_values": {
+      "cruise_speed_mps": 4.0,
+      "deceleration_mps2": 1.497566177392398,
+      "response_budget_s": 0.9500000052154064,
+      "stop_margin_m": 6.0
+    }
+  },
+  "runtime_entrypoint": "autonomy.baseline_operation.baseline_operational_stack"
 }

@@ -1,0 +1,97 @@
+[
+  {
+    "path": "runs/BL-D-06/warm-operational-v1/report.json",
+    "sha256": "8ba4248d6fd8fe3cf4a5c62d57e9b5f443c92c48971307104adb395a33e8f4e9",
+    "status": "INCOMPLETE",
+    "summary": {
+      "warm_samples": 0,
+      "positive_packets": 0,
+      "cold_or_stale_positive_packets": 0,
+      "max_warm_capture_to_decision_s": null,
+      "p95_warm_capture_to_decision_s": null,
+      "p95_warm_receipt_to_decision_s": null
+    },
+    "failure": "AttributeError: 'FixedVehicleAdapter' object has no attribute 'apply_packet'",
+    "settings_restored": true,
+    "no_actor_leaks": true,
+    "selected_for_historical_D005_review": false,
+    "selected_for_current_timing_review": false,
+    "current_obstacle_freeze_supported": false
+  },
+  {
+    "path": "runs/BL-D-06/warm-operational-v2/report.json",
+    "sha256": "ac4c4f33c5232b2fd1375e6719f39b42049934e130a39b3c9c9f0eaac8005a0a",
+    "status": "COMPLETE",
+    "summary": {
+      "warm_samples": 234,
+      "positive_packets": 1,
+      "cold_or_stale_positive_packets": 0,
+      "max_warm_capture_to_decision_s": 0.18471649099956267,
+      "p95_warm_capture_to_decision_s": 0.16269680444984258,
+      "p95_warm_receipt_to_decision_s": 0.06316961720017389
+    },
+    "failure": null,
+    "settings_restored": true,
+    "no_actor_leaks": true,
+    "selected_for_historical_D005_review": false,
+    "selected_for_current_timing_review": false,
+    "current_obstacle_freeze_supported": false
+  },
+  {
+    "path": "runs/BL-D-06/warm-operational-v3/report.json",
+    "sha256": "a6c08b92d1830408fdeed00b013dd77ce0d562aa34e92e00ea5f552a53fb6334",
+    "status": "COMPLETE",
+    "summary": {
+      "warm_samples": 0,
+      "positive_packets": 0,
+      "cold_or_stale_positive_packets": 0,
+      "max_warm_capture_to_decision_s": null,
+      "p95_warm_capture_to_decision_s": null,
+      "p95_warm_receipt_to_decision_s": null
+    },
+    "failure": null,
+    "settings_restored": true,
+    "no_actor_leaks": true,
+    "selected_for_historical_D005_review": false,
+    "selected_for_current_timing_review": false,
+    "current_obstacle_freeze_supported": false
+  },
+  {
+    "path": "runs/BL-D-06/warm-diagnostic-v1/report.json",
+    "sha256": "b90c520c8092e6edda4bb07458817c07e467e91ef08867ca8ece8d3b1c9af8ee",
+    "status": "COMPLETE",
+    "summary": {
+      "warm_samples": 0,
+      "positive_packets": 0,
+      "cold_or_stale_positive_packets": 0,
+      "max_warm_capture_to_decision_s": null,
+      "p95_warm_capture_to_decision_s": null,
+      "p95_warm_receipt_to_decision_s": null
+    },
+    "failure": null,
+    "settings_restored": true,
+    "no_actor_leaks": true,
+    "selected_for_historical_D005_review": false,
+    "selected_for_current_timing_review": false,
+    "current_obstacle_freeze_supported": false
+  },
+  {
+    "path": "runs/BL-D-06/warm-operational-v4/report.json",
+    "sha256": "08e8a563b42a1f61ed35f8a8de7975d8fc9e4fbeb405c1c3d693b855da3cac57",
+    "status": "COMPLETE",
+    "summary": {
+      "warm_samples": 122,
+      "positive_packets": 122,
+      "cold_or_stale_positive_packets": 0,
+      "max_warm_capture_to_decision_s": 0.18552801799978624,
+      "p95_warm_capture_to_decision_s": 0.16041294669971648,
+      "p95_warm_receipt_to_decision_s": 0.07088418299981637
+    },
+    "failure": null,
+    "settings_restored": true,
+    "no_actor_leaks": true,
+    "selected_for_historical_D005_review": true,
+    "selected_for_current_timing_review": true,
+    "current_obstacle_freeze_supported": false
+  }
+]

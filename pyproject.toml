@@ -87,6 +87,8 @@ ignore = ["E501"]
 
 "scripts/check_junction_routes.py" = ["TID251"]
 "scripts/check_rgbd_capture.py" = ["TID251"]
+"scripts/measure_operational_governance.py" = ["TID251"]
+"tests/unit/test_operational_freshness.py" = ["TID251"]
 "scripts/capture_obstacle_tracks.py" = ["TID251"]
 "scripts/run_scenario.py" = ["TID251"]
 "scripts/check_baseline_mission.py" = ["TID251"]
