@@ -51,8 +51,11 @@ demonstration for the autonomous perception and navigation library.
    track_stabilisation
    test01_a1_baseline
    evidence/TEST-01-baseline
+   evidence/TEST-03/README
    batch_baseline
    steering_calibration
+   evidence/BL-E-03/README
    gates/G0
    evidence/BL-E-02/README
    evidence/baseline-batch/README
+   evidence/TEST-13/README
