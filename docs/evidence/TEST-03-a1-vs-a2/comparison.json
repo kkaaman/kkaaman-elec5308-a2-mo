@@ -1,0 +1,370 @@
+{
+  "status": "COMPARABLE_DEFINITION_MEASURED_REVIEW_REQUIRED",
+  "cte_definition": "signed perpendicular offset of the actor origin from the nearest driving-lane centreline tangent (A1 TEST-01 definition); positive left of lane direction",
+  "a1_mean_abs_cte_m": 0.9178495129395766,
+  "a2_worst_run_mean_abs_cte_m": 0.035783753907585474,
+  "cte_ratio_a2_over_a1": 0.038986515112898655,
+  "a1_cycle_p95_ms": 467.4209356307983,
+  "a2_worst_capture_apply_p95_ms": 16.00000000325963,
+  "a1_real_time_factor": 1.0005599995026129,
+  "a2_real_time_factor": [
+    2.75270395254192,
+    2.8948038068049953,
+    2.896693198764888,
+    2.582195476726884,
+    2.9483283114108674
+  ],
+  "a2_live_carla": true,
+  "known_differences": [
+    "Route: A1 follows lane estimates with a local junction rule from its own spawn; A2 follows one fixed legal mission. Different roads are driven, so CTE is compared as a distribution, not sample by sample.",
+    "Timing: A1 runs asynchronously (variable control period); A2 runs synchronously at a fixed 0.05 s step, reading the frame it just ticked.",
+    "Speed: A1 cruises at 3 m/s; A2 at the frozen cruise speed (provisional 5 m/s).",
+    "Vehicle/geometry: A1 used its demo's first blueprint match, 2.5 m wheelbase and 0.6 rad normalisation; A2 uses the measured Tesla Model 3 geometry (BL-E-01).",
+    "Latency: A1 cycle_wall_before_apply includes all A1 perception for that cycle; A2 capture_apply is first sensor receipt to apply_control. Both are host wall clock."
+  ],
+  "note": "Values are measured, not a claim of improvement; review the listed differences before quoting a ratio. Harness A2 runs are not live evidence.",
+  "a1": {
+    "samples": 274,
+    "moving_samples": 258,
+    "cte_a1_definition_abs_m": {
+      "count": 258,
+      "mean": 0.9178495129395766,
+      "rms": 1.1311858268377497,
+      "p95": 1.7293406008482322,
+      "max": 3.4276555903900157
+    },
+    "cycle_wall_before_apply_ms": {
+      "count": 274,
+      "mean": 317.2113538658532,
+      "rms": 325.8252705945446,
+      "p95": 467.4209356307983,
+      "max": 693.002462387085
+    },
+    "control_period_sim_s": {
+      "count": 273,
+      "mean": 0.427303651313642,
+      "rms": 0.43075742580115167,
+      "p95": 0.5,
+      "max": 0.5
+    },
+    "speed_mps": {
+      "count": 258,
+      "mean": 2.0790092725196843,
+      "rms": 2.4069619224903205,
+      "p95": 4.26889752102009,
+      "max": 4.9836218862092325
+    },
+    "real_time_factor": 1.0005599995026129,
+    "offline_definition_check_abs_diff_m": {
+      "count": 274,
+      "mean": 0.0014875156268142206,
+      "rms": 0.002313038238901842,
+      "p95": 0.005405178657997619,
+      "max": 0.008261585191573495
+    },
+    "capture_status": "CAPTURED"
+  },
+  "a2": [
+    {
+      "run": "C:\\Users\\Mjud2621\\Downloads\\Group7_batch35_Navigation_20261018_174322_751\\runs\\S0-01",
+      "engine": "carla",
+      "scenario": "S0",
+      "mode": "navigation",
+      "seed": 5308,
+      "samples": 678,
+      "moving_samples": 653,
+      "cte_a1_definition_abs_m": {
+        "count": 653,
+        "mean": 0.035564624542510824,
+        "rms": 0.08133524352352331,
+        "p95": 0.20170183436863554,
+        "max": 0.31496542992113363
+      },
+      "cte_a1_definition_abs_m_outside_junctions": {
+        "count": 327,
+        "mean": 0.012238189486670631,
+        "rms": 0.044384855941281304,
+        "p95": 0.10526229396239374,
+        "max": 0.25256037555670935
+      },
+      "cte_route_rear_axle_abs_m": {
+        "count": 653,
+        "mean": 0.027908050008950573,
+        "rms": 0.06555517808082643,
+        "p95": 0.1764585215198641,
+        "max": 0.27265891203067133
+      },
+      "capture_apply_ms": {
+        "count": 678,
+        "mean": 8.085545722665529,
+        "rms": 11.68149079262496,
+        "p95": 16.00000000325963,
+        "max": 31.9999999992433
+      },
+      "tick_to_apply_ms": {
+        "count": 678,
+        "mean": 18.36430678464068,
+        "rms": 19.834826794854983,
+        "p95": 31.000000002677552,
+        "max": 93.0000000007567
+      },
+      "simulation_age_s": {
+        "count": 678,
+        "mean": 0.0,
+        "rms": 0.0,
+        "p95": 0.0,
+        "max": 0.0
+      },
+      "control_period_sim_s": 0.05,
+      "speed_mps": {
+        "count": 653,
+        "mean": 4.099786748072019,
+        "rms": 4.211810839643806,
+        "p95": 4.801246328564703,
+        "max": 4.8097403702738415
+      },
+      "real_time_factor": 2.75270395254192
+    },
+    {
+      "run": "C:\\Users\\Mjud2621\\Downloads\\Group7_batch35_Navigation_20261018_174322_751\\runs\\S0-02",
+      "engine": "carla",
+      "scenario": "S0",
+      "mode": "navigation",
+      "seed": 5309,
+      "samples": 684,
+      "moving_samples": 659,
+      "cte_a1_definition_abs_m": {
+        "count": 659,
+        "mean": 0.03532252583703021,
+        "rms": 0.08103980972269999,
+        "p95": 0.20277379145564017,
+        "max": 0.31528671163027905
+      },
+      "cte_a1_definition_abs_m_outside_junctions": {
+        "count": 333,
+        "mean": 0.01222457222879609,
+        "rms": 0.04435780823347994,
+        "p95": 0.10401800379241878,
+        "max": 0.25379562700425984
+      },
+      "cte_route_rear_axle_abs_m": {
+        "count": 659,
+        "mean": 0.02785843064979468,
+        "rms": 0.06538018407467405,
+        "p95": 0.1750949494259442,
+        "max": 0.27318191796743413
+      },
+      "capture_apply_ms": {
+        "count": 684,
+        "mean": 7.621345029297888,
+        "rms": 11.140975946090192,
+        "p95": 16.00000000325963,
+        "max": 31.9999999992433
+      },
+      "tick_to_apply_ms": {
+        "count": 684,
+        "mean": 17.551169590639446,
+        "rms": 18.851101694291952,
+        "p95": 31.000000002677552,
+        "max": 78.00000000133878
+      },
+      "simulation_age_s": {
+        "count": 684,
+        "mean": 0.0,
+        "rms": 0.0,
+        "p95": 0.0,
+        "max": 0.0
+      },
+      "control_period_sim_s": 0.05,
+      "speed_mps": {
+        "count": 659,
+        "mean": 4.0657803348449075,
+        "rms": 4.192409177659798,
+        "p95": 4.801165712181429,
+        "max": 4.80961658654124
+      },
+      "real_time_factor": 2.8948038068049953
+    },
+    {
+      "run": "C:\\Users\\Mjud2621\\Downloads\\Group7_batch35_Navigation_20261018_174322_751\\runs\\S0-03",
+      "engine": "carla",
+      "scenario": "S0",
+      "mode": "navigation",
+      "seed": 5310,
+      "samples": 679,
+      "moving_samples": 654,
+      "cte_a1_definition_abs_m": {
+        "count": 654,
+        "mean": 0.035783753907585474,
+        "rms": 0.08132646236582998,
+        "p95": 0.19968000207125822,
+        "max": 0.31524960088381865
+      },
+      "cte_a1_definition_abs_m_outside_junctions": {
+        "count": 330,
+        "mean": 0.01325704536431358,
+        "rms": 0.046054990285862005,
+        "p95": 0.11154991882608915,
+        "max": 0.25847198077416805
+      },
+      "cte_route_rear_axle_abs_m": {
+        "count": 654,
+        "mean": 0.028220014205095876,
+        "rms": 0.06562883339147799,
+        "p95": 0.17716090281014954,
+        "max": 0.27308556875981777
+      },
+      "capture_apply_ms": {
+        "count": 679,
+        "mean": 7.101620029433821,
+        "rms": 10.701052210369955,
+        "p95": 16.00000000325963,
+        "max": 31.9999999992433
+      },
+      "tick_to_apply_ms": {
+        "count": 679,
+        "mean": 17.419734904283676,
+        "rms": 18.749020593032576,
+        "p95": 31.000000002677552,
+        "max": 78.00000000133878
+      },
+      "simulation_age_s": {
+        "count": 679,
+        "mean": 0.0,
+        "rms": 0.0,
+        "p95": 0.0,
+        "max": 0.0
+      },
+      "control_period_sim_s": 0.05,
+      "speed_mps": {
+        "count": 654,
+        "mean": 4.0944745805370575,
+        "rms": 4.208739563628359,
+        "p95": 4.801556992370755,
+        "max": 4.810308963839261
+      },
+      "real_time_factor": 2.896693198764888
+    },
+    {
+      "run": "C:\\Users\\Mjud2621\\Downloads\\Group7_batch35_Navigation_20261018_174322_751\\runs\\S0-04",
+      "engine": "carla",
+      "scenario": "S0",
+      "mode": "navigation",
+      "seed": 5311,
+      "samples": 678,
+      "moving_samples": 653,
+      "cte_a1_definition_abs_m": {
+        "count": 653,
+        "mean": 0.035656291559245115,
+        "rms": 0.08143964599852906,
+        "p95": 0.2000200374828542,
+        "max": 0.31526356535280975
+      },
+      "cte_a1_definition_abs_m_outside_junctions": {
+        "count": 328,
+        "mean": 0.013051615111266315,
+        "rms": 0.04654926349660793,
+        "p95": 0.11373701903755852,
+        "max": 0.25994232231107123
+      },
+      "cte_route_rear_axle_abs_m": {
+        "count": 653,
+        "mean": 0.02814369889764099,
+        "rms": 0.0657336854405731,
+        "p95": 0.1770638091994757,
+        "max": 0.273235946247602
+      },
+      "capture_apply_ms": {
+        "count": 678,
+        "mean": 7.970501474908139,
+        "rms": 11.384665979671713,
+        "p95": 16.00000000325963,
+        "max": 31.9999999992433
+      },
+      "tick_to_apply_ms": {
+        "count": 678,
+        "mean": 22.20353982299288,
+        "rms": 87.7754408907231,
+        "p95": 31.000000002677552,
+        "max": 1578.9999999979045
+      },
+      "simulation_age_s": {
+        "count": 678,
+        "mean": 0.0,
+        "rms": 0.0,
+        "p95": 0.0,
+        "max": 0.0
+      },
+      "control_period_sim_s": 0.05,
+      "speed_mps": {
+        "count": 653,
+        "mean": 4.099854286140276,
+        "rms": 4.211839125072559,
+        "p95": 4.80102376164624,
+        "max": 4.811524142222267
+      },
+      "real_time_factor": 2.582195476726884
+    },
+    {
+      "run": "C:\\Users\\Mjud2621\\Downloads\\Group7_batch35_Navigation_20261018_174322_751\\runs\\S0-05",
+      "engine": "carla",
+      "scenario": "S0",
+      "mode": "navigation",
+      "seed": 5312,
+      "samples": 680,
+      "moving_samples": 655,
+      "cte_a1_definition_abs_m": {
+        "count": 655,
+        "mean": 0.035516752479900014,
+        "rms": 0.08132947528947283,
+        "p95": 0.20224579248882563,
+        "max": 0.3153441364480887
+      },
+      "cte_a1_definition_abs_m_outside_junctions": {
+        "count": 329,
+        "mean": 0.01224803152317307,
+        "rms": 0.044492338117804224,
+        "p95": 0.10530430862640681,
+        "max": 0.2533077104560351
+      },
+      "cte_route_rear_axle_abs_m": {
+        "count": 655,
+        "mean": 0.027903561977992153,
+        "rms": 0.06562327359846698,
+        "p95": 0.1763073039800242,
+        "max": 0.2732474200888661
+      },
+      "capture_apply_ms": {
+        "count": 680,
+        "mean": 7.733823529419811,
+        "rms": 11.150639654551913,
+        "p95": 16.00000000325963,
+        "max": 31.000000002677552
+      },
+      "tick_to_apply_ms": {
+        "count": 680,
+        "mean": 17.141176470560072,
+        "rms": 18.510172084251153,
+        "p95": 31.000000002677552,
+        "max": 78.00000000133878
+      },
+      "simulation_age_s": {
+        "count": 680,
+        "mean": 0.0,
+        "rms": 0.0,
+        "p95": 0.0,
+        "max": 0.0
+      },
+      "control_period_sim_s": 0.05,
+      "speed_mps": {
+        "count": 655,
+        "mean": 4.08925603782971,
+        "rms": 4.205410967401168,
+        "p95": 4.801165499117339,
+        "max": 4.80960930157319
+      },
+      "real_time_factor": 2.9483283114108674
+    }
+  ],
+  "topology": "C:\\Users\\Mjud2621\\Downloads\\Group7_batch35_LiveSetup_20261017_164642_464\\mission\\topology.json"
+}
