@@ -16,6 +16,15 @@ The project permits Python >=3.10; the recorded live profile uses Python 3.12.
 Keep a Python 3.12 environment for reproducing that profile. A Python 3.13 core
 test run does not validate the Python 3.12 CARLA wheel.
 
+Later merged BL-C live-capture provenance records a different runtime:
+`ultralytics 8.4.177`, `torch 2.6.0+cu124`, `numpy 2.5.2`,
+`opencv-python 5.0.0.93` and `lap 0.5.13`, device `cuda:0` (verify the exact values
+in [benchmark settings](evidence/BL-C-04-06/benchmark.json)). These records must not
+be combined into an invented single lock. That capture's historical timing/speed
+screen is superseded because read waits were unrecorded; see the
+[timing audit](evidence/BL-C-04-06/sensor-wait-timing-review.json). Runtime identity
+provenance does not restore its invalidated latency/cap conclusion.
+
 `configs/reproduction.json` pins the three model identities and the recorded
 package subset. `configs/models.yaml` remains the detector's operational
 manifest. The additional lane identity was computed from the supplied baseline
@@ -133,5 +142,9 @@ Core CI excludes the CARLA client; marked live tests require a separate server.
 The docs build needs installed ML libraries to import the public modules, but
 must not require a server or download models. CI uploads `documentation-html`
 only after a successful build. Keep build/test output and the actual CI run URL
-with the tested revision. Final fresh-environment evidence and the full lock
-remain open, alongside BL-F-07, E4-07, RV-07 and RV-08.
+with the tested revision. Final fresh-environment evidence and the full lock remain open. Current task
+states and their partial foundations are recorded in the [evidence index](evidence_index.md).
+BL-F-07 (issue #41), E4-07 (#57), RV-07 (#46) and RV-08 (#45) remain open; accepted
+navigation/offline logging is not final sensor-driven stop acceptance. G1 and
+D-006 remain BLOCKED. This recipe neither freezes 4.0 m/s obstacle cruise nor
+establishes 25 m confirmed range; it does not weaken any acceptance threshold.

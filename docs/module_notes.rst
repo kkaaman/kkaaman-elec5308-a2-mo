@@ -119,6 +119,17 @@ Why: Keep frame, detector and command contracts independent of the world impleme
 
 Declared public classes/functions: ``EgoPose``, ``CameraCalibration``, ``FrameBundle``, ``GraphNode``, ``GraphEdge``, ``LaneGraph``, ``Diagnostics``, ``ControlPacket``, ``World``, ``AutonomyStack``.
 
+autonomy/mission.py
+~~~~~~~~~~~~~~~~~~~
+
+Role (source summary)::
+
+    One fixed route installation per episode, with explicit temporary holds.
+
+Why: Keep frame, detector and command contracts independent of the world implementation.
+
+Declared public classes/functions: ``MissionEvent``, ``MissionEpisode``.
+
 autonomy/paths.py
 ~~~~~~~~~~~~~~~~~
 
@@ -185,6 +196,28 @@ Why: Contain simulator ownership and coordinate conversion at the boundary; keep
 
 Declared public classes/functions: ``bgra_array``, ``decode_rgb``, ``decode_depth``, ``axial_depth``.
 
+carla_adapter/dataset_capture.py
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Role (source summary)::
+
+    Stationary, teleported training views; never an autonomy acceptance run.
+
+Why: Contain simulator ownership and coordinate conversion at the boundary; keep the core reusable.
+
+Declared public classes/functions: ``FrameBuffer``, ``transform_dict``, ``target_surface_reference``, ``location_for_target``, ``main``.
+
+carla_adapter/depth_calibration.py
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Role (source summary)::
+
+    Measure raw depth convention against off-axis geometry ray intersections.
+
+Why: Contain simulator ownership and coordinate conversion at the boundary; keep the core reusable.
+
+Declared public classes/functions: ``ray_reference``, ``choose_convention``, ``collect``, ``main``.
+
 carla_adapter/environment_check.py
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -195,6 +228,28 @@ Role (source summary)::
 Why: Contain simulator ownership and coordinate conversion at the boundary; keep the core reusable.
 
 Declared public classes/functions: ``check_versions``, ``main``.
+
+carla_adapter/longitudinal.py
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Role (source summary)::
+
+    BL-E-03 throttle/brake step collection, bounded to a checked straight site.
+
+Why: Contain simulator ownership and coordinate conversion at the boundary; keep the core reusable.
+
+Declared public classes/functions: ``collect``, ``main``.
+
+carla_adapter/s0_runner.py
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Role (source summary)::
+
+    Run one frozen, obstacle-free S0 mission and retain auditable evidence.
+
+Why: Contain simulator ownership and coordinate conversion at the boundary; keep the core reusable.
+
+Declared public classes/functions: ``configuration_digest``, ``execution_provenance``, ``signed_cross_track``, ``route_speed_target``, ``CameraReceipt``, ``RGBReceiptQueue``, ``RunSensors``, ``FrozenEnvironment``, ``run_s0_episode``, ``run_s0_suite``.
 
 carla_adapter/sensors.py
 ~~~~~~~~~~~~~~~~~~~~~~~~
@@ -316,6 +371,83 @@ Role (source summary)::
 Why: Keep recorded observations and metric analysis separate from controller inputs.
 
 Declared public classes/functions: ``normalized_hash``, ``verify_sources``, ``signed_lane_cte``, ``metrics``, ``CaptureLog``, ``write_json``.
+
+evaluation/a1_comparison.py
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Role (source summary)::
+
+    TEST-03: compare A1 and A2 navigation on one cross-track definition.
+
+Why: Keep recorded observations and metric analysis separate from controller inputs.
+
+Declared public classes/functions: ``LaneCentrelines``, ``load_a1_capture``, ``a1_metrics``, ``a2_metrics``, ``compare``.
+
+evaluation/dataset.py
+~~~~~~~~~~~~~~~~~~~~~
+
+Role (source summary)::
+
+    Dataset contracts and metrics; no simulator or model imports.
+
+Why: Keep recorded observations and metric analysis separate from controller inputs.
+
+Declared public classes/functions: ``sha256``, ``save_json``, ``local_file``, ``road_splits``, ``decode_bgra``, ``decode_depth``, ``visible_boxes``, ``confusion``, ``metrics``, ``read_dataset``.
+
+evaluation/longitudinal.py
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Role (source summary)::
+
+    Measured braking budgets; absent/failed trials cannot justify a speed cap.
+
+Why: Keep recorded observations and metric analysis separate from controller inputs.
+
+Declared public classes/functions: ``braking_summary``.
+
+evaluation/masking.py
+~~~~~~~~~~~~~~~~~~~~~
+
+Role (source summary)::
+
+    BL-B-05 decision rule for optional semantic masking of box depth.
+
+Why: Keep recorded observations and metric analysis separate from controller inputs.
+
+Declared public classes/functions: ``masking_decision``.
+
+evaluation/metrics.py
+~~~~~~~~~~~~~~~~~~~~~
+
+Role (source summary)::
+
+    Offline S0 metrics. Missing evidence is blocked, never interpreted as zero.
+
+Why: Keep recorded observations and metric analysis separate from controller inputs.
+
+Declared public classes/functions: ``percentile``, ``first_sustained``, ``stopped_margin``, ``read_json``, ``validate_s0_criteria``, ``evaluate_run``, ``aggregate``.
+
+evaluation/run_log.py
+~~~~~~~~~~~~~~~~~~~~~
+
+Role (source summary)::
+
+    Versioned JSONL run logs; host times use one relative monotonic origin.
+
+Why: Keep recorded observations and metric analysis separate from controller inputs.
+
+Declared public classes/functions: ``plain``, ``write_json``, ``provenance``, ``RunLogger``.
+
+evaluation/s0_metrics.py
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+Role (source summary)::
+
+    Frozen S0 acceptance metrics with explicit evidence and failure retention.
+
+Why: Keep recorded observations and metric analysis separate from controller inputs.
+
+Declared public classes/functions: ``evaluate_s0_run``, ``aggregate_s0_runs``.
 
 evaluation/steering_calibration.py
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -504,6 +636,17 @@ Why: Turn sensor detections/depth into explicit observations without introducing
 
 Declared public classes/functions: ``canonical_box``.
 
+obstacle_perception/tracking.py
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Role (source summary)::
+
+    Temporal RGB-D evidence. No output authorises clearance.
+
+Why: Turn sensor detections/depth into explicit observations without introducing evaluation truth.
+
+Declared public classes/functions: ``TrackPolicy``, ``TrackObservation``, ``TrackBatch``, ``TrackDepthFilter``.
+
 obstacle_perception/types.py
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -613,6 +756,17 @@ Role (source summary)::
 Why: Use explicit graph connectivity and reusable routes rather than simulator objects in control.
 
 No public top-level classes/functions declared; see exports/source.
+
+planning/baseline_mission.py
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Role (source summary)::
+
+    Load and validate one frozen, simulator-independent baseline mission.
+
+Why: Use explicit graph connectivity and reusable routes rather than simulator objects in control.
+
+Declared public classes/functions: ``canonical_sha256``, ``validate_open_polyline``, ``FrozenMission``, ``load_frozen_mission``.
 
 planning/junction_planner.py
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -734,6 +888,17 @@ Role (source summary)::
 Why: Exercise world/stack contracts without CARLA; synthetic fixtures do not prove live performance.
 
 Declared public classes/functions: ``KinematicConfig``, ``KinematicWorld``.
+
+sim_harness/s0_acceptance.py
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Role (source summary)::
+
+    Offline S0 integration: shared KinematicWorld -> SkeletonStack -> world.
+
+Why: Exercise world/stack contracts without CARLA; synthetic fixtures do not prove live performance.
+
+Declared public classes/functions: ``S0MotionPolicy``, ``run_s0``.
 
 sim_harness/skeleton.py
 ~~~~~~~~~~~~~~~~~~~~~~~

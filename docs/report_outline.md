@@ -1,6 +1,7 @@
 # Report outline — DOC-01
 
-Status: working outline; final results and review dependencies remain open. The
+Status: refreshed 20 October 2026; working outline. Merged navigation, braking
+and depth results exist; final obstacle acceptance and review remain open. The
 four topics below follow the technical-report deliverable in `plan.md`. Confirm
 these against the final assignment brief before submission. This file is an
 outline, not the submitted report. Keep module explanations in the API docs.
@@ -42,21 +43,27 @@ Use E4 only when E4-07 supplies evidence. Map claims to rows D1–D2.
 
 T1 columns: scenario/run ID, source revision, configuration/model identity,
 metric and definition, measured value, acceptance threshold, status, raw evidence.
-Start with TEST-01 as the observed inherited baseline (row R1). Distinguish its
-nearest-lane CTE from controller CTE. The baseline is not a successful route
-completion claim. F2 remains **NOT RUN / awaiting BL-F-07** until a reproducible
-acceptance run and its raw logs exist. Leave E4 results **NOT RUN / awaiting
-E4-07**. Compare only equivalent scenarios/definitions; explain changed protocols.
-Unit-test counts and sample model inference do not establish driving performance.
-Never fill an empty result with a target, expected value, or screenshot estimate.
+Start with TEST-01 as the inherited baseline with its recorded failures (R1).
+Use accepted TEST-02 five-run navigation, TEST-03 braking/comparison and TEST-13
+depth measurements as explicitly scoped existing results (R2). F2 may use their
+retained traces; it is not globally NOT RUN. Distinguish nearest-lane and rear-axle
+route CTE, different routes and timing intervals before comparing.
+
+Reserve final integrated obstacle stop/HOLD/resume results as **NOT ESTABLISHED /
+awaiting BL-F-07** (R3). BL-C's old confirmation latencies and 4.9 m/s cap are stale;
+fresh measured-wait capture is required. D-006 remains BLOCKED, so 4.0 m/s obstacle
+operation is not established; 25 m depth accuracy is not confirmed bumper visibility.
+Leave E4 results **NOT RUN / awaiting E4-07** (R4). Unit tests/model sample inference
+are not driving performance, and targets or screenshots must not fill missing data.
 
 ## 4. Limitations — 140 words
 
 Use recorded failure modes, measurement scope and the dependency/review status
 (rows L1–L2). Include the baseline junction timeout/lane misses where supported;
 state any simulator, depth or GPU constraints that remain unverified. Generalise
-only as far as the measured scenarios support. Final wording depends on RV-07
-and RV-08; neither review is recorded here as completed.
+only as far as the measured scenarios support. Final wording must reflect open RV-07 demo/endpoint documentation and RV-08
+sensor/segmentation obligations, their partial merged foundations, and full-team
+G1/final-report review. These task IDs are not generic peer-review approvals.
 
 ## Before submission
 
