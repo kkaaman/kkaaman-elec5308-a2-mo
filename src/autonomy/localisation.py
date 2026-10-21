@@ -61,7 +61,11 @@ class LocalisationConfig:
 
     @classmethod
     def load(cls, path):
-        document = json.loads(Path(path).read_text(encoding="utf-8-sig"))
+        return cls.from_dict(json.loads(Path(path).read_text(encoding="utf-8-sig")))
+
+    @classmethod
+    def from_dict(cls, document):
+        """From a config file's contents or a run manifest's recorded ``as_dict()``."""
         if document.get("schema_version") != 1:
             raise ValueError("Unsupported localisation config")
         return cls(
