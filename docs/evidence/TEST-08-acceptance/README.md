@@ -14,6 +14,10 @@ still needs the team's review; the tool does not grant acceptance.
   `source_sha256 757127763a7b…`, `config_sha256 a4ae63e98c5a…`,
   `model_sha256 9b09cc8bf347…`, `mission_sha256 7fee3ad2831260…`, and event verification
   `MEASURED_PASS` (`ed241134744f…`).
+- Runtime recovered: `frozen_runtime.json` (this folder) is the frozen runtime rebuilt from the
+  30 manifests. Its hash equals `config_sha256 a4ae63e98c5a…`. Its status is PROVISIONAL
+  because the original `frozen.json` and its provenance files were lost with the old PC.
+  Use it for diagnostic runs, demos and new routes, not to re-certify this acceptance.
 - Re-scored offline on 2026-10-18 after the S4 amendment below, with no re-driving. The
   original `acceptance.json` (`NOT_ACCEPTED`, S4 cruise RMS missing) stays beside it in
   the runs folder.

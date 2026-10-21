@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "status": "PROVISIONAL",
+  "runtime": {
+    "behaviour": {
+      "clear_duration_s": 0.4,
+      "clear_frames": 5,
+      "stopped_speed_mps": 0.1
+    },
+    "controller": {
+      "goal_tolerance_m": 1.0,
+      "hold_brake": 0.5,
+      "kd": 0.0,
+      "ki": 0.15,
+      "kp": 0.45,
+      "lookahead_m": 4,
+      "max_steering_angle_rad": 0.3490658503988659,
+      "stopped_speed_mps": 0.1,
+      "stopping_deceleration_mps2": 1.0,
+      "wheelbase_m": 3.00465
+    },
+    "detector_confidence": 0.25,
+    "detector_image_size": 1280,
+    "dt_s": 0.05,
+    "ego_half_width_m": 1.08173,
+    "front_bumper_from_rear_axle_m": 3.81152,
+    "governor": {
+      "acceleration_mps2": 1.0,
+      "cruise_mps": 4.8,
+      "deceleration_mps2": 1.497566177392398,
+      "emergency_margin_m": 2.5,
+      "lateral_acceleration_mps2": 1.0,
+      "response_budget_s": 0.7500000052154063,
+      "stop_margin_m": 4.0
+    },
+    "lateral_padding_m": 0.15,
+    "planned_min_brake": 0.4,
+    "tracks": {
+      "anonymous_gate_m": 1.5,
+      "expiry_s": 0.6,
+      "required_hits": 2,
+      "window_frames": 3
+    },
+    "visibility_memory_s": 15.0,
+    "visible_horizon_m": 35.0
+  },
+  "runtime_sha256": "a4ae63e98c5aab423552db8e71786944a92a465caaf02f63dde85da5fc1d6246",
+  "evidence": {
+    "recovered_from": "docs/evidence/TEST-08-acceptance/acceptance_amended.json: manifest.config, identical in all 30 acceptance runs",
+    "frozen_config_sha256": "a4ae63e98c5aab423552db8e71786944a92a465caaf02f63dde85da5fc1d6246",
+    "original": "Group7_batch35_Freeze_20261018_174441_158/frozen.json (FROZEN_FOR_VALIDATION), lost with the old PC",
+    "note": "Runtime of the frozen configuration rebuilt from the acceptance manifests; its hash equals the frozen config_sha256. Status is PROVISIONAL because the freeze provenance files are not present: use it for diagnostic runs, demos and new routes, not to re-certify the baseline acceptance."
+  }
+}

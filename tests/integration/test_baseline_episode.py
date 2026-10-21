@@ -81,7 +81,8 @@ def test_synchronous_watchdog_survives_and_reports_a_host_stall(tmp_path):
     assert result["collection_status"] == "COLLECTED", result["error"]
     assert result["metrics"]["route_completion"] == 1
     timing = result["timing"]
-    assert timing["capture_apply_over_100ms"] == 1
+    # The injected 1.3 s stall; a loaded runner (CI) may add an ordinary slow frame.
+    assert timing["capture_apply_over_100ms"] >= 1
     assert timing["capture_apply_max_ms"] >= 1300
     assert timing["guard"] == SYNC_WATCHDOG
     # One outlier frame does not move the scored percentile.

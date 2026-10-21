@@ -8,6 +8,7 @@ from dataclasses import asdict
 from pathlib import Path
 
 import cv2
+import numpy as np
 
 from autonomy.interfaces import EgoPose
 from carla_adapter.ground_truth import truth_record
@@ -18,7 +19,7 @@ from carla_adapter.world import SynchronousWorldSession, WorldTiming, _settings_
 from evaluation.event_checks import annotate_invasion
 from geometry.camera import CameraIntrinsics
 from planning.corridor import RouteGeometry
-from planning.mission import route_graph
+from planning.mission import route_graph, scenario_obstacle_s
 
 
 class CarlaWorld:
@@ -191,18 +192,18 @@ class CarlaWorld:
         kind = self.scenario.get("obstacle_class")
         if kind is None:
             return
-        s = (
-            self.mission.turn_exit_s_m + self.scenario.get("after_turn_m", 6.0)
-            if self.scenario.get("after_turn_m") is not None
-            else self.scenario["obstacle_s_m"]
-        )
+        s = scenario_obstacle_s(self.mission, self.scenario)
         if s > self.route.length_m - 15:
             raise ValueError("Obstacle too near mission end")
         x, y, yaw = self.route.at(s, self.scenario.get("lateral_m", 0))
-        base_z = min(p[2] for p in self.mission.points_xyz_m)
-        ground = self._world.ground_projection(carla.Location(x=x, y=-y, z=base_z + 10), 20)
+        # Search for the ground just above the road surface at this s. Searching
+        # down from well above the road can land on whatever overhangs it (tree
+        # canopy, a structure), and the obstacle then spawns inside that.
+        road_z = float(np.interp(s, self.route.arc, [p[2] for p in self.mission.points_xyz_m]))
+        site = f"s={s:.1f} m, CARLA x={x:.2f} y={-y:.2f}, road z={road_z:.2f}"
+        ground = self._world.ground_projection(carla.Location(x=x, y=-y, z=road_z + 1.5), 4)
         if ground is None:
-            raise RuntimeError("No ground at configured obstacle site")
+            raise RuntimeError(f"No ground at configured obstacle site ({site})")
         bp = self._world.get_blueprint_library().find(
             "walker.pedestrian.0001" if kind == "person" else "vehicle.tesla.model3"
         )
@@ -214,7 +215,10 @@ class CarlaWorld:
         )
         self.obstacle = self.owner.try_spawn(bp, transform)
         if self.obstacle is None:
-            raise RuntimeError("Scenario obstacle spawn failed")
+            raise RuntimeError(
+                f"Scenario obstacle spawn failed ({site}, ground z={ground.location.z:.2f}):"
+                " something already occupies that spot"
+            )
         self.obstacle.set_simulate_physics(False)
         self._obstacle_box = self.obstacle.bounding_box
         bottom = min(p.z for p in self._obstacle_box.get_world_vertices(transform))
@@ -322,9 +326,7 @@ class CarlaWorld:
             for index, event in enumerate(self.events):
                 if event.get("type") == "lane_invasion" and "route_s_m" not in event:
                     # Callback happened during the tick that just completed.
-                    self.events[index] = annotate_invasion(
-                        event, route_s, self.declared_crossings
-                    )
+                    self.events[index] = annotate_invasion(event, route_s, self.declared_crossings)
         self._truth[frame] = self._truth_now(state)
         self._frames.append(frame)
         if len(self._frames) > 40:
