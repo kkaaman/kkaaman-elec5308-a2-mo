@@ -102,3 +102,4 @@ ignore = ["E501"]
 
 "tests/unit/test_batch35_world_guards.py" = ["TID251"]
 "tests/unit/test_event_verification.py" = ["TID251"]
+"tests/integration/test_shadow_localisation.py" = ["TID251"]

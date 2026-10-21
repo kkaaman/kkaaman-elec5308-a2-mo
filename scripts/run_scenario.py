@@ -34,6 +34,17 @@ def arguments(parser=None):
     parser.add_argument("--navigation-only", action="store_true")
     parser.add_argument("--max-sim-s", type=float, default=180)
     parser.add_argument(
+        "--localisation",
+        type=Path,
+        help="Shadow localisation config (configs/localisation_*.json): GNSS+IMU+odometry"
+        " estimate logged beside the true pose; driving still uses the true pose",
+    )
+    parser.add_argument(
+        "--drive-on-estimate",
+        action="store_true",
+        help="With --localisation: the policy drives on the estimated pose (scored on truth)",
+    )
+    parser.add_argument(
         "--harness-route",
         choices=("mission", "fixture"),
         default="mission",
@@ -170,6 +181,14 @@ def execute(args):
                 ultralytics=ultralytics.__version__,
                 cuda_available=torch.cuda.is_available(),
             )
+    if args.localisation is not None:
+        from autonomy.localisation import LocalisationConfig
+
+        world.enable_localisation(LocalisationConfig.load(args.localisation), args.seed)
+        manifest["localisation_config_sha256"] = file_sha256(args.localisation)
+    if args.drive_on_estimate and args.localisation is None:
+        raise ValueError("--drive-on-estimate needs --localisation")
+    manifest["pose_source"] = "estimate" if args.drive_on_estimate else "simulator"
     result = run_episode(
         world,
         detector,

@@ -71,6 +71,10 @@ class CarlaWorld:
         self._spectator = None
         self._lights = []
         self._sensors = []
+        # Shadow localisation (GNSS + IMU); off unless enable_localisation() is called.
+        self.localisation = None
+        self._localisation_seed = None
+        self._loc = None
         self._truth = {}
         self._ego_box = self._obstacle_box = self._obstacle_corners = None
         self._spectator_actor = None
@@ -145,6 +149,8 @@ class CarlaWorld:
         for _ in range(10):
             self.owner.tick()
         self._install_event_sensors()
+        if self.localisation is not None:
+            self._install_localisation_sensors()
         self.capture = RGBDCapture(self.owner, self.vehicle, self._episode, capacity=16)
         self.capture.__enter__()
         rig = self.capture.rig
@@ -284,6 +290,51 @@ class CarlaWorld:
             and report.get("opendrive_sha256") == self.mission.opendrive_sha256
         )
 
+    def enable_localisation(self, config, seed):
+        """Install GNSS + IMU at reset; estimates are logged, never driven on."""
+        if self.owner is not None:
+            raise RuntimeError("Enable localisation before reset")
+        self.localisation, self._localisation_seed = config, int(seed)
+
+    def _install_localisation_sensors(self):
+        import carla
+
+        from carla_adapter.localisation_sensors import LiveLocalisationSensors
+
+        carla_map = self._world.get_map()
+
+        def geolocate(x, y):
+            fix = carla_map.transform_to_geolocation(carla.Location(x=x, y=y, z=0.0))
+            return fix.latitude, fix.longitude
+
+        def spawn(blueprint_id, attributes, mount, callback):
+            bp = self._world.get_blueprint_library().find(blueprint_id)
+            for key, value in attributes.items():
+                if not bp.has_attribute(key):
+                    raise ValueError(f"{blueprint_id} has no attribute {key}")
+                bp.set_attribute(key, str(value))
+            sensor = self._world.spawn_actor(
+                bp, carla.Transform(carla.Location(*mount)), attach_to=self.vehicle
+            )
+            self.owner._actors.append(sensor)
+            self._sensors.append(sensor)
+            sensor.listen(callback)
+
+        self._loc = LiveLocalisationSensors(
+            self.localisation,
+            self._localisation_seed,
+            geolocate,
+            spawn,
+            self.adapter.geometry.rear_axle_offset_m,
+            self.config.dt_s,
+        )
+
+    def localisation_inputs(self, frame_id):
+        return self._loc.inputs(frame_id)
+
+    def localisation_record(self):
+        return self._loc.record() if self._loc else dict(error="localisation sensors not installed")
+
     def _install_event_sensors(self):
         import carla
 
@@ -321,6 +372,8 @@ class CarlaWorld:
         state = self.adapter.state()
         pose = self.vehicle.get_transform()
         self.capture.record_snapshot(frame, EgoPose(state, pose.location.z))
+        if self._loc is not None:
+            self._loc.record_speed(frame, state.speed_mps)
         route_s = self.route.project(state.x_m, state.y_m).s_m
         with self._event_lock:
             for index, event in enumerate(self.events):

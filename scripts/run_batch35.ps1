@@ -17,7 +17,12 @@ param(
     [double]$DetectorConfidence = 0.25,
     # RouteSetup: explicit route definition (configs/missions/*.json), driven from
     # its own -StateFile so the baseline state keeps the baseline mission.
-    [string]$Route = ""
+    [string]$Route = "",
+    # Quick/Navigation/Smoke/Acceptance: shadow localisation config
+    # (configs/localisation_*.json); logged beside the true pose, never driven on.
+    [string]$Localisation = "",
+    # With -Localisation: drive on the estimated pose instead of the simulator's.
+    [switch]$DriveOnEstimate
 )
 $ErrorActionPreference = "Stop"
 Set-Location (Split-Path $PSScriptRoot -Parent)
@@ -89,6 +94,13 @@ function Get-LiveArgs {
     $missionPath = Need-Result "mission"
     $depthPath = Need-Result "depth"
     $result = @("--engine","carla","--mission",$missionPath,"--depth-calibration",$depthPath,"--follow")
+    if ($Localisation) {
+        if (-not (Test-Path -LiteralPath $Localisation)) { throw "Localisation config not found: $Localisation" }
+        $result += @("--localisation",$Localisation)
+        if ($DriveOnEstimate) { $result += "--drive-on-estimate" }
+    } elseif ($DriveOnEstimate) {
+        throw "-DriveOnEstimate needs -Localisation"
+    }
     # Collision/lane metrics are only scored after the live BL-B-07 Verify stage.
     if ($RequireEvents) {
         $result += @("--event-verification",(Need-Result "event_verification"))
