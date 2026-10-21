@@ -1,0 +1,46 @@
+{
+  "definition": "implied = mean moving true speed on the simulator pose / mean moving true speed on the estimate, same seed (compare_runs speed_mps.mean); drawn = the seeded wheel-speed scale error (NoisySensors, RTK profile)",
+  "max_abs_scale_difference": 0.004208899674264188,
+  "runs": [
+    {
+      "seed": 5308,
+      "drawn_wheel_scale": 0.9939631121321998,
+      "implied_wheel_scale": 0.9929466765603389,
+      "distance_m": 229.69079117606262,
+      "truth_distance_m": 229.66560334689,
+      "final_speed_mps": 0.00048773435457578814
+    },
+    {
+      "seed": 5309,
+      "drawn_wheel_scale": 0.9845313212752715,
+      "implied_wheel_scale": 0.9803224216010074,
+      "distance_m": 229.67073133145618,
+      "truth_distance_m": 229.70413791767982,
+      "final_speed_mps": 0.006020786615877742
+    },
+    {
+      "seed": 5310,
+      "drawn_wheel_scale": 0.992936302418283,
+      "implied_wheel_scale": 0.9910927453852498,
+      "distance_m": 229.65728689141014,
+      "truth_distance_m": 229.66231494894555,
+      "final_speed_mps": 0.0005306805401720928
+    },
+    {
+      "seed": 5311,
+      "drawn_wheel_scale": 1.0136539838740182,
+      "implied_wheel_scale": 1.0160666555271272,
+      "distance_m": 229.7196932685604,
+      "truth_distance_m": 229.77381190433795,
+      "final_speed_mps": 0.0002450456468232
+    },
+    {
+      "seed": 5312,
+      "drawn_wheel_scale": 1.014199612291611,
+      "implied_wheel_scale": 1.0122419138697503,
+      "distance_m": 229.62732851663375,
+      "truth_distance_m": 229.7060365927581,
+      "final_speed_mps": 0.0005193930637825352
+    }
+  ]
+}

@@ -1,0 +1,69 @@
+{
+  "collection_status": "COLLECTED",
+  "completed": true,
+  "cruise_samples": 601,
+  "error": null,
+  "localisation": {
+    "along_error_m": {
+      "max": 0.05441155799149909,
+      "mean": 0.019350051457637654,
+      "p95": 0.037953870229835915
+    },
+    "final_position_error_m": 0.021247244419501925,
+    "gyro_truth_correlation": 0.9942711353843756,
+    "lateral_error_m": {
+      "max": 0.03818291909760871,
+      "mean": 0.008653326178223945,
+      "p95": 0.022379313298609916
+    },
+    "moving_samples": 1068,
+    "position_error_m": {
+      "max": 0.05453116182255347,
+      "mean": 0.022634581435501042,
+      "p95": 0.039668492020334845
+    },
+    "yaw_error_deg": {
+      "max": 2.276751670268326,
+      "mean": 0.17282806501828737,
+      "p95": 0.4106780399014416
+    }
+  },
+  "max_simulation_age_s": 0.0,
+  "metrics": {
+    "capture_apply_p95_ms": 47.0000000022992,
+    "collisions": 0,
+    "continuous_hold_s": 2.050000029802322,
+    "cruise_drop_mps": null,
+    "cruise_mean_mps": 4.8282243090541375,
+    "cruise_speed_rms_mps": 0.03328507888900752,
+    "cte_mean_m": 0.018252149075130942,
+    "false_stops": 0,
+    "hold_margin_max_m": 4.774394429532464,
+    "hold_margin_min_m": 4.774343228596178,
+    "hold_max_speed_mps": 0.00011678529851981233,
+    "resume_delay_s": 1.5500000230967999,
+    "route_completion": 1.0,
+    "tick_to_apply_p95_ms": 62.999999998282874,
+    "unplanned_lane_invasions": 0
+  },
+  "moving_samples": 1098,
+  "path_installations": 1,
+  "percentile_method": "numpy linear",
+  "real_time_factor": 1.1824858041017983,
+  "samples": 1199,
+  "scope": "carla",
+  "timing": {
+    "capture_apply_max_ms": 375.0,
+    "capture_apply_over_100ms": 2,
+    "guard": {
+      "mode": "synchronous_watchdog",
+      "observation_age_s": 5.0,
+      "step_wall_s": 1.0
+    },
+    "stalls_over_500ms": 0,
+    "step_budget_s": 0.1,
+    "step_max_ms": 67.64919999841368,
+    "step_over_budget": 0,
+    "tick_to_apply_max_ms": 375.0
+  }
+}
