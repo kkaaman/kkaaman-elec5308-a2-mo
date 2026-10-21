@@ -29,7 +29,7 @@ from obstacle_perception.types import (
     PixelBox,
 )
 from planning.corridor import RouteGeometry
-from planning.mission import route_graph
+from planning.mission import route_graph, scenario_obstacle_s
 from sim_harness.kinematic import KinematicConfig, KinematicWorld
 
 
@@ -139,6 +139,7 @@ class BaselineWorld(KinematicWorld):
         route="fixture",
         ground=None,
         parked=(),
+        mission=None,
     ):
         if scenario not in {f"S{x}" for x in range(6)}:
             raise ValueError("Unknown baseline scenario")
@@ -147,15 +148,14 @@ class BaselineWorld(KinematicWorld):
         self.scenario_id, self.fault, self.seed = scenario, fault, seed
         self.route_kind = route
         self.remove_after_hold_s = 2.0
+        if mission is not None and route != "mission":
+            raise ValueError("An explicit mission needs route='mission'")
         if route == "mission":
-            mission = mission_route()
+            # Default: the automatically selected baseline mission.
+            mission = mission or mission_route()
             definition = scenario_definition(scenario)
             self.points = tuple(mission.points_xy_m)
-            self.object_s = (
-                mission.turn_exit_s_m + definition["after_turn_m"]
-                if definition.get("after_turn_m") is not None
-                else definition["obstacle_s_m"]
-            )
+            self.object_s = scenario_obstacle_s(mission, definition)
             self.object_lateral = float(definition.get("lateral_m", 0.0))
             if definition.get("remove_after_hold_s") is not None:
                 self.remove_after_hold_s = float(definition["remove_after_hold_s"])
@@ -203,9 +203,7 @@ class BaselineWorld(KinematicWorld):
         else:
             self._hold_since = None
         rgb = np.full((360, 640, 3), 25, np.uint8)
-        depth = (
-            self._ground_depth.copy() if self.ground else np.full((360, 640), 100.0, np.float32)
-        )
+        depth = self._ground_depth.copy() if self.ground else np.full((360, 640), 100.0, np.float32)
         world_to_camera = inverse_rigid(self.calibration.camera_to_ego) @ inverse_rigid(
             ego_to_world_matrix(state.x_m, state.y_m, state.yaw_rad)
         )

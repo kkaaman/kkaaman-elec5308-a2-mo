@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory=$true)]
-    [ValidateSet("Offline","LiveSetup","Quick","Verify","Capture","Perception","Tune","Navigation","Freeze","Smoke","Acceptance","ReplayFaults","Train","Evaluate","Audit","Archive")]
+    [ValidateSet("Offline","LiveSetup","RouteSetup","Quick","Verify","Capture","Perception","Tune","Navigation","Freeze","Smoke","Acceptance","ReplayFaults","Train","Evaluate","Audit","Archive")]
     [string]$Stage,
     [int]$Samples = 12000,
     [double]$TrainingHours = 4,
@@ -14,7 +14,10 @@ param(
     # Perception: detector input size/confidence to measure; Freeze copies them
     # into the candidate config so Tune/Navigation/Acceptance run with them.
     [int]$DetectorImageSize = 640,
-    [double]$DetectorConfidence = 0.25
+    [double]$DetectorConfidence = 0.25,
+    # RouteSetup: explicit route definition (configs/missions/*.json), driven from
+    # its own -StateFile so the baseline state keeps the baseline mission.
+    [string]$Route = ""
 )
 $ErrorActionPreference = "Stop"
 Set-Location (Split-Path $PSScriptRoot -Parent)
@@ -25,7 +28,17 @@ $env:OMP_NUM_THREADS = "1"
 $env:OPENBLAS_NUM_THREADS = "1"
 $env:MKL_NUM_THREADS = "1"
 $downloadsPath = Join-Path $HOME "Downloads"
-if (-not $StateFile) { $StateFile = Join-Path $downloadsPath "Group7_batch35_state.json" }
+$defaultStateFile = Join-Path $downloadsPath "Group7_batch35_state.json"
+if ($Stage -eq "RouteSetup") {
+    if (-not $Route -or -not (Test-Path -LiteralPath $Route)) { throw "RouteSetup needs -Route configs\missions\<name>.json" }
+    if (-not $StateFile -or [IO.Path]::GetFullPath($StateFile) -eq [IO.Path]::GetFullPath($defaultStateFile)) {
+        throw "RouteSetup needs its own -StateFile (for example `$HOME\Downloads\Group7_a1route_state.json) so the baseline state keeps its mission."
+    }
+    # A new route state starts from the baseline state: depth, braking, event
+    # verification and the tuned candidate are map/vehicle-level and carry over.
+    if (-not (Test-Path -LiteralPath $StateFile)) { Copy-Item -LiteralPath $defaultStateFile -Destination $StateFile -ErrorAction Stop }
+}
+if (-not $StateFile) { $StateFile = $defaultStateFile }
 $batchState = @{}
 if (Test-Path -LiteralPath $StateFile) {
     $savedState = Get-Content -LiteralPath $StateFile -Raw | ConvertFrom-Json
@@ -112,6 +125,16 @@ try {
             Save-BatchState
             Invoke-ProjectPython -PythonArgs @("scripts/calibrate_longitudinal.py","--follow","--output",(Join-Path $stageFolder "braking"))
             $batchState["braking"] = Join-Path $stageFolder "braking\longitudinal.json"
+        }
+        "RouteSetup" {
+            # Validates the explicit route live (legal lanes, centreline, widths) and
+            # makes it this state's mission. Results bound to another mission (the
+            # frozen config and everything driven with it) are dropped from this
+            # state; Quick and Navigation use the tuned candidate instead.
+            Invoke-ProjectPython -PythonArgs @("scripts/prepare_mission.py","--route",$Route,"--output",(Join-Path $stageFolder "mission"))
+            $batchState["mission"] = Join-Path $stageFolder "mission\mission.json"
+            foreach ($key in @("frozen","navigation","acceptance","s1","quick","replay_faults","heldout")) { [void]$batchState.Remove($key) }
+            Start-Process (Join-Path $stageFolder "mission\mission.png")
         }
         "Quick" {
             # Early integration smoke on the PROVISIONAL config: one navigation-only

@@ -57,3 +57,14 @@ demonstration for the autonomous perception and navigation library.
    batch35_baseline
    batch35_tasks
    batch35_training
+   evidence/BL-C-07-fault-replay/README
+   evidence/TEST-03-a1-vs-a2/README
+   evidence/TEST-08-acceptance/README
+   evidence/TEST-09-heldout-audit/README
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Extensions
+
+   a2_on_a1_route
+   evidence/TEST-03-a1-route/README

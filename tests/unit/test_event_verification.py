@@ -306,3 +306,70 @@ def test_truth_during_streaming_uses_boxes_cached_before_sensors(monkeypatch):
     assert truth["truth_in_corridor"]
     # Obstacle near face at s = 40 - 2.396; ego bumper 1.38641 + 2.396 ahead.
     assert truth["truth_gap_m"] == pytest.approx(40 - 2.396 - 30 - 1.38641 - 2.396, abs=1e-6)
+
+
+def _placement_world(monkeypatch, ground_projection, try_spawn):
+    fake = SimpleNamespace(
+        Location=Location,
+        Rotation=Rotation,
+        Transform=Transform,
+        LaneType=SimpleNamespace(Any="Any"),
+    )
+    monkeypatch.setitem(sys.modules, "carla", fake)
+    from autonomy.baseline import BaselineConfig
+    from carla_adapter.baseline_world import CarlaWorld
+    from planning.corridor import RouteGeometry
+    from sim_harness.baseline import scenario_definition
+
+    points = tuple((27.0 - float(i), -66.3) for i in range(0, 120))
+    world = CarlaWorld.__new__(CarlaWorld)
+    world.scenario = scenario_definition("S1")
+    world.config = BaselineConfig()
+    world.route = RouteGeometry(points)
+    world.mission = SimpleNamespace(
+        turn_exit_s_m=70.0, points_xyz_m=tuple((x, y, 0.0) for x, y in points)
+    )
+    world.events = []
+    lane = SimpleNamespace(road_id=12, lane_id=-1, lane_type="Driving", is_junction=False)
+    world._world = SimpleNamespace(
+        ground_projection=ground_projection,
+        get_blueprint_library=lambda: SimpleNamespace(
+            find=lambda name: SimpleNamespace(
+                id=name, has_attribute=lambda key: False, set_attribute=lambda *a: None
+            )
+        ),
+        get_map=lambda: SimpleNamespace(get_waypoint=lambda *a, **k: lane),
+        get_snapshot=lambda: SimpleNamespace(timestamp=SimpleNamespace(elapsed_seconds=1.0)),
+    )
+    world.owner = SimpleNamespace(try_spawn=try_spawn)
+    return world
+
+
+def test_obstacle_ground_is_found_below_an_overhang(monkeypatch):
+    # A canopy 6 m up: a search starting well above the road lands on it, and
+    # the obstacle would then be spawned inside it (live: "spawn failed").
+    def ground(location, distance):
+        top = 6.0 if location.z > 6.0 else 0.0
+        return SimpleNamespace(location=Location(z=top))
+
+    spawned = []
+
+    def try_spawn(bp, transform):
+        spawned.append(transform.location.z)
+        return UntickedActor(bp.id, transform)
+
+    world = _placement_world(monkeypatch, ground, try_spawn)
+    world._spawn_obstacle()
+    assert spawned == [pytest.approx(1.0)]
+    (event,) = world.events
+    assert event["route_s_m"] == 40.0
+
+
+def test_obstacle_spawn_failure_names_the_site(monkeypatch):
+    world = _placement_world(
+        monkeypatch,
+        lambda location, distance: SimpleNamespace(location=Location(z=0.0)),
+        lambda bp, transform: None,
+    )
+    with pytest.raises(RuntimeError, match=r"s=40\.0 m, CARLA x=-13\.00 y=66\.30"):
+        world._spawn_obstacle()

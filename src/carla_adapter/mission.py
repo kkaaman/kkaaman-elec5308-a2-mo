@@ -11,10 +11,17 @@ import numpy as np
 
 from carla_adapter.topology import export_lane_topology
 from planning.corridor import RouteGeometry
-from planning.mission import overlapping_junction_lane, select_mission
+from planning.mission import (
+    load_route_definition,
+    mission_from_definition,
+    overlapping_junction_lane,
+    route_summary,
+    select_mission,
+)
 
 
-def prepare(client, output):
+def prepare(client, output, route_definition=None):
+    """Select (or build from ``route_definition``) the mission and validate it live."""
     import carla
 
     world = client.get_world()
@@ -27,7 +34,11 @@ def prepare(client, output):
     if map_.name.rsplit("/", 1)[-1] not in {"Town10HD", "Town10HD_Opt"}:
         raise ValueError("Expected Town10HD")
     topology = export_lane_topology(map_, sampling_distance_m=1.0, navigation_speed_cap_mps=5.0)
-    mission = select_mission(topology)
+    mission = (
+        select_mission(topology)
+        if route_definition is None
+        else mission_from_definition(topology, load_route_definition(route_definition))
+    )
     allowed = {tuple(map(int, key.split(":"))) for key in mission.segment_ids}
     max_error = 0.0
     widths = []
@@ -77,6 +88,14 @@ def prepare(client, output):
         ),
         scope="Live map legality and centreline geometry; obstacle clearance and driving remain unverified",
     )
+    if route_definition is not None:
+        report["route_definition"] = dict(
+            route_summary(load_route_definition(route_definition)),
+            path=str(route_definition),
+            sha256=hashlib.sha256(
+                Path(route_definition).read_bytes().replace(b"\r\n", b"\n")
+            ).hexdigest(),
+        )
     if min(widths) < 2.5:
         raise ValueError("Lane narrower than fixed vehicle corridor")
     mission = replace(mission, map_validation=report)
@@ -95,7 +114,14 @@ def prepare(client, output):
         p = np.asarray(lane.points_xyz_m)
         ax.plot(p[:, 0], p[:, 1], color="0.85", linewidth=0.5)
     p = np.asarray(mission.points_xyz_m)
-    ax.plot(p[:, 0], p[:, 1], "b-", label="fixed mission")
+    ax.plot(
+        p[:, 0],
+        p[:, 1],
+        "b-",
+        label="fixed mission"
+        if route_definition is None
+        else "route: " + report["route_definition"]["name"],
+    )
     ax.scatter(*p[0, :2], c="green", label="start")
     ax.scatter(*p[-1, :2], c="red", label="goal")
     ax.set_aspect("equal")
@@ -124,9 +150,14 @@ def main():
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=2000)
+    parser.add_argument(
+        "--route",
+        type=Path,
+        help="Explicit route definition (configs/missions/*.json) instead of automatic selection",
+    )
     args = parser.parse_args()
     import carla
 
     client = carla.Client(args.host, args.port)
     client.set_timeout(60)
-    print(json.dumps(prepare(client, args.output), indent=2))
+    print(json.dumps(prepare(client, args.output, args.route), indent=2))

@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "name": "a1_test01",
+  "description": "The roads A1 drove in its TEST-01 run, as one legal lane chain: road 1 lane 1 (A1's spawn) through road 8 and road 4, straight through junction 468, onto road 5 lane -1 where A1's 120 s run ended.",
+  "source": "docs/evidence/TEST-01-samples.csv: first and last logged actor positions; lanes matched to A1's logged poses with a direction-consistent nearest-lane search",
+  "segment_ids": [
+    "1:0:1",
+    "8:0:1",
+    "4:0:-1",
+    "515:0:-1",
+    "5:0:-1"
+  ],
+  "manoeuvres": [
+    "straight"
+  ],
+  "start_xy_m": [
+    102.2401351928711,
+    -91.77693176269531
+  ],
+  "end_xy_m": [
+    -98.20722198486328,
+    -117.94779205322266
+  ],
+  "notes": "A1 changed lanes between lanes 1 and 2 on road 1 and between lanes -2 and -1 on road 5. A2 has no lane-change manoeuvre, so it keeps lane 1 / lane -1, which are A1's start and end lanes.",
+  "obstacle_s_m": 120.0,
+  "obstacle_note": "S1-S4 obstacles go mid-way along the 125 m straight (s 65-190 m). Road 1 starts with a 62 m bend at about 45 degrees to the map axes, where the track filter's axis-aligned footprint box widens roadside cars into the lane (harness: S3 held, S1 stopped 6.17 m short). S5 still uses the junction exit."
+}
