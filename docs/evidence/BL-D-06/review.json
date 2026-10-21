@@ -1,6 +1,6 @@
 {
   "date": "2026-10-21",
-  "status": "FROZEN_GATED_OPERATIONAL",
+  "status": "TECHNICALLY_VALIDATED_CANDIDATE",
   "dependency_review": {
     "bl_c_timing_status": "FRESH_MEASURED_WAIT_CAPTURE_COMPLETE",
     "timing_review_sha256": "e328186041d97f08dddf70a8bd81169a8f962df2e7d8eb33792e1f72c00d3d47",
@@ -226,9 +226,9 @@
     "stop_margin_m": 6.0
   },
   "frozen_values": {
-    "cruise_speed_mps": 4.0,
+    "cruise_speed_mps": null,
     "deceleration_mps2": 1.497566177392398,
-    "response_budget_s": 0.9500000052154064,
+    "response_budget_s": null,
     "stop_margin_m": 6.0
   },
   "acceptance": {
@@ -246,11 +246,14 @@
   "speed_requirement": {
     "four_mps_mandatory": false,
     "source": "docs/decisions.md D-003 and configs/acceptance.json; reduce cruise when measured envelope is insufficient, do not relax criteria",
-    "lower_cruise_freezable_now": true,
-    "reason": "Measured operational envelope supports unchanged 4.0 m/s candidate; no lower cruise is needed for this bounded profile."
+    "lower_cruise_freezable_now": false,
+    "reason": "Measured operational envelope supports unchanged 4.0 m/s candidate; no lower cruise is needed for this bounded profile. Actual freeze requires G1/team admission."
   },
+  "operational_scope": "Stationary-vehicle G2 baseline only; pedestrian operational first-admission unestablished/deferred.",
   "operational_measurement": {
-    "path": "operational-approach/capture.json",
+    "path": "operational-approach/raw-evidence.zip",
+    "member": "capture.json",
+    "archive_sha256": "b6bbf3cea4065e2a1100e5b30561ba5c33f4cace31ce7e996964d4b8f8298af8",
     "sha256": "f90e94b2a8a112d8bdbb70bb7c2941c9e8d14bb298845270e354ff37aea6b79b",
     "review_sha256": "8491a57f30a836e9abd74f74bcfaa9e4d907bab610daeb0b6d36b5d7288f0514",
     "source_archive_sha256": "93bad573fe5639bf3a99f8274e84a807d839193de1db1d1053c3946ee6ffbb97",
@@ -730,5 +733,5 @@
     },
     "controller_replay_mismatches": 0
   },
-  "publication_status": "LOCAL_TECHNICAL_CANDIDATE_PENDING_COMMIT_AND_HUMAN_REVIEW_NOT_G1_ADMISSION"
+  "publication_status": "PUBLISHED_PR_97_TECHNICAL_CANDIDATE_PENDING_G1_TEAM_ADMISSION"
 }

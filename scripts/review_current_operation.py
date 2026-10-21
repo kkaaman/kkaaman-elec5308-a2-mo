@@ -5,6 +5,7 @@ import json
 import zipfile
 
 from planning.speed_governor import speed_for_distance, stopping_distance
+from scripts.operational_evidence import read_archived_evidence
 from scripts.review_same_frame_capture import validate_decision_clocks
 
 
@@ -16,10 +17,11 @@ def review_current_operation(result, root, evidence_root):
     folder = evidence_root / "operational-approach"
     if not (folder / "review.json").exists():
         return result
-    capture = json.loads((folder / "capture.json").read_text())
+    capture_payload = read_archived_evidence(folder)
+    capture = json.loads(capture_payload)
     operation = json.loads((folder / "review.json").read_text())
     manifest = json.loads((folder / "artifact-manifest.json").read_text())
-    digest = sha(folder / "capture.json")
+    digest = hashlib.sha256(capture_payload).hexdigest()
     if (
         operation["capture_sha256"] != digest
         or manifest["files"]["report.json"]["sha256"] != digest
@@ -77,14 +79,17 @@ def review_current_operation(result, root, evidence_root):
     )
     if required > visibility:
         raise ValueError("Candidate does not fit measured operational range")
-    result["status"] = "FROZEN_GATED_OPERATIONAL"
+    result["status"] = "TECHNICALLY_VALIDATED_CANDIDATE"
+    result["operational_scope"] = "Stationary-vehicle G2 baseline only; pedestrian operational first-admission unestablished/deferred."
     result["dependency_review"].update(
         usable_bumper_visibility_established=True,
         operational_range_valid_frames=operation["admissible_frames"],
         reason="Same-frame actual-policy approach establishes bounded first-admission range; previous BL-C rejection evidence is preserved.",
     )
     result["operational_measurement"] = dict(
-        path="operational-approach/capture.json",
+        path="operational-approach/raw-evidence.zip",
+        member="capture.json",
+        archive_sha256=sha(folder / "raw-evidence.zip"),
         sha256=digest,
         review_sha256=sha(folder / "review.json"),
         source_archive_sha256=sha(folder / "measured-source.zip"),
@@ -118,13 +123,13 @@ def review_current_operation(result, root, evidence_root):
         visibility_status="MEASURED_CONTROLLED_STRAIGHT_FIRST_ADMISSION",
         speed_cap_status="MEASURED_ENVELOPE_BOUND_NOT_DRIVEN_SPEED_CERTIFICATE",
     )
-    result["frozen_values"] = values
+    result["frozen_values"] = dict(values, cruise_speed_mps=None, response_budget_s=None)
     result.pop("unsatisfied_technical_criterion", None)
     result["speed_requirement"].update(
-        lower_cruise_freezable_now=True,
-        reason="Measured operational envelope supports unchanged 4.0 m/s candidate; no lower cruise is needed for this bounded profile.",
+        lower_cruise_freezable_now=False,
+        reason="Measured operational envelope supports unchanged 4.0 m/s candidate; no lower cruise is needed for this bounded profile. Actual freeze requires G1/team admission.",
     )
     result["publication_status"] = (
-        "LOCAL_TECHNICAL_CANDIDATE_PENDING_COMMIT_AND_HUMAN_REVIEW_NOT_G1_ADMISSION"
+        "PUBLISHED_PR_97_TECHNICAL_CANDIDATE_PENDING_G1_TEAM_ADMISSION"
     )
     return result

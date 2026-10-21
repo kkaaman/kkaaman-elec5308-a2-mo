@@ -1,15 +1,15 @@
 # BL-D-06 operational first-admission review — 21 October 2026
 
-**Technical decision D-008: PASS for the bounded freshness-gated candidate.**
+**Technical decision D-008: PASS for the bounded freshness-gated stationary-vehicle candidate.**
 The new [same-frame operational capture](evidence/BL-D-06/operational-approach/README.md)
 resolves the previous joint range/admission blocker. **4.0 m/s** is supported with
 **0.9500000052154064 s** response, **1.497566177392398 m/s²** deceleration and
 unchanged **6 m** stopping margin. The highest calculated envelope ceiling is
 **5.7 m/s**, but the proposed configuration retains the unchanged 4.0 m/s candidate.
 
-This is an **uncommitted local technical candidate**, not full-team G1/G2 admission,
+This is a **published PR #97 technical candidate**, not full-team G1/G2 admission,
 closed-loop stopping acceptance or demonstrated driving at the calculated cap.
-No GitHub state or PR #90 source branch has changed.
+PR #97 publishes this technical candidate; PR #90 / issue #38 retain responsibility for G1 admission after canonical publication and full-team review.
 
 ## What the replacement proves
 
@@ -66,9 +66,9 @@ brake commands, not a positive driving/stopping trial.
 ## Exact local candidate configuration
 
 [configs/mission_baseline.json](../configs/mission_baseline.json), subsection
-`baseline_threshold_freeze`, is `FROZEN_GATED_OPERATIONAL` with:
+`baseline_threshold_freeze`, is `TECHNICALLY_VALIDATED_CANDIDATE` with the values below under `candidate_values`; cruise/response remain null in `frozen_values`:
 
-| Frozen envelope value | Value |
+| Technically validated candidate value | Value |
 |---|---:|
 | Cruise ceiling | 4.0 m/s |
 | Conservative deceleration | 1.497566177392398 m/s² |
@@ -78,12 +78,11 @@ brake commands, not a positive driving/stopping trial.
 All gate, tracking, depth-validity, detector/model/tracker, rig and implementation
 policy values are unchanged. The unchanged clearance guard still requires five
 fresh clear frames and 0.4 s; this provider never fabricates valid empty clearance.
-The baseline operational loader enforces the bounded profile. Legacy 320×180 S0
+The frozen operational loader rejects this candidate status. PR #90 / issue #38 must explicitly publish the admitted freeze after required team review. Legacy 320×180 S0
 navigation configuration does not replace the **640×360 operational rig**.
 [Provenance](evidence/BL-D-06/operational-approach/provenance.json) pins the local
 candidate config SHA256 and base commit plus exact measured source archive.
-A new committed G2-admitted source revision does not yet exist: publication and
-human review are explicitly outstanding.
+The candidate is published in PR #97 but is not G2-admitted; canonical publication and full-team G1 review remain outstanding.
 
 A lower speed is permitted by D-003/issue #34; 4.0 m/s is not mandatory. The old
 BL-C 3.2 m/s recommendation remains a correct conservative target-only screen
@@ -119,3 +118,19 @@ checklists have not been modified by this capture task.
 evidence/BL-D-06/README
 evidence/BL-D-06/ai-journal
 ```
+
+## Operational scope and admission boundary (PR #97 review)
+
+The **4.0 m/s technically validated candidate is limited to the stationary-vehicle
+obstacle profile for the G2 stationary-car baseline**. The 22.348600 m operational
+first-admission evidence uses a stationary vehicle target with a controlled approach.
+Pedestrian operational first-admission range is **unestablished / deferred**.
+Existing car/person depth-validation evidence is preserved: pedestrian depth
+accuracy does not establish pedestrian operational detection/admission range.
+No new pedestrian capture or #39–#41 implementation is claimed here.
+
+`TECHNICALLY_VALIDATED_CANDIDATE` is not `FROZEN_GATED_OPERATIONAL`:
+the existing frozen loader rejects it. The measured candidate inputs are retained,
+but cruise/response frozen fields remain null. Only PR #90 / issue #38 and required
+team review may publish the actual G1/G2 admission. The 5.7 m/s arithmetic ceiling
+is not an admitted or certified driving speed.

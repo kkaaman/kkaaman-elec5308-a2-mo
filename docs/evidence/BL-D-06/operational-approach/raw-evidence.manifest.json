@@ -1,0 +1,54 @@
+{
+  "capture.json": {
+    "sha256": "f90e94b2a8a112d8bdbb70bb7c2941c9e8d14bb298845270e354ff37aea6b79b",
+    "bytes": 6525130
+  },
+  "elevated-target-attempt/README.original.txt": {
+    "sha256": "b09b76e5e7304faa1cb2415be3599e37ac4de50d57298564be9a1bf651adde6b",
+    "bytes": 8941
+  },
+  "elevated-target-attempt/artifact-manifest.json": {
+    "sha256": "100a0a78a3eaa582bac948548af6fdee895f15595ab58c69b3278f70e59b1d7b",
+    "bytes": 246987
+  },
+  "elevated-target-attempt/background-preflight.json": {
+    "sha256": "8f2d9baaa73f3fc6de6131b6466cf4e120ed54f28b3dc74aaa6eb20259eea6e9",
+    "bytes": 527667
+  },
+  "elevated-target-attempt/capture-command.json": {
+    "sha256": "539506c4aa75b5d78d99084c1a9044a2d3843aaed375efde132ff07441036783",
+    "bytes": 2981
+  },
+  "elevated-target-attempt/capture.json": {
+    "sha256": "564cc30689a936f235983bb6361f678d8ea86ece817e4f53c78f9e3a2b72cba5",
+    "bytes": 6697924
+  },
+  "elevated-target-attempt/classification.json": {
+    "sha256": "3e8db7d2101777aeba71fcf5cffc052425009541eda3249d337e65e9dfef60ba",
+    "bytes": 222
+  },
+  "elevated-target-attempt/measured-source.zip": {
+    "sha256": "c5a076f7d22f524863db56c071c707bef2aee1aa05f3780810f3bd5a9244f1f0",
+    "bytes": 58134
+  },
+  "elevated-target-attempt/preflight-index.json": {
+    "sha256": "2a51d20f0790397189ed651179a1984901c6a2216c11d289de91e1eb7031f5d6",
+    "bytes": 695
+  },
+  "elevated-target-attempt/provenance.json": {
+    "sha256": "df22cf49e094163322ba9072554758a52c1ac1c8a46426da50d308c2185527fc",
+    "bytes": 881
+  },
+  "elevated-target-attempt/regression.xml": {
+    "sha256": "f25b2b91694aab431e2f23f3d93c27677dafb23254dc973868d8164073dcc084",
+    "bytes": 21938
+  },
+  "elevated-target-attempt/review.json": {
+    "sha256": "1efd546d29f668bed4a3c6d00336e4077c58590e87d9441cbb7bb23c116d8d73",
+    "bytes": 23432
+  },
+  "elevated-target-attempt/site152-preflight.json": {
+    "sha256": "518de3d95fce78ac45d5029ddecc2af569aa8c0ec673a069d65afc3629929c40",
+    "bytes": 64761
+  }
+}

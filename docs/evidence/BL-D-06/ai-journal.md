@@ -129,3 +129,16 @@ reproduction and diff checks passed. Local G1 and PR #90 remained untouched.
 The source-position regression prevents the setup-helper error from recurring.
 The 5.7 m/s mathematical envelope is not a driven-speed claim; local candidate
 ceiling remains 4.0 m/s, with publication/human admission still pending.
+
+## PR #97 reviewer follow-up
+
+Preserved fff2c4a and measured captures. Changed current status to technically
+validated candidate, with null cruise/response frozen values: the existing loader
+rejects it pending PR #90 / #38 and team admission. Scoped 4.0 m/s to stationary
+vehicle baseline; pedestrian operational admission remains deferred and depth
+validation unchanged. Corrected root module commands and CSV CRLF; original raw
+CSV hash remains in its raw manifest with normalized-copy provenance. Following
+TEST-02, byte-verified capture/history ZIP plus checksum/member manifest replaces
+large JSON duplicates; failed attempts remain archived. Added command, disabled
+loader and archive-corruption regressions. Historical captured configuration and
+publication wording are immutable measurement metadata, not current admission.

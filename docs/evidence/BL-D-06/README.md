@@ -1,6 +1,6 @@
 # BL-D-06 evidence guide
 
-**Latest technical decision: PASS / local FROZEN_GATED_OPERATIONAL candidate.**
+**Latest technical decision: PASS / published stationary-vehicle technical candidate; frozen loader disabled pending G1 admission.**
 The new [same-frame operational approach](operational-approach/README.md) supplies
 345 admitted observations and supports the unchanged 4.0 m/s candidate under the
 0.9500000052 s enforced budget. Human review/publication/G1 admission remain pending.
@@ -117,7 +117,7 @@ human decision review and missing live evidence remain separate.
 ## Reproduction and cleanup policy
 
 ```bash
-.venv/bin/python scripts/review_baseline_freeze.py --output /tmp/bl-d-review.json
+PYTHONPATH=src .venv/bin/python -m scripts.review_baseline_freeze --output /tmp/bl-d-review.json
 .venv/bin/python -m pytest \
   tests/unit/test_baseline_freeze_review.py \
   tests/unit/test_operational_freshness.py \
@@ -150,3 +150,19 @@ verified unchanged. Automated validation is not human safety approval.
 admission-rejection-investigation
 operational-approach/README
 ```
+
+## Operational scope and admission boundary (PR #97 review)
+
+The **4.0 m/s technically validated candidate is limited to the stationary-vehicle
+obstacle profile for the G2 stationary-car baseline**. The 22.348600 m operational
+first-admission evidence uses a stationary vehicle target with a controlled approach.
+Pedestrian operational first-admission range is **unestablished / deferred**.
+Existing car/person depth-validation evidence is preserved: pedestrian depth
+accuracy does not establish pedestrian operational detection/admission range.
+No new pedestrian capture or #39–#41 implementation is claimed here.
+
+`TECHNICALLY_VALIDATED_CANDIDATE` is not `FROZEN_GATED_OPERATIONAL`:
+the existing frozen loader rejects it. The measured candidate inputs are retained,
+but cruise/response frozen fields remain null. Only PR #90 / issue #38 and required
+team review may publish the actual G1/G2 admission. The 5.7 m/s arithmetic ceiling
+is not an admitted or certified driving speed.

@@ -1,6 +1,6 @@
 # Same-frame operational approach — 21 October 2026
 
-**BL-D-06 technical PASS for the bounded freshness-gated profile.** The local
+**BL-D-06 technical PASS for the bounded freshness-gated stationary-vehicle candidate.** The local
 candidate freeze retains **4.0 m/s**, response **0.9500000052154064 s**, conservative
 deceleration **1.497566177392398 m/s²** and unchanged **6 m** upper margin.
 This is **not** a team G1 admission, a driven 5.7 m/s certificate, a full-corridor
@@ -8,7 +8,7 @@ visibility claim or closed-loop stopping/HOLD/resume acceptance.
 
 ## Capture and provenance
 
-[Capture](capture.json), [exact command/log](capture-command.json), [verified review](review.json), [provenance](provenance.json),
+[Capture archive](raw-evidence.zip), [exact command/log](capture-command.json), [verified review](review.json), [provenance](provenance.json),
 [measured source archive](measured-source.zip) and [raw artifact hashes](artifact-manifest.json)
 retain all **800 frames**. The existing BL-C 600-frame run and rejection report
 remain unchanged. Real CARLA client/server **0.9.16**, map
@@ -29,9 +29,9 @@ are unchanged. Controller/provider/governor outputs are measured shadow outputs;
 physical ego commands are always full brake.
 
 Source snapshots and file hashes identify the executed collector, reused helpers,
-configuration and runtime. The frozen candidate config differs from the captured
-blocked profile only in freeze metadata and population of existing candidate
-values; runtime source and numeric operating policy were not changed.
+configuration and runtime. The published candidate config differs from the captured blocked profile in
+review/publication metadata; numeric candidate inputs and runtime source remain
+unchanged. Cruise/response frozen fields are null and the admitted loader is disabled.
 
 ## Preflight and all attempts
 
@@ -47,7 +47,7 @@ provider distance. It remains in every relevant track/provider record.
 The bus stays **behind the camera** outside its scheduled occlusion; off-axis
 7 m placement from the old run is not reused.
 
-The first 800-frame attempt is retained under `elevated-target-attempt/` but
+The first 800-frame attempt is retained inside `raw-evidence.zip` under `elevated-target-attempt/` but
 **excluded from the final ordinary-road range conclusion**: its target used the
 spawn-point height rather than road height. Two subsequent setup attempts failed
 before sampled frames (ego spawn placement, then helper variable error); both
@@ -134,13 +134,13 @@ maximum envelope speed = 5.7180586377280065 m/s
 reported downward to 0.1 m/s = 5.7 m/s
 ```
 
-**Highest calculated envelope cap: 5.7 m/s. Proposed frozen operating ceiling:
+**Highest calculated envelope cap: 5.7 m/s. Technically validated stationary-vehicle candidate ceiling:
 4.0 m/s**, the unchanged tested candidate. No evidence of driving at 5.7 m/s is
 claimed. A higher configuration was not substituted for the measured candidate.
 [Current BL-D review](../review.json) and [candidate config](../../../../configs/mission_baseline.json)
-identify the exact settings. Only `baseline_operational_stack` with the bounded
-profile may use these values; legacy navigation/demo entry points are not
-silently relabelled. G2 admission still requires publication and human/team review.
+identify the exact settings. The candidate does not enable `baseline_operational_stack`; its frozen loader
+rejects the current candidate status. Legacy navigation/demo entry points are
+not relabelled as admitted operation. G2 admission still requires publication and human/team review.
 
 This provider conservatively includes every valid perceived surface, performs no
 outside-corridor exclusion and makes no empty-road coverage claim. The result
@@ -159,7 +159,7 @@ Raw arrays/source rows remain under
 PYTHONPATH=src .venv/bin/python -m scripts.review_operational_range \
   --input runs/BL-D-06/operational-approach/same-frame-04/report.json \
   --output /tmp/operational-approach-reviewed.json
-PYTHONPATH=src .venv/bin/python scripts/review_baseline_freeze.py \
+PYTHONPATH=src .venv/bin/python -m scripts.review_baseline_freeze \
   --output /tmp/bl-d-freeze-reviewed.json
 ```
 
@@ -169,3 +169,37 @@ replay (zero mismatches), startup/fault recovery and the speed equation. Offline
 unit tests verify corrupt clock/source/expiry/positive-output rejection. Final validation: **170 focused tests passed**, **830 full tests passed,
 1 skipped, 3 subtests passed**. Ruff, strict Sphinx `-W`, `git diff --check`,
 exact BL-D review reproduction and config/source hashes passed. [JUnit](regression.xml).
+
+## Operational scope and admission boundary (PR #97 review)
+
+The **4.0 m/s technically validated candidate is limited to the stationary-vehicle
+obstacle profile for the G2 stationary-car baseline**. The 22.348600 m operational
+first-admission evidence uses a stationary vehicle target with a controlled approach.
+Pedestrian operational first-admission range is **unestablished / deferred**.
+Existing car/person depth-validation evidence is preserved: pedestrian depth
+accuracy does not establish pedestrian operational detection/admission range.
+No new pedestrian capture or #39–#41 implementation is claimed here.
+
+`TECHNICALLY_VALIDATED_CANDIDATE` is not `FROZEN_GATED_OPERATIONAL`:
+the existing frozen loader rejects it. The measured candidate inputs are retained,
+but cruise/response frozen fields remain null. Only PR #90 / issue #38 and required
+team review may publish the actual G1/G2 admission. The 5.7 m/s arithmetic ceiling
+is not an admitted or certified driving speed.
+
+## Compressed evidence packaging
+
+Following TEST-02, [raw-evidence.zip](raw-evidence.zip) contains the byte-identical
+accepted `capture.json` plus the entire superseded `elevated-target-attempt/`
+(including failed-attempt context, duplicated historical preflights/manifests and
+measured sources). No failure evidence was deleted. [Archive checksum](raw-evidence.sha256)
+and [per-member manifest](raw-evidence.manifest.json) verify bytes and names before
+replay; the offline freeze review reads the archive without extraction. Existing
+capture hashes identify the uncompressed members and remain unchanged. Historical
+README/config/publication wording inside that archive records the original run,
+not current admission. Top-level preflight reports and the accepted artifact
+manifest remain directly accessible. The 1.3 GB image/depth array set is still
+external and hash-pinned; this archive does not replace durable team raw-data access.
+
+Run the freeze review from the repository root after installing project dependencies:
+`PYTHONPATH=src .venv/bin/python -m scripts.review_baseline_freeze --output /tmp/bl-d-freeze-reviewed.json`.
+Use a new output path (the reviewer intentionally refuses to overwrite files).

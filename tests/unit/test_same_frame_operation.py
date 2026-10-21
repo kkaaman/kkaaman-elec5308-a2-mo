@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from scripts.operational_evidence import read_archived_evidence
 from scripts.review_same_frame_capture import validate_decision_clocks
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -14,7 +15,7 @@ EVIDENCE = ROOT / "docs/evidence/BL-D-06/operational-approach"
 
 @pytest.fixture(scope="module")
 def captured():
-    return json.loads((EVIDENCE / "capture.json").read_text())
+    return json.loads(read_archived_evidence(EVIDENCE))
 
 
 def test_all_measured_clock_partitions_and_admission_limits(captured):
@@ -87,3 +88,14 @@ def test_kinematic_target_uses_road_reference_not_elevated_spawn():
     pose = pose_along(api, road, 50)
     assert pose.location.x == 51 and pose.location.y == 2
     assert pose.location.z == 0.05 and road.location.z == 0
+
+
+def test_archived_evidence_rejects_corruption(tmp_path):
+    import shutil
+
+    for name in ("raw-evidence.zip", "raw-evidence.sha256", "raw-evidence.manifest.json"):
+        shutil.copyfile(EVIDENCE / name, tmp_path / name)
+    with (tmp_path / "raw-evidence.zip").open("ab") as stream:
+        stream.write(b"corrupt")
+    with pytest.raises(ValueError, match="archive hash mismatch"):
+        read_archived_evidence(tmp_path)

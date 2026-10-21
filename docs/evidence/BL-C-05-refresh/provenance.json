@@ -193,5 +193,15 @@
   "settings_restored": true,
   "no_actor_leaks": true,
   "rig_validation_this_attempt": true,
-  "historical_result_reused": false
+  "historical_result_reused": false,
+  "versioned_csv_normalization": {
+    "path": "frame-analysis.csv",
+    "transformation": "CRLF to LF only; CSV values unchanged. artifact-manifest.json retains original raw-output bytes/hash.",
+    "original_raw_record": {
+      "bytes": 144878,
+      "sha256": "7b3b69802203e5bb7f4c2c4720f74e5ed1866af7efdf4acb4a9a138924d43ea3"
+    },
+    "versioned_bytes": 144277,
+    "versioned_sha256": "2186f879aa31738a0da798ad72ac8456dabd1a47c86325fb9be7169b699c901f"
+  }
 }
