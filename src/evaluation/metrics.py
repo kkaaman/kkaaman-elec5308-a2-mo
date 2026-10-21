@@ -85,6 +85,39 @@ def _timing(rows, manifest):
     )
 
 
+def _localisation(rows):
+    """Shadow pose-estimate error while moving (report-only; never scored)."""
+    moving = [r["localisation"] for r in rows if "localisation" in r and r["speed_mps"] > 0.5]
+    if not moving:
+        return None
+
+    def stats(values):
+        values = np.abs(np.asarray(values, dtype=float))
+        return dict(
+            mean=float(values.mean()),
+            p95=float(np.percentile(values, 95)),
+            max=float(values.max()),
+        )
+
+    measured = np.array([r["yaw_rate_rps"] for r in moving])
+    truth = np.array([r["true_yaw_rate_rps"] for r in moving])
+    agreement = (
+        float(np.corrcoef(measured, truth)[0, 1])
+        if measured.std() > 1e-9 and truth.std() > 1e-9
+        else None
+    )
+    return dict(
+        moving_samples=len(moving),
+        lateral_error_m=stats([r["lateral_error_m"] for r in moving]),
+        along_error_m=stats([r["along_error_m"] for r in moving]),
+        position_error_m=stats([r["error_m"] for r in moving]),
+        yaw_error_deg=stats([math.degrees(r["yaw_error_rad"]) for r in moving]),
+        final_position_error_m=float(moving[-1]["error_m"]),
+        # Sign/scale sanity check of the gyro input against the true yaw rate.
+        gyro_truth_correlation=agreement,
+    )
+
+
 def summarize(rows, events, manifest):
     dt = manifest["dt_s"]
     if not rows:
@@ -157,6 +190,7 @@ def summarize(rows, events, manifest):
     return dict(
         samples=len(rows),
         timing=_timing(rows, manifest),
+        localisation=_localisation(rows),
         cruise_samples=len(cruise),
         moving_samples=len(moving),
         metrics=metrics,

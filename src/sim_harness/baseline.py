@@ -18,6 +18,7 @@ import cv2
 import numpy as np
 
 from autonomy.interfaces import EgoPose, FrameBundle
+from autonomy.localisation import LocalisationInputs, NoisySensors, wrap
 from geometry.camera import CameraIntrinsics
 from geometry.transforms import ego_to_world_matrix, inverse_rigid
 from navigation_control.types import VehicleState
@@ -185,8 +186,34 @@ class BaselineWorld(KinematicWorld):
             graph=route_graph(self.points),
         )
 
+    def enable_localisation(self, config, seed):
+        """Shadow localisation inputs: noisy wheel speed, gyro and GNSS from the true state."""
+        self.localisation = config
+        self._loc_sensors = NoisySensors(config.sensors, seed)
+        self._loc_truth, self._loc_previous = {}, None
+
+    def localisation_record(self):
+        return dict(source="harness noise model", **self._loc_sensors.record())
+
+    def localisation_inputs(self, frame_id):
+        now, state, rate = self._loc_truth.pop(frame_id)
+        sensors = self._loc_sensors
+        gnss = sensors.gnss((state.x_m, state.y_m)) if sensors.gnss_due(now) else None
+        return LocalisationInputs(
+            now, sensors.wheel_speed(state.speed_mps), sensors.yaw_rate(rate), gnss
+        )
+
     def _frame(self, episode, frame_id, state):
         now = frame_id * self.config.dt_s
+        if getattr(self, "localisation", None) is not None:
+            previous = self._loc_previous
+            rate = (
+                wrap(state.yaw_rad - previous[1].yaw_rad) / (now - previous[0])
+                if previous and now > previous[0]
+                else 0.0
+            )
+            self._loc_truth[frame_id] = (now, state, rate)
+            self._loc_previous = (now, state)
         s = self.route.project(state.x_m, state.y_m).s_m
         gap = self.object_s - (0.4 if self.person else 2.4) - s - 3.81152
         if (

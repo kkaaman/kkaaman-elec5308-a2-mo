@@ -2,12 +2,14 @@
 
 import time
 import traceback
-from dataclasses import asdict
+from dataclasses import asdict, replace
 
 from autonomy.baseline import BaselinePolicy
+from autonomy.localisation import PoseEstimator, pose_errors, wrap
 from autonomy.stack import SkeletonStack, StackConfig
 from evaluation.metrics import summarize
 from evaluation.run_logger import RunLogger, json_text
+from navigation_control.types import VehicleState
 
 
 def run_episode(
@@ -42,6 +44,15 @@ def run_episode(
         ),
     )
     rows, events, error = [], [], None
+    # Shadow localisation: estimated beside the true pose, never used for driving.
+    shadow = getattr(world, "localisation", None)
+    estimator = PoseEstimator(shadow.filter) if shadow is not None else None
+    previous_truth = None
+    # "estimate": the policy drives on the estimated pose and measured wheel speed.
+    # Scoring (CTE, goal distance, truth gaps) always uses the true pose.
+    drive_on_estimate = manifest.get("pose_source") == "estimate"
+    if drive_on_estimate and estimator is None:
+        raise ValueError("pose_source 'estimate' needs world localisation sensors")
     completed = False
     start = time.monotonic()
     cruise_since = None
@@ -62,7 +73,22 @@ def run_episode(
                 frame = world.refresh()
         initial_time = frame.sim_time_s
         while frame.sim_time_s - initial_time <= max_sim_s:
-            packet = stack.step(frame)
+            policy_frame, inputs, estimate = frame, None, None
+            if drive_on_estimate:
+                inputs = world.localisation_inputs(frame.frame_id)
+                if not estimator.initialised:
+                    estimator.initialise_at(*policy.route.at(0.0), inputs.sim_time_s)
+                estimate = estimator.step(inputs, policy.route)
+                policy_frame = replace(
+                    frame,
+                    ego=replace(
+                        frame.ego,
+                        state=VehicleState(
+                            estimate.x_m, estimate.y_m, estimate.yaw_rad, inputs.wheel_speed_mps
+                        ),
+                    ),
+                )
+            packet = stack.step(policy_frame)
             projection = policy.route.project(frame.ego.state.x_m, frame.ego.state.y_m)
             goal = policy.route.points[-1]
             policy_record = dict(
@@ -99,6 +125,34 @@ def run_episode(
                 )
             # Evaluation-only information is fetched after policy execution.
             truth = world.evaluation(frame.frame_id)
+            localisation = None
+            if estimator is not None:
+                if not drive_on_estimate:
+                    inputs = world.localisation_inputs(frame.frame_id)
+                    estimate = estimator.step(inputs, policy.route)
+                state = frame.ego.state
+                true_rate = (
+                    wrap(state.yaw_rad - previous_truth[1]) / (frame.sim_time_s - previous_truth[0])
+                    if previous_truth and frame.sim_time_s > previous_truth[0]
+                    else 0.0
+                )
+                previous_truth = (frame.sim_time_s, state.yaw_rad)
+                if estimate is not None:
+                    localisation = dict(
+                        x_m=estimate.x_m,
+                        y_m=estimate.y_m,
+                        yaw_rad=estimate.yaw_rad,
+                        gyro_bias_rps=estimate.gyro_bias_rps,
+                        position_sigma_m=estimate.position_sigma_m,
+                        gnss_fix=inputs.gnss_xy_m is not None,
+                        # Raw inputs, so other estimators can be replayed offline.
+                        gnss_xy_m=list(inputs.gnss_xy_m) if inputs.gnss_xy_m else None,
+                        input_time_s=inputs.sim_time_s,
+                        wheel_speed_mps=inputs.wheel_speed_mps,
+                        yaw_rate_rps=inputs.yaw_rate_rps,
+                        true_yaw_rate_rps=true_rate,
+                        **pose_errors(estimate, state, policy.route),
+                    )
             next_frame = world.step(packet)
             applied_at = getattr(world, "last_applied_monotonic_s", time.monotonic())
             sent_at = getattr(world, "last_command_sent_monotonic_s", applied_at)
@@ -130,6 +184,8 @@ def run_episode(
                 stages=dict(packet.diagnostics.stage_durations_s),
                 observation_valid=not fault,
             )
+            if localisation is not None:
+                record["localisation"] = localisation
             steady = (
                 record["state"] == "CRUISE"
                 and record["distance_to_goal_m"] > 15
@@ -177,6 +233,14 @@ def run_episode(
             logger.event(event)
         logger.manifest["loop_wall_s"] = time.monotonic() - start
         logger.manifest.update(getattr(world, "manifest_details", {}))
+        if shadow is not None:
+            logger.manifest["localisation"] = dict(
+                mode="driving on the estimate (scored on the true pose)"
+                if drive_on_estimate
+                else "shadow (logged, not used for driving)",
+                config=shadow.as_dict(),
+                sensors=world.localisation_record(),
+            )
         logger.close(
             completed=completed, cleanup=getattr(world, "cleanup", {"ok": False}), error=error
         )
