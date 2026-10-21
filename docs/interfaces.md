@@ -99,7 +99,7 @@ No approval is recorded by this implementation.
 
 | Owner | Review focus | Status |
 |---|---|---|
-| Saviour | Stack lifecycle, packet expiry, harness | Pending |
+| Saviour | Stack lifecycle, packet expiry, harness | Reviewed – 21 Oct 2026 (static contract review; runtime acceptance separate)|
 | Ricky | Detection metadata and simulator boundary | Pending |
 | Mohammad | RGB-D tick alignment and invalid observations | Pending |
 | Alan | Optical transforms and depth convention | Reviewed - 14 Oct 2026 |
