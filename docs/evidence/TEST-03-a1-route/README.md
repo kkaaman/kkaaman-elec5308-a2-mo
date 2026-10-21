@@ -52,6 +52,8 @@ lateral gap:
    (RV-06) but not used for steering. On this route that monitor agreed with the map's
    curve direction in 97.5% of usable frames (median offset 6 cm, Quick S0-full and
    S1-full), against 22-26% on the baseline route's unmarked junction turn.
+   Follow-up: A2 driving on its own GNSS, gyro and wheel speed (RTK profile) gave the
+   same lane-keeping, 0.023-0.031 m mean |CTE| (`../TEST-03-a1-route-estimate/`).
 2. **Timing.** A2 is synchronous at 0.05 s; A1 was asynchronous at about 0.43 s.
 3. **Speed.** A2 cruises at 4.8 m/s; A1 at 3 m/s (2.1 m/s average).
 4. **Vehicle geometry.** A2 uses the measured Tesla Model 3; A1 used its demo's first

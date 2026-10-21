@@ -106,7 +106,9 @@ above the road (`fix(carla)` commit).
 With A2 on the same roads, the route difference in TEST-03 goes away. These differences
 remain:
 - **Pose source.** A2 uses the simulator's vehicle pose; A1 used camera lane
-  estimates.
+  estimates. Driving on its own GNSS, gyro and wheel speed instead (RTK profile), A2
+  kept 0.023-0.031 m mean |CTE| on this route. See
+  `docs/evidence/TEST-03-a1-route-estimate/`.
 - **Timing.** A2 is synchronous at 0.05 s; A1 was asynchronous, at about 0.43 s.
 - **Speed.** A2 cruises at 4.8 m/s; A1 at 3 m/s.
 - **Vehicle geometry.**

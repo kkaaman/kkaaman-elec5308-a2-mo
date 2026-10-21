@@ -69,3 +69,4 @@ demonstration for the autonomous perception and navigation library.
    a2_on_a1_route
    evidence/TEST-03-a1-route/README
    shadow_localisation
+   evidence/TEST-03-a1-route-estimate/README
