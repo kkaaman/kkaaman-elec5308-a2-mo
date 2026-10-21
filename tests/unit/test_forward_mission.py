@@ -64,7 +64,7 @@ class ForwardMissionTests(unittest.TestCase):
         result = controller.update(VehicleState(9,0,0,2), 3, 0.05)
         self.assertEqual(result.diagnostics.progress_m, 10)
 
-    def test_spec_is_tentative_forward_open_and_truth_separated(self):
+    def test_spec_is_frozen_forward_open_and_truth_separated(self):
         path = Path(__file__).resolve().parents[2] / 'configs/mission_baseline.json'
         spec = json.loads(path.read_text())
         self.assertEqual(spec['direction'], 'forward')
@@ -72,5 +72,7 @@ class ForwardMissionTests(unittest.TestCase):
         self.assertEqual(spec['tentative_manoeuvres'][-1], 'stop_at_goal')
         self.assertFalse(spec['reverse_allowed'])
         self.assertFalse(spec['obstacle_truth_for_control'])
-        self.assertIn('PENDING', spec['route_selection_status'])
+        self.assertEqual(spec['route_selection_status'], 'FROZEN_PENDING_S0_ACCEPTANCE')
+        self.assertEqual(spec['ego_truth_for_navigation'], 'ALLOWED_BY_USER_COURSE_SCOPE_CONFIRMATION')
+        self.assertIn('route_file', spec)
         self.assertEqual(spec['set_path_policy'], 'once_per_episode_before_first_update')

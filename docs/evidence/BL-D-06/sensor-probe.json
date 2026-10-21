@@ -1,0 +1,80 @@
+{
+  "rows": [
+    {
+      "index": 0,
+      "frame": 6492,
+      "status": "current",
+      "sensor_upper_s": 0.2365996130001804
+    },
+    {
+      "index": 1,
+      "frame": 6493,
+      "status": "current",
+      "sensor_upper_s": 0.11617004399977304
+    },
+    {
+      "index": 2,
+      "frame": 6494,
+      "status": "current",
+      "sensor_upper_s": 0.11640183200051979
+    },
+    {
+      "index": 3,
+      "frame": 6495,
+      "status": "current",
+      "sensor_upper_s": 0.11273274900031538
+    },
+    {
+      "index": 4,
+      "frame": 6496,
+      "status": "current",
+      "sensor_upper_s": 0.0951192729999093
+    },
+    {
+      "index": 5,
+      "frame": 6497,
+      "status": "current",
+      "sensor_upper_s": 0.09462238800006162
+    },
+    {
+      "index": 6,
+      "frame": 6498,
+      "status": "current",
+      "sensor_upper_s": 0.10474462199999834
+    },
+    {
+      "index": 7,
+      "frame": 6499,
+      "status": "current",
+      "sensor_upper_s": 0.09622006999961741
+    },
+    {
+      "index": 8,
+      "frame": 6500,
+      "status": "current",
+      "sensor_upper_s": 0.097164554000301
+    },
+    {
+      "index": 9,
+      "frame": 6501,
+      "status": "current",
+      "sensor_upper_s": 0.10376379500030453
+    },
+    {
+      "index": 10,
+      "frame": 6502,
+      "status": "current",
+      "sensor_upper_s": 0.09962644600000203
+    },
+    {
+      "index": 11,
+      "frame": 6503,
+      "status": "current",
+      "sensor_upper_s": 0.09527583699946263
+    }
+  ],
+  "cleanup": {
+    "settings_restored": true,
+    "no_actor_leaks": true
+  }
+}

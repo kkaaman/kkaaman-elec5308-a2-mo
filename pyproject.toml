@@ -13,6 +13,7 @@ dependencies = [
     "torch",
     "torchvision",
     "ultralytics",
+    "lap>=0.5.12",
 ]
 
 [project.optional-dependencies]
@@ -79,9 +80,21 @@ ignore = ["E501"]
 "examples/a1/run_baseline.py" = ["TID251"]
 "scripts/export_lane_graph.py" = ["TID251"]
 "scripts/calibrate_vehicle.py" = ["TID251"]
+
+"scripts/calibrate_depth.py" = ["TID251"]
+"tests/unit/test_depth_calibration.py" = ["TID251"]
+"scripts/calibrate_longitudinal.py" = ["TID251"]
+
 "scripts/check_junction_routes.py" = ["TID251"]
 "scripts/check_rgbd_capture.py" = ["TID251"]
+"scripts/measure_operational_governance.py" = ["TID251"]
+"tests/unit/test_operational_freshness.py" = ["TID251"]
+"scripts/capture_obstacle_tracks.py" = ["TID251"]
+"scripts/run_scenario.py" = ["TID251"]
+"scripts/check_baseline_mission.py" = ["TID251"]
+"tests/unit/test_s0_runner.py" = ["TID251"]
 "tests/unit/test_rgbd_capture.py" = ["TID251"]
+"tests/unit/test_track_capture.py" = ["TID251"]
 "tests/test_carla_adapter.py" = ["E402", "TID251"]
 "tests/unit/test_world_lifecycle.py" = ["TID251"]
 "tests/unit/test_vehicle_geometry.py" = ["TID251"]

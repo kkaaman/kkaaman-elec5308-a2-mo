@@ -48,18 +48,27 @@ class PathFollower:
         self._speed.reset()
 
     def update(
-        self, state: VehicleState, target_speed_mps: float, dt_s: float
+        self,
+        state: VehicleState,
+        target_speed_mps: float,
+        dt_s: float,
+        *,
+        completion_allowed: bool = True,
     ) -> ControlResult:
         """Calculate one command from a rear-axle state and caller's speed ceiling.
 
         The endpoint speed ceiling uses sqrt(2*a*remaining_braking_distance).
-        Completion is latched until reset/set_path. A zero requested speed only
-        pauses motion when away from the goal; a later positive request resumes it.
+        Completion is latched until reset/set_path. The caller can suppress a
+        new completion latch during an obstacle hold with ``completion_allowed``.
+        This does not release an already latched completion or change endpoint
+        braking. A zero requested speed pauses motion away from the goal.
         """
         if not isinstance(state, VehicleState):
             raise TypeError("state must be a VehicleState")
         nonnegative("target_speed_mps", target_speed_mps)
         positive("dt_s", dt_s)
+        if type(completion_allowed) is not bool:
+            raise TypeError("completion_allowed must be bool")
         if self._path is None:
             raise RuntimeError("set_path() must be called before update()")
 
@@ -72,7 +81,8 @@ class PathFollower:
         # A short route must not be declared finished at its starting point.
         near_end = progress >= max(path.length_m * 0.5, path.length_m - config.goal_tolerance_m)
         finished = self._finished or (
-            near_end
+            completion_allowed
+            and near_end
             and goal_distance <= config.goal_tolerance_m
             and state.speed_mps <= config.stopped_speed_mps
         )

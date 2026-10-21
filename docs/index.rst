@@ -29,12 +29,19 @@ demonstration for the autonomous perception and navigation library.
    interfaces
    geometry
    lane-topology
+   baseline_route
+   behaviour
+   baseline_threshold_freeze
 
 .. toctree::
    :maxdepth: 1
    :caption: Task records
 
    controller_audit
+   mission_lifecycle
+   s0_navigation_validation
+   carla_rgb_readback_fix
+   evidence/TEST-02/README
    detector_contracts
    lane_recovery
    stack_skeleton
@@ -43,11 +50,15 @@ demonstration for the autonomous perception and navigation library.
    vehicle_adapter
    world_lifecycle
    detector_lifecycle
+   track_stabilisation
    test01_a1_baseline
    evidence/TEST-01-baseline
+   evidence/TEST-03/README
    batch_baseline
    steering_calibration
+   evidence/BL-E-03/README
    gates/G0
    gates/G1
    evidence/BL-E-02/README
    evidence/baseline-batch/README
+   evidence/TEST-13/README

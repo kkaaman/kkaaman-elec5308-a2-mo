@@ -1,0 +1,1134 @@
+{
+  "status": "MEASURED_REVIEW_REQUIRED",
+  "masking_decision": {
+    "decision": "KEEP_OFF",
+    "reasons": [
+      "fewer than 30 detector boxes matched to truth",
+      "segmentation runtime not measured"
+    ],
+    "detector_boxes": {
+      "boxes": 0,
+      "paired_valid": 0,
+      "median_abs_error_improvement_m": null,
+      "plain_invalid_rate": null,
+      "masked_invalid_rate": null
+    },
+    "oracle_boxes": {
+      "boxes": 39,
+      "paired_valid": 0,
+      "median_abs_error_improvement_m": null,
+      "plain_invalid_rate": 0.0,
+      "masked_invalid_rate": 1.0
+    },
+    "thresholds": {
+      "latency_budget_s": 0.03,
+      "minimum_pairs": 30,
+      "minimum_improvement_m": 0.2,
+      "minimum_invalid_reduction": 0.1
+    },
+    "stale_mask_policy": "A mask is only applied to depth from the same frame. Runtime masking stays disabled unless a reviewed decision enables it."
+  },
+  "split": "val",
+  "depth_convention": "axial",
+  "bins": [
+    {
+      "class_name": "car",
+      "range_centre_m": 5,
+      "geometry_samples": 9,
+      "independent_scenes": 3,
+      "median_abs_geometry_error_m": 0.11217834495332113,
+      "box_count": 3,
+      "invalid_depth_rate": 0.0
+    },
+    {
+      "class_name": "car",
+      "range_centre_m": 10,
+      "geometry_samples": 9,
+      "independent_scenes": 3,
+      "median_abs_geometry_error_m": 0.10778084793907539,
+      "box_count": 3,
+      "invalid_depth_rate": 0.0
+    },
+    {
+      "class_name": "car",
+      "range_centre_m": 15,
+      "geometry_samples": 18,
+      "independent_scenes": 6,
+      "median_abs_geometry_error_m": 0.36498431681833665,
+      "box_count": 6,
+      "invalid_depth_rate": 0.0
+    },
+    {
+      "class_name": "car",
+      "range_centre_m": 20,
+      "geometry_samples": 9,
+      "independent_scenes": 3,
+      "median_abs_geometry_error_m": 0.3883741658001725,
+      "box_count": 3,
+      "invalid_depth_rate": 0.0
+    },
+    {
+      "class_name": "car",
+      "range_centre_m": 25,
+      "geometry_samples": 9,
+      "independent_scenes": 3,
+      "median_abs_geometry_error_m": 0.19473690933099874,
+      "box_count": 3,
+      "invalid_depth_rate": 0.0
+    },
+    {
+      "class_name": "car",
+      "range_centre_m": 30,
+      "geometry_samples": 3,
+      "independent_scenes": 1,
+      "median_abs_geometry_error_m": 0.2626911165129755,
+      "box_count": 1,
+      "invalid_depth_rate": 0.0
+    },
+    {
+      "class_name": "person",
+      "range_centre_m": 5,
+      "geometry_samples": 9,
+      "independent_scenes": 3,
+      "median_abs_geometry_error_m": 0.048282786662593224,
+      "box_count": 3,
+      "invalid_depth_rate": 0.0
+    },
+    {
+      "class_name": "person",
+      "range_centre_m": 10,
+      "geometry_samples": 12,
+      "independent_scenes": 4,
+      "median_abs_geometry_error_m": 0.11925254176685396,
+      "box_count": 4,
+      "invalid_depth_rate": 0.0
+    },
+    {
+      "class_name": "person",
+      "range_centre_m": 15,
+      "geometry_samples": 15,
+      "independent_scenes": 5,
+      "median_abs_geometry_error_m": 0.13269726443255792,
+      "box_count": 5,
+      "invalid_depth_rate": 0.0
+    },
+    {
+      "class_name": "person",
+      "range_centre_m": 20,
+      "geometry_samples": 9,
+      "independent_scenes": 3,
+      "median_abs_geometry_error_m": 0.19636860251253552,
+      "box_count": 3,
+      "invalid_depth_rate": 0.0
+    },
+    {
+      "class_name": "person",
+      "range_centre_m": 25,
+      "geometry_samples": 9,
+      "independent_scenes": 3,
+      "median_abs_geometry_error_m": 0.08428038738147592,
+      "box_count": 3,
+      "invalid_depth_rate": 0.0
+    },
+    {
+      "class_name": "person",
+      "range_centre_m": 30,
+      "geometry_samples": 6,
+      "independent_scenes": 2,
+      "median_abs_geometry_error_m": 0.05438295266270288,
+      "box_count": 2,
+      "invalid_depth_rate": 0.0
+    }
+  ],
+  "dataset_index_sha256": "668fdb5eb0740763e087caefcffeacfc5adf85f3c297a58c8253bd9bcf6595d7",
+  "depth_calibration_sha256": "89d64df2475790eea16a0fc2b862a9fcbafdf125c9f3fd5ef3f74453afc9cf5f",
+  "segmentation_sha256": null,
+  "masking_enabled_in_runtime": false,
+  "paired_valid_boxes": 0,
+  "median_mask_improvement_m": null,
+  "mask_first_s": null,
+  "mask_warm_p95_s": null,
+  "plain_invalid": 0,
+  "masked_invalid": null,
+  "scope": "Evaluation-only target geometry checks raw-depth range accuracy; oracle target boxes isolate box-depth behaviour. No driving false-stop/FPS benefit claimed; mask stays OFF pending end-to-end evidence.",
+  "pairs": [
+    {
+      "sample_id": "sample_000001",
+      "class_name": "car",
+      "distance_m": 5.045590858232714,
+      "plain_error_m": 0.08890296958711019,
+      "masked_error_m": null
+    },
+    {
+      "sample_id": "sample_000004",
+      "class_name": "person",
+      "distance_m": 5.207238033955083,
+      "plain_error_m": 0.0960857117724565,
+      "masked_error_m": null
+    },
+    {
+      "sample_id": "sample_000007",
+      "class_name": "car",
+      "distance_m": 9.929581762317254,
+      "plain_error_m": 0.07610213660852772,
+      "masked_error_m": null
+    },
+    {
+      "sample_id": "sample_000010",
+      "class_name": "person",
+      "distance_m": 10.126694902394398,
+      "plain_error_m": 0.17942501642884423,
+      "masked_error_m": null
+    },
+    {
+      "sample_id": "sample_000013",
+      "class_name": "car",
+      "distance_m": 13.473066719988331,
+      "plain_error_m": 0.40650137998725455,
+      "masked_error_m": null
+    },
+    {
+      "sample_id": "sample_000016",
+      "class_name": "person",
+      "distance_m": 15.209875671555812,
+      "plain_error_m": 0.05192414076108243,
+      "masked_error_m": null
+    },
+    {
+      "sample_id": "sample_000019",
+      "class_name": "car",
+      "distance_m": 17.086557044883932,
+      "plain_error_m": 0.5203002549207554,
+      "masked_error_m": null
+    },
+    {
+      "sample_id": "sample_000025",
+      "class_name": "car",
+      "distance_m": 24.7719317005225,
+      "plain_error_m": 0.16581816214839762,
+      "masked_error_m": null
+    },
+    {
+      "sample_id": "sample_000028",
+      "class_name": "person",
+      "distance_m": 24.604203804513055,
+      "plain_error_m": 0.11125029704944467,
+      "masked_error_m": null
+    },
+    {
+      "sample_id": "sample_000031",
+      "class_name": "car",
+      "distance_m": 29.55715599042062,
+      "plain_error_m": 0.27649078387137394,
+      "masked_error_m": null
+    },
+    {
+      "sample_id": "sample_000034",
+      "class_name": "person",
+      "distance_m": 27.43862497319303,
+      "plain_error_m": 0.13278615961947082,
+      "masked_error_m": null
+    },
+    {
+      "sample_id": "sample_000037",
+      "class_name": "car",
+      "distance_m": 16.76333314173347,
+      "plain_error_m": 0.4862529636132109,
+      "masked_error_m": null
+    },
+    {
+      "sample_id": "sample_000040",
+      "class_name": "car",
+      "distance_m": 21.744655347265514,
+      "plain_error_m": 0.6278898950440563,
+      "masked_error_m": null
+    },
+    {
+      "sample_id": "sample_000052",
+      "class_name": "person",
+      "distance_m": 5.211489134095195,
+      "plain_error_m": 0.09135777447414117,
+      "masked_error_m": null
+    },
+    {
+      "sample_id": "sample_000055",
+      "class_name": "car",
+      "distance_m": 10.023161496726452,
+      "plain_error_m": 0.07425347367149726,
+      "masked_error_m": null
+    },
+    {
+      "sample_id": "sample_000058",
+      "class_name": "person",
+      "distance_m": 10.179790164981053,
+      "plain_error_m": 0.10376963421328256,
+      "masked_error_m": null
+    },
+    {
+      "sample_id": "sample_000061",
+      "class_name": "car",
+      "distance_m": 14.926751407892658,
+      "plain_error_m": 0.1143023640799985,
+      "masked_error_m": null
+    },
+    {
+      "sample_id": "sample_000064",
+      "class_name": "person",
+      "distance_m": 16.828402590099515,
+      "plain_error_m": 0.16997997825986033,
+      "masked_error_m": null
+    },
+    {
+      "sample_id": "sample_000070",
+      "class_name": "person",
+      "distance_m": 21.767229648830238,
+      "plain_error_m": 0.16668453574007458,
+      "masked_error_m": null
+    },
+    {
+      "sample_id": "sample_000073",
+      "class_name": "car",
+      "distance_m": 25.42156547856078,
+      "plain_error_m": 0.2206235473181266,
+      "masked_error_m": null
+    },
+    {
+      "sample_id": "sample_000076",
+      "class_name": "person",
+      "distance_m": 20.10445621805401,
+      "plain_error_m": 0.13358661336688726,
+      "masked_error_m": null
+    },
+    {
+      "sample_id": "sample_000082",
+      "class_name": "person",
+      "distance_m": 30.150146361936727,
+      "plain_error_m": 0.051139953981241604,
+      "masked_error_m": null
+    },
+    {
+      "sample_id": "sample_000085",
+      "class_name": "car",
+      "distance_m": 14.962234498059566,
+      "plain_error_m": 0.11744308372754375,
+      "masked_error_m": null
+    },
+    {
+      "sample_id": "sample_000097",
+      "class_name": "car",
+      "distance_m": 5.058830299013735,
+      "plain_error_m": 0.35377880132806183,
+      "masked_error_m": null
+    },
+    {
+      "sample_id": "sample_000106",
+      "class_name": "person",
+      "distance_m": 10.193601837550036,
+      "plain_error_m": 0.109359511937269,
+      "masked_error_m": null
+    },
+    {
+      "sample_id": "sample_000109",
+      "class_name": "car",
+      "distance_m": 15.026238294400112,
+      "plain_error_m": 0.06822123929129376,
+      "masked_error_m": null
+    },
+    {
+      "sample_id": "sample_000112",
+      "class_name": "person",
+      "distance_m": 15.127857936868416,
+      "plain_error_m": 0.17790053938890793,
+      "masked_error_m": null
+    },
+    {
+      "sample_id": "sample_000115",
+      "class_name": "car",
+      "distance_m": 19.508014841768187,
+      "plain_error_m": 0.38598998000915685,
+      "masked_error_m": null
+    },
+    {
+      "sample_id": "sample_000118",
+      "class_name": "person",
+      "distance_m": 16.72434530506807,
+      "plain_error_m": 0.14719857920927382,
+      "masked_error_m": null
+    },
+    {
+      "sample_id": "sample_000124",
+      "class_name": "person",
+      "distance_m": 25.189986139778718,
+      "plain_error_m": 0.08739194249667293,
+      "masked_error_m": null
+    },
+    {
+      "sample_id": "sample_000130",
+      "class_name": "person",
+      "distance_m": 30.21113472980818,
+      "plain_error_m": 0.07434386211076571,
+      "masked_error_m": null
+    },
+    {
+      "sample_id": "sample_000136",
+      "class_name": "car",
+      "distance_m": 25.066487837373103,
+      "plain_error_m": 0.08011670059076437,
+      "masked_error_m": null
+    },
+    {
+      "sample_id": "sample_000145",
+      "class_name": "car",
+      "distance_m": 5.013694514173747,
+      "plain_error_m": 0.0934107409532059,
+      "masked_error_m": null
+    },
+    {
+      "sample_id": "sample_000148",
+      "class_name": "person",
+      "distance_m": 5.20952373628356,
+      "plain_error_m": 0.039500178053597956,
+      "masked_error_m": null
+    },
+    {
+      "sample_id": "sample_000151",
+      "class_name": "car",
+      "distance_m": 9.97936067879468,
+      "plain_error_m": 0.1054781883928193,
+      "masked_error_m": null
+    },
+    {
+      "sample_id": "sample_000154",
+      "class_name": "person",
+      "distance_m": 11.446374943845456,
+      "plain_error_m": 0.1597232312033725,
+      "masked_error_m": null
+    },
+    {
+      "sample_id": "sample_000160",
+      "class_name": "person",
+      "distance_m": 15.189690430879942,
+      "plain_error_m": 0.10069004702533135,
+      "masked_error_m": null
+    },
+    {
+      "sample_id": "sample_000163",
+      "class_name": "car",
+      "distance_m": 19.943480314195853,
+      "plain_error_m": 0.11354368787934277,
+      "masked_error_m": null
+    },
+    {
+      "sample_id": "sample_000166",
+      "class_name": "person",
+      "distance_m": 18.22056301122082,
+      "plain_error_m": 0.2544945907078926,
+      "masked_error_m": null
+    }
+  ],
+  "detector_pairs": [],
+  "references": [
+    {
+      "sample_id": "sample_000001",
+      "class_name": "car",
+      "distance_m": 5.045590858232714,
+      "error_m": 0.11217834495332113
+    },
+    {
+      "sample_id": "sample_000001",
+      "class_name": "car",
+      "distance_m": 5.045590858232714,
+      "error_m": 0.06002428077485433
+    },
+    {
+      "sample_id": "sample_000001",
+      "class_name": "car",
+      "distance_m": 5.045590858232714,
+      "error_m": 0.10138990424897543
+    },
+    {
+      "sample_id": "sample_000004",
+      "class_name": "person",
+      "distance_m": 5.207238033955083,
+      "error_m": 0.05382601862670455
+    },
+    {
+      "sample_id": "sample_000004",
+      "class_name": "person",
+      "distance_m": 5.207238033955083,
+      "error_m": 0.05913083201171432
+    },
+    {
+      "sample_id": "sample_000004",
+      "class_name": "person",
+      "distance_m": 5.207238033955083,
+      "error_m": 0.048282786662593224
+    },
+    {
+      "sample_id": "sample_000007",
+      "class_name": "car",
+      "distance_m": 9.929581762317254,
+      "error_m": 0.10700690650598865
+    },
+    {
+      "sample_id": "sample_000007",
+      "class_name": "car",
+      "distance_m": 9.929581762317254,
+      "error_m": 0.08006560706751209
+    },
+    {
+      "sample_id": "sample_000007",
+      "class_name": "car",
+      "distance_m": 9.929581762317254,
+      "error_m": 0.11779487037317615
+    },
+    {
+      "sample_id": "sample_000010",
+      "class_name": "person",
+      "distance_m": 10.126694902394398,
+      "error_m": 0.16082932093323876
+    },
+    {
+      "sample_id": "sample_000010",
+      "class_name": "person",
+      "distance_m": 10.126694902394398,
+      "error_m": 0.15951801874818017
+    },
+    {
+      "sample_id": "sample_000010",
+      "class_name": "person",
+      "distance_m": 10.126694902394398,
+      "error_m": 0.17227341273011376
+    },
+    {
+      "sample_id": "sample_000013",
+      "class_name": "car",
+      "distance_m": 13.473066719988331,
+      "error_m": 0.506905165692821
+    },
+    {
+      "sample_id": "sample_000013",
+      "class_name": "car",
+      "distance_m": 13.473066719988331,
+      "error_m": 0.35187396146918815
+    },
+    {
+      "sample_id": "sample_000013",
+      "class_name": "car",
+      "distance_m": 13.473066719988331,
+      "error_m": 0.4226241979804186
+    },
+    {
+      "sample_id": "sample_000016",
+      "class_name": "person",
+      "distance_m": 15.209875671555812,
+      "error_m": 0.09862461836118008
+    },
+    {
+      "sample_id": "sample_000016",
+      "class_name": "person",
+      "distance_m": 15.209875671555812,
+      "error_m": 0.048199088881199614
+    },
+    {
+      "sample_id": "sample_000016",
+      "class_name": "person",
+      "distance_m": 15.209875671555812,
+      "error_m": 0.0978492811419418
+    },
+    {
+      "sample_id": "sample_000019",
+      "class_name": "car",
+      "distance_m": 17.086557044883932,
+      "error_m": 0.6316398240125523
+    },
+    {
+      "sample_id": "sample_000019",
+      "class_name": "car",
+      "distance_m": 17.086557044883932,
+      "error_m": 0.3841613389051304
+    },
+    {
+      "sample_id": "sample_000019",
+      "class_name": "car",
+      "distance_m": 17.086557044883932,
+      "error_m": 0.7383330918348179
+    },
+    {
+      "sample_id": "sample_000025",
+      "class_name": "car",
+      "distance_m": 24.7719317005225,
+      "error_m": 0.21183294791499918
+    },
+    {
+      "sample_id": "sample_000025",
+      "class_name": "car",
+      "distance_m": 24.7719317005225,
+      "error_m": 0.16867918509761637
+    },
+    {
+      "sample_id": "sample_000025",
+      "class_name": "car",
+      "distance_m": 24.7719317005225,
+      "error_m": 0.16605658072749918
+    },
+    {
+      "sample_id": "sample_000028",
+      "class_name": "person",
+      "distance_m": 24.604203804513055,
+      "error_m": 0.13053359172717904
+    },
+    {
+      "sample_id": "sample_000028",
+      "class_name": "person",
+      "distance_m": 24.604203804513055,
+      "error_m": 0.08428038738147592
+    },
+    {
+      "sample_id": "sample_000028",
+      "class_name": "person",
+      "distance_m": 24.604203804513055,
+      "error_m": 0.0957836069859681
+    },
+    {
+      "sample_id": "sample_000031",
+      "class_name": "car",
+      "distance_m": 29.55715599042062,
+      "error_m": 0.2169147493254755
+    },
+    {
+      "sample_id": "sample_000031",
+      "class_name": "car",
+      "distance_m": 29.55715599042062,
+      "error_m": 0.2626911165129755
+    },
+    {
+      "sample_id": "sample_000031",
+      "class_name": "car",
+      "distance_m": 29.55715599042062,
+      "error_m": 0.3792186738860224
+    },
+    {
+      "sample_id": "sample_000034",
+      "class_name": "person",
+      "distance_m": 27.43862497319303,
+      "error_m": 0.04960859309115051
+    },
+    {
+      "sample_id": "sample_000034",
+      "class_name": "person",
+      "distance_m": 27.43862497319303,
+      "error_m": 0.1323398400393927
+    },
+    {
+      "sample_id": "sample_000034",
+      "class_name": "person",
+      "distance_m": 27.43862497319303,
+      "error_m": 0.20648801813997864
+    },
+    {
+      "sample_id": "sample_000037",
+      "class_name": "car",
+      "distance_m": 16.76333314173347,
+      "error_m": 1.5303470493065703
+    },
+    {
+      "sample_id": "sample_000037",
+      "class_name": "car",
+      "distance_m": 16.76333314173347,
+      "error_m": 0.4009582401024687
+    },
+    {
+      "sample_id": "sample_000037",
+      "class_name": "car",
+      "distance_m": 16.76333314173347,
+      "error_m": 0.3977996707665312
+    },
+    {
+      "sample_id": "sample_000040",
+      "class_name": "car",
+      "distance_m": 21.744655347265514,
+      "error_m": 0.4496119256837048
+    },
+    {
+      "sample_id": "sample_000040",
+      "class_name": "car",
+      "distance_m": 21.744655347265514,
+      "error_m": 0.5890276666505017
+    },
+    {
+      "sample_id": "sample_000040",
+      "class_name": "car",
+      "distance_m": 21.744655347265514,
+      "error_m": 1.5549795862061657
+    },
+    {
+      "sample_id": "sample_000052",
+      "class_name": "person",
+      "distance_m": 5.211489134095195,
+      "error_m": 0.04587943051051813
+    },
+    {
+      "sample_id": "sample_000052",
+      "class_name": "person",
+      "distance_m": 5.211489134095195,
+      "error_m": 0.0613170335073443
+    },
+    {
+      "sample_id": "sample_000052",
+      "class_name": "person",
+      "distance_m": 5.211489134095195,
+      "error_m": 0.05118424389552789
+    },
+    {
+      "sample_id": "sample_000055",
+      "class_name": "car",
+      "distance_m": 10.023161496726452,
+      "error_m": 0.10778084793907539
+    },
+    {
+      "sample_id": "sample_000055",
+      "class_name": "car",
+      "distance_m": 10.023161496726452,
+      "error_m": 0.07392540970665351
+    },
+    {
+      "sample_id": "sample_000055",
+      "class_name": "car",
+      "distance_m": 10.023161496726452,
+      "error_m": 0.10289326706749335
+    },
+    {
+      "sample_id": "sample_000058",
+      "class_name": "person",
+      "distance_m": 10.179790164981053,
+      "error_m": 0.07864699169619271
+    },
+    {
+      "sample_id": "sample_000058",
+      "class_name": "person",
+      "distance_m": 10.179790164981053,
+      "error_m": 0.055341098751856777
+    },
+    {
+      "sample_id": "sample_000058",
+      "class_name": "person",
+      "distance_m": 10.179790164981053,
+      "error_m": 0.04777178570254037
+    },
+    {
+      "sample_id": "sample_000061",
+      "class_name": "car",
+      "distance_m": 14.926751407892658,
+      "error_m": 0.12753459522013522
+    },
+    {
+      "sample_id": "sample_000061",
+      "class_name": "car",
+      "distance_m": 14.926751407892658,
+      "error_m": 0.11132213184122897
+    },
+    {
+      "sample_id": "sample_000061",
+      "class_name": "car",
+      "distance_m": 14.926751407892658,
+      "error_m": 0.165800777165936
+    },
+    {
+      "sample_id": "sample_000064",
+      "class_name": "person",
+      "distance_m": 16.828402590099515,
+      "error_m": 0.12190716331845408
+    },
+    {
+      "sample_id": "sample_000064",
+      "class_name": "person",
+      "distance_m": 16.828402590099515,
+      "error_m": 0.14288799827939158
+    },
+    {
+      "sample_id": "sample_000064",
+      "class_name": "person",
+      "distance_m": 16.828402590099515,
+      "error_m": 0.16965191429501658
+    },
+    {
+      "sample_id": "sample_000070",
+      "class_name": "person",
+      "distance_m": 21.767229648830238,
+      "error_m": 0.09629192709749645
+    },
+    {
+      "sample_id": "sample_000070",
+      "class_name": "person",
+      "distance_m": 21.767229648830238,
+      "error_m": 0.19881191611116833
+    },
+    {
+      "sample_id": "sample_000070",
+      "class_name": "person",
+      "distance_m": 21.767229648830238,
+      "error_m": 0.19636860251253552
+    },
+    {
+      "sample_id": "sample_000073",
+      "class_name": "car",
+      "distance_m": 25.42156547856078,
+      "error_m": 0.19943290400757974
+    },
+    {
+      "sample_id": "sample_000073",
+      "class_name": "car",
+      "distance_m": 25.42156547856078,
+      "error_m": 0.22029548335328286
+    },
+    {
+      "sample_id": "sample_000073",
+      "class_name": "car",
+      "distance_m": 25.42156547856078,
+      "error_m": 0.30684142756715005
+    },
+    {
+      "sample_id": "sample_000076",
+      "class_name": "person",
+      "distance_m": 20.10445621805401,
+      "error_m": 0.1715542952516529
+    },
+    {
+      "sample_id": "sample_000076",
+      "class_name": "person",
+      "distance_m": 20.10445621805401,
+      "error_m": 0.10891124410419195
+    },
+    {
+      "sample_id": "sample_000076",
+      "class_name": "person",
+      "distance_m": 20.10445621805401,
+      "error_m": 0.10902949971942633
+    },
+    {
+      "sample_id": "sample_000082",
+      "class_name": "person",
+      "distance_m": 30.150146361936727,
+      "error_m": 0.05951512182792129
+    },
+    {
+      "sample_id": "sample_000082",
+      "class_name": "person",
+      "distance_m": 30.150146361936727,
+      "error_m": 0.03346836889823379
+    },
+    {
+      "sample_id": "sample_000082",
+      "class_name": "person",
+      "distance_m": 30.150146361936727,
+      "error_m": 0.07441723669608535
+    },
+    {
+      "sample_id": "sample_000085",
+      "class_name": "car",
+      "distance_m": 14.962234498059566,
+      "error_m": 0.37809467216748516
+    },
+    {
+      "sample_id": "sample_000085",
+      "class_name": "car",
+      "distance_m": 14.962234498059566,
+      "error_m": 0.11231708427686016
+    },
+    {
+      "sample_id": "sample_000085",
+      "class_name": "car",
+      "distance_m": 14.962234498059566,
+      "error_m": 0.06981944938916484
+    },
+    {
+      "sample_id": "sample_000097",
+      "class_name": "car",
+      "distance_m": 5.058830299013735,
+      "error_m": 0.2873491863073099
+    },
+    {
+      "sample_id": "sample_000097",
+      "class_name": "car",
+      "distance_m": 5.058830299013735,
+      "error_m": 0.3310393909276712
+    },
+    {
+      "sample_id": "sample_000097",
+      "class_name": "car",
+      "distance_m": 5.058830299013735,
+      "error_m": 0.4664611438573587
+    },
+    {
+      "sample_id": "sample_000106",
+      "class_name": "person",
+      "distance_m": 10.193601837550036,
+      "error_m": 0.10769058188355807
+    },
+    {
+      "sample_id": "sample_000106",
+      "class_name": "person",
+      "distance_m": 10.193601837550036,
+      "error_m": 0.10393596609986666
+    },
+    {
+      "sample_id": "sample_000106",
+      "class_name": "person",
+      "distance_m": 10.193601837550036,
+      "error_m": 0.10477043112672213
+    },
+    {
+      "sample_id": "sample_000109",
+      "class_name": "car",
+      "distance_m": 15.026238294400112,
+      "error_m": 0.09611621304617657
+    },
+    {
+      "sample_id": "sample_000109",
+      "class_name": "car",
+      "distance_m": 15.026238294400112,
+      "error_m": 0.06190314694510235
+    },
+    {
+      "sample_id": "sample_000109",
+      "class_name": "car",
+      "distance_m": 15.026238294400112,
+      "error_m": 0.0985003988371922
+    },
+    {
+      "sample_id": "sample_000112",
+      "class_name": "person",
+      "distance_m": 15.127857936868416,
+      "error_m": 0.15852855299974777
+    },
+    {
+      "sample_id": "sample_000112",
+      "class_name": "person",
+      "distance_m": 15.127857936868416,
+      "error_m": 0.15685962294603684
+    },
+    {
+      "sample_id": "sample_000112",
+      "class_name": "person",
+      "distance_m": 15.127857936868416,
+      "error_m": 0.16693328475023606
+    },
+    {
+      "sample_id": "sample_000115",
+      "class_name": "car",
+      "distance_m": 19.508014841768187,
+      "error_m": 0.29074271133239904
+    },
+    {
+      "sample_id": "sample_000115",
+      "class_name": "car",
+      "distance_m": 19.508014841768187,
+      "error_m": 0.3883741658001725
+    },
+    {
+      "sample_id": "sample_000115",
+      "class_name": "car",
+      "distance_m": 19.508014841768187,
+      "error_m": 0.5423925678997819
+    },
+    {
+      "sample_id": "sample_000118",
+      "class_name": "person",
+      "distance_m": 16.72434530506807,
+      "error_m": 0.20152749766630507
+    },
+    {
+      "sample_id": "sample_000118",
+      "class_name": "person",
+      "distance_m": 16.72434530506807,
+      "error_m": 0.13924112071318007
+    },
+    {
+      "sample_id": "sample_000118",
+      "class_name": "person",
+      "distance_m": 16.72434530506807,
+      "error_m": 0.11819925059599257
+    },
+    {
+      "sample_id": "sample_000124",
+      "class_name": "person",
+      "distance_m": 25.189986139778718,
+      "error_m": 0.04519185399569636
+    },
+    {
+      "sample_id": "sample_000124",
+      "class_name": "person",
+      "distance_m": 25.189986139778718,
+      "error_m": 0.06235799169100886
+    },
+    {
+      "sample_id": "sample_000124",
+      "class_name": "person",
+      "distance_m": 25.189986139778718,
+      "error_m": 0.07505330419100886
+    },
+    {
+      "sample_id": "sample_000130",
+      "class_name": "person",
+      "distance_m": 30.21113472980818,
+      "error_m": 0.04925078349748446
+    },
+    {
+      "sample_id": "sample_000130",
+      "class_name": "person",
+      "distance_m": 30.21113472980818,
+      "error_m": 0.04668730693498446
+    },
+    {
+      "sample_id": "sample_000130",
+      "class_name": "person",
+      "distance_m": 30.21113472980818,
+      "error_m": 0.07434386211076571
+    },
+    {
+      "sample_id": "sample_000136",
+      "class_name": "car",
+      "distance_m": 25.066487837373103,
+      "error_m": 0.09275288528314718
+    },
+    {
+      "sample_id": "sample_000136",
+      "class_name": "car",
+      "distance_m": 25.066487837373103,
+      "error_m": 0.09030957168451437
+    },
+    {
+      "sample_id": "sample_000136",
+      "class_name": "car",
+      "distance_m": 25.066487837373103,
+      "error_m": 0.19473690933099874
+    },
+    {
+      "sample_id": "sample_000145",
+      "class_name": "car",
+      "distance_m": 5.013694514173747,
+      "error_m": 0.11832548246931918
+    },
+    {
+      "sample_id": "sample_000145",
+      "class_name": "car",
+      "distance_m": 5.013694514173747,
+      "error_m": 0.06611181364607699
+    },
+    {
+      "sample_id": "sample_000145",
+      "class_name": "car",
+      "distance_m": 5.013694514173747,
+      "error_m": 0.10515285597395785
+    },
+    {
+      "sample_id": "sample_000148",
+      "class_name": "person",
+      "distance_m": 5.20952373628356,
+      "error_m": -1.7701432486028068e-05
+    },
+    {
+      "sample_id": "sample_000148",
+      "class_name": "person",
+      "distance_m": 5.20952373628356,
+      "error_m": 0.0055255305316253
+    },
+    {
+      "sample_id": "sample_000148",
+      "class_name": "person",
+      "distance_m": 5.20952373628356,
+      "error_m": 0.018280924513558894
+    },
+    {
+      "sample_id": "sample_000151",
+      "class_name": "car",
+      "distance_m": 9.97936067879468,
+      "error_m": 0.15646924674242868
+    },
+    {
+      "sample_id": "sample_000151",
+      "class_name": "car",
+      "distance_m": 9.97936067879468,
+      "error_m": 0.10813035666674509
+    },
+    {
+      "sample_id": "sample_000151",
+      "class_name": "car",
+      "distance_m": 9.97936067879468,
+      "error_m": 0.12678613364428415
+    },
+    {
+      "sample_id": "sample_000154",
+      "class_name": "person",
+      "distance_m": 11.446374943845456,
+      "error_m": 0.1311721295188022
+    },
+    {
+      "sample_id": "sample_000154",
+      "class_name": "person",
+      "distance_m": 11.446374943845456,
+      "error_m": 0.13081450165014985
+    },
+    {
+      "sample_id": "sample_000154",
+      "class_name": "person",
+      "distance_m": 11.446374943845456,
+      "error_m": 0.15805430114966157
+    },
+    {
+      "sample_id": "sample_000160",
+      "class_name": "person",
+      "distance_m": 15.189690430879942,
+      "error_m": 0.06427113223040948
+    },
+    {
+      "sample_id": "sample_000160",
+      "class_name": "person",
+      "distance_m": 15.189690430879942,
+      "error_m": 0.13269726443255792
+    },
+    {
+      "sample_id": "sample_000160",
+      "class_name": "person",
+      "distance_m": 15.189690430879942,
+      "error_m": 0.0629007022377337
+    },
+    {
+      "sample_id": "sample_000163",
+      "class_name": "car",
+      "distance_m": 19.943480314195853,
+      "error_m": 0.12457007032563183
+    },
+    {
+      "sample_id": "sample_000163",
+      "class_name": "car",
+      "distance_m": 19.943480314195853,
+      "error_m": 0.1102058277719209
+    },
+    {
+      "sample_id": "sample_000163",
+      "class_name": "car",
+      "distance_m": 19.943480314195853,
+      "error_m": 0.16563719373871777
+    },
+    {
+      "sample_id": "sample_000166",
+      "class_name": "person",
+      "distance_m": 18.22056301122082,
+      "error_m": 0.2544945907078926
+    },
+    {
+      "sample_id": "sample_000166",
+      "class_name": "person",
+      "distance_m": 18.22056301122082,
+      "error_m": 0.23309604639636916
+    },
+    {
+      "sample_id": "sample_000166",
+      "class_name": "person",
+      "distance_m": 18.22056301122082,
+      "error_m": 0.21873180384265822
+    }
+  ]
+}
