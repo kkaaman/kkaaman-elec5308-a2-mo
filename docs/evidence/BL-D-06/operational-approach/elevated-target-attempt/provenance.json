@@ -1,0 +1,11 @@
+{
+  "base_commit": "f777a6d0aec45feded3046749c90e384c6bdffcd",
+  "branch": "fix/BL-C-05-sensor-wait-screening",
+  "candidate_config_path": "configs/mission_baseline.json",
+  "candidate_config_sha256": "ad7969ad977fb8a8681cb5042ab52d6b1a050782fd635abd41c570679555935b",
+  "publication": "Uncommitted local technical candidate; no GitHub or full-team admission",
+  "measured_capture_sha256": "564cc30689a936f235983bb6361f678d8ea86ece817e4f53c78f9e3a2b72cba5",
+  "measurement_source_archive_sha256": "c5a076f7d22f524863db56c071c707bef2aee1aa05f3780810f3bd5a9244f1f0",
+  "review_sha256": "1efd546d29f668bed4a3c6d00336e4077c58590e87d9441cbb7bb23c116d8d73",
+  "runtime_source_relationship": "Measured src/ files are byte-identical to current runtime; captured config was blocked metadata with the same numeric candidate; frozen values now populate those unchanged candidate settings."
+}

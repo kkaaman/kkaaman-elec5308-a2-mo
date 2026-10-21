@@ -1,10 +1,36 @@
 # BL-D-06 evidence guide
 
-**Current decision: D-006 BLOCKED_PENDING_FRESH_BL_C_CAPTURE.**
+**Latest technical decision: PASS / local FROZEN_GATED_OPERATIONAL candidate.**
+The new [same-frame operational approach](operational-approach/README.md) supplies
+345 admitted observations and supports the unchanged 4.0 m/s candidate under the
+0.9500000052 s enforced budget. Human review/publication/G1 admission remain pending.
+The earlier guide and rejection investigation below remain historical for their
+original datasets and are not overwritten by the new capture.
+
+**Previous decision: D-006 BLOCKED_OPERATIONAL_RANGE_ADMISSION (superseded).**
+Fresh BL-C capture is now complete; [current decision](../../baseline_threshold_freeze.md)
+and [all-track replay](operational-range-review.json) supersede the missing-capture
+rationale below. Even optimistically bypassing timing/warm-up, all 600 source rows
+remain HOLD because other current tracks are invalid. A confirmed target-only gap
+is not an admitted full obstacle/visibility observation. Neither 4.0 nor 3.2 m/s
+is frozen. [Fresh review regressions](fresh-range-regression.xml) cover this update.
+
+The rest of this guide records the **pre-refresh historical interpretation** of
+the retained source/timing bundle; unchanged raw artifacts remain authoritative
+for their stated measurement scope, not current admission. Current review.json
+now consumes the fresh capture and the operational-range audit.
+
+**Prior missing-capture rationale (superseded):**
 No fresh sensor-wait-aware BL-C capture establishes first-confirmation/usable
 obstacle range. TEST-13 accuracy through 25 m axial depth is not proof of 25 m
 bumper visibility. **4.0 m/s obstacle-operation support is unestablished.** The
 navigation cruise remains 4.0 m/s; acceptance criteria are unchanged.
+
+Fresh-range follow-up validation: **158 focused tests passed**; **818 full-suite tests passed, 1 skipped, 3 subtests passed**. Ruff, Sphinx `-W`, local decision-document links, numeric/boolean/null configuration preservation, unchanged acceptance bytes, exact review reproduction and `git diff --check` passed. No simulator recapture was performed.
+
+[Detailed rejection investigation](admission-rejection-investigation.md) classifies
+every predicate, overlapping frame combinations, background tracks and missing
+operational timing fields. It specifies the minimal replacement measurement.
 
 ## Current and historical authority
 
@@ -117,3 +143,10 @@ passed**, 1 skipped, 3 subtests passed. Ruff, Sphinx `-W`, whitespace checks and
 byte-identical review reproduction passed. Runtime/script/test files, effective
 configuration and navigation, Git HEAD/index, and raw/historical evidence were
 verified unchanged. Automated validation is not human safety approval.
+
+```{toctree}
+:maxdepth: 1
+
+admission-rejection-investigation
+operational-approach/README
+```

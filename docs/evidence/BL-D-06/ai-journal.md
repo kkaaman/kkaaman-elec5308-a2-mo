@@ -74,3 +74,58 @@ passed**, 1 skipped, 3 subtests passed. Ruff, Sphinx `-W`, whitespace checks and
 byte-identical review reproduction passed. Runtime/script/test files, effective
 configuration and navigation, Git HEAD/index, and raw/historical evidence were
 verified unchanged. Automated validation is not human safety approval.
+
+21 October 2026 follow-up: reviewed fresh 600-frame BL-C capture without rerunning
+CARLA. Verified current runtime against the archived warm snapshot: ten identical
+runtime files, adapter expiry AST unchanged, only post-decision documentation/error
+detail differs. Cold backlog cannot authorise a new positive packet; operational
+0.95 s budget is independently composed, not 4.199442 s of admitted latency.
+Offline all-track replay with the actual 25 m depth policy and optimistic freshness
+still produces 600 HOLDs, despite valid target depth. Missing fresh capture is
+resolved; joint operational range/admission evidence is not. Numeric thresholds
+and baseline candidates were preserved, frozen cruise/response remain null.
+G1 remains technically blocked, independently of team review. No GitHub/PR #90
+state, commits, pushes or authorship/history were changed.
+
+Fresh-range follow-up validation: **158 focused tests passed**; **818 full-suite tests passed, 1 skipped, 3 subtests passed**. Ruff, Sphinx `-W`, local decision-document links, numeric/boolean/null configuration preservation, unchanged acceptance bytes, exact review reproduction and `git diff --check` passed. No simulator recapture was performed.
+
+21 October rejection investigation: extended only offline diagnostic accounting,
+replayed the existing 600 raw observations, separated policy predicates/instances,
+TTL facts and reconstructed versus missing host timing. Persistent background car
+beyond the validated depth range and off-axis mixed-depth bus explain current
+all-track HOLDs; no runtime false-rejection bug or justified threshold change was
+found. Recorded exact combinations and a minimum same-frame operational approach
+capture specification. No new CARLA run, G1/PR #90 edit or GitHub change. Validation:
+162 focused tests; 822 full-suite passed, 1 skipped, 3 subtests; Ruff, strict Sphinx,
+review reproduction and diff checks passed.
+
+21 October replacement operational capture: reused current RGBDCapture/owner,
+SkeletonStack/freshness/all-track policy, actual governor and PathFollower. Retained
+site-152 failed preflight and all four additional background-site checks, selected
+site 93 before final collection. Recorded 800 real same-frame source observations,
+254 admitted observations and 64 positive shadow outputs; actuators stayed braked.
+Injected one labelled post-read dropout and explicit reset recovery. No evaluation
+labels entered control, no unrelated detections or validity thresholds were removed.
+Archived source/config, full metadata, per-stage clocks and raw artifact hashes.
+Deterministic policy/provider/controller replay has zero mismatches. The bounded
+4.0 m/s technical candidate fits 22.348600 m at the enforced 0.9500000052 s response;
+5.7 m/s is only the calculated envelope cap. Updated local freeze candidate and
+review, retaining old BL-C/rejection evidence. Human review/publication/G1 admission
+and closed-loop acceptance are separate; no PR #90 or GitHub state changed.
+
+Geometry audit corrected the initial range attempt: kinematic targets must use
+road elevation rather than elevated spawn-point Z. Preserved that complete run
+as superseded, plus two setup failures (ego spawn placement and helper NameError),
+all cleanup verified. Final same-frame-04 has normal road-height targets, 800 rows,
+345 admitted observations, 260 matching-target admissions, 22 positive shadow
+packets and zero invalid positives. Full output p95/max 45.949/60.974 ms; common
+conservative range remains 22.348600 m. Only this final run supplies the ordinary-
+road candidate freeze. Earlier timings/counts above describe the superseded run.
+No G1/PR #90 or GitHub state was changed.
+
+Final corrected-run validation: 170 focused tests passed; full pytest 830 passed,
+1 skipped, 3 subtests passed; Ruff, strict Sphinx, exact review/config-source
+reproduction and diff checks passed. Local G1 and PR #90 remained untouched.
+The source-position regression prevents the setup-helper error from recurring.
+The 5.7 m/s mathematical envelope is not a driven-speed claim; local candidate
+ceiling remains 4.0 m/s, with publication/human admission still pending.

@@ -1,0 +1,18 @@
+[
+  {
+    "raw_path": "/home/alan/26-S2-Assignment2-Group7/runs/BL-D-06/operational-approach/preflight-01/report.json",
+    "versioned_report": "site152-preflight.json",
+    "sha256": "518de3d95fce78ac45d5029ddecc2af569aa8c0ec673a069d65afc3629929c40",
+    "status": "COMPLETE",
+    "settings_restored": true,
+    "no_actor_leaks": true
+  },
+  {
+    "raw_path": "/home/alan/26-S2-Assignment2-Group7/runs/BL-D-06/operational-approach/background-preflight-01/report.json",
+    "versioned_report": "background-preflight.json",
+    "sha256": "8f2d9baaa73f3fc6de6131b6466cf4e120ed54f28b3dc74aaa6eb20259eea6e9",
+    "status": "COMPLETE",
+    "settings_restored": true,
+    "no_actor_leaks": true
+  }
+]

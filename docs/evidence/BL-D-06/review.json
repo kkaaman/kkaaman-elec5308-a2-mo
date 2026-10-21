@@ -1,15 +1,24 @@
 {
-  "date": "2026-10-20",
-  "status": "BLOCKED_PENDING_FRESH_BL_C_CAPTURE",
+  "date": "2026-10-21",
+  "status": "FROZEN_GATED_OPERATIONAL",
   "dependency_review": {
-    "bl_c_timing_status": "BLOCKED_INCOMPLETE_TIMING",
+    "bl_c_timing_status": "FRESH_MEASURED_WAIT_CAPTURE_COMPLETE",
     "timing_review_sha256": "e328186041d97f08dddf70a8bd81169a8f962df2e7d8eb33792e1f72c00d3d47",
     "historical_screening_usable": false,
     "historical_screening_used_in_operational_budget": false,
     "response_budget_independently_justified": true,
-    "usable_bumper_visibility_established": false,
+    "usable_bumper_visibility_established": true,
     "depth_accuracy_scope_axial_m": 25.0,
-    "reason": "Operational age bound is independent; axial depth accuracy and parked shadow timing do not establish first-confirmation range or 25 m usable bumper visibility. Fresh BL-C capture and explicit range review required."
+    "reason": "Same-frame actual-policy approach establishes bounded first-admission range; previous BL-C rejection evidence is preserved.",
+    "fresh_capture_sha256": "7d5d17d6274a31a52b221fa5fe205bb8940bd12b1ec61d035be66190ede98e68",
+    "fresh_frames": 600,
+    "bl_c_05_task_status": "PASS",
+    "operational_range_audit_sha256": "6ceeff462d064bafe472b58dc631ef564e9e57fdbc111570884416c24e22fd71",
+    "target_only_sampled_bumper_range_m": 24.01302661659352,
+    "fresh_bl_c_conservative_screen_cap_mps": 3.2,
+    "cold_backlog_response_s": 4.199441865980589,
+    "cold_backlog_excluded_from_positive_decisions": true,
+    "operational_range_valid_frames": 345
   },
   "cold_review_status": "HISTORICAL_SUPERSEDED_BL_C_TIMING",
   "cold_review": {
@@ -191,24 +200,24 @@
     ]
   },
   "response_composition": {
-    "measured_perception_control_max_s": 0.18552801799978624,
+    "measured_perception_control_max_s": 0.06097370599854912,
     "measured_vehicle_response_s": 0.3500000052154064,
-    "measured_total_s": 0.5355280232151927,
+    "measured_total_s": 0.41097371121395554,
     "enforced_capture_age_budget_s": 0.5,
     "post_decision_delivery_reserve_s": 0.1,
     "candidate_total_response_budget_s": 0.9500000052154064,
     "note": "Sensor, detector, filter and control availability appear once in measured end-to-end response. Candidate covers the enforced admission bound, plus distinct command-delivery reserve and vehicle lag once."
   },
   "screening": {
-    "measured_required_gap_m": 13.484113081377894,
+    "measured_required_gap_m": 12.985895833372945,
     "candidate_budget_required_gap_m": 15.142001009378749,
-    "speed_cap_mps": 6.2540012234269735,
-    "recommended_cruise_mps": null,
-    "visibility_m": 25.0,
-    "candidate_supported": false,
+    "speed_cap_mps": 5.7180586377280065,
+    "recommended_cruise_mps": 4.0,
+    "visibility_m": 22.348599722608924,
+    "candidate_supported": true,
     "conditional_candidate_supported_at_assumed_visibility": true,
-    "visibility_status": "ASSUMPTION_NOT_VALIDATED_BUMPER_VISIBILITY",
-    "speed_cap_status": "CONDITIONAL_DIAGNOSTIC_NOT_FROZEN"
+    "visibility_status": "MEASURED_CONTROLLED_STRAIGHT_FIRST_ADMISSION",
+    "speed_cap_status": "MEASURED_ENVELOPE_BOUND_NOT_DRIVEN_SPEED_CERTIFICATE"
   },
   "candidate_values": {
     "cruise_speed_mps": 4.0,
@@ -217,9 +226,9 @@
     "stop_margin_m": 6.0
   },
   "frozen_values": {
-    "cruise_speed_mps": null,
+    "cruise_speed_mps": 4.0,
     "deceleration_mps2": 1.497566177392398,
-    "response_budget_s": null,
+    "response_budget_s": 0.9500000052154064,
     "stop_margin_m": 6.0
   },
   "acceptance": {
@@ -233,5 +242,493 @@
     "Only the gated operational entry point may use this timing composition.",
     "Invalid perception remains HOLD; no empty/expired track proves clearance.",
     "Receipt-to-decision p95 is not a completed capture-to-actuator acceptance run."
-  ]
+  ],
+  "speed_requirement": {
+    "four_mps_mandatory": false,
+    "source": "docs/decisions.md D-003 and configs/acceptance.json; reduce cruise when measured envelope is insufficient, do not relax criteria",
+    "lower_cruise_freezable_now": true,
+    "reason": "Measured operational envelope supports unchanged 4.0 m/s candidate; no lower cruise is needed for this bounded profile."
+  },
+  "operational_measurement": {
+    "path": "operational-approach/capture.json",
+    "sha256": "f90e94b2a8a112d8bdbb70bb7c2941c9e8d14bb298845270e354ff37aea6b79b",
+    "review_sha256": "8491a57f30a836e9abd74f74bcfaa9e4d907bab610daeb0b6d36b5d7288f0514",
+    "source_archive_sha256": "93bad573fe5639bf3a99f8274e84a807d839193de1db1d1053c3946ee6ffbb97",
+    "total_frames": 800,
+    "admissible_frames": 345,
+    "positive_packets": 22,
+    "invalid_positive_packets": 0,
+    "cases": [
+      {
+        "scenario": "approach",
+        "fault_recovery": null,
+        "occlusion_indices": [],
+        "counts": {
+          "frames": 200,
+          "admitted": 106,
+          "positive_packets": 8,
+          "injected_failures": 0,
+          "source_failures": 0,
+          "occluded_frames": 0,
+          "admitted_target_frames": 77
+        },
+        "rejections": {
+          "capture_age_hold": 1,
+          "processing_budget_hold": 1,
+          "warmup_hold": 1,
+          "perception_hold": 91
+        },
+        "first_admitted_target": {
+          "index": 107,
+          "frame_id": 765232,
+          "evaluation_bumper_gap_m": 23.808214961828355,
+          "operational_bumper_gap_m": 22.35092287324369,
+          "conservative_range_m": 22.35092287324369,
+          "response_s": 0.040195359999415814
+        },
+        "admitted_timing": {
+          "source_age_at_decision_s": {
+            "samples": 106,
+            "min": 0.03545088400096574,
+            "median": 0.03956805349935166,
+            "p95": 0.04719714800012298,
+            "max": 0.06049034399984521
+          },
+          "sensor_availability_s": {
+            "samples": 106,
+            "min": 0.016004322000299,
+            "median": 0.018204489500021737,
+            "p95": 0.023614664500655635,
+            "max": 0.03070299899991369
+          },
+          "detector_s": {
+            "samples": 106,
+            "min": 0.01563259599970479,
+            "median": 0.01913884850091563,
+            "p95": 0.023656931749428622,
+            "max": 0.029366196000410127
+          },
+          "filter_s": {
+            "samples": 106,
+            "min": 0.00033083500056818593,
+            "median": 0.000550281499272387,
+            "p95": 0.000758897248942958,
+            "max": 0.0009859090005193138
+          },
+          "provider_s": {
+            "samples": 106,
+            "min": 0.00017788699915399775,
+            "median": 0.0003362395000294782,
+            "p95": 0.0005518340003618505,
+            "max": 0.0007246410004881909
+          },
+          "governor_s": {
+            "samples": 106,
+            "min": 1.1472000551293604e-05,
+            "median": 1.245400017069187e-05,
+            "p95": 1.7346749700664077e-05,
+            "max": 0.00025597800049581565
+          },
+          "controller_s": {
+            "samples": 106,
+            "min": 4.733300011139363e-05,
+            "median": 5.2085999413975514e-05,
+            "p95": 7.526899980803137e-05,
+            "max": 0.00026070700005220715
+          },
+          "stack_s": {
+            "samples": 106,
+            "min": 0.016531987001144444,
+            "median": 0.02049978750073933,
+            "p95": 0.02541106424996542,
+            "max": 0.03178559700063488
+          }
+        }
+      },
+      {
+        "scenario": "short_occlusion",
+        "fault_recovery": null,
+        "occlusion_indices": [
+          140,
+          141,
+          142
+        ],
+        "counts": {
+          "frames": 200,
+          "admitted": 71,
+          "positive_packets": 3,
+          "injected_failures": 0,
+          "source_failures": 0,
+          "occluded_frames": 3,
+          "admitted_target_frames": 63
+        },
+        "rejections": {
+          "processing_budget_hold": 1,
+          "warmup_hold": 1,
+          "perception_hold": 127
+        },
+        "first_admitted_target": {
+          "index": 106,
+          "frame_id": 765452,
+          "evaluation_bumper_gap_m": 24.008214817869483,
+          "operational_bumper_gap_m": 22.35092287324369,
+          "conservative_range_m": 22.35092287324369,
+          "response_s": 0.038465670999357826
+        },
+        "admitted_timing": {
+          "source_age_at_decision_s": {
+            "samples": 71,
+            "min": 0.036338249999971595,
+            "median": 0.03917576499952702,
+            "p95": 0.041707731999849784,
+            "max": 0.0440868279983988
+          },
+          "sensor_availability_s": {
+            "samples": 71,
+            "min": 0.016168510001079994,
+            "median": 0.017831539000326302,
+            "p95": 0.020457871999497,
+            "max": 0.022158031999424566
+          },
+          "detector_s": {
+            "samples": 71,
+            "min": 0.016972035000435426,
+            "median": 0.01911064599880774,
+            "p95": 0.020936212499691464,
+            "max": 0.022365206001268234
+          },
+          "filter_s": {
+            "samples": 71,
+            "min": 0.0003282289999333443,
+            "median": 0.0005595490001724102,
+            "p95": 0.0007714215007581515,
+            "max": 0.0008705750005901791
+          },
+          "provider_s": {
+            "samples": 71,
+            "min": 0.0001762629999575438,
+            "median": 0.00032792800084280316,
+            "p95": 0.0004819830010092119,
+            "max": 0.0006311390006885631
+          },
+          "governor_s": {
+            "samples": 71,
+            "min": 1.1382000593584962e-05,
+            "median": 1.2524000339908525e-05,
+            "p95": 1.867649916675873e-05,
+            "max": 4.927600093651563e-05
+          },
+          "controller_s": {
+            "samples": 71,
+            "min": 4.7772999096196145e-05,
+            "median": 5.117900036566425e-05,
+            "p95": 8.142350088746753e-05,
+            "max": 0.0001702720001048874
+          },
+          "stack_s": {
+            "samples": 71,
+            "min": 0.0183357400001114,
+            "median": 0.02057819699984975,
+            "p95": 0.022673305500575225,
+            "max": 0.02433578300042427
+          }
+        }
+      },
+      {
+        "scenario": "continuity_risk",
+        "fault_recovery": null,
+        "occlusion_indices": [
+          140,
+          141,
+          142,
+          143,
+          144,
+          145,
+          146,
+          147,
+          148,
+          149,
+          150,
+          151,
+          152,
+          153,
+          154,
+          155,
+          156,
+          157,
+          158,
+          159
+        ],
+        "counts": {
+          "frames": 200,
+          "admitted": 62,
+          "positive_packets": 7,
+          "injected_failures": 0,
+          "source_failures": 0,
+          "occluded_frames": 20,
+          "admitted_target_frames": 52
+        },
+        "rejections": {
+          "processing_budget_hold": 1,
+          "warmup_hold": 1,
+          "perception_hold": 136
+        },
+        "first_admitted_target": {
+          "index": 107,
+          "frame_id": 765674,
+          "evaluation_bumper_gap_m": 23.808215187595252,
+          "operational_bumper_gap_m": 22.35092287324369,
+          "conservative_range_m": 22.35092287324369,
+          "response_s": 0.04120098999919719
+        },
+        "admitted_timing": {
+          "source_age_at_decision_s": {
+            "samples": 62,
+            "min": 0.03601799799980654,
+            "median": 0.04066006900029606,
+            "p95": 0.04787115685085155,
+            "max": 0.05225620400051412
+          },
+          "sensor_availability_s": {
+            "samples": 62,
+            "min": 0.015723634000096354,
+            "median": 0.018447692499648838,
+            "p95": 0.021880576299827224,
+            "max": 0.026883022001129575
+          },
+          "detector_s": {
+            "samples": 62,
+            "min": 0.017651358000875916,
+            "median": 0.020306012001128693,
+            "p95": 0.023681330100225752,
+            "max": 0.02594565599974885
+          },
+          "filter_s": {
+            "samples": 62,
+            "min": 0.00041332500040880404,
+            "median": 0.000581632501052809,
+            "p95": 0.0008187977495254017,
+            "max": 0.0012678590010182234
+          },
+          "provider_s": {
+            "samples": 62,
+            "min": 0.0002444359997753054,
+            "median": 0.0003501764995235135,
+            "p95": 0.000543386599747464,
+            "max": 0.0007570039997517597
+          },
+          "governor_s": {
+            "samples": 62,
+            "min": 1.1513000572449528e-05,
+            "median": 1.2940000488015357e-05,
+            "p95": 2.2488800277642432e-05,
+            "max": 5.8583998907124624e-05
+          },
+          "controller_s": {
+            "samples": 62,
+            "min": 4.871500095759984e-05,
+            "median": 5.514250096894102e-05,
+            "p95": 0.00011487165011203611,
+            "max": 0.0001743299999361625
+          },
+          "stack_s": {
+            "samples": 62,
+            "min": 0.01899527599925932,
+            "median": 0.021801739000693487,
+            "p95": 0.02586863329988773,
+            "max": 0.027554328999030986
+          }
+        }
+      },
+      {
+        "scenario": "failure_recovery",
+        "fault_recovery": {
+          "failure_indices": [
+            140
+          ],
+          "explicit_reset_indices": [
+            141
+          ],
+          "first_admitted_recovery_index": 143
+        },
+        "occlusion_indices": [],
+        "counts": {
+          "frames": 200,
+          "admitted": 106,
+          "positive_packets": 4,
+          "injected_failures": 1,
+          "source_failures": 1,
+          "occluded_frames": 0,
+          "admitted_target_frames": 68
+        },
+        "rejections": {
+          "warmup_hold": 2,
+          "perception_hold": 90,
+          "invalid_step:ValueError:Required depth missing": 1,
+          "processing_budget_hold": 1
+        },
+        "first_admitted_target": {
+          "index": 110,
+          "frame_id": 765898,
+          "evaluation_bumper_gap_m": 23.20821512878924,
+          "operational_bumper_gap_m": 22.348599722608924,
+          "conservative_range_m": 22.348599722608924,
+          "response_s": 0.037425837999762734
+        },
+        "admitted_timing": {
+          "source_age_at_decision_s": {
+            "samples": 106,
+            "min": 0.03631415400013793,
+            "median": 0.03859823499988124,
+            "p95": 0.04531470499978241,
+            "max": 0.06097370599854912
+          },
+          "sensor_availability_s": {
+            "samples": 106,
+            "min": 0.016010493000067072,
+            "median": 0.01779371400061791,
+            "p95": 0.02071478025027318,
+            "max": 0.033013177000611904
+          },
+          "detector_s": {
+            "samples": 106,
+            "min": 0.016221882999161608,
+            "median": 0.018891842000812176,
+            "p95": 0.0223028820005311,
+            "max": 0.03590913500011084
+          },
+          "filter_s": {
+            "samples": 106,
+            "min": 0.00032749799902376253,
+            "median": 0.0005303775005813804,
+            "p95": 0.0007699767488702491,
+            "max": 0.0008875969997461652
+          },
+          "provider_s": {
+            "samples": 106,
+            "min": 0.00017188399942824617,
+            "median": 0.000313475499751803,
+            "p95": 0.0004426010004863201,
+            "max": 0.0008841620001476258
+          },
+          "governor_s": {
+            "samples": 106,
+            "min": 1.160200008598622e-05,
+            "median": 1.2524499652499799e-05,
+            "p95": 2.2293000256468076e-05,
+            "max": 7.275099960679654e-05
+          },
+          "controller_s": {
+            "samples": 106,
+            "min": 4.780299968842883e-05,
+            "median": 5.104400042910129e-05,
+            "p95": 7.534149972343585e-05,
+            "max": 0.00011676699978124816
+          },
+          "stack_s": {
+            "samples": 106,
+            "min": 0.017235095001524314,
+            "median": 0.0202319219997662,
+            "p95": 0.024020709000069473,
+            "max": 0.03745526600141602
+          }
+        }
+      }
+    ],
+    "timing": {
+      "source_age_at_decision_s": {
+        "samples": 345,
+        "min": 0.03545088400096574,
+        "median": 0.039271613999517285,
+        "p95": 0.04594882859964855,
+        "max": 0.06097370599854912
+      },
+      "sensor_availability_s": {
+        "samples": 345,
+        "min": 0.015723634000096354,
+        "median": 0.01796051999917836,
+        "p95": 0.02220446560095297,
+        "max": 0.033013177000611904
+      },
+      "bundle_s": {
+        "samples": 345,
+        "min": 0.0003422369991312735,
+        "median": 0.0005535679993045051,
+        "p95": 0.00107116719991609,
+        "max": 0.001763353000569623
+      },
+      "detector_s": {
+        "samples": 345,
+        "min": 0.01563259599970479,
+        "median": 0.019161666999934823,
+        "p95": 0.023050393600715324,
+        "max": 0.03590913500011084
+      },
+      "filter_s": {
+        "samples": 345,
+        "min": 0.00032749799902376253,
+        "median": 0.0005517240006156499,
+        "p95": 0.0007939983988762833,
+        "max": 0.0012678590010182234
+      },
+      "provider_s": {
+        "samples": 345,
+        "min": 0.00017188399942824617,
+        "median": 0.0003314160003355937,
+        "p95": 0.0005042491997301114,
+        "max": 0.0008841620001476258
+      },
+      "governor_s": {
+        "samples": 345,
+        "min": 1.1382000593584962e-05,
+        "median": 1.2545000572572462e-05,
+        "p95": 2.1147600273252474e-05,
+        "max": 0.00025597800049581565
+      },
+      "controller_s": {
+        "samples": 345,
+        "min": 4.733300011139363e-05,
+        "median": 5.1981000069645233e-05,
+        "p95": 9.107879959628922e-05,
+        "max": 0.00026070700005220715
+      },
+      "decision_overhead_s": {
+        "samples": 345,
+        "min": 0.00028965400269953534,
+        "median": 0.00043899399861402344,
+        "p95": 0.0008090565996099032,
+        "max": 0.0013189290002628695
+      },
+      "stack_s": {
+        "samples": 345,
+        "min": 0.016531987001144444,
+        "median": 0.020595027999661397,
+        "p95": 0.02473357840026438,
+        "max": 0.03745526600141602
+      },
+      "receipt_to_output_s": {
+        "samples": 345,
+        "min": 0.017016660000081174,
+        "median": 0.021437299001263455,
+        "p95": 0.02601634959901276,
+        "max": 0.03817509700093069
+      },
+      "decision_to_brake_ack_s": {
+        "samples": 345,
+        "min": 0.004287798999939696,
+        "median": 0.0052198839985067025,
+        "p95": 0.006617826999354292,
+        "max": 0.010137778999705915
+      },
+      "receipt_to_brake_ack_s": {
+        "samples": 345,
+        "min": 0.022916829000678263,
+        "median": 0.026702209001086885,
+        "p95": 0.031999096799336255,
+        "max": 0.04521587599992927
+      }
+    },
+    "controller_replay_mismatches": 0
+  },
+  "publication_status": "LOCAL_TECHNICAL_CANDIDATE_PENDING_COMMIT_AND_HUMAN_REVIEW_NOT_G1_ADMISSION"
 }

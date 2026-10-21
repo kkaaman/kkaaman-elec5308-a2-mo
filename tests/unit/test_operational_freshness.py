@@ -102,9 +102,10 @@ def test_startup_hold_then_fresh_confirmed_governance():
     assert not packet.is_current("e", 0.05, monotonic_s=clock() + 1)
 
 
-def test_cold_result_never_counts_as_warm():
+@pytest.mark.parametrize("duration", [0.6, 4.199441865980589])
+def test_cold_result_never_counts_as_warm(duration):
     _, backend, _, _, step = setup()
-    backend.duration = 0.6
+    backend.duration = duration
     assert step(0).command.throttle == 0
     backend.duration = 0.01
     assert step(1).command.throttle == 0
@@ -209,7 +210,7 @@ def test_frozen_baseline_entry_point_uses_the_same_startup_gate(monkeypatch, tmp
     root = Path(__file__).resolve().parents[2]
     document = json.loads((root / "configs/mission_baseline.json").read_text())
     freeze = document["baseline_threshold_freeze"]
-    # Exercise a hypothetical accepted loader; the real baseline must stay blocked.
+    # Exercise the bounded local candidate loader; this is not team G1 admission.
     freeze["status"] = "FROZEN_GATED_OPERATIONAL"
     freeze["frozen_values"] = dict(freeze["candidate_values"])
     path = tmp_path / "hypothetical-accepted-baseline.json"
@@ -258,3 +259,25 @@ def test_frozen_baseline_entry_point_uses_the_same_startup_gate(monkeypatch, tmp
         )
         packet = stack.step(frame)
         assert (packet.command.throttle > 0) == (i == 1)
+
+
+def test_fresh_confirmed_target_does_not_override_other_invalid_track():
+    from obstacle_perception.types import PixelBox
+
+    _, backend, policy, _, step = setup()
+    policy.observation_provider = lambda frame, batch, tracks: CorridorObservation(
+        batch.metadata, True, 20.0, 20.0
+    )
+    # Target box has valid 20 m depth. The background box is too small to
+    # supply the required depth pixels; timing and warm-up otherwise pass.
+    backend.track = lambda rgb: (
+        Detection("car", 0.9, PixelBox(0, 0, 40, 40), 1),
+        Detection("car", 0.9, PixelBox(0, 0, 2, 2), 2),
+    )
+    step(0)
+    packet = step(1)
+    assert any(t["track_id"] == 1 and t["depth_valid"] for t in policy.track_diagnostics)
+    assert any(t["track_id"] == 2 and not t["depth_valid"] for t in policy.track_diagnostics)
+    assert packet.command.throttle == 0 and packet.command.brake == 1
+    assert not policy.observation_valid
+    assert policy.last_target_mps == 0

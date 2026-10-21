@@ -1,0 +1,4 @@
+{
+  "status": "SUPERSEDED_SCENARIO_GEOMETRY",
+  "reason": "Target used elevated map spawn z rather than road waypoint z; valid timing/policy logs retained, not used for final ordinary road-car operational range freeze."
+}

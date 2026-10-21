@@ -18,9 +18,9 @@
   "hold_policy": "request_zero_speed_without_resetting_route",
   "resume_policy": "fresh_valid_clearance_then_positive_speed_without_set_path",
   "goal_policy": "latched_finished_until_explicit_reset",
-  "speed_status": "NAVIGATION_TUNED_BL_D_06_BLOCKED_PENDING_FRESH_BL_C_CAPTURE",
+  "speed_status": "FROZEN_GATED_OPERATIONAL_CANDIDATE_PENDING_TEAM_REVIEW",
   "reverse_allowed": false,
-  "speed_note": "Retain the accepted 4.0 m/s navigation setting; it is not an admitted obstacle-perception stopping freeze. BL-D-06 is blocked pending fresh measured-wait BL-C capture and range review.",
+  "speed_note": "4.0 m/s bounded candidate supported by new same-frame first-admission evidence; no global G1 admission or closed-loop stopping certification. Preserve all-track HOLD and clock limits.",
   "ego_truth_for_navigation": "ALLOWED_BY_USER_COURSE_SCOPE_CONFIRMATION",
   "obstacle_truth_for_control": false,
   "route_file": "routes/town10hd_baseline_v1.json",
@@ -60,7 +60,7 @@
     "percentile_rule": "Linear interpolation at (n-1)*0.95"
   },
   "baseline_threshold_freeze": {
-    "status": "BLOCKED_PENDING_FRESH_BL_C_CAPTURE",
+    "status": "FROZEN_GATED_OPERATIONAL",
     "required_evidence": {
       "depth_accuracy": "BL-B-04",
       "detector_range_and_latency": "BL-C-05",
@@ -76,16 +76,16 @@
       "perception_latency_p95_s": 0.1
     },
     "frozen_values": {
-      "cruise_speed_mps": null,
+      "cruise_speed_mps": 4.0,
       "deceleration_mps2": 1.497566177392398,
-      "response_budget_s": null,
+      "response_budget_s": 0.9500000052154064,
       "stop_margin_m": 6.0
     },
-    "freeze_rule": "Do not enable the frozen operational loader until fresh measured-wait BL-C capture and first-confirmation range/timing review establish usable bumper visibility. Age/TTL/vehicle-lag composition remains a conditional candidate, not a freeze.",
-    "review_date": "2026-10-20",
+    "freeze_rule": "Local technical candidate: use only the freshness-gated same-frame path and checked packet expiry, identical model/tracker/rig/depth/confirmation settings, all-track validity and supported perceived geometry. New controlled first-admission evidence supports 4.0 m/s with the enforced response budget. Not a team G1 admission or closed-loop stopping certificate.",
+    "review_date": "2026-10-21",
     "review_report": "../docs/evidence/BL-D-06/review.json",
     "decision_record": "../docs/baseline_threshold_freeze.md",
-    "candidate_constraints_note": "Historical G1 constraints and proposed 4.0 m/s navigation cruise are unchanged; corrected BL-C screening does not currently establish support for the operational freeze.",
+    "candidate_constraints_note": "D-003 permits a lower supported cruise; neither 4.0 nor 3.2 m/s is mandatory. Acceptance constraints and numerical candidate/frozen values are unchanged.",
     "implementation_policy": {
       "acceleration_mps2": 1.0,
       "lateral_acceleration_mps2": 1.5,
@@ -93,9 +93,9 @@
       "provenance": "Existing BL-D-07 tests/unit/test_speed_governor.py config fixture; explicitly policy, not newly measured physical limits."
     },
     "parameter_kinds": {
-      "cruise_speed_mps": "Unfrozen navigation candidate; obstacle usable range and first-confirmation support unestablished",
+      "cruise_speed_mps": "Unchanged 4.0 m/s candidate now supported for bounded freshness-gated operation; publication/team review pending",
       "deceleration_mps2": "BL-E-03 calibration with existing reserve",
-      "response_budget_s": "Independently justified age/delivery/vehicle-lag candidate; not an accepted obstacle cruise freeze",
+      "response_budget_s": "0.5 s enforced capture age + 0.1 s separate delivery reserve + measured BL-E lag once",
       "stop_margin_m": "Unchanged acceptance upper bound",
       "lateral_acceleration_mps2": "Existing implementation policy, not physical calibration",
       "emergency_margin_m": "Existing emergency policy, not normal stopped acceptance margin"
@@ -151,9 +151,9 @@
     },
     "fixed_delta_seconds": 0.05,
     "response_composition": {
-      "measured_perception_control_max_s": 0.18552801799978624,
+      "measured_perception_control_max_s": 0.06097370599854912,
       "measured_vehicle_response_s": 0.3500000052154064,
-      "measured_total_s": 0.5355280232151927,
+      "measured_total_s": 0.41097371121395554,
       "enforced_capture_age_budget_s": 0.5,
       "post_decision_delivery_reserve_s": 0.1,
       "note": "Sensor, detector, filter and control availability appear once in measured end-to-end response. Candidate covers the enforced admission bound, plus distinct command-delivery reserve and vehicle lag once.",
@@ -179,6 +179,12 @@
       "deceleration_mps2": 1.497566177392398,
       "response_budget_s": 0.9500000052154064,
       "stop_margin_m": 6.0
+    },
+    "publication_status": "LOCAL_CANDIDATE_NOT_COMMITTED_OR_TEAM_ADMITTED",
+    "operational_range_evidence": {
+      "report": "../docs/evidence/BL-D-06/operational-approach/review.json",
+      "usable_first_admission_range_m": 22.348599722608924,
+      "scope": "Controlled straight-scene all-track supported-surface provider; no empty-corridor clearance inference, no general full-corridor visibility certificate"
     }
   },
   "runtime_entrypoint": "autonomy.baseline_operation.baseline_operational_stack"

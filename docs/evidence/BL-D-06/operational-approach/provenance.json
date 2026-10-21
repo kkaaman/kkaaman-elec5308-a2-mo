@@ -1,0 +1,24 @@
+{
+  "base_commit": "f777a6d0aec45feded3046749c90e384c6bdffcd",
+  "branch": "fix/BL-C-05-sensor-wait-screening",
+  "candidate_config_path": "configs/mission_baseline.json",
+  "candidate_config_sha256": "10823c48caae6149d96f143b843cebeeef176e13366fb2f9b8f5637e870d70cd",
+  "publication": "Uncommitted local technical candidate; no GitHub or full-team admission",
+  "measured_capture_sha256": "f90e94b2a8a112d8bdbb70bb7c2941c9e8d14bb298845270e354ff37aea6b79b",
+  "measurement_source_archive_sha256": "93bad573fe5639bf3a99f8274e84a807d839193de1db1d1053c3946ee6ffbb97",
+  "review_sha256": "8491a57f30a836e9abd74f74bcfaa9e4d907bab610daeb0b6d36b5d7288f0514",
+  "runtime_source_relationship": "Measured src/ files are byte-identical to current runtime; captured config was blocked metadata with the same numeric candidate; frozen values now populate those unchanged candidate settings.",
+  "accepted_run": "same-frame-04",
+  "kinematic_actor_road_z_m": 0.0,
+  "superseded_run": "same-frame-01 elevated kinematic target; retained, excluded from ordinary-road range freeze",
+  "gpu_device_name": "NVIDIA GeForce RTX 4070 Laptop GPU",
+  "sensor_read_timeout_s": 3.0,
+  "validation": {
+    "focused": "170 passed",
+    "full_pytest": "830 passed, 1 skipped, 3 subtests passed",
+    "ruff": "passed",
+    "sphinx_W": "passed",
+    "git_diff_check": "passed",
+    "exact_review_reproduction": "passed"
+  }
+}
