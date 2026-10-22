@@ -21,6 +21,11 @@ def main():
         "--image-size", type=int, default=640, help="Detector input size; frozen into the config"
     )
     parser.add_argument("--confidence", type=float, default=0.25)
+    parser.add_argument(
+        "--candidate",
+        action="store_true",
+        help="Measure an unregistered fine-tuned model; its own SHA-256 is recorded instead",
+    )
     args = parser.parse_args()
     manifest, rows = read_dataset(args.dataset)
     rows = [r for r in rows if r["split"] == args.split]
@@ -34,7 +39,13 @@ def main():
     asset = json.loads((Path(__file__).resolve().parents[1] / "configs/models.yaml").read_text())[
         "models"
     ][0]
-    verify_local_asset(args.weights, asset["sha256"])
+    if args.candidate:
+        # A fine-tuned candidate is identified by its own bytes, never the registry entry.
+        asset = dict(asset, sha256=sha256(args.weights))
+        model_status = "CANDIDATE_UNREGISTERED"
+    else:
+        verify_local_asset(args.weights, asset["sha256"])
+        model_status = "REGISTERED"
     args.output.mkdir(parents=True, exist_ok=False)
     detector = FrameDetector(
         ObjectDetector(
@@ -56,6 +67,8 @@ def main():
     report.update(
         dataset_index_sha256=manifest["samples_sha256"],
         model_sha256=asset["sha256"],
+        model_status=model_status,
+        weights=str(args.weights.resolve()),
         split=args.split,
         depth_calibration_sha256=sha256(args.depth_calibration),
         fault=args.fault,

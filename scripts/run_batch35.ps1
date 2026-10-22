@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory=$true)]
-    [ValidateSet("Offline","LiveSetup","Quick","Verify","Capture","Perception","Tune","Navigation","Freeze","Smoke","Acceptance","ReplayFaults","Train","Evaluate","Audit","Archive")]
+    [ValidateSet("Offline","LiveSetup","Quick","Verify","Capture","Perception","Tune","Navigation","Freeze","Smoke","Acceptance","ReplayFaults","Train","Evaluate","Audit","TrainDetector","EvaluateDetector","Archive")]
     [string]$Stage,
     [int]$Samples = 12000,
     [double]$TrainingHours = 4,
@@ -239,6 +239,34 @@ try {
             $depthPath = Need-Result "depth"
             Invoke-ProjectPython -PythonArgs (@("scripts/benchmark_perception.py","--dataset",$datasetPath,"--weights","yolo26n.pt","--depth-calibration",$depthPath,"--split","test","--output",(Join-Path $stageFolder "heldout")) + (Get-DrivenDetectorArgs))
             $batchState["heldout"] = Join-Path $stageFolder "heldout\perception.json"
+        }
+        "TrainDetector" {
+            # Fine-tune the obstacle detector on road users from the training town
+            # (Capture -Map Town05). The demo map is refused unless -AllowDemoMap.
+            $datasetPath = if ($batchState.ContainsKey("training_dataset")) { Need-Result "training_dataset" } else { Need-Result "dataset" }
+            $trainArgs = @("training/batch35/train_detector.py","--dataset",$datasetPath,"--initial","yolo26n.pt","--output",(Join-Path $stageFolder "detector"),"--hours",[string]$TrainingHours)
+            if ($AllowDemoMap) { $trainArgs += "--allow-demo-map" }
+            Invoke-ProjectPython -PythonArgs $trainArgs
+            $batchState["detector_candidate"] = Join-Path $stageFolder "detector\detector_candidate.pt"
+            $batchState["detector_training"] = Join-Path $stageFolder "detector\training.json"
+        }
+        "EvaluateDetector" {
+            # Same replay as Perception/Audit, at the driven detector settings, with the
+            # candidate weights; then a pose-by-pose comparison with the baseline reports.
+            $datasetPath = Need-Result "dataset"
+            $depthPath = Need-Result "depth"
+            $candidateWeights = Need-Result "detector_candidate"
+            $detectorArgs = Get-DrivenDetectorArgs
+            foreach ($split in @("val","test")) {
+                Invoke-ProjectPython -PythonArgs (@("scripts/benchmark_perception.py","--dataset",$datasetPath,"--weights",$candidateWeights,"--candidate","--depth-calibration",$depthPath,"--split",$split,"--output",(Join-Path $stageFolder $split)) + $detectorArgs)
+                $batchState["candidate_$split"] = Join-Path $stageFolder "$split\perception.json"
+                $baselineKey = if ($split -eq "val") { "perception" } else { "heldout" }
+                if ($batchState.ContainsKey($baselineKey) -and (Test-Path -LiteralPath $batchState[$baselineKey])) {
+                    Invoke-ProjectPython -PythonArgs @("scripts/compare_detectors.py","--baseline",[string]$batchState[$baselineKey],"--candidate",(Join-Path $stageFolder "$split\perception.json"),"--output",(Join-Path $stageFolder "compare_$split.json"))
+                } else {
+                    Write-Host "No baseline $split report ('$baselineKey') in this state; run Perception/Audit with the registered model to compare."
+                }
+            }
         }
         "Archive" {
             $sourcePaths = @("src","tests","configs","scripts","docs","training","examples","pyproject.toml","README.md",".github",".gitignore",".gitattributes") | Where-Object { Test-Path -LiteralPath $_ }

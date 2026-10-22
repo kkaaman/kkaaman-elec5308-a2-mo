@@ -49,6 +49,52 @@ Evaluate compares the unchanged baseline with the candidate on the held-out test
 
 Test results should be used once for the frozen candidate. If test results guide another training change, that test set is no longer untouched; collect a new held-out set before making a final generalization claim. Only adopt a candidate after reviewing metrics and overlays for ordinary roads, bends, shadows, intersections and failures. Lane output remains HUD-only in this baseline even if segmentation improves.
 
+## Obstacle detector fine-tuning (pedestrians)
+
+The held-out audit (TEST-09, `docs/evidence/TEST-09-heldout-audit/`) found the
+registered `yolo26n.pt` misses child-sized pedestrians, including one at 5.3 m, and
+does not confirm the 17.5 m person range. `TrainDetector` fine-tunes the detector on
+road users captured on another town, and `EvaluateDetector` measures the candidate on
+the demo map's validation and test splits.
+
+```powershell
+& .\scripts\run_batch35.ps1 -Stage TrainDetector -TrainingHours 3
+& .\scripts\run_batch35.ps1 -Stage EvaluateDetector
+```
+
+**Labels.** Each frame's labels come from its instance image, using the capture's
+visible-pixel rule (at least 16 pixels):
+- person, rider (as person), car, truck, bus, motorcycle and bicycle are all labelled;
+- every walker model is included, children too;
+- the initial model's 80 COCO classes are kept, so the runtime class filter is unchanged.
+
+Labelling every obstacle class stops the model learning to ignore unlabelled vehicles.
+Traffic lights and signs are not labelled, so keep the original model for traffic-light
+work.
+
+**Training.**
+- Runs at 1280 px, the driven detector size, for up to `-TrainingHours`.
+- Selects on the training town's own validation split.
+- The demo map is refused unless `-AllowDemoMap`.
+- The candidate is `detector\detector_candidate.pt`; `training.json` records its hash,
+  the label counts and the person-height spread.
+
+**Evaluation.**
+- Replays both demo-map splits at the driven detector size and confidence.
+  `benchmark_perception.py --candidate` records the candidate's own SHA-256
+  (`model_status: CANDIDATE_UNREGISTERED`).
+- `compare_detectors.py` then matches the in-path poses one by one against the baseline
+  reports (`perception` for validation, `heldout` for test), and lists the poses fixed,
+  the poses broken, and those neither model detects.
+
+**Choosing a candidate.** Choose on the validation comparison. The test split was
+already read once by the TEST-09 audit, so report its comparison once and do not tune
+against it.
+
+A candidate becomes the runtime detector only through the usual stages:
+`models.yaml` registration, Perception, Freeze and acceptance. Until then it is
+evidence, not the baseline.
+
 ## What has been tested here
 
 A one-epoch CPU run on a tiny synthetic dataset completed, including candidate checkpoint writing. This checks that the training program executes; the random fixture, its low IoU and its weights are not accuracy evidence and are not included as a trained deliverable. Useful model quality, CUDA throughput and the full CARLA dataset remain to be measured on the university PC.
