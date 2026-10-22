@@ -59,6 +59,15 @@ def curvature(coefficients, x):
     return d2 / (1.0 + d1**2) ** 1.5
 
 
+def polyline_curvature(points):
+    """Signed curvature at each vertex of a polyline (finite differences, 1/m)."""
+    if len(points) < 3:
+        return np.zeros(len(points))
+    dx, dy = np.gradient(points[:, 0]), np.gradient(points[:, 1])
+    ddx, ddy = np.gradient(dx), np.gradient(dy)
+    return (dx * ddy - dy * ddx) / np.maximum((dx**2 + dy**2) ** 1.5, 1e-9)
+
+
 class LanePlanner:
     def __init__(self, config, body):
         if not isinstance(config, PlannerConfig) or not isinstance(body, VehicleBody):
@@ -107,7 +116,7 @@ class LanePlanner:
                 stop_s, reason, final_goal = float(goal_s[0]), "goal", True
                 end = int(np.searchsorted(arcs, stop_s)) + 1
 
-        k = np.abs(curvature(np.array(corridor.coefficients), line[:, 0]))
+        k = np.abs(polyline_curvature(line))
         curve = np.sqrt(c.lateral_accel_mps2 / np.maximum(k, 1e-6))
         speed = np.minimum(c.cruise_mps, curve)
         speed = np.minimum(speed, np.sqrt(2.0 * c.decel_mps2 * np.maximum(0.0, stop_s - arcs)))

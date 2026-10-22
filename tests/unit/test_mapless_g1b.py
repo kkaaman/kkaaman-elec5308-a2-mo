@@ -44,7 +44,18 @@ BODY = VehicleBody()
 
 
 def control():
-    return LocalControlConfig(ControllerConfig(wheelbase_m=3.00465, max_steering_angle_rad=math.radians(20)))
+    # The live harness's tuning (the baseline's measured controller settings).
+    return LocalControlConfig(
+        ControllerConfig(
+            wheelbase_m=3.00465,
+            max_steering_angle_rad=math.radians(20),
+            lookahead_m=4.0,
+            kp=0.45,
+            ki=0.15,
+            stopping_deceleration_mps2=1.0,
+            hold_brake=0.5,
+        )
+    )
 
 
 # -- ego motion ---------------------------------------------------------------------------
@@ -276,6 +287,8 @@ def settled_lateral(log, after_s_m):
         pytest.param([Straight(200)], 0.0, id="straight"),
         pytest.param([Straight(200)], 0.08, id="straight_crowned_road"),
         pytest.param([Straight(25), Arc(25, math.pi / 2), Straight(100)], 0.0, id="left_r25"),
+        # The tightest bend the live curve site allows: 12 m lane radius (kerb at 10.25 m).
+        pytest.param([Straight(25), Arc(-10.25, math.pi / 2), Straight(100)], 0.0, id="right_r12"),
     ],
 )
 def test_closed_loop_follows_the_lane_and_stops_at_the_goal(pieces, crown_m):

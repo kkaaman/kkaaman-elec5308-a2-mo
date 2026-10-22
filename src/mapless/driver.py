@@ -161,6 +161,7 @@ class MaplessDriver:
         d.update(
             obstacle_m=None if obstacle is None else obstacle.distance_m,
             obstacle_points=None if obstacle is None else obstacle.points,
+            obstacle_lateral_m=None if obstacle is None else obstacle.lateral_m,
             stop_reason=plan.stop_reason,
             stop_distance_m=plan.stop_distance_m if math.isfinite(plan.stop_distance_m) else None,
         )
