@@ -4,10 +4,12 @@ The car is ``mapless.driver.MaplessDriver``. It receives a ``SensorFrame`` per t
 route; it never sees the map, the simulator's poses or any actor. This module plays
 everything else:
 
-- **Site** (map, truth side): the rightmost driving lane with a pavement on its right,
-  no junction for the whole run, and either straight (``straight``, ``stop``) or one bend
-  of 30 to 120 degrees with radius 12 m or more (``curve``). The car starts on a straight
-  stretch.
+- **Site** (map, truth side): searched along the map's junction-free lane runs
+  (topology segments), from 8 m past a junction. The rightmost driving lane, with the
+  whole run either straight (``straight``, ``stop``) or one bend of 30 to 120 degrees with
+  radius 12 m or more (``curve``), starting on a straight stretch. Sites where the map has
+  a pavement lane straight after the driving lane come first. If none fits, the error
+  gives a census of why, and the longest junction-free runs on the map.
 - **Route** (sat-nav role): LANEFOLLOW points every 25 m along that lane to the goal,
   placed with the map's own geolocation.
 - **Obstacle** (``stop``): a parked car in the ego lane, spawned before the car starts.
@@ -79,33 +81,36 @@ def lane_heading(wp):
 
 
 def follow_lane(wp, length_m, step_m=1.0):
-    """Waypoints along one lane (first branch), or None if a junction comes first."""
+    """Waypoints every ``step_m`` along one lane (first branch), up to ``length_m`` or the next junction."""
     points = [wp]
-    travelled = 0.0
-    while travelled < length_m:
+    while (len(points) - 1) * step_m < length_m:
         nxt = points[-1].next(step_m)
         if not nxt or nxt[0].is_junction:
-            return None
+            break
         points.append(nxt[0])
-        travelled += step_m
     return points
 
 
 def right_kerb(carla, wp):
-    """Distance from lane centre to the pavement on the right, and the lanes crossed (None if none)."""
+    """Distance from lane centre to the kerb on the right, the lanes crossed, and the evidence.
+
+    The kerb is where the map's Sidewalk lane starts. Maps that model no Sidewalk lane give
+    the outer edge of the last lane instead (``source`` "road edge"); a Driving lane on the
+    right means this is not the rightmost lane.
+    """
     distance, crossed = wp.lane_width / 2, []
     right = wp.get_right_lane()
     for _ in range(6):
         if right is None:
-            return None, crossed
+            return distance, crossed, "road edge"
         if right.lane_type == carla.LaneType.Sidewalk:
-            return distance, crossed
+            return distance, crossed, "sidewalk"
         if right.lane_type == carla.LaneType.Driving:
-            return None, crossed + ["Driving"]
+            return None, crossed + ["Driving"], "not rightmost"
         crossed.append(str(right.lane_type))
         distance += right.lane_width
         right = right.get_right_lane()
-    return None, crossed
+    return None, crossed, "too many side lanes"
 
 
 def site_shape(points):
@@ -117,38 +122,81 @@ def site_shape(points):
     return total, float(rates.max()), start_turn
 
 
-def find_sites(carla, carla_map, scenario, length_m):
-    for index, spawn in enumerate(carla_map.get_spawn_points()):
-        wp = carla_map.get_waypoint(spawn.location, project_to_road=True, lane_type=carla.LaneType.Driving)
-        if wp is None or wp.is_junction:
+def shape_ok(scenario, points):
+    total, max_rate, start_turn = site_shape(points)
+    if start_turn > math.radians(5):
+        return False, total, max_rate
+    if scenario in ("straight", "stop"):
+        return total <= math.radians(5), total, max_rate
+    return math.radians(30) <= total <= math.radians(120) and max_rate <= 1 / 12, total, max_rate
+
+
+def find_sites(carla, carla_map, scenario, length_m, junction_clearance_m=8.0, slide_m=10.0):
+    """Sites on junction-free lane runs from the map topology, and a census of why others failed.
+
+    Each topology segment between junctions is walked from ``junction_clearance_m`` past its
+    start (away from the kerb corners of the junction mouth). A window of ``length_m`` is
+    slid along the run in ``slide_m`` steps until one has the scenario's shape.
+    """
+    census = dict(segments=0, not_driving_or_junction=0, not_rightmost=0, too_short=0, wrong_shape=0, kerb_gaps=0, sites=0)
+    longest = []  # (run length, road, lane) of rightmost runs, for the message when nothing fits
+    seen = set()
+    sites = []
+    for start, _ in carla_map.get_topology():
+        census["segments"] += 1
+        if start.lane_type != carla.LaneType.Driving or start.is_junction:
+            census["not_driving_or_junction"] += 1
             continue
-        kerb, crossed = right_kerb(carla, wp)
+        key = (start.road_id, start.section_id if hasattr(start, "section_id") else 0, start.lane_id)
+        if key in seen:
+            continue
+        seen.add(key)
+        kerb, crossed, source = right_kerb(carla, start)
         if kerb is None:
+            census["not_rightmost"] += 1
             continue
-        points = follow_lane(wp, length_m)
-        if points is None:
+        run = follow_lane(start, 400.0)
+        usable = run[int(junction_clearance_m) :]
+        longest.append((len(usable) - 1, start.road_id, start.lane_id))
+        if len(usable) - 1 < length_m:
+            census["too_short"] += 1
             continue
-        total, max_rate, start_turn = site_shape(points)
-        if start_turn > math.radians(5):
+        found = None
+        for offset in range(0, len(usable) - int(length_m), int(slide_m)):
+            window = usable[offset : offset + int(length_m) + 1]
+            ok, total, max_rate = shape_ok(scenario, window)
+            if ok:
+                found = (offset, window, total, max_rate)
+                break
+        if found is None:
+            census["wrong_shape"] += 1
             continue
-        if scenario in ("straight", "stop") and total > math.radians(5):
-            continue
-        if scenario == "curve" and not (math.radians(30) <= total <= math.radians(120) and max_rate <= 1 / 12):
-            continue
-        kerbs = [right_kerb(carla, p)[0] for p in points[::10]]
+        offset, window, total, max_rate = found
+        kerbs = [right_kerb(carla, p)[0] for p in window[::10]]
         if sum(k is not None for k in kerbs) < 0.8 * len(kerbs):
+            census["kerb_gaps"] += 1
             continue
-        yield dict(
-            spawn_index=index,
-            waypoints=points,
-            kerb_distance_m=kerb,
-            right_lanes=crossed,
-            heading_change_deg=math.degrees(total),
-            min_radius_m=(1 / max_rate) if max_rate > 0 else math.inf,
-            lane_width_m=wp.lane_width,
-            road_id=wp.road_id,
-            lane_id=wp.lane_id,
+        first_kerb, crossed, source = right_kerb(carla, window[0])
+        census["sites"] += 1
+        sites.append(
+            dict(
+                waypoints=window,
+                kerb_distance_m=first_kerb,
+                kerb_source=source,
+                right_lanes=crossed,
+                heading_change_deg=math.degrees(total),
+                min_radius_m=(1 / max_rate) if max_rate > 0 else math.inf,
+                lane_width_m=window[0].lane_width,
+                road_id=window[0].road_id,
+                lane_id=window[0].lane_id,
+                junction_free_run_m=len(usable) - 1,
+            )
         )
+    # A mapped pavement first, then no side lanes before the kerb, then the longest runs.
+    sites.sort(key=lambda site: (site["kerb_source"] != "sidewalk", len(site["right_lanes"]), -site["junction_free_run_m"]))
+    longest.sort(reverse=True)
+    census["longest_rightmost_runs_m"] = [dict(length_m=n, road_id=r, lane_id=lane) for n, r, lane in longest[:5]]
+    return sites, census
 
 
 def make_route(carla_map, waypoints, goal_m, spacing_m=25.0, name="g1b"):
@@ -290,18 +338,28 @@ class MaplessDrive:
         self.world.set_weather(carla.WeatherParameters.ClearNoon)
         carla_map = self.world.get_map()
         length = args.goal_m + 15.0
-        # Pavement straight after the lane first: shoulders or parking lanes put the kerb further away.
-        sites = sorted(find_sites(carla, carla_map, args.scenario, length), key=lambda site: len(site["right_lanes"]))
+        sites, census = find_sites(carla, carla_map, args.scenario, length)
+        self.report["site_census"] = census
         if len(sites) <= args.site:
-            raise RuntimeError(f"Only {len(sites)} {args.scenario} sites on this map; --site {args.site} not available")
-        self.site = site = sites[args.site]
+            runs = ", ".join(f"{r['length_m']} m" for r in census["longest_rightmost_runs_m"])
+            raise RuntimeError(
+                f"Only {len(sites)} {args.scenario} sites on this map for --goal-m {args.goal_m:g} "
+                f"(needs {length:g} m without a junction); --site {args.site} not available. "
+                f"Census: {json.dumps({k: v for k, v in census.items() if k != 'longest_rightmost_runs_m'})}. "
+                f"Longest junction-free rightmost lanes: {runs}. A shorter --goal-m or another --map may fit."
+            )
+        self.ego = None
+        for index in range(args.site, min(len(sites), args.site + 10)):
+            spawn = sites[index]["waypoints"][0].transform
+            spawn.location.z += 0.3
+            self.ego = self.owner.try_spawn(self.library.find("vehicle.tesla.model3"), spawn)
+            if self.ego is not None:
+                break
+        if self.ego is None:
+            raise RuntimeError("Could not spawn the car at any of the next 10 sites; try another --site")
+        self.site = site = sites[index] | dict(site_index=index)
         wps = site["waypoints"]
         self.lane = np.array([core_xy(w.transform.location) for w in wps])
-        spawn = wps[0].transform
-        spawn.location.z += 0.3
-        self.ego = self.owner.try_spawn(self.library.find("vehicle.tesla.model3"), spawn)
-        if self.ego is None:
-            raise RuntimeError("Could not spawn the car at the chosen site; try another --site")
         self.adapter = FixedVehicleAdapter(self.ego)
         self.offset = self.adapter.geometry.rear_axle_offset_m
         self.parked = None
@@ -533,8 +591,8 @@ def main(argv=None):
     parser.add_argument("--no-noise", action="store_true", help="Run the suite without its sensor noise")
     parser.add_argument("--speed", type=float, default=2.0, help="Cruise speed (m/s)")
     parser.add_argument("--keep-right", type=float, default=1.75, help="Lane centre's distance left of the kerb (m)")
-    parser.add_argument("--goal-m", type=float, default=100.0)
-    parser.add_argument("--obstacle-m", type=float, default=50.0, help="stop: parked car this far along the lane")
+    parser.add_argument("--goal-m", type=float, default=60.0, help="Route length (m); the site needs this + 15 m without a junction")
+    parser.add_argument("--obstacle-m", type=float, default=35.0, help="stop: parked car this far along the lane")
     parser.add_argument("--hold-s", type=float, default=5.0)
     parser.add_argument("--max-s", type=float, default=150.0)
     parser.add_argument("--snapshot-every", type=int, default=40, help="Ticks between terrain snapshots (0: none)")
