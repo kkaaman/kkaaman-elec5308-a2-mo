@@ -295,6 +295,18 @@ Lane-change checks there rely on LiDAR and the side cameras.
   ended "Cleanup incomplete" because 32 walker actors had already been removed by the
   server; the data was complete. The session now skips actors the server no longer has
   and the manifest counts them (`actors_removed_by_server`).
+- **Pilot inspection (23 Oct):** accepted as training data despite the manifest's
+  INCOMPLETE (cleanup only).
+  - Labels and LiDAR agree on every camera: ground points on ground labels 0.978 to
+    0.990, points in vehicle boxes on vehicle labels 0.966 to 0.991.
+  - Seven weather presets, all daytime; median speed 8 m/s (Traffic Manager); no
+    degraded frames.
+  - **Too few road users:** 0.8 cars and 0.2 pedestrians within 30 m on average; of 104
+    front-camera pedestrians in 200 samples, 60 were under 20 px tall and 12 were 40 px
+    or taller. Capture defaults are now 80 cars, 150 walkers and a 0.3 road-crossing
+    factor.
+  - CARLA labels stop lines as ordinary road lines; a stop-line class would have to come
+    from the map's stop positions at capture time (traffic lights, G4).
 - **G0 closed (22 Oct).** The record run on `01a086d` (PC 2) is `MEASURED_PASS`, with
   render lag 0 on all four trials. PC 1 passed the same checks on `ffbbc21`.
 
