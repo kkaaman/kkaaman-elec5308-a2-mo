@@ -1,0 +1,237 @@
+{
+  "date": "2026-10-20",
+  "status": "BLOCKED_PENDING_FRESH_BL_C_CAPTURE",
+  "dependency_review": {
+    "bl_c_timing_status": "BLOCKED_INCOMPLETE_TIMING",
+    "timing_review_sha256": "e328186041d97f08dddf70a8bd81169a8f962df2e7d8eb33792e1f72c00d3d47",
+    "historical_screening_usable": false,
+    "historical_screening_used_in_operational_budget": false,
+    "response_budget_independently_justified": true,
+    "usable_bumper_visibility_established": false,
+    "depth_accuracy_scope_axial_m": 25.0,
+    "reason": "Operational age bound is independent; axial depth accuracy and parked shadow timing do not establish first-confirmation range or 25 m usable bumper visibility. Fresh BL-C capture and explicit range review required."
+  },
+  "cold_review_status": "HISTORICAL_SUPERSEDED_BL_C_TIMING",
+  "cold_review": {
+    "date": "2026-10-20",
+    "status": "BLOCKED_RANGE_LATENCY_COMPOSITION",
+    "sources": {
+      "benchmark.json": {
+        "source_commit": "d63f8879ceebdd10655afd5784737aafd6aa9f96",
+        "source_path": "docs/evidence/BL-C-04-06/benchmark.json",
+        "source_blob": "80e6469c8950d5099ce56eb215dcbd3bdaa9e7d4",
+        "sha256": "e6d6bb782da3100911cb5451d63b0cc56b2ae75286a6bdae089df8fbbcaab40c"
+      },
+      "capture-summary.json": {
+        "source_commit": "d63f8879ceebdd10655afd5784737aafd6aa9f96",
+        "source_path": "docs/evidence/BL-C-04-06/capture-summary.json",
+        "source_blob": "4b24876b541541ba3d0fd84126df8bc601b74810",
+        "sha256": "37fd479116e67bc3ee1bf9994f69191dbd5c92f8093e807dafb41d1aaffcc402"
+      },
+      "depth-calibration.json": {
+        "source_commit": "d63f8879ceebdd10655afd5784737aafd6aa9f96",
+        "source_path": "docs/evidence/BL-C-04-06/depth-calibration.json",
+        "source_blob": "6cebb4a4bc74c6bb16925b2960020ba50c2e943b",
+        "sha256": "89d64df2475790eea16a0fc2b862a9fcbafdf125c9f3fd5ef3f74453afc9cf5f"
+      },
+      "longitudinal.json": {
+        "source_commit": "d63f8879ceebdd10655afd5784737aafd6aa9f96",
+        "source_path": "docs/evidence/BL-C-04-06/longitudinal.json",
+        "source_blob": "3631cc80dab6f7373f8c4a77b9839261d14dd02a",
+        "sha256": "f718d60b26416675e563bb92099d01aebd95c4aa7011e141414cb82ec2f3ee73"
+      },
+      "depth-analysis.json": {
+        "source_commit": "b9ac2e35d73310442682ebc7a7870130ef289a8c",
+        "source_path": "docs/evidence/TEST-13/depth_analysis.json",
+        "source_blob": "f1014d2fe75d8543fba514a78537632e399eced4",
+        "sha256": "0ccfc2a96f48312d0e1b699f767409682aa3889bc2140f9789e2ed3018e406ea"
+      },
+      "acceptance.json": {
+        "source_commit": "f9d0584385ba073ef70f4a3aeae6842a468c1841",
+        "source_path": "configs/acceptance.json",
+        "source_blob": "b35e91e92fd84fed4b28f0bb3b455dbf313de48a",
+        "sha256": "9f8ba3cf712dedd6d0483eb228a6df8155e9f2e65880bd6a560ec07495c6c7d8"
+      },
+      "navigation-baseline.json": {
+        "source_commit": "f9d0584385ba073ef70f4a3aeae6842a468c1841",
+        "source_path": "configs/mission_baseline.json",
+        "source_blob": "ddb414940708af0a88a5c0f909b64edcb6d6c2e3",
+        "sha256": "06f6fa7ce24d399f4ec731b77230836881ac05832f5a1858d724032d12cfdbd1"
+      },
+      "controller-timing.json": {
+        "source_commit": "f9d0584385ba073ef70f4a3aeae6842a468c1841",
+        "source_path": "docs/evidence/TEST-02/rgb-repair-results.json",
+        "source_blob": "c394ddb2824900de75f85ddb4ba784443ef45b4a",
+        "sha256": "8fe40db5bfe2288d4b2b52d2991e6a763ce2e590df328e7b34f9d89bf9153710"
+      }
+    },
+    "measured_inputs": {
+      "cruise_candidate_mps": 4.0,
+      "braking_deceleration_mps2": 1.497566177392398,
+      "vehicle_response_s": 0.3500000052154064,
+      "worst_capture_to_confirmed_result_s": 4.802199796118202,
+      "optimistic_response_without_controller_s": 5.152199801333609,
+      "reviewed_depth_scope_m": 25.0,
+      "maximum_reported_depth_bin_centre_m": 30,
+      "upstream_navigation_capture_to_apply_p95_ms": 16.000000000076398
+    },
+    "screening": {
+      "bl_c_reported_cap_mps": 4.9,
+      "bl_c_recommended_mps": 4.0,
+      "required_bumper_gap_at_candidate_m": 31.950800193851556,
+      "optimistic_depth_scope_caps_mps": {
+        "25": 3.074998366509492,
+        "30": 3.7479273509690287
+      },
+      "candidate_supported_at_reviewed_depth_scope": false,
+      "controller_delay_added_s": 0.0,
+      "controller_delay_note": "Zero is an optimistic diagnostic lower bound, not a frozen controller budget. Even this bound fails; the navigation-only p95 is not an integrated perception/control bound.",
+      "range_note": "25 m is the reviewed evidence scope, not a new acceptance ceiling. Treating axial depth as bumper gap is optimistic; no vehicle offsets or error allowance were subtracted."
+    },
+    "acceptance": {
+      "stop_margin_min_m": 2.5,
+      "stop_margin_max_m": 6.0,
+      "latency_p95_ms": 100.0,
+      "changed": false
+    },
+    "decision": {
+      "frozen": false,
+      "reason": "BL-C first-confirmation screening alone does not establish a joint depth-range/latency operating envelope for the governor.",
+      "needed": "Validate a freshness-gated warm operational path with complete downstream timing, or obtain sufficient depth-range evidence and revise the supported cruise through review."
+    }
+  },
+  "warm_measurement": {
+    "path": "warm-operational.json",
+    "sha256": "08e8a563b42a1f61ed35f8a8de7975d8fc9e4fbeb405c1c3d693b855da3cac57",
+    "raw_path": "runs/BL-D-06/warm-operational-v4/report.json",
+    "source_archive": "warm-source.zip",
+    "source_archive_sha256": "6e6d9b7742b7d8624d1cc79bb88c2a9f5cabe55680b9f1853ad316b020d07b42",
+    "source_hashes": {
+      "src/autonomy/stack.py": "73225409d124e10c60fddadb95568fd945d52834b939ffbfad02b2bb19026b95",
+      "src/autonomy/freshness.py": "fd11d2ceda67eb9675031569a90c6abc1ed3f3e1f0e9ae78fe3f48394c2977f8",
+      "src/autonomy/operational.py": "5baaa7c347aa2ca3c0b63c5055d3ed71371f72218a8043abbe60f01b24a08877",
+      "src/autonomy/obstacle_policy.py": "03de571deee9fb1a73a18e534b9f9a65b8824050c49e22e8caafd5f0f8076012",
+      "src/perception/frame_detector.py": "acef9fa4cc86bf40d7fb90fb8df6ded6879966929dd2ad9f9804e8ee3354f65b",
+      "src/obstacle_perception/tracking.py": "c0a2781e4b5fde3080c8b2d0d18e697be46cc4ea0e4b22c18d57e0a5b58cef61",
+      "src/carla_adapter/sensors.py": "71ea20ad14f736e3606acb92b9a433b85dd86631c7d9a51cd7ae133b6e6d0a6a",
+      "src/planning/speed_governor.py": "41a1f518de445eb6c388fff8576e6d1bb4810fdf8a2c3c634717757254a258e2",
+      "src/autonomy/interfaces.py": "bb56919b50bee998fd3b39a451c857d8f5c9d333595c7633d8e14be483a14dd3",
+      "src/perception/object_detection.py": "130b2fef40353c2ef36b58e1015e2b9cd2fbe5340df6d008049bada79c07b889",
+      "src/carla_adapter/vehicle.py": "b1c0baa76453ede8080abd1f2d98e96d060adc05b3c23118dd57d1991d0a0ad7"
+    },
+    "summary": {
+      "warm_samples": 122,
+      "positive_packets": 122,
+      "cold_or_stale_positive_packets": 0,
+      "max_warm_capture_to_decision_s": 0.18552801799978624,
+      "p95_warm_capture_to_decision_s": 0.16041294669971648,
+      "p95_warm_receipt_to_decision_s": 0.07088418299981637
+    },
+    "cold_first_frames": [
+      {
+        "episode": "warm-operational-0",
+        "index": 0,
+        "frame_id": 24833,
+        "sim_time_s": 1231.7478435710073,
+        "capture_started_monotonic_s": 6085.224846404,
+        "sensor_available_monotonic_s": 6085.446542241,
+        "stack_started_monotonic_s": 6085.448109976,
+        "decision_monotonic_s": 6087.561929897,
+        "sensor_availability_s": 0.2216958369999702,
+        "bundle_s": 0.001567734999298409,
+        "stack_s": 2.1138199209999584,
+        "capture_to_decision_s": 2.337083492999227,
+        "receipt_to_decision_s": 2.1168787029992018,
+        "detector_s": 2.109893213999385,
+        "filter_s": 0,
+        "controller_s": 0.00022687100045004627,
+        "decision_and_overhead_s": 0.0036998360001234687,
+        "warmed": false,
+        "gate_reason": "capture_age_hold",
+        "packet_reason": [
+          "capture_age_hold"
+        ],
+        "packet_current": false,
+        "target_mps": 0.0,
+        "throttle": 0,
+        "brake": 1,
+        "injected_stale": false,
+        "track_diagnostics": []
+      },
+      {
+        "episode": "warm-operational-1",
+        "index": 0,
+        "frame_id": 24953,
+        "sim_time_s": 1237.7478436604142,
+        "capture_started_monotonic_s": 6103.490408208,
+        "sensor_available_monotonic_s": 6103.607369863,
+        "stack_started_monotonic_s": 6103.614431693,
+        "decision_monotonic_s": 6103.794820147,
+        "sensor_availability_s": 0.11696165499961353,
+        "bundle_s": 0.00706183000056626,
+        "stack_s": 0.18038845399951242,
+        "capture_to_decision_s": 0.3044119389996922,
+        "receipt_to_decision_s": 0.18795754900020256,
+        "detector_s": 0.17763080100030493,
+        "filter_s": 0,
+        "controller_s": 7.021599958534352e-05,
+        "decision_and_overhead_s": 0.0026874369996221503,
+        "warmed": false,
+        "gate_reason": "processing_budget_hold",
+        "packet_reason": [
+          "processing_budget_hold"
+        ],
+        "packet_current": true,
+        "target_mps": 0.0,
+        "throttle": 0,
+        "brake": 1,
+        "injected_stale": false,
+        "track_diagnostics": []
+      }
+    ]
+  },
+  "response_composition": {
+    "measured_perception_control_max_s": 0.18552801799978624,
+    "measured_vehicle_response_s": 0.3500000052154064,
+    "measured_total_s": 0.5355280232151927,
+    "enforced_capture_age_budget_s": 0.5,
+    "post_decision_delivery_reserve_s": 0.1,
+    "candidate_total_response_budget_s": 0.9500000052154064,
+    "note": "Sensor, detector, filter and control availability appear once in measured end-to-end response. Candidate covers the enforced admission bound, plus distinct command-delivery reserve and vehicle lag once."
+  },
+  "screening": {
+    "measured_required_gap_m": 13.484113081377894,
+    "candidate_budget_required_gap_m": 15.142001009378749,
+    "speed_cap_mps": 6.2540012234269735,
+    "recommended_cruise_mps": null,
+    "visibility_m": 25.0,
+    "candidate_supported": false,
+    "conditional_candidate_supported_at_assumed_visibility": true,
+    "visibility_status": "ASSUMPTION_NOT_VALIDATED_BUMPER_VISIBILITY",
+    "speed_cap_status": "CONDITIONAL_DIAGNOSTIC_NOT_FROZEN"
+  },
+  "candidate_values": {
+    "cruise_speed_mps": 4.0,
+    "deceleration_mps2": 1.497566177392398,
+    "response_budget_s": 0.9500000052154064,
+    "stop_margin_m": 6.0
+  },
+  "frozen_values": {
+    "cruise_speed_mps": null,
+    "deceleration_mps2": 1.497566177392398,
+    "response_budget_s": null,
+    "stop_margin_m": 6.0
+  },
+  "acceptance": {
+    "stop_margin_min_m": 2.5,
+    "stop_margin_max_m": 6.0,
+    "latency_p95_ms": 100.0,
+    "changed": false
+  },
+  "limitations": [
+    "Parked-ego shadow control timing, not closed-loop stopping acceptance.",
+    "Only the gated operational entry point may use this timing composition.",
+    "Invalid perception remains HOLD; no empty/expired track proves clearance.",
+    "Receipt-to-decision p95 is not a completed capture-to-actuator acceptance run."
+  ]
+}

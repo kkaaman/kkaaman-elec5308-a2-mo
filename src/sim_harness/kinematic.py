@@ -146,7 +146,7 @@ class KinematicWorld:
             if (
                 packet.source_frame_id != self._frame_id
                 or packet.source_sim_time_s != now
-                or not packet.is_current(self._episode, now)
+                or not packet.is_current(self._episode, now, monotonic_s=self._clock())
             ):
                 raise ValueError("Rejected foreign, expired or wrong-frame/time packet")
             command = replace(

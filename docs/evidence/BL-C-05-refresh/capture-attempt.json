@@ -1,0 +1,12 @@
+{
+  "date": "2026-10-21",
+  "cwd": "/tmp/blc05-refresh",
+  "command": "PYTHONPATH=src /home/alan/26-S2-Assignment2-Group7/.venv/bin/python scripts/capture_obstacle_tracks.py --host 172.28.176.1 --frames 200 --depth-evidence docs/evidence/BL-C-04-06/depth-calibration.json --braking-evidence docs/evidence/BL-C-04-06/longitudinal.json --output /home/alan/26-S2-Assignment2-Group7/runs/BL-C-05-refresh/20261021-wait-aware-02",
+  "exit_code": 0,
+  "stdout_stderr": "approach: 40/200\napproach: 80/200\napproach: 120/200\napproach: 160/200\napproach: 200/200\nshort_occlusion: 40/200\nshort_occlusion: 80/200\nshort_occlusion: 120/200\nshort_occlusion: 160/200\nshort_occlusion: 200/200\ncontinuity_risk: 40/200\ncontinuity_risk: 80/200\ncontinuity_risk: 120/200\ncontinuity_risk: 160/200\ncontinuity_risk: 200/200\n{\"capture_status\": \"COMPLETE\", \"settings_restored\": true, \"no_actor_leaks\": true}\n",
+  "capture_status": "COMPLETE",
+  "settings_restored": true,
+  "no_actor_leaks": true,
+  "prior_attempt": "setup-attempt/capture-attempt.json",
+  "prior_attempt_excluded": true
+}

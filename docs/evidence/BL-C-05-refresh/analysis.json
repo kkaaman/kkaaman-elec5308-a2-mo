@@ -1,0 +1,426 @@
+{
+  "sequences": [
+    {
+      "sequence": "approach",
+      "frames": 200,
+      "valid_frames": 200,
+      "confirmed_target_frames": 161,
+      "reviewed_axial25_confirmed_frames": 88,
+      "hidden_frames": 0,
+      "confirmed_while_hidden": 0,
+      "target_ids": [
+        3
+      ],
+      "target_none_id_frames": 0,
+      "id_changes_across_labelled_frames": 0,
+      "invalid_reasons": {},
+      "clearance_true_frames": 0,
+      "events": {
+        "first_confirmed": {
+          "sequence": "approach",
+          "index": 28,
+          "frame_id": 57054,
+          "source_elapsed_s": 1.4000000208616257,
+          "valid": true,
+          "reason": null,
+          "gap_m": 39.65363994983447,
+          "hidden": false,
+          "target_ids": [
+            3
+          ],
+          "target_none_ids": 0,
+          "confirmed_depth": true,
+          "axial_m": 40.66178512573242,
+          "within_reviewed_axial25": false,
+          "read_s": 0.0006032139999661013,
+          "detector_s": 0.03555302099994151,
+          "filter_s": 0.0009155319999081257,
+          "service_s": 0.037071766999815736,
+          "ready_s": 5.303252673979841,
+          "response_s": 3.9032526531182157,
+          "clearance": false,
+          "expired_ids": [],
+          "target_reasons": [
+            null
+          ]
+        },
+        "first_reviewed_depth": {
+          "sequence": "approach",
+          "index": 106,
+          "frame_id": 57132,
+          "source_elapsed_s": 5.300000078976154,
+          "valid": true,
+          "reason": null,
+          "gap_m": 24.013187739387774,
+          "hidden": false,
+          "target_ids": [
+            3
+          ],
+          "target_none_ids": 0,
+          "confirmed_depth": true,
+          "axial_m": 24.995567321777344,
+          "within_reviewed_axial25": true,
+          "read_s": 0.000777944000219577,
+          "detector_s": 0.030221442000311072,
+          "filter_s": 0.0008615260003352887,
+          "service_s": 0.03186091200086594,
+          "ready_s": 8.101696455977162,
+          "response_s": 2.801696377001008,
+          "clearance": false,
+          "expired_ids": [],
+          "target_reasons": [
+            null
+          ]
+        },
+        "first_post_occlusion": null
+      },
+      "read_s": {
+        "min": 0.0004518900000221038,
+        "median": 0.0005799384998681489,
+        "p95": 0.0008915825499116169,
+        "max": 0.007419415000185836,
+        "sum": 0.1333869910008616
+      },
+      "detector_s": {
+        "min": 0.022634517999904347,
+        "median": 0.03183289349999541,
+        "p95": 0.0407915797997475,
+        "max": 3.981090893000328,
+        "sum": 10.510113493999143
+      },
+      "filter_s": {
+        "min": 0.0005109349999656843,
+        "median": 0.0007768674997805647,
+        "p95": 0.0010719277500356832,
+        "max": 0.010931554999842774,
+        "sum": 0.17135510000116483
+      },
+      "service_s": {
+        "min": 0.024146851999830687,
+        "median": 0.03318044699994971,
+        "p95": 0.042247103949898675,
+        "max": 3.9994418630003565,
+        "sum": 10.814855585001169
+      },
+      "replay_response_s": {
+        "min": 1.0648554397148473,
+        "median": 2.9246322283429436,
+        "p95": 4.12465069112277,
+        "max": 4.199441865980589,
+        "sum": 557.1379860653024
+      },
+      "queue_events": {
+        "overflow": 1,
+        "discarded": 635,
+        "joined": 200
+      },
+      "callback_errors": []
+    },
+    {
+      "sequence": "short_occlusion",
+      "frames": 200,
+      "valid_frames": 200,
+      "confirmed_target_frames": 144,
+      "reviewed_axial25_confirmed_frames": 89,
+      "hidden_frames": 3,
+      "confirmed_while_hidden": 0,
+      "target_ids": [
+        13
+      ],
+      "target_none_id_frames": 0,
+      "id_changes_across_labelled_frames": 0,
+      "invalid_reasons": {},
+      "clearance_true_frames": 0,
+      "events": {
+        "first_confirmed": {
+          "sequence": "short_occlusion",
+          "index": 47,
+          "frame_id": 57309,
+          "source_elapsed_s": 2.350000035017729,
+          "valid": true,
+          "reason": null,
+          "gap_m": 35.8538629954268,
+          "hidden": false,
+          "target_ids": [
+            13
+          ],
+          "target_none_ids": 0,
+          "confirmed_depth": true,
+          "axial_m": 36.83740234375,
+          "within_reviewed_axial25": false,
+          "read_s": 0.0005583669999396079,
+          "detector_s": 0.03562449099990772,
+          "filter_s": 0.001021738999952504,
+          "service_s": 0.03720459699979983,
+          "ready_s": 2.587204634997761,
+          "response_s": 0.23720459998003207,
+          "clearance": false,
+          "expired_ids": [],
+          "target_reasons": [
+            null
+          ]
+        },
+        "first_reviewed_depth": {
+          "sequence": "short_occlusion",
+          "index": 106,
+          "frame_id": 57368,
+          "source_elapsed_s": 5.300000078976154,
+          "valid": true,
+          "reason": null,
+          "gap_m": 24.013187739387774,
+          "hidden": false,
+          "target_ids": [
+            13
+          ],
+          "target_none_ids": 0,
+          "confirmed_depth": true,
+          "axial_m": 24.995567321777344,
+          "within_reviewed_axial25": true,
+          "read_s": 0.0005061460001343221,
+          "detector_s": 0.033734641000137344,
+          "filter_s": 0.0008806639998510946,
+          "service_s": 0.03512145100012276,
+          "ready_s": 5.535121532956509,
+          "response_s": 0.235121453980355,
+          "clearance": false,
+          "expired_ids": [],
+          "target_reasons": [
+            null
+          ]
+        },
+        "first_post_occlusion": {
+          "sequence": "short_occlusion",
+          "index": 64,
+          "frame_id": 57326,
+          "source_elapsed_s": 3.200000047683716,
+          "valid": true,
+          "reason": null,
+          "gap_m": 32.45405848035767,
+          "hidden": false,
+          "target_ids": [
+            13
+          ],
+          "target_none_ids": 0,
+          "confirmed_depth": true,
+          "axial_m": 33.44580841064453,
+          "within_reviewed_axial25": false,
+          "read_s": 0.0005062660002295161,
+          "detector_s": 0.03553393500033053,
+          "filter_s": 0.0010841309999705118,
+          "service_s": 0.03712433200053056,
+          "ready_s": 3.4371243826644786,
+          "response_s": 0.2371243349807628,
+          "clearance": false,
+          "expired_ids": [],
+          "target_reasons": [
+            null
+          ]
+        }
+      },
+      "read_s": {
+        "min": 0.0004581020002660807,
+        "median": 0.0005866824999429809,
+        "p95": 0.0009888276497804327,
+        "max": 0.004025487000035355,
+        "sum": 0.12955123200072194
+      },
+      "detector_s": {
+        "min": 0.02050055500012604,
+        "median": 0.0339373260001139,
+        "p95": 0.03870755724983609,
+        "max": 0.16186800599962226,
+        "sum": 6.876772499999333
+      },
+      "filter_s": {
+        "min": 0.0005554310000661644,
+        "median": 0.0010195799998200528,
+        "p95": 0.001466705249777078,
+        "max": 0.00188463899985436,
+        "sum": 0.20560340599604388
+      },
+      "service_s": {
+        "min": 0.02188033099992026,
+        "median": 0.03559732800022175,
+        "p95": 0.040617575699639016,
+        "max": 0.1664827299996432,
+        "sum": 7.211927137996099
+      },
+      "replay_response_s": {
+        "min": 0.2218803339801525,
+        "median": 0.23582994847993177,
+        "p95": 0.24579452038046837,
+        "max": 0.36648273297987544,
+        "sum": 47.65186767118212
+      },
+      "queue_events": {
+        "overflow": 1,
+        "discarded": 635,
+        "joined": 200
+      },
+      "callback_errors": []
+    },
+    {
+      "sequence": "continuity_risk",
+      "frames": 200,
+      "valid_frames": 200,
+      "confirmed_target_frames": 152,
+      "reviewed_axial25_confirmed_frames": 93,
+      "hidden_frames": 20,
+      "confirmed_while_hidden": 0,
+      "target_ids": [
+        6,
+        42
+      ],
+      "target_none_id_frames": 0,
+      "id_changes_across_labelled_frames": 1,
+      "invalid_reasons": {},
+      "clearance_true_frames": 0,
+      "events": {
+        "first_confirmed": {
+          "sequence": "continuity_risk",
+          "index": 13,
+          "frame_id": 57511,
+          "source_elapsed_s": 0.6500000096857548,
+          "valid": true,
+          "reason": null,
+          "gap_m": 42.66150763493949,
+          "hidden": false,
+          "target_ids": [
+            6
+          ],
+          "target_none_ids": 0,
+          "confirmed_depth": true,
+          "axial_m": 43.646575927734375,
+          "within_reviewed_axial25": false,
+          "read_s": 0.000616491000073438,
+          "detector_s": 0.031205858000248554,
+          "filter_s": 0.0008958040002653433,
+          "service_s": 0.032718153000587336,
+          "ready_s": 0.8827181656665744,
+          "response_s": 0.23271815598081957,
+          "clearance": false,
+          "expired_ids": [],
+          "target_reasons": [
+            null
+          ]
+        },
+        "first_reviewed_depth": {
+          "sequence": "continuity_risk",
+          "index": 106,
+          "frame_id": 57604,
+          "source_elapsed_s": 5.300000078976154,
+          "valid": true,
+          "reason": null,
+          "gap_m": 24.01302661659352,
+          "hidden": false,
+          "target_ids": [
+            42
+          ],
+          "target_none_ids": 0,
+          "confirmed_depth": true,
+          "axial_m": 24.99562644958496,
+          "within_reviewed_axial25": true,
+          "read_s": 0.0007719830000496586,
+          "detector_s": 0.036552457000198046,
+          "filter_s": 0.0010968050000883522,
+          "service_s": 0.03842124500033606,
+          "ready_s": 5.538421326956723,
+          "response_s": 0.2384212479805683,
+          "clearance": false,
+          "expired_ids": [],
+          "target_reasons": [
+            null
+          ]
+        },
+        "first_post_occlusion": {
+          "sequence": "continuity_risk",
+          "index": 104,
+          "frame_id": 57602,
+          "source_elapsed_s": 5.200000077486038,
+          "valid": true,
+          "reason": null,
+          "gap_m": 24.41902841279554,
+          "hidden": false,
+          "target_ids": [
+            42
+          ],
+          "target_none_ids": 0,
+          "confirmed_depth": true,
+          "axial_m": 25.39974594116211,
+          "within_reviewed_axial25": false,
+          "read_s": 0.0005509220000021742,
+          "detector_s": 0.03992158700020809,
+          "filter_s": 0.0012769459999617538,
+          "service_s": 0.04174945500017202,
+          "ready_s": 5.4417495354664425,
+          "response_s": 0.24174945798040426,
+          "clearance": false,
+          "expired_ids": [],
+          "target_reasons": [
+            null
+          ]
+        }
+      },
+      "read_s": {
+        "min": 0.00047733900009916397,
+        "median": 0.0006161200001315592,
+        "p95": 0.0011128450003752728,
+        "max": 0.0021828789999744913,
+        "sum": 0.13440846099774717
+      },
+      "detector_s": {
+        "min": 0.02835080899967579,
+        "median": 0.03458989550017577,
+        "p95": 0.04860858879985698,
+        "max": 0.12109804800002166,
+        "sum": 7.241697755002406
+      },
+      "filter_s": {
+        "min": 0.0006266999998842948,
+        "median": 0.0010408164998807479,
+        "p95": 0.0017545126500408507,
+        "max": 0.0029903619997639908,
+        "sum": 0.2233700580045479
+      },
+      "service_s": {
+        "min": 0.029789108999466407,
+        "median": 0.03616199649968621,
+        "p95": 0.051426673000560176,
+        "max": 0.12328945499939437,
+        "sum": 7.599476274004701
+      },
+      "replay_response_s": {
+        "min": 0.22978911197969865,
+        "median": 0.23674717448034244,
+        "p95": 0.2603600646434643,
+        "max": 0.3232894579796266,
+        "sum": 47.952174291387564
+      },
+      "queue_events": {
+        "overflow": 1,
+        "discarded": 635,
+        "joined": 200
+      },
+      "callback_errors": []
+    }
+  ],
+  "total_frames": 600,
+  "valid_frames": 600,
+  "confirmed_target_frames": 457,
+  "reviewed_axial25_confirmed_frames": 270,
+  "read_s": {
+    "min": 0.0004518900000221038,
+    "median": 0.0005957400001079804,
+    "p95": 0.0009807923502194167,
+    "max": 0.007419415000185836,
+    "sum": 0.3973466839993307
+  },
+  "service_s": {
+    "min": 0.02188033099992026,
+    "median": 0.035178100999928574,
+    "p95": 0.04622236360037277,
+    "max": 3.9994418630003565,
+    "sum": 25.62625899700197
+  },
+  "max_response_s": 4.199441865980589
+}

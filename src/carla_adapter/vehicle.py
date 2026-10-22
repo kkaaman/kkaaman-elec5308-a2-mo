@@ -1,6 +1,7 @@
 """Fixed Tesla adapter. CARLA imports stay inside this package."""
 
 import math
+import time
 
 from .vehicle_geometry import forward_state, geometry_from_wheels, normalized_steering
 
@@ -51,6 +52,13 @@ class FixedVehicleAdapter:
 
         if self.vehicle.is_alive:
             self.vehicle.apply_control(carla.VehicleControl(brake=1.0, reverse=False))
+
+    def apply_packet(self, packet, *, episode_id, sim_time_s, client=None, clock=time.monotonic):
+        """Check both command clocks immediately before actuator dispatch."""
+        if not packet.is_current(episode_id, sim_time_s, monotonic_s=clock()):
+            self.stop()
+            raise ValueError("Expired or wrong-episode command packet")
+        return self.apply(packet.command, client=client)
 
     def apply(self, command, *, client=None):
         """Dispatch control, or wait for an acknowledged batch when client is supplied.

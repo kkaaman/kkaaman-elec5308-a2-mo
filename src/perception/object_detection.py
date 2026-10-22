@@ -65,6 +65,7 @@ class ObjectDetector:
         self._factory = YOLO
         self.model = self._factory(self._model_path)
         self.episode_id = None
+        self.generation = 0
         self._closed = False
         self.last_call_timing = None
         self.class_ids = self._get_class_ids()
@@ -79,6 +80,7 @@ class ObjectDetector:
             raise RuntimeError("Detector is closed")
         if not isinstance(episode_id, str) or not episode_id.strip():
             raise ValueError("episode_id must be nonempty")
+        self.generation += 1
         old_model = self.model
         self.model = None
         self.episode_id = None
@@ -95,6 +97,7 @@ class ObjectDetector:
     def close(self):
         """Release this instance's backend reference; repeated close is harmless."""
         self._closed = True
+        self.generation += 1
         self.model = None
         self.episode_id = None
         self.last_call_timing = None

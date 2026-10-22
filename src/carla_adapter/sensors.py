@@ -44,7 +44,9 @@ class AlignedCapture:
     rgb: np.ndarray
     decoded_depth_m: np.ndarray
 
-    def to_bundle(self, calibration, *, established_depth_convention):
+    def to_bundle(
+        self, calibration, *, established_depth_convention, capture_started_monotonic_s=None
+    ):
         depth = axial_depth(
             self.decoded_depth_m, calibration, convention=established_depth_convention
         )
@@ -58,6 +60,7 @@ class AlignedCapture:
             calibration,
             depth,
             self.frame_id,
+            capture_started_monotonic_s,
         )
 
 
@@ -71,6 +74,7 @@ class FrameJoiner:
             raise ValueError("Positive queue capacity required")
         self.episode_id, self.capacity = episode_id, capacity
         self._streams = {key: {} for key in ("rgb", "depth", "ego")}
+        self._arrivals = {key: {} for key in ("rgb", "depth", "ego")}
         self._condition = threading.Condition()
         self._retired = -1
         self._closed = False
@@ -99,17 +103,21 @@ class FrameJoiner:
                 value = np.array(value, copy=True)
                 value.setflags(write=False)
             stream[frame] = (timestamp, value)
+            self._arrivals[kind][frame] = time.monotonic()
             while len(stream) > self.capacity:
-                del stream[min(stream)]
+                oldest = min(stream)
+                del stream[oldest]
+                del self._arrivals[kind][oldest]
                 self.events["overflow"] += 1
             self._condition.notify_all()
 
     def _retire(self, frame):
         self._retired = max(self._retired, frame)
-        for stream in self._streams.values():
+        for kind, stream in self._streams.items():
             for key in list(stream):
                 if key <= frame:
                     del stream[key]
+                    self._arrivals[kind].pop(key, None)
                     self.events["discarded"] += 1
 
     def wait(self, frame, timeout_s, stop):
@@ -146,7 +154,7 @@ class FrameJoiner:
                             self.episode_id,
                             frame,
                             ego[0],
-                            time.monotonic(),
+                            max(self._arrivals[kind][frame] for kind in ("rgb", "depth")),
                             ego[1],
                             rgb[1],
                             depth[1],
@@ -173,6 +181,8 @@ class FrameJoiner:
             self._closed = True
             for stream in self._streams.values():
                 stream.clear()
+            for arrivals in self._arrivals.values():
+                arrivals.clear()
             self._condition.notify_all()
 
 

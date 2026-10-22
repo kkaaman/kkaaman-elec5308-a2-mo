@@ -1,0 +1,989 @@
+{
+  "date": "2026-10-17",
+  "formal_s0_acceptance": "PASS",
+  "required_formal_runs": 5,
+  "primary_suite": {
+    "folder": "runs/rgb-repair/20261017-035730/packaged-acceptance",
+    "status": "PASS",
+    "required_runs": 5,
+    "passed_runs": 5,
+    "failed_runs": 0,
+    "worst_run_metrics": {
+      "route_completion": 1,
+      "collisions": 0,
+      "unplanned_lane_invasions": 0,
+      "mean_abs_cte_m": 0.020446294555183937,
+      "cruise_speed_rms_mps": 0.11125701255861821,
+      "capture_to_apply_p95_ms": 16.000000000076398,
+      "false_stops": 0
+    },
+    "frozen_provenance": {
+      "route_sha256": "78b0235ad8788d03101bc027dfefa0f6bc6b89e309e4192ed3121742e14df06a",
+      "config_sha256": "bb87140f121390f4abf6c995093fc0cc45ee4ce939ee7888ce2efb618c0ae7b9"
+    },
+    "runs": [
+      {
+        "folder": "runs/rgb-repair/20261017-035730/packaged-acceptance/run-01",
+        "status": "PASS",
+        "completed": true,
+        "cleanup_ok": true,
+        "route_install_count": 1,
+        "samples": 1016,
+        "camera_receipts": 1027,
+        "world_episode_id": 8553662801588658349,
+        "source_bundle_sha256": "a8091160429ef37734c7f04a0f54aae70948fbdde00a5e8813cc1905dcae9ee4"
+      },
+      {
+        "folder": "runs/rgb-repair/20261017-035730/packaged-acceptance/run-02",
+        "status": "PASS",
+        "completed": true,
+        "cleanup_ok": true,
+        "route_install_count": 1,
+        "samples": 1016,
+        "camera_receipts": 1026,
+        "world_episode_id": 4085749678621825894,
+        "source_bundle_sha256": "a8091160429ef37734c7f04a0f54aae70948fbdde00a5e8813cc1905dcae9ee4"
+      },
+      {
+        "folder": "runs/rgb-repair/20261017-035730/packaged-acceptance/run-03",
+        "status": "PASS",
+        "completed": true,
+        "cleanup_ok": true,
+        "route_install_count": 1,
+        "samples": 1016,
+        "camera_receipts": 1026,
+        "world_episode_id": 13706093233002070140,
+        "source_bundle_sha256": "a8091160429ef37734c7f04a0f54aae70948fbdde00a5e8813cc1905dcae9ee4"
+      },
+      {
+        "folder": "runs/rgb-repair/20261017-035730/packaged-acceptance/run-04",
+        "status": "PASS",
+        "completed": true,
+        "cleanup_ok": true,
+        "route_install_count": 1,
+        "samples": 1016,
+        "camera_receipts": 1026,
+        "world_episode_id": 13798556854901572395,
+        "source_bundle_sha256": "a8091160429ef37734c7f04a0f54aae70948fbdde00a5e8813cc1905dcae9ee4"
+      },
+      {
+        "folder": "runs/rgb-repair/20261017-035730/packaged-acceptance/run-05",
+        "status": "PASS",
+        "completed": true,
+        "cleanup_ok": true,
+        "route_install_count": 1,
+        "samples": 1016,
+        "camera_receipts": 1026,
+        "world_episode_id": 2557216816492424544,
+        "source_bundle_sha256": "a8091160429ef37734c7f04a0f54aae70948fbdde00a5e8813cc1905dcae9ee4"
+      }
+    ]
+  },
+  "additional_stability_suites": [
+    {
+      "folder": "runs/rgb-repair/20261017-035730/guard-acceptance-a",
+      "status": "PASS",
+      "required_runs": 5,
+      "passed_runs": 5,
+      "failed_runs": 0,
+      "worst_run_metrics": {
+        "route_completion": 1,
+        "collisions": 0,
+        "unplanned_lane_invasions": 0,
+        "mean_abs_cte_m": 0.020446294555183937,
+        "cruise_speed_rms_mps": 0.11125701255861821,
+        "capture_to_apply_p95_ms": 16.000000000076398,
+        "false_stops": 0
+      },
+      "frozen_provenance": {
+        "route_sha256": "78b0235ad8788d03101bc027dfefa0f6bc6b89e309e4192ed3121742e14df06a",
+        "config_sha256": "bb87140f121390f4abf6c995093fc0cc45ee4ce939ee7888ce2efb618c0ae7b9"
+      },
+      "runs": [
+        {
+          "folder": "runs/rgb-repair/20261017-035730/guard-acceptance-a/run-01",
+          "status": "PASS",
+          "completed": true,
+          "cleanup_ok": true,
+          "route_install_count": 1,
+          "samples": 1016,
+          "camera_receipts": 1026,
+          "world_episode_id": 675449711641658062,
+          "source_bundle_sha256": "a8091160429ef37734c7f04a0f54aae70948fbdde00a5e8813cc1905dcae9ee4"
+        },
+        {
+          "folder": "runs/rgb-repair/20261017-035730/guard-acceptance-a/run-02",
+          "status": "PASS",
+          "completed": true,
+          "cleanup_ok": true,
+          "route_install_count": 1,
+          "samples": 1016,
+          "camera_receipts": 1026,
+          "world_episode_id": 16524828360174315418,
+          "source_bundle_sha256": "a8091160429ef37734c7f04a0f54aae70948fbdde00a5e8813cc1905dcae9ee4"
+        },
+        {
+          "folder": "runs/rgb-repair/20261017-035730/guard-acceptance-a/run-03",
+          "status": "PASS",
+          "completed": true,
+          "cleanup_ok": true,
+          "route_install_count": 1,
+          "samples": 1016,
+          "camera_receipts": 1026,
+          "world_episode_id": 10212671897765671515,
+          "source_bundle_sha256": "a8091160429ef37734c7f04a0f54aae70948fbdde00a5e8813cc1905dcae9ee4"
+        },
+        {
+          "folder": "runs/rgb-repair/20261017-035730/guard-acceptance-a/run-04",
+          "status": "PASS",
+          "completed": true,
+          "cleanup_ok": true,
+          "route_install_count": 1,
+          "samples": 1016,
+          "camera_receipts": 1026,
+          "world_episode_id": 12678473916394544503,
+          "source_bundle_sha256": "a8091160429ef37734c7f04a0f54aae70948fbdde00a5e8813cc1905dcae9ee4"
+        },
+        {
+          "folder": "runs/rgb-repair/20261017-035730/guard-acceptance-a/run-05",
+          "status": "PASS",
+          "completed": true,
+          "cleanup_ok": true,
+          "route_install_count": 1,
+          "samples": 1016,
+          "camera_receipts": 1026,
+          "world_episode_id": 14143469910629248658,
+          "source_bundle_sha256": "a8091160429ef37734c7f04a0f54aae70948fbdde00a5e8813cc1905dcae9ee4"
+        }
+      ]
+    },
+    {
+      "folder": "runs/rgb-repair/20261017-035730/guard-acceptance-b",
+      "status": "PASS",
+      "required_runs": 5,
+      "passed_runs": 5,
+      "failed_runs": 0,
+      "worst_run_metrics": {
+        "route_completion": 1,
+        "collisions": 0,
+        "unplanned_lane_invasions": 0,
+        "mean_abs_cte_m": 0.020446294555183937,
+        "cruise_speed_rms_mps": 0.11125701255861821,
+        "capture_to_apply_p95_ms": 16.000000000076398,
+        "false_stops": 0
+      },
+      "frozen_provenance": {
+        "route_sha256": "78b0235ad8788d03101bc027dfefa0f6bc6b89e309e4192ed3121742e14df06a",
+        "config_sha256": "bb87140f121390f4abf6c995093fc0cc45ee4ce939ee7888ce2efb618c0ae7b9"
+      },
+      "runs": [
+        {
+          "folder": "runs/rgb-repair/20261017-035730/guard-acceptance-b/run-01",
+          "status": "PASS",
+          "completed": true,
+          "cleanup_ok": true,
+          "route_install_count": 1,
+          "samples": 1016,
+          "camera_receipts": 1026,
+          "world_episode_id": 3894015918315916361,
+          "source_bundle_sha256": "a8091160429ef37734c7f04a0f54aae70948fbdde00a5e8813cc1905dcae9ee4"
+        },
+        {
+          "folder": "runs/rgb-repair/20261017-035730/guard-acceptance-b/run-02",
+          "status": "PASS",
+          "completed": true,
+          "cleanup_ok": true,
+          "route_install_count": 1,
+          "samples": 1016,
+          "camera_receipts": 1026,
+          "world_episode_id": 2061775980366834479,
+          "source_bundle_sha256": "a8091160429ef37734c7f04a0f54aae70948fbdde00a5e8813cc1905dcae9ee4"
+        },
+        {
+          "folder": "runs/rgb-repair/20261017-035730/guard-acceptance-b/run-03",
+          "status": "PASS",
+          "completed": true,
+          "cleanup_ok": true,
+          "route_install_count": 1,
+          "samples": 1016,
+          "camera_receipts": 1026,
+          "world_episode_id": 6862452981883362878,
+          "source_bundle_sha256": "a8091160429ef37734c7f04a0f54aae70948fbdde00a5e8813cc1905dcae9ee4"
+        },
+        {
+          "folder": "runs/rgb-repair/20261017-035730/guard-acceptance-b/run-04",
+          "status": "PASS",
+          "completed": true,
+          "cleanup_ok": true,
+          "route_install_count": 1,
+          "samples": 1016,
+          "camera_receipts": 1026,
+          "world_episode_id": 11552308522326091926,
+          "source_bundle_sha256": "a8091160429ef37734c7f04a0f54aae70948fbdde00a5e8813cc1905dcae9ee4"
+        },
+        {
+          "folder": "runs/rgb-repair/20261017-035730/guard-acceptance-b/run-05",
+          "status": "PASS",
+          "completed": true,
+          "cleanup_ok": true,
+          "route_install_count": 1,
+          "samples": 1016,
+          "camera_receipts": 1026,
+          "world_episode_id": 15167131445761135333,
+          "source_bundle_sha256": "a8091160429ef37734c7f04a0f54aae70948fbdde00a5e8813cc1905dcae9ee4"
+        }
+      ]
+    }
+  ],
+  "same_server_session_sequence": [
+    "guard-acceptance-a",
+    "guard-hold-near-goal",
+    "guard-hold-straight",
+    "guard-hold-curve",
+    "guard-acceptance-b"
+  ],
+  "total_passing_runs_on_final_profile": 15,
+  "scope": "Course-authorized ego-truth navigation with real RGB capture; not obstacle perception acceptance or G1 reviewer approval",
+  "minimum_machine": {
+    "cpu": "Ryzen 5 5600H",
+    "gpu": "RTX 3050 Laptop 4 GB",
+    "ram_gb": 16,
+    "driver": "617.42",
+    "os": "Windows 10 19045",
+    "carla": "0.9.16"
+  },
+  "repair": {
+    "task_routing": "Compiled RGB readback target 0x200 selected StatsThread; changed to AnyNormalThreadHiPriTask 0x2ff",
+    "d3d11_protection": "Source-built application-local D3D11CreateDevice guard enables immediate-context multithread protection and removes the single-thread-only flag",
+    "original_installation_unchanged": true,
+    "runtime_manifest": {
+      "status": "CREATED",
+      "source": "D:\\CARLA_0.9.16\\CarlaUE4\\Binaries\\Win64\\CarlaUE4-Win64-Shipping.exe",
+      "destination": "D:\\26-S2-Assignment2-Group7\\runs\\carla-rgb-runtime\\CarlaUE4\\Binaries\\Win64\\CarlaUE4-Win64-Shipping.exe",
+      "original_sha256": "ba05ec36f7f0b548b266865ea2787a1dc5a028e298ebefcf0c49196ac629c4d3",
+      "patched_sha256": "9deba9928ffe56ee8c27cc89d88bcdd4e49204b771f86da2e438c613f4205245",
+      "instruction_rva": "0x8945b8",
+      "file_offset": "0x893bb8",
+      "before": "b900020000e82ec17c00",
+      "after": "b9ff020000e82ec17c00",
+      "changed_bytes": 1,
+      "source_equivalent": "AsyncTask(ENamedThreads::AnyNormalThreadHiPriTask, ...)",
+      "scope": "Isolated server task-routing and D3D11 context protection; original executable unchanged",
+      "kind": "CARLA_RGB_READBACK_RUNTIME_V1",
+      "carla_root": "D:\\CARLA_0.9.16",
+      "runtime_root": "D:\\26-S2-Assignment2-Group7\\runs\\carla-rgb-runtime",
+      "executable": "D:\\26-S2-Assignment2-Group7\\runs\\carla-rgb-runtime\\CarlaUE4\\Binaries\\Win64\\CarlaUE4-Win64-Shipping.exe",
+      "guard_sha256": "704c13b4e9d10c7ba4f5df9b5d2977bacb310ddf776b1cd035325901a69a3b42",
+      "guard_source_sha256": {
+        "d3d11_guard.cpp": "5eec8aedbee50223ce40b6d8c8c36d512f3600879b5288d95cde8b60bc9c60f9",
+        "d3d11_guard.def": "03dec70936f9fd862ae7c6795e7df3d7fae61eb38f4a81e4598c397e6b09da0f"
+      },
+      "compiler": "D:\\mingw64\\bin\\g++.exe",
+      "build_command": [
+        "D:\\mingw64\\bin\\g++.exe",
+        "-shared",
+        "-O2",
+        "-s",
+        "-static-libgcc",
+        "-static-libstdc++",
+        "D:\\26-S2-Assignment2-Group7\\tools\\carla_rgb_readback\\d3d11_guard.cpp",
+        "D:\\26-S2-Assignment2-Group7\\tools\\carla_rgb_readback\\d3d11_guard.def",
+        "-o",
+        "D:\\26-S2-Assignment2-Group7\\runs\\carla-rgb-runtime\\CarlaUE4\\Binaries\\Win64\\d3d11.dll"
+      ],
+      "shared_assets": {
+        "Engine": "D:\\CARLA_0.9.16\\Engine",
+        "CarlaUE4/Content": "D:\\CARLA_0.9.16\\CarlaUE4\\Content",
+        "CarlaUE4/Config": "D:\\CARLA_0.9.16\\CarlaUE4\\Config",
+        "CarlaUE4/Plugins": "D:\\CARLA_0.9.16\\CarlaUE4\\Plugins"
+      },
+      "launch_arguments": "-dx11 -windowed -ResX=640 -ResY=360 -quality-level=Low -nosound"
+    },
+    "core_route_controller_configuration_unchanged": true
+  },
+  "capture_probe": {
+    "status": "PASS",
+    "scope": "Independent RGB capture only",
+    "width": 320,
+    "height": 180,
+    "sensor_tick": 0.0,
+    "requested_ticks": 300,
+    "pace_s": 0.05,
+    "reload_world": true,
+    "receipts": 299,
+    "completed_ticks": 300,
+    "cleanup_ok": true,
+    "server": "0.9.16",
+    "client": "0.9.16",
+    "map": "Carla/Maps/Town10HD_Opt",
+    "first_image_sha256": "d83f3d6aaa3513a599e62292b3ac98be5ebb127d748c6c40378e68e1dc8b9ce9",
+    "cleanup_errors": [],
+    "last_stage": "camera_tick"
+  },
+  "first_image_comparison": "First valid image SHA256 matches the original and task-only server captures",
+  "hold_regressions": [
+    {
+      "case": "straight",
+      "folder": "runs/rgb-repair/20261017-035730/guard-hold-straight/run-01",
+      "lifecycle_status": "PASS",
+      "s0_status": "FAIL",
+      "failed_metrics": [
+        "false_stops"
+      ],
+      "hold_samples": 40,
+      "hold_duration_simulation_s": 2,
+      "start_step": 173,
+      "release_step": 213,
+      "finish_step": 1069,
+      "completed": true,
+      "cleanup_ok": true,
+      "one_route_installation": true,
+      "hold_reached_zero_speed": true,
+      "hold_zero_throttle": true,
+      "no_finished_during_hold": true,
+      "finished_after_release": true
+    },
+    {
+      "case": "curve",
+      "folder": "runs/rgb-repair/20261017-035730/guard-hold-curve/run-01",
+      "lifecycle_status": "PASS",
+      "s0_status": "FAIL",
+      "failed_metrics": [
+        "false_stops"
+      ],
+      "hold_samples": 40,
+      "hold_duration_simulation_s": 2,
+      "start_step": 729,
+      "release_step": 769,
+      "finish_step": 1071,
+      "completed": true,
+      "cleanup_ok": true,
+      "one_route_installation": true,
+      "hold_reached_zero_speed": true,
+      "hold_zero_throttle": true,
+      "no_finished_during_hold": true,
+      "finished_after_release": true
+    },
+    {
+      "case": "near-goal",
+      "folder": "runs/rgb-repair/20261017-035730/guard-hold-near-goal/run-01",
+      "lifecycle_status": "PASS",
+      "s0_status": "PASS",
+      "failed_metrics": [],
+      "hold_samples": 40,
+      "hold_duration_simulation_s": 2,
+      "start_step": 1007,
+      "release_step": 1047,
+      "finish_step": 1047,
+      "completed": true,
+      "cleanup_ok": true,
+      "one_route_installation": true,
+      "hold_reached_zero_speed": true,
+      "hold_zero_throttle": true,
+      "no_finished_during_hold": true,
+      "finished_after_release": true
+    }
+  ],
+  "hold_metric_interpretation": "Straight and curve deliberately inject a stop outside the endpoint and correctly fail false_stops; all lifecycle checks pass. These are separate nonformal regressions.",
+  "retained_trials": [
+    {
+      "folder": "runs/rgb-repair/20261017-035730/acceptance-five",
+      "status": "PASS",
+      "recorded_runs": 5,
+      "passed_runs": 5,
+      "failed_runs": 0,
+      "failures": [],
+      "runs": [
+        {
+          "folder": "runs/rgb-repair/20261017-035730/acceptance-five/run-01",
+          "status": "PASS",
+          "completed": true,
+          "failure_reason": null,
+          "cleanup_ok": true,
+          "sample_count": 1016,
+          "failed_metrics": []
+        },
+        {
+          "folder": "runs/rgb-repair/20261017-035730/acceptance-five/run-02",
+          "status": "PASS",
+          "completed": true,
+          "failure_reason": null,
+          "cleanup_ok": true,
+          "sample_count": 1016,
+          "failed_metrics": []
+        },
+        {
+          "folder": "runs/rgb-repair/20261017-035730/acceptance-five/run-03",
+          "status": "PASS",
+          "completed": true,
+          "failure_reason": null,
+          "cleanup_ok": true,
+          "sample_count": 1016,
+          "failed_metrics": []
+        },
+        {
+          "folder": "runs/rgb-repair/20261017-035730/acceptance-five/run-04",
+          "status": "PASS",
+          "completed": true,
+          "failure_reason": null,
+          "cleanup_ok": true,
+          "sample_count": 1016,
+          "failed_metrics": []
+        },
+        {
+          "folder": "runs/rgb-repair/20261017-035730/acceptance-five/run-05",
+          "status": "PASS",
+          "completed": true,
+          "failure_reason": null,
+          "cleanup_ok": true,
+          "sample_count": 1016,
+          "failed_metrics": []
+        }
+      ]
+    },
+    {
+      "folder": "runs/rgb-repair/20261017-035730/guard-acceptance-a",
+      "status": "PASS",
+      "recorded_runs": 5,
+      "passed_runs": 5,
+      "failed_runs": 0,
+      "failures": [],
+      "runs": [
+        {
+          "folder": "runs/rgb-repair/20261017-035730/guard-acceptance-a/run-01",
+          "status": "PASS",
+          "completed": true,
+          "failure_reason": null,
+          "cleanup_ok": true,
+          "sample_count": 1016,
+          "failed_metrics": []
+        },
+        {
+          "folder": "runs/rgb-repair/20261017-035730/guard-acceptance-a/run-02",
+          "status": "PASS",
+          "completed": true,
+          "failure_reason": null,
+          "cleanup_ok": true,
+          "sample_count": 1016,
+          "failed_metrics": []
+        },
+        {
+          "folder": "runs/rgb-repair/20261017-035730/guard-acceptance-a/run-03",
+          "status": "PASS",
+          "completed": true,
+          "failure_reason": null,
+          "cleanup_ok": true,
+          "sample_count": 1016,
+          "failed_metrics": []
+        },
+        {
+          "folder": "runs/rgb-repair/20261017-035730/guard-acceptance-a/run-04",
+          "status": "PASS",
+          "completed": true,
+          "failure_reason": null,
+          "cleanup_ok": true,
+          "sample_count": 1016,
+          "failed_metrics": []
+        },
+        {
+          "folder": "runs/rgb-repair/20261017-035730/guard-acceptance-a/run-05",
+          "status": "PASS",
+          "completed": true,
+          "failure_reason": null,
+          "cleanup_ok": true,
+          "sample_count": 1016,
+          "failed_metrics": []
+        }
+      ]
+    },
+    {
+      "folder": "runs/rgb-repair/20261017-035730/guard-acceptance-b",
+      "status": "PASS",
+      "recorded_runs": 5,
+      "passed_runs": 5,
+      "failed_runs": 0,
+      "failures": [],
+      "runs": [
+        {
+          "folder": "runs/rgb-repair/20261017-035730/guard-acceptance-b/run-01",
+          "status": "PASS",
+          "completed": true,
+          "failure_reason": null,
+          "cleanup_ok": true,
+          "sample_count": 1016,
+          "failed_metrics": []
+        },
+        {
+          "folder": "runs/rgb-repair/20261017-035730/guard-acceptance-b/run-02",
+          "status": "PASS",
+          "completed": true,
+          "failure_reason": null,
+          "cleanup_ok": true,
+          "sample_count": 1016,
+          "failed_metrics": []
+        },
+        {
+          "folder": "runs/rgb-repair/20261017-035730/guard-acceptance-b/run-03",
+          "status": "PASS",
+          "completed": true,
+          "failure_reason": null,
+          "cleanup_ok": true,
+          "sample_count": 1016,
+          "failed_metrics": []
+        },
+        {
+          "folder": "runs/rgb-repair/20261017-035730/guard-acceptance-b/run-04",
+          "status": "PASS",
+          "completed": true,
+          "failure_reason": null,
+          "cleanup_ok": true,
+          "sample_count": 1016,
+          "failed_metrics": []
+        },
+        {
+          "folder": "runs/rgb-repair/20261017-035730/guard-acceptance-b/run-05",
+          "status": "PASS",
+          "completed": true,
+          "failure_reason": null,
+          "cleanup_ok": true,
+          "sample_count": 1016,
+          "failed_metrics": []
+        }
+      ]
+    },
+    {
+      "folder": "runs/rgb-repair/20261017-035730/guard-hold-curve",
+      "status": "FAIL",
+      "recorded_runs": 1,
+      "passed_runs": 0,
+      "failed_runs": 1,
+      "failures": [
+        "At least one retained run failed",
+        "At least one run exceeds the false_stops acceptance limit"
+      ],
+      "runs": [
+        {
+          "folder": "runs/rgb-repair/20261017-035730/guard-hold-curve/run-01",
+          "status": "FAIL",
+          "completed": true,
+          "failure_reason": null,
+          "cleanup_ok": true,
+          "sample_count": 1071,
+          "failed_metrics": [
+            "false_stops"
+          ]
+        }
+      ]
+    },
+    {
+      "folder": "runs/rgb-repair/20261017-035730/guard-hold-near-goal",
+      "status": "INSUFFICIENT_EVIDENCE",
+      "recorded_runs": 1,
+      "passed_runs": 1,
+      "failed_runs": 0,
+      "failures": [],
+      "runs": [
+        {
+          "folder": "runs/rgb-repair/20261017-035730/guard-hold-near-goal/run-01",
+          "status": "PASS",
+          "completed": true,
+          "failure_reason": null,
+          "cleanup_ok": true,
+          "sample_count": 1047,
+          "failed_metrics": []
+        }
+      ]
+    },
+    {
+      "folder": "runs/rgb-repair/20261017-035730/guard-hold-straight",
+      "status": "FAIL",
+      "recorded_runs": 1,
+      "passed_runs": 0,
+      "failed_runs": 1,
+      "failures": [
+        "At least one retained run failed",
+        "At least one run exceeds the false_stops acceptance limit"
+      ],
+      "runs": [
+        {
+          "folder": "runs/rgb-repair/20261017-035730/guard-hold-straight/run-01",
+          "status": "FAIL",
+          "completed": true,
+          "failure_reason": null,
+          "cleanup_ok": true,
+          "sample_count": 1069,
+          "failed_metrics": [
+            "false_stops"
+          ]
+        }
+      ]
+    },
+    {
+      "folder": "runs/rgb-repair/20261017-035730/packaged-acceptance",
+      "status": "PASS",
+      "recorded_runs": 5,
+      "passed_runs": 5,
+      "failed_runs": 0,
+      "failures": [],
+      "runs": [
+        {
+          "folder": "runs/rgb-repair/20261017-035730/packaged-acceptance/run-01",
+          "status": "PASS",
+          "completed": true,
+          "failure_reason": null,
+          "cleanup_ok": true,
+          "sample_count": 1016,
+          "failed_metrics": []
+        },
+        {
+          "folder": "runs/rgb-repair/20261017-035730/packaged-acceptance/run-02",
+          "status": "PASS",
+          "completed": true,
+          "failure_reason": null,
+          "cleanup_ok": true,
+          "sample_count": 1016,
+          "failed_metrics": []
+        },
+        {
+          "folder": "runs/rgb-repair/20261017-035730/packaged-acceptance/run-03",
+          "status": "PASS",
+          "completed": true,
+          "failure_reason": null,
+          "cleanup_ok": true,
+          "sample_count": 1016,
+          "failed_metrics": []
+        },
+        {
+          "folder": "runs/rgb-repair/20261017-035730/packaged-acceptance/run-04",
+          "status": "PASS",
+          "completed": true,
+          "failure_reason": null,
+          "cleanup_ok": true,
+          "sample_count": 1016,
+          "failed_metrics": []
+        },
+        {
+          "folder": "runs/rgb-repair/20261017-035730/packaged-acceptance/run-05",
+          "status": "PASS",
+          "completed": true,
+          "failure_reason": null,
+          "cleanup_ok": true,
+          "sample_count": 1016,
+          "failed_metrics": []
+        }
+      ]
+    },
+    {
+      "folder": "runs/rgb-repair/20261017-035730/probe-dx11-pool512",
+      "probe": {
+        "status": "FAIL",
+        "scope": "Independent RGB capture only",
+        "width": 320,
+        "height": 180,
+        "sensor_tick": 0.0,
+        "requested_ticks": 300,
+        "pace_s": 0.05,
+        "reload_world": true,
+        "receipts": 5,
+        "completed_ticks": 6,
+        "cleanup_ok": false,
+        "server": "0.9.16",
+        "client": "0.9.16",
+        "map": "Carla/Maps/Town10HD_Opt",
+        "first_image_sha256": "d83f3d6aaa3513a599e62292b3ac98be5ebb127d748c6c40378e68e1dc8b9ce9",
+        "failure_stage": "camera_tick",
+        "failure": "RuntimeError: time-out of 10000ms while waiting for the simulator, make sure the simulator is ready and connected to 127.0.0.1:2000",
+        "traceback": "Traceback (most recent call last):\n  File \"D:\\26-S2-Assignment2-Group7\\runs\\rgb-repair\\20261017-035730\\camera_probe.py\", line 106, in main\n    frame = world.tick(10)\n            ^^^^^^^^^^^^^^\nRuntimeError: time-out of 10000ms while waiting for the simulator, make sure the simulator is ready and connected to 127.0.0.1:2000\n",
+        "cleanup_errors": [
+          "Server health check failed: time-out of 2000ms while waiting for the simulator, make sure the simulator is ready and connected to 127.0.0.1:2000"
+        ],
+        "last_stage": "camera_tick"
+      }
+    },
+    {
+      "folder": "runs/rgb-repair/20261017-035730/probe-guard",
+      "probe": {
+        "status": "PASS",
+        "scope": "Independent RGB capture only",
+        "width": 320,
+        "height": 180,
+        "sensor_tick": 0.0,
+        "requested_ticks": 300,
+        "pace_s": 0.05,
+        "reload_world": true,
+        "receipts": 299,
+        "completed_ticks": 300,
+        "cleanup_ok": true,
+        "server": "0.9.16",
+        "client": "0.9.16",
+        "map": "Carla/Maps/Town10HD_Opt",
+        "first_image_sha256": "d83f3d6aaa3513a599e62292b3ac98be5ebb127d748c6c40378e68e1dc8b9ce9",
+        "cleanup_errors": [],
+        "last_stage": "camera_tick"
+      }
+    },
+    {
+      "folder": "runs/rgb-repair/20261017-035730/probe-rgbfix",
+      "probe": {
+        "status": "PASS",
+        "scope": "Independent RGB capture only",
+        "width": 320,
+        "height": 180,
+        "sensor_tick": 0.0,
+        "requested_ticks": 300,
+        "pace_s": 0.05,
+        "reload_world": true,
+        "receipts": 299,
+        "completed_ticks": 300,
+        "cleanup_ok": true,
+        "server": "0.9.16",
+        "client": "0.9.16",
+        "map": "Carla/Maps/Town10HD_Opt",
+        "first_image_sha256": "d83f3d6aaa3513a599e62292b3ac98be5ebb127d748c6c40378e68e1dc8b9ce9",
+        "cleanup_errors": [],
+        "last_stage": "camera_tick"
+      }
+    },
+    {
+      "folder": "runs/rgb-repair/20261017-035730/rgb-hold-curve",
+      "status": "FAIL",
+      "recorded_runs": 1,
+      "passed_runs": 0,
+      "failed_runs": 1,
+      "failures": [
+        "At least one retained run failed",
+        "At least one run exceeds the false_stops acceptance limit"
+      ],
+      "runs": [
+        {
+          "folder": "runs/rgb-repair/20261017-035730/rgb-hold-curve/run-01",
+          "status": "FAIL",
+          "completed": true,
+          "failure_reason": null,
+          "cleanup_ok": true,
+          "sample_count": 1071,
+          "failed_metrics": [
+            "false_stops"
+          ]
+        }
+      ]
+    },
+    {
+      "folder": "runs/rgb-repair/20261017-035730/rgb-hold-near-goal",
+      "status": "FAIL",
+      "recorded_runs": 1,
+      "passed_runs": 0,
+      "failed_runs": 1,
+      "failures": [
+        "At least one retained run failed",
+        "At least one run exceeds the route_completion acceptance limit"
+      ],
+      "runs": [
+        {
+          "folder": "runs/rgb-repair/20261017-035730/rgb-hold-near-goal/run-01",
+          "status": "FAIL",
+          "completed": false,
+          "failure_reason": "RuntimeError: time-out of 10000ms while waiting for the simulator, make sure the simulator is ready and connected to 127.0.0.1:2000",
+          "cleanup_ok": false,
+          "sample_count": 439,
+          "failed_metrics": [
+            "route_completion"
+          ]
+        }
+      ]
+    },
+    {
+      "folder": "runs/rgb-repair/20261017-035730/rgb-hold-straight",
+      "status": "FAIL",
+      "recorded_runs": 1,
+      "passed_runs": 0,
+      "failed_runs": 1,
+      "failures": [
+        "At least one retained run failed",
+        "At least one run exceeds the false_stops acceptance limit"
+      ],
+      "runs": [
+        {
+          "folder": "runs/rgb-repair/20261017-035730/rgb-hold-straight/run-01",
+          "status": "FAIL",
+          "completed": true,
+          "failure_reason": null,
+          "cleanup_ok": true,
+          "sample_count": 1069,
+          "failed_metrics": [
+            "false_stops"
+          ]
+        }
+      ]
+    },
+    {
+      "folder": "runs/rgb-repair/20261017-035730/rgbfix-single",
+      "status": "INSUFFICIENT_EVIDENCE",
+      "recorded_runs": 1,
+      "passed_runs": 1,
+      "failed_runs": 0,
+      "failures": [],
+      "runs": [
+        {
+          "folder": "runs/rgb-repair/20261017-035730/rgbfix-single/run-01",
+          "status": "PASS",
+          "completed": true,
+          "failure_reason": null,
+          "cleanup_ok": true,
+          "sample_count": 1016,
+          "failed_metrics": []
+        }
+      ]
+    },
+    {
+      "folder": "runs/rgb-repair/20261017-035730/rhi-acceptance-a",
+      "status": "FAIL",
+      "recorded_runs": 5,
+      "passed_runs": 3,
+      "failed_runs": 2,
+      "failures": [
+        "At least one retained run failed",
+        "At least one run exceeds the route_completion acceptance limit"
+      ],
+      "runs": [
+        {
+          "folder": "runs/rgb-repair/20261017-035730/rhi-acceptance-a/run-01",
+          "status": "PASS",
+          "completed": true,
+          "failure_reason": null,
+          "cleanup_ok": true,
+          "sample_count": 1016,
+          "failed_metrics": []
+        },
+        {
+          "folder": "runs/rgb-repair/20261017-035730/rhi-acceptance-a/run-02",
+          "status": "PASS",
+          "completed": true,
+          "failure_reason": null,
+          "cleanup_ok": true,
+          "sample_count": 1016,
+          "failed_metrics": []
+        },
+        {
+          "folder": "runs/rgb-repair/20261017-035730/rhi-acceptance-a/run-03",
+          "status": "PASS",
+          "completed": true,
+          "failure_reason": null,
+          "cleanup_ok": true,
+          "sample_count": 1016,
+          "failed_metrics": []
+        },
+        {
+          "folder": "runs/rgb-repair/20261017-035730/rhi-acceptance-a/run-04",
+          "status": "FAIL",
+          "completed": false,
+          "failure_reason": "TimeoutError: No fresh RGB observation for frames 13458..13462",
+          "cleanup_ok": false,
+          "sample_count": 709,
+          "failed_metrics": [
+            "route_completion"
+          ]
+        },
+        {
+          "folder": "runs/rgb-repair/20261017-035730/rhi-acceptance-a/run-05",
+          "status": "FAIL",
+          "completed": false,
+          "failure_reason": "RuntimeError: time-out of 10000ms while waiting for the simulator, make sure the simulator is ready and connected to 127.0.0.1:2000",
+          "cleanup_ok": true,
+          "sample_count": 0,
+          "failed_metrics": [
+            "route_completion"
+          ]
+        }
+      ]
+    },
+    {
+      "folder": "runs/rgb-repair/20261017-035730/rhi-hold-curve",
+      "status": "FAIL",
+      "recorded_runs": 1,
+      "passed_runs": 0,
+      "failed_runs": 1,
+      "failures": [
+        "At least one retained run failed",
+        "At least one run exceeds the false_stops acceptance limit"
+      ],
+      "runs": [
+        {
+          "folder": "runs/rgb-repair/20261017-035730/rhi-hold-curve/run-01",
+          "status": "FAIL",
+          "completed": true,
+          "failure_reason": null,
+          "cleanup_ok": true,
+          "sample_count": 1071,
+          "failed_metrics": [
+            "false_stops"
+          ]
+        }
+      ]
+    },
+    {
+      "folder": "runs/rgb-repair/20261017-035730/rhi-hold-near-goal",
+      "status": "INSUFFICIENT_EVIDENCE",
+      "recorded_runs": 1,
+      "passed_runs": 1,
+      "failed_runs": 0,
+      "failures": [],
+      "runs": [
+        {
+          "folder": "runs/rgb-repair/20261017-035730/rhi-hold-near-goal/run-01",
+          "status": "PASS",
+          "completed": true,
+          "failure_reason": null,
+          "cleanup_ok": true,
+          "sample_count": 1047,
+          "failed_metrics": []
+        }
+      ]
+    },
+    {
+      "folder": "runs/rgb-repair/20261017-035730/rhi-hold-straight",
+      "status": "FAIL",
+      "recorded_runs": 1,
+      "passed_runs": 0,
+      "failed_runs": 1,
+      "failures": [
+        "At least one retained run failed",
+        "At least one run exceeds the false_stops acceptance limit"
+      ],
+      "runs": [
+        {
+          "folder": "runs/rgb-repair/20261017-035730/rhi-hold-straight/run-01",
+          "status": "FAIL",
+          "completed": true,
+          "failure_reason": null,
+          "cleanup_ok": true,
+          "sample_count": 1069,
+          "failed_metrics": [
+            "false_stops"
+          ]
+        }
+      ]
+    }
+  ],
+  "diagnostic_interpretation": [
+    "Driver update alone left the deterministic five-frame deadlock unchanged.",
+    "Task-only runtime passed an initial five-run suite but later encountered D3D11 0x887A0020; that failed near-goal run remains retained.",
+    "RHI threading alone did not fix the intermediate device error: rhi-acceptance-a retains three passing and two failed runs.",
+    "Early startup retries reused a failed client and were inconclusive; later readiness checks use a fresh client on every retry.",
+    "The final context-protected profile uses plain DX11 with no RHI-thread override, frozen 320x180 RGB and fixed 0.05 s simulation steps."
+  ],
+  "offline_verification": {
+    "pytest": "653 passed, 1 skipped",
+    "a1_legacy_testcases": 106,
+    "ruff": "PASS",
+    "simulator_boundary": "PASS: 64 core imports",
+    "sphinx": "PASS: warnings treated as errors"
+  },
+  "final_live_cleanup": {
+    "synchronous_mode": false,
+    "fixed_delta_seconds": null,
+    "no_rendering_mode": false,
+    "dynamic_actors": []
+  },
+  "limits": "Validated on the exact hash-guarded Windows package and this machine/profile. Other builds and render backends require separate validation. Native artifacts are generated locally and excluded from Git/evidence ZIP."
+}

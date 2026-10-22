@@ -1,0 +1,23 @@
+{
+  "date": "2026-10-21",
+  "status": "BLOCKED_CARLA_UNAVAILABLE",
+  "phase": "client.get_world before sensor/actor creation",
+  "command": [
+    "/home/alan/26-S2-Assignment2-Group7/.venv/bin/python",
+    "/tmp/blc05-refresh/scripts/capture_obstacle_tracks.py",
+    "--host",
+    "172.28.176.1",
+    "--frames",
+    "200",
+    "--depth-evidence",
+    "/tmp/blc05-refresh/docs/evidence/BL-C-04-06/depth-calibration.json",
+    "--braking-evidence",
+    "/tmp/blc05-refresh/docs/evidence/BL-C-04-06/longitudinal.json",
+    "--output",
+    "/home/alan/26-S2-Assignment2-Group7/runs/BL-C-05-refresh/20261021-wait-aware-01"
+  ],
+  "returncode": 1,
+  "attempt_wall_s": 23.92257853199999,
+  "stdout": "",
+  "stderr": "Traceback (most recent call last):\n  File \"/tmp/blc05-refresh/scripts/capture_obstacle_tracks.py\", line 675, in <module>\n    main()\n  File \"/tmp/blc05-refresh/scripts/capture_obstacle_tracks.py\", line 671, in main\n    collect(args)\n  File \"/tmp/blc05-refresh/scripts/capture_obstacle_tracks.py\", line 305, in collect\n    world = client.get_world()\n            ^^^^^^^^^^^^^^^^^^\nRuntimeError: time-out of 20000ms while waiting for the simulator, make sure the simulator is ready and connected to 172.28.176.1:2000\n"
+}

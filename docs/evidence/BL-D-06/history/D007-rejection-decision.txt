@@ -1,0 +1,151 @@
+# BL-D-06 fresh-evidence review — 21 October 2026
+
+**D-006 remains BLOCKED: operational usable-range admission is unestablished.**
+The former missing BL-C capture blocker is resolved: 600 fresh, measured-wait
+source observations are now available. BL-C-05's evidence task passes; the target-
+only conservative speed screen recommends 3.2 m/s. Neither that number nor a
+positive conditional calculation admits an operational baseline.
+
+## Requirements and permitted speed
+
+Issue #35 requires stopping-envelope inputs derived from measured BL-B-04,
+BL-C-05 and BL-E-03 evidence, and frozen cruise/stopping/clearance values with
+rationale. It does not mandate 4.0 m/s. [D-003](decisions.md) explicitly requires
+reducing an unsupported cruise rather than weakening acceptance. The preserved
+[acceptance configuration](../configs/acceptance.json) fixes errors, margins and
+latency, not a mandatory cruise. A lower supported speed may legitimately be
+frozen; lowering speed does not make an invalid observation valid.
+
+## Cold backlog and the operational timing model
+
+The fresh BL-C maximum source-relative response is **4.199441865980589 s**.
+It remains in that run and its conservative 3.2 m/s screen. It is **not an
+admitted positive-decision age** in the operational path:
+
+- Host capture origin is recorded before owner tick, not relabelled at dequeue.
+- Capture age **0.5 s**, processing **0.1 s**, source command expiry **0.1 s**,
+  and two fresh results are independently checked before/after governance.
+- Cold/over-budget/invalid results return zero throttle/full brake and reset
+  warm-up. Episode/detector-generation reset requires warming again.
+- A final policy/controller deadline check overrides a computed positive output.
+  Adapter dispatch checks host and simulation expiry; invalid/expired/missing
+  tracks never imply clearance, and HOLD/emergency precedence remains intact.
+
+[Regressions](evidence/BL-D-06/fresh-range-regression.xml) include the actual 4.199442 s cold-delay
+case, reset, late controller, expired packet and a confirmed target accompanied
+by another invalid track. This verifies **new command authorisation**, not an
+independent actuator watchdog or asynchronous-world driving certificate. The
+bounded timing interpretation requires the exclusive synchronous owner and
+checked packet dispatch; it cannot be extrapolated to an asynchronous control
+loop holding its last throttle during a blocking read.
+
+The archived same-frame live run has **240 rows**, **122 positive shadow decisions**,
+zero cold/injected-stale positives, capture-to-decision p95/max
+**0.1604129467 / 0.1855280180 s**. Its eleven runtime files were compared to current
+sources: ten are byte-identical; the vehicle adapter differs only in apply-method
+documentation and acknowledgement-error details after the measured decision.
+`apply_packet` expiry logic is AST-identical. This is stronger source continuity
+than the earlier blanket statement that the current runtime was not reproduced.
+The exact historical source archive and raw measurements remain unchanged.
+
+The independently enforced operational response candidate therefore remains:
+
+`0.5 s admitted capture age + 0.1 s separate delivery reserve`
+`+ 0.3500000052154064 s vehicle lag = 0.9500000052154064 s`.
+
+Read, detector, filter, governor and controller are inside capture-to-decision;
+vehicle lag is added once. No historical 4.9 m/s cap is used. The 100 ms p95
+acceptance definition is unchanged; parked shadow decision timing is not
+acknowledged capture-to-actuator or closed-loop acceptance.
+
+## Fresh range: target evidence versus operational admission
+
+[Fresh BL-C evidence](evidence/BL-C-05-refresh/README.md) establishes the common
+sampled target bumper gap **24.01302661659352 m** within the reviewed axial 25 m
+scope. It is not an assumed 25 m bumper gap. The unchanged BL-C first-event
+benchmark gives 5.5 m/s; its conservative all-response/within-scope screen gives
+3.2 m/s. Those are distinct, fully documented screening interpretations.
+
+Using the correct **0.9500000052154064 s operational candidate** and that sampled
+gap gives **15.142001009378749 m** required at 4.0 m/s and a conditional cap
+**6.058986 m/s** (exact value in review.json). Arithmetic alone therefore does
+not require reducing 4.0 m/s. However, the sampled target gap is not yet a valid
+all-track governor observation.
+
+[Offline operational admission audit](evidence/BL-D-06/operational-range-review.json)
+replayed the same 600 recorded depth arrays/detections through the **current**
+TrackedGovernancePolicy and configured **25 m** DepthPolicy. It used the same
+perceived-point straight-scene provider as the warm collector; evaluation target
+labels were inspected only after policy evaluation. No target truth entered the
+policy or control, and no CARLA commands were sent.
+
+To isolate the geometry/validity question, the replay deliberately granted every
+row `fresh=True, ready=True`—an optimistic diagnostic upper bound, not a claim
+about operational clocks. Results:
+
+| Sequence | Recorded frames | Current invalid-track frames | Valid target-depth frames | Valid full observations / positive commands |
+|---|---:|---:|---:|---:|
+| Approach | 200 | 200 | 87 | 0 / 0 |
+| Short occlusion | 200 | 200 | 88 | 0 / 0 |
+| Continuity risk | 200 | 200 | 92 | 0 / 0 |
+
+Current background/unconfirmed/mixed/insufficient-depth tracks force HOLD under
+the existing all-track guard, even where the labelled target is confirmed.
+Counts differ from BL-C's default 100 m depth policy because this audit applies
+the actual operational 25 m depth policy. None of those validity rules was relaxed.
+Additionally, BL-C's four-tick schedule has a 0.2 s source delay, beyond the 0.1 s
+operational source TTL; it is a benchmark schedule, not the same-frame operational
+schedule. Approach replay ages all exceed 0.5 s. The earlier warm positives at
+site 152 prove the guarded timing path can govern, but do not measure approach
+first-admission range in these site-10 scenes.
+
+**Unsatisfied technical criterion:** usable first-confirmed obstacle/visibility
+range for an observation that the bounded operational governor can actually
+admit. The fresh target-only range plus a separate stationary timing run cannot
+establish that joint range/validity/timing condition. Ignoring other invalid
+tracks, treating misses as clearance or declaring 3.2 m/s admitted would weaken
+the existing contract. Neither 4.0 nor 3.2 m/s can currently be frozen for G2.
+
+The next evidence must link valid perceived corridor/obstacle geometry to first
+admission on the same-frame bounded path, retaining unknowns/HOLD and all failed
+attempts. This is not a defect requiring another BL-C capture, and that capture
+was not rerun. An observation-provider/coverage review and aligned operational
+approach evidence are required; final actuation/closed-loop claims remain scoped
+separately. No new threshold is invented by this review.
+
+## Configuration and G1 disposition
+
+[mission_baseline.json](../configs/mission_baseline.json) now classifies the block
+as `BLOCKED_OPERATIONAL_RANGE_ADMISSION`; its numeric values are unchanged.
+Navigation candidate: 4.0 m/s. Frozen operational cruise and response: **null**.
+Measured deceleration **1.497566177392398 m/s²**, unchanged margin **6.0 m**,
+and the conditional response candidate remain explicit. The frozen operational
+loader continues to reject this baseline. Evaluation truth is disabled for control.
+
+G1 remains technically BLOCKED, not merely awaiting team signatures. Issue #38
+cannot yet satisfy the frozen/admitted configuration criterion. Once the technical
+range-admission gap is resolved, exact configuration/source publication and
+full-team review are still required. No GitHub state or PR #90 branch was changed.
+
+## Reproduction and retained history
+
+```bash
+PYTHONPATH=src .venv/bin/python scripts/review_operational_range.py \
+  --input runs/BL-C-05-refresh/20261021-wait-aware-02/sequences.json \
+  --output /tmp/operational-range-review.json
+PYTHONPATH=src .venv/bin/python scripts/review_baseline_freeze.py \
+  --output /tmp/bl-d-06-reviewed.json
+```
+
+The audit verifies every depth SHA256; raw artifacts remain at the documented
+BL-C run path. The review verifies capture/report/runtime hashes and rejects
+changed evidence. [Previous D-006 decision](evidence/BL-D-06/history/D006-pre-refresh-decision.txt)
+and [review](evidence/BL-D-06/history/D006-pre-refresh-review.json) are retained.
+D-004/D-005 remain historical; none provides current speed acceptance.
+
+```{toctree}
+:maxdepth: 1
+
+evidence/BL-D-06/README
+evidence/BL-D-06/ai-journal
+```
