@@ -243,3 +243,15 @@ def test_ensure_map_gives_up_after_its_own_timeout():
     clock = iter(range(0, 10**6, 50))
     with pytest.raises(RuntimeError, match="did not load within 300 s"):
         ensure_map(client, "Town03", log=lambda text: None, sleep=lambda s: None, clock=lambda: next(clock))
+
+
+def test_close_skips_actors_the_server_already_removed():
+    world = FakeWorld()
+    gone = SimpleNamespace(id=99, type_id="walker.pedestrian.0001", is_alive=True)
+    gone.destroy = lambda: (_ for _ in ()).throw(RuntimeError("unable to destroy actor: not found"))
+    world.get_actors = lambda: [world.actor]
+    with session(world) as owner:
+        spawn(owner)
+        owner._actors.append(gone)
+    assert owner.vanished_actor_ids == [99]
+    assert world.destroyed == 1
