@@ -360,6 +360,11 @@ class MaplessDrive:
         self.site = site = sites[index] | dict(site_index=index)
         wps = site["waypoints"]
         self.lane = np.array([core_xy(w.transform.location) for w in wps])
+        # Wheel positions are only valid once physics has run: the first live attempt read
+        # misaligned axles straight after the spawn. The calibration gate also waits 30 ticks.
+        self.ego.apply_control(carla.VehicleControl(brake=1.0))
+        for _ in range(30):
+            self.owner.tick()
         self.adapter = FixedVehicleAdapter(self.ego)
         self.offset = self.adapter.geometry.rear_axle_offset_m
         self.parked = None
