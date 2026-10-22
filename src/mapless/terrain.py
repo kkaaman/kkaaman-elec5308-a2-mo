@@ -45,7 +45,8 @@ class PointClass(IntEnum):
 class CellLabel(IntEnum):
     UNKNOWN = -1
     ROAD = 0
-    BARRIER = 1  # kerb, pavement or obstacle: the corridor ends here
+    BARRIER = 1  # kerb or pavement: the road ends here
+    OCCUPIED = 2  # something standing on the road (car, pole, person); not a road edge
 
 
 @dataclass(frozen=True)
@@ -69,6 +70,7 @@ class TerrainConfig:
     recentre_m: float = 10.0
     band_m: float = 2.0
     road_window_m: float = 4.0  # |y| used for the road-height estimate
+    path_window_m: float = 1.5  # |y| of the car's own path, preferred for the estimate
     road_percentile: float = 10.0
     band_tolerance_m: float = 0.07  # road height may differ this much from the extrapolation,
     band_tolerance_per_m: float = 0.015  # plus this per metre from the last accepted band
@@ -106,30 +108,51 @@ class ClassifiedSweep:
         return self.xyz[self.cls == point_class]
 
 
+def _banded(xyz, window_m, centres, n_ahead, band_m):
+    """Heights of points with |y| < window_m, sorted by band then height, with band bounds."""
+    near = np.abs(xyz[:, 1]) < window_m
+    x, z = xyz[near, 0], xyz[near, 2]
+    index = np.floor((x + band_m / 2) / band_m).astype(int) + n_ahead
+    valid = (index >= 0) & (index < centres.size)
+    order = np.lexsort((z[valid], index[valid]))
+    sorted_index, sorted_z = index[valid][order], z[valid][order]
+    return sorted_z, np.searchsorted(sorted_index, np.arange(centres.size + 1))
+
+
+def _surface(band, percentile):
+    low = band[int(percentile / 100.0 * (band.size - 1))]
+    top = int(np.searchsorted(band, low + 0.05, side="right"))
+    return float(band[top // 2]) if top else float(low)
+
+
 def road_profile(xyz, config):
-    """Road height in bands along x, grown outwards from the car's own band at z = 0."""
+    """Road height in bands along x, grown outwards from the car's own band at z = 0.
+
+    Each band's estimate comes from the car's own path (|y| < ``path_window_m``) when the
+    LiDAR sees it there, otherwise from the wider ``road_window_m``. Only a path estimate
+    may set the grade on the first band: beside the car the LiDAR sees only beyond its
+    3.8 m blind ring, which on a narrow road is pavement (the first narrow-road test took
+    the pavement for the road).
+    """
     c = config
     n_ahead = int(math.ceil(c.max_range_m / c.band_m))
     centres = np.arange(-n_ahead, n_ahead + 1) * c.band_m
     heights = np.full(centres.shape, np.nan)
-    near = np.abs(xyz[:, 1]) < c.road_window_m
-    x, z = xyz[near, 0], xyz[near, 2]
-    index = np.floor((x + c.band_m / 2) / c.band_m).astype(int) + n_ahead
-    valid = (index >= 0) & (index < centres.size)
-    order = np.lexsort((z[valid], index[valid]))  # by band, then height within the band
-    sorted_index, sorted_z = index[valid][order], z[valid][order]
-    bounds = np.searchsorted(sorted_index, np.arange(centres.size + 1))
+    path_z, path_bounds = _banded(xyz, c.path_window_m, centres, n_ahead, c.band_m)
+    wide_z, wide_bounds = _banded(xyz, c.road_window_m, centres, n_ahead, c.band_m)
     zero = n_ahead
     heights[zero] = 0.0
     for direction in (1, -1):
         accepted = [(0.0, 0.0)]
         k = zero + direction
         while 0 <= k < centres.size:
-            band = sorted_z[bounds[k] : bounds[k + 1]]  # ascending
-            if band.size >= 3:
-                low = band[int(c.road_percentile / 100.0 * (band.size - 1))]
-                top = int(np.searchsorted(band, low + 0.05, side="right"))
-                estimate = float(band[top // 2]) if top else float(low)
+            path = path_z[path_bounds[k] : path_bounds[k + 1]]
+            wide = wide_z[wide_bounds[k] : wide_bounds[k + 1]]
+            from_path = path.size >= 3
+            band = path if from_path else wide
+            first = len(accepted) == 1
+            if band.size >= 3 and (from_path or not first):
+                estimate = _surface(band, c.road_percentile)
                 (x1, z1) = accepted[-1]
                 if len(accepted) >= 2:
                     (x0, z0) = accepted[-2]
@@ -138,7 +161,7 @@ def road_profile(xyz, config):
                     slope = 0.0
                 predicted = z1 + slope * (centres[k] - x1)
                 tolerance = c.band_tolerance_m + c.band_tolerance_per_m * abs(centres[k] - x1)
-                if len(accepted) == 1:
+                if first:
                     tolerance += c.max_grade * abs(centres[k] - x1)  # the grade is not known yet
                 if abs(estimate - predicted) <= tolerance:
                     heights[k] = estimate
@@ -182,6 +205,7 @@ class TerrainGrid:
         self.road = np.zeros((self.n, self.n), dtype=np.float32)
         self.raised = np.zeros_like(self.road)
         self.obstacle = np.zeros_like(self.road)
+        self.tall = np.zeros_like(self.road)  # obstacle hits remembered as long as kerbs are
         self.time_s = None
 
     def _centre(self):
@@ -190,7 +214,7 @@ class TerrainGrid:
     def _recentre(self, x, y):
         c = self.config
         shift = np.round((np.array([x, y]) - self._centre()) / c.cell_m).astype(int)
-        for name in ("road", "raised", "obstacle"):
+        for name in ("road", "raised", "obstacle", "tall"):
             old = getattr(self, name)
             new = np.zeros_like(old)
             di, dj = shift
@@ -217,6 +241,7 @@ class TerrainGrid:
             dt = max(0.0, time_s - self.time_s)
             self.road *= math.exp(-dt / c.static_tau_s)
             self.raised *= math.exp(-dt / c.static_tau_s)
+            self.tall *= math.exp(-dt / c.static_tau_s)
             self.obstacle *= math.exp(-dt / c.obstacle_tau_s)
         self.time_s = time_s
         if math.hypot(*(np.array([pose.x_m, pose.y_m]) - self._centre())) > c.recentre_m:
@@ -228,23 +253,34 @@ class TerrainGrid:
             (PointClass.ROAD, self.road),
             (PointClass.RAISED, self.raised),
             (PointClass.OBSTACLE, self.obstacle),
+            (PointClass.OBSTACLE, self.tall),
         ):
             hit = np.unique(flat[inside & (sweep.cls == point_class)])
             grid.ravel()[hit] += 1.0
 
     def labels(self, xy):
-        """CellLabel for odometry points: BARRIER, ROAD or UNKNOWN (outside or unseen)."""
+        """CellLabel for odometry points: BARRIER, OCCUPIED, ROAD or UNKNOWN (outside or unseen).
+
+        Only raised ground (kerb, pavement) is a BARRIER. Obstacles are OCCUPIED, so a row of
+        parked cars does not become the road edge: on Town10HD's shoulders the first live
+        G1b run took parked cars and kerb in turn as the edge.
+        """
         c = self.config
         ij, inside = self.cells(xy)
         out = np.full(len(ij), CellLabel.UNKNOWN, dtype=np.int8)
         i, j = ij[inside, 0], ij[inside, 1]
         road, raised, obstacle = self.road[i, j], self.raised[i, j], self.obstacle[i, j]
-        barrier = raised + obstacle
-        is_barrier = (barrier >= c.barrier_min_evidence) & (barrier >= 0.5 * road)
-        is_road = ~is_barrier & (road >= c.road_min_evidence)
+        tall = self.tall[i, j]
+        # A kerb is raised and nothing more. The low band of a car's side (sills, wheels) is
+        # also 0.1-0.3 m high, but its cells also see the taller body. ``tall`` decays like
+        # ``raised``, so the two compare fairly (``obstacle`` fades six times faster).
+        is_barrier = (raised >= c.barrier_min_evidence) & (raised >= 0.5 * road) & (tall < 0.5 * raised)
+        is_occupied = ~is_barrier & (obstacle >= c.barrier_min_evidence)
+        is_road = ~is_barrier & ~is_occupied & (road >= c.road_min_evidence)
         result = np.full(len(i), CellLabel.UNKNOWN, dtype=np.int8)
         result[is_road] = CellLabel.ROAD
         result[is_barrier] = CellLabel.BARRIER
+        result[is_occupied] = CellLabel.OCCUPIED
         out[inside] = result
         return out
 

@@ -9,12 +9,15 @@ Each tick:
    point, the first BARRIER cell to the right is the right road edge, and likewise on the
    left. A station whose reference point is itself a barrier is *blocked* (something
    stands in the lane) and gives no lane evidence.
-3. **Openings.** A right edge that jumps outwards by more than ``max_edge_jump_m``
-   between stations is a side road, driveway or junction mouth, not the lane bending
-   away. It gives no evidence, and the edge before the gap is kept.
+3. **Continuity.** A kerb does not jump. A right edge more than ``max_edge_jump_m`` from
+   the last accepted one gives no evidence: outwards it is a side road, driveway or
+   junction mouth; inwards it is something on the road that looks like a kerb. The chain
+   starts from the median of the nearest edges.
 4. **Lane centre.** Traffic keeps right: the lane centre is ``keep_right_m`` left of the
-   right edge. A corridor narrower than ``two_lane_min_m`` is one lane, and the centre is
-   its middle.
+   right edge. By default that distance is measured at start-up, where the car stands in
+   its lane (``observe_start``). A corridor narrower than ``two_lane_min_m`` is one lane,
+   and the centre is its middle. Only kerbs are edges: parked cars and other obstacles
+   are OCCUPIED, never the road edge.
 5. **Fit.** A polynomial y(x) of degree 1 to 3 (by how far the evidence reaches) is fitted
    to these centre points and to last tick's centreline, which gets ``prior_weight``. This
    bridges openings and blind stretches and keeps the path still between ticks. Points
@@ -33,7 +36,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from mapless.ego_motion import Pose2D
-from mapless.terrain import CellLabel, TerrainGrid
+from mapless.terrain import CellLabel, PointClass, TerrainGrid
 
 
 @dataclass(frozen=True)
@@ -43,7 +46,11 @@ class CorridorConfig:
     horizon_m: float = 40.0
     lateral_search_m: float = 8.0
     lateral_step_m: float = 0.25
-    keep_right_m: float = 1.75  # half a 3.5 m lane; measure it live (the drive log reports it)
+    # Lane centre's distance left of the kerb. None: measured at start-up, where the car
+    # stands in its lane (Town10HD has shoulders: 4.4 m, not half a lane). The measurement
+    # falls back to ``default_keep_right_m`` when no kerb is seen while standing.
+    keep_right_m: float | None = None
+    default_keep_right_m: float = 1.75
     two_lane_min_m: float = 5.5  # a narrower corridor is one lane: drive in its middle
     max_unseen_m: float = 0.3  # an edge needs road seen within this distance before it
     min_width_m: float = 2.8
@@ -56,9 +63,11 @@ class CorridorConfig:
     min_valid_m: float = 6.0
 
     def __post_init__(self):
-        for name in ("step_m", "horizon_m", "lateral_search_m", "lateral_step_m", "keep_right_m", "min_width_m"):
+        for name in ("step_m", "horizon_m", "lateral_search_m", "lateral_step_m", "default_keep_right_m", "min_width_m"):
             if not math.isfinite(getattr(self, name)) or getattr(self, name) <= 0:
                 raise ValueError(f"{name} must be positive")
+        if self.keep_right_m is not None and not (math.isfinite(self.keep_right_m) and self.keep_right_m > 0):
+            raise ValueError("keep_right_m must be positive, or None to measure it at start-up")
         if not self.start_m < 0 < self.horizon_m:
             raise ValueError("The corridor must start behind the rear axle and reach ahead")
         if not 0 <= self.prior_weight <= 1:
@@ -77,7 +86,7 @@ class Corridor:
     reference_y_m: np.ndarray  # the reference line the edges were searched from
     right_edge_m: np.ndarray  # lateral offset of the right edge from the reference (NaN if none)
     left_edge_m: np.ndarray
-    blocked: np.ndarray  # reference point was a barrier
+    blocked: np.ndarray  # reference point was a kerb or occupied
     evidence_body: np.ndarray  # K x 2 lane-centre points used in the fit
     reason: str = ""
 
@@ -105,6 +114,12 @@ class Corridor:
         i = near[np.argmin(np.abs(self.station_x_m[near] - x_m))]
         edge_y = self.reference_y_m[i] + self.right_edge_m[i]
         return float(edge_y - self.lateral_offset_at(self.station_x_m[i]))
+
+
+def _carried(previous, pose, valid_length_m):
+    body = pose.to_body(previous.centre_odometry)
+    keep = body[:, 0] <= valid_length_m
+    return body[keep]
 
 
 def _edges(labels, j0, max_gap_cells):
@@ -143,9 +158,77 @@ class CorridorEstimator:
     def __init__(self, config=None):
         self.config = config or CorridorConfig()
         self.previous = None
+        self.keep_right_m = self.config.keep_right_m
+        self.keep_right_source = "configured" if self.keep_right_m is not None else "pending"
+        self._start_kerbs = []
 
     def reset(self):
         self.previous = None
+
+    def _profiles(self, grid, pose, stations, ref):
+        """Cell labels across the reference at each station, the lateral offsets, and the centre column."""
+        c = self.config
+        heading = np.arctan(np.gradient(ref, stations))
+        offsets = np.arange(-c.lateral_search_m, c.lateral_search_m + 1e-9, c.lateral_step_m)
+        j0 = int(np.argmin(np.abs(offsets)))
+        nx, ny = -np.sin(heading), np.cos(heading)
+        px = stations[:, None] + offsets[None, :] * nx[:, None]
+        py = ref[:, None] + offsets[None, :] * ny[:, None]
+        body = np.column_stack((px.ravel(), py.ravel()))
+        labels = grid.labels(pose.to_world(body)).reshape(px.shape)
+        return labels, offsets, j0, heading
+
+    def measure_kerb(self, grid, pose, near_m=3.0, far_m=15.0, min_stations=4):
+        """Distance (m) from the car's centreline to the kerb on its right, 3-15 m ahead; None if unseen."""
+        c = self.config
+        stations = np.arange(near_m, far_m + 1e-9, c.step_m)
+        labels, offsets, j0, _ = self._profiles(grid, pose, stations, np.zeros_like(stations))
+        gap = int(round(c.max_unseen_m / c.lateral_step_m))
+        (jr, seen, _), _ = _edges(labels, j0, gap)
+        seen &= labels[:, j0] == CellLabel.ROAD
+        if seen.sum() < min_stations:
+            return None
+        edges = offsets[jr[seen]] + c.lateral_step_m / 2 - grid.config.cell_m / 2
+        # The median assumes the car stands parallel to its lane, as it does when placed in
+        # it. A line fit (to correct a skewed start) extrapolated quantised edges back to the
+        # axle and was off by up to 0.6 m on the synthetic road.
+        return float(-np.median(edges))
+
+    def observe_start(self, sweep, near_m=3.0, far_m=15.0, min_bins=4):
+        """Call with each classified sweep while standing in the lane at start-up.
+
+        Collects the kerb's distance for ``keep_right_m`` from the points themselves, not
+        the grid: at a standstill the grid's cells sit in one fixed phase against the kerb,
+        which biased the measurement by up to a cell. Per 1 m slice ahead, the kerb is the
+        innermost raised point on the right, provided road was seen between it and the car
+        and nothing tall stands within 1 m of it (the sills of a parked car are kerb-high).
+        """
+        if self.keep_right_source != "pending":
+            return
+        xyz, cls = sweep.xyz, sweep.cls
+        right = (xyz[:, 1] < 0) & (xyz[:, 1] > -self.config.lateral_search_m) & (xyz[:, 0] >= near_m) & (xyz[:, 0] < far_m)
+        distances = []
+        for x0 in np.arange(near_m, far_m, 1.0):
+            in_slice = right & (xyz[:, 0] >= x0) & (xyz[:, 0] < x0 + 1.0)
+            raised = xyz[in_slice & (cls == PointClass.RAISED), 1]
+            if raised.size == 0:
+                continue
+            kerb_y = raised.max()
+            road = xyz[in_slice & (cls == PointClass.ROAD), 1]
+            tall = xyz[in_slice & (cls == PointClass.OBSTACLE), 1]
+            if not np.any(road > kerb_y) or np.any(np.abs(tall - kerb_y) < 1.0):
+                continue
+            distances.append(-kerb_y)
+        if len(distances) >= min_bins:
+            self._start_kerbs.append(float(np.median(distances)))
+
+    def _resolve_keep_right(self):
+        if len(self._start_kerbs) >= 3:
+            self.keep_right_m = float(np.median(self._start_kerbs))
+            self.keep_right_source = f"measured at start-up ({len(self._start_kerbs)} sweeps)"
+        else:
+            self.keep_right_m = self.config.default_keep_right_m
+            self.keep_right_source = "default (no kerb seen at start-up)"
 
     def _reference(self, stations, pose):
         """Last centreline in the current vehicle frame, extended straight past its end."""
@@ -162,20 +245,42 @@ class CorridorEstimator:
         ref = np.where(stations < x[0], y[0] + slope_start * (stations - x[0]), ref)
         return ref, float(x[-1])
 
+    def _carry_forward(self, pose, time_s, stations, ref, right, left, blocked, evidence, prior_end):
+        previous = self.previous
+        centre_body = _carried(previous, pose, prior_end)
+        coefficients = previous.coefficients
+        if len(centre_body) >= 2:
+            degree = min(len(previous.coefficients) - 1, len(centre_body) - 1)
+            coefficients = tuple(float(v) for v in np.polyfit(centre_body[:, 0], centre_body[:, 1], degree))
+        corridor = Corridor(
+            time_s=time_s,
+            pose=pose,
+            centre_body=centre_body,
+            centre_odometry=pose.to_world(centre_body) if len(centre_body) else np.zeros((0, 2)),
+            valid_length_m=float(prior_end),
+            coefficients=coefficients,
+            station_x_m=stations,
+            reference_y_m=ref,
+            right_edge_m=right,
+            left_edge_m=left,
+            blocked=blocked,
+            evidence_body=evidence,
+            reason="" if len(centre_body) >= 2 else "previous corridor used up",
+        )
+        if corridor.ok:
+            self.previous = corridor
+        return corridor
+
     def update(self, grid, pose, time_s):
         if not isinstance(grid, TerrainGrid) or not isinstance(pose, Pose2D):
             raise TypeError("update(TerrainGrid, Pose2D, time_s)")
         c = self.config
+        if self.keep_right_m is None:
+            self._resolve_keep_right()
+        keep_right = self.keep_right_m
         stations = np.arange(c.start_m, c.horizon_m + 1e-9, c.step_m)
         ref, prior_end = self._reference(stations, pose)
-        heading = np.arctan(np.gradient(ref, stations))
-        offsets = np.arange(-c.lateral_search_m, c.lateral_search_m + 1e-9, c.lateral_step_m)
-        j0 = int(np.argmin(np.abs(offsets)))
-        nx, ny = -np.sin(heading), np.cos(heading)
-        px = stations[:, None] + offsets[None, :] * nx[:, None]
-        py = ref[:, None] + offsets[None, :] * ny[:, None]
-        body = np.column_stack((px.ravel(), py.ravel()))
-        labels = grid.labels(pose.to_world(body)).reshape(px.shape)
+        labels, offsets, j0, heading = self._profiles(grid, pose, stations, ref)
 
         n = len(stations)
         gap = int(round(c.max_unseen_m / c.lateral_step_m))
@@ -183,7 +288,7 @@ class CorridorEstimator:
         right = np.full(n, np.nan)
         left = np.full(n, np.nan)
         (jr, right_seen, road_right), (jl, left_seen, road_left) = _edges(labels, j0, gap)
-        blocked = labels[:, j0] == CellLabel.BARRIER
+        blocked = np.isin(labels[:, j0], (CellLabel.BARRIER, CellLabel.OCCUPIED))
         usable = ~blocked & (road_right | road_left | (labels[:, j0] == CellLabel.ROAD))
         # The first barrier sample lies on average half a lateral step past the barrier
         # cell's inner side, and the kerb on average half a cell past that side.
@@ -192,13 +297,13 @@ class CorridorEstimator:
         take = usable & left_seen
         left[take] = offsets[jl[take]] - c.lateral_step_m / 2 + half_cell
 
-        # Openings: the right edge may not jump outwards; seed with the median of the nearest edges.
+        # Continuity: no jumps in either direction; seed with the median of the nearest edges.
         found = np.flatnonzero(np.isfinite(right) & (stations > 0))
         accepted_right = np.full(n, np.nan)
         if found.size:
             last = float(np.median(right[found[:5]]))
             for i in range(n):
-                if np.isfinite(right[i]) and right[i] >= last - c.max_edge_jump_m:
+                if np.isfinite(right[i]) and abs(right[i] - last) <= c.max_edge_jump_m:
                     accepted_right[i] = right[i]
                     last = right[i]
 
@@ -212,14 +317,18 @@ class CorridorEstimator:
                 if width < c.min_width_m:
                     blocked[i] = True
                     continue
-                centre[i] = (r + lt) / 2 if width < c.two_lane_min_m else r + c.keep_right_m
+                centre[i] = (r + lt) / 2 if width < c.two_lane_min_m else r + keep_right
             else:
-                centre[i] = r + c.keep_right_m
+                centre[i] = r + keep_right
         has = np.isfinite(centre)
         ex = stations[has] - centre[has] * np.sin(heading[has])
         ey = ref[has] + centre[has] * np.cos(heading[has])
         evidence = np.column_stack((ex, ey))
 
+        if len(ex) < c.min_evidence and self.previous is not None and prior_end >= c.min_valid_m:
+            # Too little to refit: keep last tick's line as it is. Refitting the prior on its
+            # own extrapolates it a little further each tick and drifts.
+            return self._carry_forward(pose, time_s, stations, ref, accepted_right, left, blocked, evidence, prior_end)
         x_parts, y_parts, w_parts = [ex], [ey], [np.ones(len(ex))]
         if self.previous is not None and c.prior_weight > 0:
             prior = pose.to_body(self.previous.centre_odometry)

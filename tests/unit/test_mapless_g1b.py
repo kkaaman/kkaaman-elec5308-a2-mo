@@ -169,7 +169,7 @@ def test_grid_keeps_evidence_when_it_recentres_and_obstacles_fade_faster():
         grid.add(sweep, Pose2D(0.0, 0.0, 0.0), i * 0.05)
     world = np.array([[5.0, -2.0], [6.0, 0.0], [7.0, 0.0]])
     before = list(grid.labels(world))
-    assert before == [CellLabel.BARRIER, CellLabel.ROAD, CellLabel.BARRIER]
+    assert before == [CellLabel.BARRIER, CellLabel.ROAD, CellLabel.OCCUPIED]  # kerb, road, obstacle
     origin = grid.origin.copy()
     empty = classify_sweep(np.zeros((0, 3)), BODY, config)
     grid.add(empty, Pose2D(12.0, 0.0, 0.0), 0.15)  # beyond recentre_m: the grid moves
@@ -251,9 +251,10 @@ def test_planner_goal_stop_is_a_final_goal_trajectory_ending_at_the_goal():
 
 
 # -- closed loop --------------------------------------------------------------------------
-def drive(scene, goal_s, seconds, **world_args):
+def drive(scene, goal_s, seconds, keep_right_m=None, **world_args):
     world = MaplessRoadWorld(scene, SUITE, **world_args)
-    driver = MaplessDriver(SUITE, world.route(goal_s), DriverConfig(body=BODY, control=control()), 0.05)
+    config = DriverConfig(body=BODY, control=control(), corridor=CorridorConfig(keep_right_m=keep_right_m))
+    driver = MaplessDriver(SUITE, world.route(goal_s), config, 0.05)
     log = []
     for _ in range(int(seconds / 0.05)):
         step = driver.step(world.frame())
@@ -278,7 +279,9 @@ def settled_lateral(log, after_s_m):
     ],
 )
 def test_closed_loop_follows_the_lane_and_stops_at_the_goal(pieces, crown_m):
-    log = drive(RoadScene(KerbLine(pieces), crown_m=crown_m), goal_s=75.0, seconds=60, start_offset_m=0.4)
+    # A configured kerb offset, so a car starting 0.4 m off centre must converge to the lane centre.
+    scene = RoadScene(KerbLine(pieces), crown_m=crown_m)
+    log = drive(scene, goal_s=75.0, seconds=60, keep_right_m=1.75, start_offset_m=0.4)
     truth, last = log[-1]
     assert last.mode is DriveMode.FINISHED
     assert abs(truth.s_m - 75.0) < 3.0  # GNSS-level goal accuracy
@@ -286,6 +289,31 @@ def test_closed_loop_follows_the_lane_and_stops_at_the_goal(pieces, crown_m):
     lateral = settled_lateral(log, after_s_m=15.0)
     assert np.percentile(np.abs(lateral), 95) < 0.3
     assert max(t.speed_mps for t, _ in log) < 2.3
+
+
+def test_closed_loop_measures_the_kerb_offset_and_ignores_parked_cars_on_the_shoulder():
+    # Town10HD-like: two shoulder lanes put the lane centre 4.4 m from the kerb, and cars
+    # park on the shoulder. Parked cars must neither become the road edge nor stop the car.
+    parked = tuple(ParkedCar(s, 1.2) for s in (28.0, 34.0, 52.0, 70.0))
+    scene = RoadScene(KerbLine([Straight(200)]), road_width_m=11.0, lane_centre_m=4.4, parked=parked)
+    log = drive(scene, goal_s=85.0, seconds=60)
+    truth, last = log[-1]
+    assert last.mode is DriveMode.FINISHED and abs(truth.s_m - 85.0) < 3.0
+    assert not any(t.collision for t, _ in log)
+    keep_right = [s.diagnostics.get("keep_right_m") for _, s in log if s.diagnostics.get("keep_right_m")]
+    assert keep_right and keep_right[-1] == pytest.approx(4.4, abs=0.25)
+    assert "measured" in log[-1][1].diagnostics.get("keep_right_source", "") or "measured" in next(
+        s.diagnostics["keep_right_source"] for _, s in log if s.diagnostics.get("keep_right_source")
+    )
+    assert np.percentile(np.abs(settled_lateral(log, after_s_m=15.0)), 95) < 0.3
+    assert not any(s.reason.startswith("obstacle") for _, s in log)
+
+
+def test_measured_kerb_offset_holds_the_start_position():
+    # The limitation of measuring at start-up: the car keeps the lateral position it started
+    # in. The live harness starts it on the lane centre; camera lane evidence removes this.
+    log = drive(RoadScene(KerbLine([Straight(200)])), goal_s=60.0, seconds=45, start_offset_m=0.4)
+    assert np.median(settled_lateral(log, after_s_m=15.0)) == pytest.approx(0.4, abs=0.15)
 
 
 def test_closed_loop_stops_for_a_parked_car_in_the_lane_and_holds():
