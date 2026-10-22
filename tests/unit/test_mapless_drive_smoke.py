@@ -72,11 +72,13 @@ def fake_carla_module():
 class Waypoint:
     """Ego lane centre at core y = +1.75 (CARLA y = -1.75), heading east; pavement to its right."""
 
+    end_s = ROAD_M - 60
+
     def __init__(self, s, lane_type="Driving"):
         self.s, self.lane_type = s, lane_type
         self.lane_width = LANE_WIDTH if lane_type == "Driving" else 3.0
         self.is_junction = False
-        self.road_id, self.lane_id = 7, -1 if lane_type == "Driving" else -2
+        self.road_id, self.section_id, self.lane_id = 7, 0, -1 if lane_type == "Driving" else -2
 
     @property
     def transform(self):
@@ -90,7 +92,7 @@ class Waypoint:
         return None
 
     def next(self, d):
-        return [Waypoint(self.s + d)] if self.s + d < ROAD_M - 60 else []
+        return [type(self)(self.s + d)] if self.s + d < self.end_s else []
 
 
 class Map:
@@ -101,6 +103,12 @@ class Map:
 
     def get_spawn_points(self):
         return [Transform(Vector(0.0, -LANE_WIDTH / 2, 0.3), Rotation(yaw=0.0))]
+
+    def get_topology(self):
+        # One junction-free lane run, plus the junction it ends in (skipped).
+        junction = Waypoint(Waypoint.end_s)
+        junction.is_junction = True
+        return [(Waypoint(-40.0), Waypoint(Waypoint.end_s)), (junction, Waypoint(Waypoint.end_s + 10))]
 
     def get_waypoint(self, location, project_to_road=True, lane_type=None):
         return Waypoint(location.x)
@@ -323,3 +331,16 @@ def test_stop_scenario_holds_short_of_the_parked_car(monkeypatch, tmp_path):
 def test_curve_scenario_refuses_a_map_without_curves(monkeypatch, tmp_path):
     with pytest.raises(RuntimeError, match="Only 0 curve sites"):
         run_drive(monkeypatch, tmp_path, "--scenario", "curve")
+
+
+def test_site_search_explains_why_nothing_fits():
+    class Short(Waypoint):
+        end_s = 50.0
+
+    carla = fake_carla_module()
+    fake_map = SimpleNamespace(get_topology=lambda: [(Short(0.0), Short(50.0))])
+    sites, census = drive.find_sites(carla, fake_map, "straight", 75.0)
+    assert sites == [] and census["too_short"] == 1
+    assert census["longest_rightmost_runs_m"][0]["length_m"] == 41  # 50 m run, 8 m clearance, 1 m steps
+    sites, census = drive.find_sites(carla, fake_map, "straight", 30.0)
+    assert len(sites) == 1 and sites[0]["kerb_source"] == "sidewalk" and sites[0]["kerb_distance_m"] == LANE_WIDTH / 2

@@ -351,10 +351,14 @@ a parked car, and reaches the goal within 3 m (`tests/unit/test_mapless_g1b.py`)
 `tests/unit/test_mapless_drive_smoke.py` runs the live harness end to end on a fake
 CARLA built on that road.
 
-**Live:** `scripts/run_mapless_drive.py --scenario straight|curve|stop`. The harness picks
-the rightmost driving lane with a pavement on its right and no junction (preferring a
-pavement straight after the lane), writes the route from the map's geolocation, and
-spawns the parked car for `stop` before the car starts. It scores from truth only:
+**Live:** `scripts/run_mapless_drive.py --scenario straight|curve|stop`. The harness
+searches the map's junction-free lane runs (topology segments, from 8 m past a junction)
+for the rightmost driving lane with the scenario's shape, preferring a mapped pavement
+straight after the lane. The default route is 60 m (`--goal-m`), so a site needs 75 m
+without a junction; the first live attempt on Town10HD found no 115 m run from a spawn
+point. If nothing fits, the error gives a census of why and the longest runs. The
+harness writes the route from the map's geolocation and spawns the parked car for `stop`
+(35 m ahead) before the car starts. It scores from truth only:
 
 | Check | Pass |
 |---|---|
