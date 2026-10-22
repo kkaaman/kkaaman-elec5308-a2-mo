@@ -165,7 +165,7 @@ def test_lidar_conversion_flips_y_and_applies_the_mount():
 
 def test_radar_imu_and_mount_signs():
     returns = radar_to_returns([SimpleNamespace(depth=20.0, azimuth=0.1, altitude=0.05, velocity=-3.0)])
-    assert returns[0][:3] == pytest.approx([20.0, -0.1, 0.05])  # right in CARLA -> negative (left-positive)
+    assert returns[0] == pytest.approx([20.0, -0.1, 0.05, -3.0])  # right in CARLA -> negative; velocity is range rate
     assert radar_to_returns([]).shape == (0, 4)
     accel, gyro = imu_vectors(Vec(1.0, 0.5, 9.81), Vec(0.01, 0.02, -0.3))
     assert accel == (1.0, -0.5, 9.81) and gyro == (-0.01, 0.02, 0.3)
@@ -200,7 +200,8 @@ def test_rig_builds_a_vehicle_frame_sensor_frame(carla):
     roof = frame.lidar("roof").points
     assert roof[0] == pytest.approx([10 + OFFSET, -2.0, 1.4, 0.5], abs=1e-5)
     assert roof[1][1] == pytest.approx(5.0)
-    assert frame.radar("radar_front").returns[0] == pytest.approx([20.0, -0.1, 0.05, 3.0])
+    # CARLA's radar velocity is the range rate (measured live): -3 means closing at 3 m/s.
+    assert frame.radar("radar_front").returns[0] == pytest.approx([20.0, -0.1, 0.05, -3.0])
     assert frame.imu.gyro_rps == pytest.approx((-0.01, 0.02, 0.3)) and frame.imu.yaw_rate_rps > 0
     assert frame.imu.compass_rad == pytest.approx(math.radians(90))  # noise-free
     assert frame.gnss is not None and frame.speed_mps == pytest.approx(4.0)
@@ -222,21 +223,22 @@ def test_gnss_scheduling_and_degraded_frames(carla):
         third = rig.read(3, 0.0, sim_time_s=0.15, grace_s=0.05)
         assert third.status_of("roof").state is SensorState.MISSING and not third.lidars
         assert [s.name for s in third.degraded()] == ["roof"] and owner.stops == 0
-        # GNSS is due again 0.2 s after the last fix; no fix means MISSING.
-        for k, t in ((4, 0.20), (5, 0.25)):
+        # The last fix was at 0.05 s and the period is 0.2 s. CARLA's schedule can slip one
+        # tick, so GNSS is MISSING only once a fix is more than a tick late (after 0.30 s).
+        for k, t in ((4, 0.20), (5, 0.25), (6, 0.30)):
             feed(rig, k, t, gnss=False)
-            rig.read(k, 0.0, sim_time_s=t)
-        feed(rig, 6, 0.30, gnss=False)
-        assert rig.read(6, 0.0, sim_time_s=0.30, grace_s=0.05).status_of("gnss").state is SensorState.MISSING
+            assert rig.read(k, 0.0, sim_time_s=t, grace_s=0.05).status_of("gnss").state is SensorState.NOT_DUE
+        feed(rig, 7, 0.35, gnss=False)
+        assert rig.read(7, 0.0, sim_time_s=0.35, grace_s=0.05).status_of("gnss").state is SensorState.MISSING
         # A sample stamped with another time is INVALID.
-        feed(rig, 7, 0.36)
-        stale = rig.read(7, 0.0, sim_time_s=0.35)
+        feed(rig, 8, 0.41)
+        stale = rig.read(8, 0.0, sim_time_s=0.40)
         assert all(s.state is SensorState.INVALID for s in stale.status if s.kind in ("camera", "lidar", "radar", "imu"))
         assert stale.imu is None and not stale.cameras
         # Strict mode (capture, calibration) raises and brakes instead.
-        feed(rig, 8, 0.40, skip=("front",))
+        feed(rig, 9, 0.45, skip=("front",))
         with pytest.raises(TimeoutError, match="front missing"):
-            rig.read(8, 0.0, sim_time_s=0.40, grace_s=0.05, strict=True)
+            rig.read(9, 0.0, sim_time_s=0.45, grace_s=0.05, strict=True)
         assert owner.stops == 1
         with pytest.raises(RuntimeError, match="already read"):
             rig.read(1, 0.0)

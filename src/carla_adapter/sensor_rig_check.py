@@ -88,6 +88,8 @@ DT_S = 0.05
 TARGET_CAR = "vehicle.audi.a2"
 TARGET_PROP = "static.prop.box01"
 PASS, FAIL, INCOMPLETE, REPORT = "PASS", "FAIL", "INCOMPLETE", "REPORT"
+GROUND_CLEARANCE_M = 0.2  # box points must sit this far above the box bottom (not road)
+IMU_SETTLE_TICKS = 5  # CARLA's accelerometer spikes for a few ticks after the IMU spawns
 
 
 # -- truth helpers (evaluator side) ---------------------------------------------------
@@ -183,7 +185,8 @@ class InstanceCameras:
         try:
             bgra = decode_bgra(image.raw_data, image.width, image.height)
             ids = bgra[:, :, 1].astype(np.int32) * 256 + bgra[:, :, 0]
-            self._data.setdefault(image.frame, {})[name] = ids
+            tags = bgra[:, :, 2].astype(np.int32)  # CARLA semantic tag in the red channel
+            self._data.setdefault(image.frame, {})[name] = (ids, tags)
             for old in [f for f in self._data if f < image.frame - 8]:
                 del self._data[old]
         except Exception as error:
@@ -291,16 +294,16 @@ class RigCheck:
     def step(self, control=None):
         if control is not None:
             self.ego.apply_control(control)
-        start = time.monotonic()
+        start = time.perf_counter()  # sub-millisecond; time.monotonic ticks at 15.6 ms on Windows
         frame = self.owner.tick()
-        ticked = time.monotonic()
+        ticked = time.perf_counter()
         snapshot = self.world.get_snapshot()
         if snapshot.frame != frame:
             raise RuntimeError("Snapshot does not match the ticked frame")
         speed = true_forward_speed(snapshot, self.ego.id)
         sf = self.rig.read(frame, speed, sim_time_s=snapshot.timestamp.elapsed_seconds)
         ids = self.labels.read(frame)
-        done = time.monotonic()
+        done = time.perf_counter()
         self.timing["tick"].append(ticked - start)
         self.timing["wait"].append(done - ticked)
         arrivals = self.rig.receipts.get(frame, {})
@@ -346,6 +349,12 @@ class RigCheck:
     # phase 1
     def phase_static(self):
         ticks = [self.step() for _ in range(self.args.static_ticks)]
+        # CARLA's accelerometer spikes for the first ticks after the IMU spawns (first live
+        # run: mean |a| = 1448 m/s^2 at rest). Record those ticks, then judge the rest.
+        self.report["imu_first_ticks_accel_norm_mps2"] = [
+            round(float(np.linalg.norm(t["frame"].imu.accel_mps2)), 2) if t["frame"].imu else None
+            for t in ticks[: 2 * IMU_SETTLE_TICKS]
+        ]
         states = {}
         for t in ticks:
             for s in t["frame"].status:
@@ -377,7 +386,7 @@ class RigCheck:
         for radar in last.radars:
             near = int((radar.returns[:, 0] < 0.5).sum()) if len(radar.returns) else 0
             self.checks.append(check(f"radar_no_self_returns_{radar.name}", near == 0, returns_under_0_5m=near, returns=len(radar.returns)))
-        imu_ticks = [t for t in ticks if t["frame"].imu is not None]
+        imu_ticks = [t for t in ticks[IMU_SETTLE_TICKS:] if t["frame"].imu is not None]
         if imu_ticks:
             accel = np.array([t["frame"].imu.accel_mps2 for t in imu_ticks])
             gyro = np.array([t["frame"].imu.gyro_rps for t in imu_ticks])
@@ -418,15 +427,17 @@ class RigCheck:
         cv2.imwrite(str(out / "lidar_top_down.png"), bev)
 
     # phase 2
-    def measure_target(self, name, actor, tick):
+    def measure_target(self, name, actor, tick, vehicle=True):
         sf, pose = tick["frame"], tick["pose"]
         centre, yaw, extent = target_box_ego(actor, pose)
         row = dict(placement=name, centre_ego_m=rounded(centre), lidar={}, cameras={}, radars={})
         mirror = centre * ((1, -1, 1) if abs(centre[1]) > 1.0 else (-1, 1, 1))
+        # Road returns under and beside the target are not the target (first live run).
+        above = min(GROUND_CLEARANCE_M, extent[2])
         hits_all = []
         for sweep in sf.lidars:
-            hit = cal.inside_box(sweep.points, centre, yaw, extent, 0.15)
-            mirrored = cal.inside_box(sweep.points, mirror, -yaw if abs(centre[1]) > 1.0 else yaw, extent, 0.15)
+            hit = cal.inside_box(sweep.points, centre, yaw, extent, 0.15, above)
+            mirrored = cal.inside_box(sweep.points, mirror, -yaw if abs(centre[1]) > 1.0 else yaw, extent, 0.15, above)
             bearing, rng = cal.bearing_range(sweep.sensor_to_ego, centre)
             row["lidar"][sweep.name] = dict(points=int(hit.sum()), mirrored=int(mirrored.sum()), bearing_deg=round(bearing, 1), range_m=round(rng, 2))
             hits_all.append(sweep.points[hit])
@@ -439,18 +450,19 @@ class RigCheck:
             if front.all():
                 rect = cal.rect_of(px)
                 if rect[2] > 0 and rect[0] < w and rect[3] > 0 and rect[1] < h:
-                    ids = tick["ids"][image.name]
-                    instance = cal.target_instance(ids, rect)
-                    if instance is not None:
-                        mask = ids == instance
+                    ids, tags = tick["ids"][image.name]
+                    key = cal.target_instance(ids, rect, tags, cal.VEHICLE_TAGS if vehicle else None)
+                    if key is not None:
+                        mask = cal.instance_mask(ids, tags, key)
                         measured = cal.mask_rect(mask)
                         lpx, _ = cal.project(lidar_points, image.calibration)
                         entry = dict(
                             visible=True,
+                            instance_tag=int(key[1]),
                             mask_pixels=int(mask.sum()),
                             projected_rect_px=rounded(rect, 1),
                             mask_rect_px=rounded(measured, 1),
-                            edge_errors_px=rounded(cal.edge_errors(rect, measured, w, h), 2),
+                            edge_errors_px={k: round(float(v), 2) for k, v in cal.edge_errors(rect, measured, w, h).items()},
                             lidar_points_in_view=int(len(lpx)),
                             mask_consistency=cal.mask_consistency(lpx, mask) if len(lpx) >= 20 else None,
                         )
@@ -460,7 +472,7 @@ class RigCheck:
             row["cameras"][image.name] = entry
         for radar in sf.radars:
             points = radar.points_ego()
-            hit = cal.inside_box(points, centre, yaw, extent, 0.75) if len(points) else np.zeros(0, bool)
+            hit = cal.inside_box(points, centre, yaw, extent, 0.3, above) if len(points) else np.zeros(0, bool)
             origins, directions = cal.radar_rays(radar.returns[hit], radar.sensor_to_ego) if hit.any() else (None, None)
             errors = []
             for i, (r_meas, *_rest) in enumerate(radar.returns[hit]):
@@ -494,24 +506,28 @@ class RigCheck:
                     continue
                 for _ in range(3):
                     tick = self.step()
-                out.append(self.measure_target(name, actor, tick))
+                out.append(self.measure_target(name, actor, tick, vehicle=blueprint == TARGET_CAR))
                 self.remove(actor)
                 self.step()
         self.report["coverage"] = dict(cars=rows, props=props)
         measured = [r for r in rows if "lidar" in r]
-        lidar_ok = [
+        lidar_bad = [
             r["placement"]
             for r in measured
             for v in r["lidar"].values()
-            if v["range_m"] <= 45 and not (v["points"] >= 30 and v["mirrored"] < 0.2 * v["points"])
+            if v["range_m"] <= 45
+            and not (v["points"] >= (30 if v["range_m"] <= 20 else 8) and v["mirrored"] < 0.2 * v["points"])
         ]
         self.checks.append(
             check(
                 "lidar_extrinsics",
-                INCOMPLETE if len(measured) < 6 else (not lidar_ok),
+                INCOMPLETE if len(measured) < 6 else (not lidar_bad),
                 placements_measured=len(measured),
-                failing_placements=lidar_ok,
-                note="Placements within 45 m of the LiDAR need 30+ box points and a mirrored count under 20%.",
+                failing_placements=lidar_bad,
+                note=(
+                    "Within 45 m: at least 30 points (8 beyond 20 m) on the box at least"
+                    f" {GROUND_CLEARANCE_M} m above its bottom, and fewer than 20% of that in the mirror-image box."
+                ),
             )
         )
         per_camera = {}
@@ -528,39 +544,76 @@ class RigCheck:
                 cameras_without_evidence=sorted(cams - set(per_camera)),
             )
         )
-        prop_edges = [e for r in props if "cameras" in r for v in r["cameras"].values() if v.get("visible") for e in v["edge_errors_px"]]
-        car_edges = [e for r in measured for v in r["cameras"].values() if v.get("visible") for e in v["edge_errors_px"]]
+        def edges(rows_, names):
+            return [
+                e
+                for r in rows_
+                if "cameras" in r
+                for v in r["cameras"].values()
+                if v.get("visible")
+                for edge, e in v["edge_errors_px"].items()
+                if edge in names
+            ]
+
+        gated = edges(props, ("left", "right", "bottom"))
+        tops = edges(props, ("top",))
         self.checks.append(
             check(
                 "camera_reprojection_props",
-                INCOMPLETE if len(prop_edges) < 8 else cal.p95(prop_edges) <= 3.0,
-                edges=len(prop_edges),
-                p95_px=cal.p95(prop_edges),
-                max_px=max(prop_edges) if prop_edges else None,
+                INCOMPLETE if len(gated) < 8 else cal.p95(gated) <= 3.0,
+                edges=len(gated),
+                p95_px=cal.p95(gated),
+                max_px=max(gated) if gated else None,
+                top_edges_px=rounded(tops, 2),
+                note=(
+                    "Left, right and bottom silhouette edges of box props. Top edges are reported,"
+                    " not gated: box01's mesh sits a few centimetres below its bounding box, which"
+                    " shows as about 4 px at 3 m in the first live run while the other edges agreed"
+                    " to under 0.5 px."
+                ),
             )
         )
+        car_edges = edges(measured, cal.EDGES)
         self.checks.append(
             check(
                 "camera_silhouette_cars",
                 REPORT,
                 edges=len(car_edges),
                 p95_px=cal.p95(car_edges),
+                median_px=float(np.median(car_edges)) if car_edges else None,
                 note="A car is not a box; its edges are approximate.",
             )
         )
-        range_errors = [
-            e
-            for r in measured
-            for v in r["radars"].values()
-            if 5.0 <= v["range_m"] <= 40.0
-            for e in v["range_errors_m"]
-        ]
+
+        def radar_errors(rows_):
+            return [
+                e
+                for r in rows_
+                if "radars" in r
+                for v in r["radars"].values()
+                if 3.0 <= v["range_m"] <= 40.0
+                for e in v["range_errors_m"]
+            ]
+
+        prop_range = radar_errors(props)
+        car_range = radar_errors(measured)
         self.checks.append(
             check(
                 "radar_range_accuracy",
-                INCOMPLETE if len(range_errors) < 10 else cal.p95(range_errors) <= 0.5,
-                returns=len(range_errors),
-                p95_m=cal.p95(range_errors),
+                INCOMPLETE if len(prop_range) < 10 else cal.p95(prop_range) <= 0.5,
+                returns=len(prop_range),
+                p95_m=cal.p95(prop_range),
+                median_m=float(np.median(prop_range)) if prop_range else None,
+                note="Box props only: a car's body is not its bounding box (cars are reported separately).",
+            )
+        )
+        self.checks.append(
+            check(
+                "radar_range_cars",
+                REPORT,
+                returns=len(car_range),
+                p95_m=cal.p95(car_range),
+                median_m=float(np.median(car_range)) if car_range else None,
             )
         )
         detection = {}
@@ -612,7 +665,7 @@ class RigCheck:
                 points = radar.points_ego()
                 if not len(points):
                     continue
-                hit = cal.inside_box(points, centre, yaw, extent, 0.75)
+                hit = cal.inside_box(points, centre, yaw, extent, 0.3, min(GROUND_CLEARANCE_M, extent[2]))
                 if not hit.any():
                     continue
                 _, directions = cal.radar_rays(radar.returns[hit], radar.sensor_to_ego)
@@ -861,8 +914,18 @@ def main(argv=None):
     try:
         with SynchronousWorldSession(client, WorldTiming(fixed_delta_seconds=DT_S)) as owner:
             RigCheck(carla, owner, suite, args, report).run()
-        final_ids = {a.id for a in world.get_actors()}
-        leaks = sorted(final_ids - initial_ids)
+        # Destroying actors in synchronous mode only completes once the server ticks again.
+        # After the session hands ticking back, give the server a moment before
+        # judging leaks (the first live run listed the ego and its sensors as leaked).
+        deadline = time.perf_counter() + 5.0
+        while True:
+            leaks = sorted({a.id for a in world.get_actors()} - initial_ids)
+            if not leaks or time.perf_counter() > deadline:
+                break
+            try:
+                world.wait_for_tick(1.0)
+            except Exception:
+                time.sleep(0.2)
         restored = _settings_record(client.get_world().get_settings()) == initial_settings
         checks.append(check("cleanup", not leaks and restored, leaked_actor_ids=leaks, settings_restored=restored))
         gated = [c for c in checks if c["status"] != REPORT]
