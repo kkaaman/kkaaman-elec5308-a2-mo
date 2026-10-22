@@ -33,3 +33,13 @@ Command-line entry points. Run them from the repository root after
 and verifies saved geometry/connectivity against a live map or local OpenDRIVE
 file. Its `audit` command checks raw OpenDRIVE links/geometry independently,
 without CARLA. See [lane-topology](../docs/lane-topology.md) for commands and limitations.
+
+## Mapless extension (Phase 0)
+
+See [mapless_autonomy](../docs/mapless_autonomy.md).
+
+| Script | Purpose |
+|---|---|
+| `check_sensor_rig.py` | Live check of the mapless sensor rig: conversions, signs, extrinsics, timing |
+| `make_satnav_route.py` | Sat-nav route (GPS points and commands) for a saved mission, from the live map |
+| `capture_mapless_dataset.py` | Training-data capture on Town01–Town07 (refuses Town10HD) |

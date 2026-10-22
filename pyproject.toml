@@ -103,3 +103,11 @@ ignore = ["E501"]
 "tests/unit/test_batch35_world_guards.py" = ["TID251"]
 "tests/unit/test_event_verification.py" = ["TID251"]
 "tests/integration/test_shadow_localisation.py" = ["TID251"]
+
+# Mapless extension: simulator entry points and their fake-carla tests only.
+"scripts/check_sensor_rig.py" = ["TID251"]
+"scripts/capture_mapless_dataset.py" = ["TID251"]
+"scripts/make_satnav_route.py" = ["TID251"]
+"tests/unit/test_sensor_rig.py" = ["TID251"]
+"tests/unit/test_mapless_capture_check.py" = ["TID251"]
+"tests/unit/test_sensor_rig_check_smoke.py" = ["TID251"]
