@@ -40,7 +40,7 @@ import numpy as np
 
 from carla_adapter.sensor_rig import SensorRig, carla_mount, true_forward_speed
 from carla_adapter.vehicle import FixedVehicleAdapter
-from carla_adapter.world import SynchronousWorldSession, WorldTiming
+from carla_adapter.world import SynchronousWorldSession, WorldTiming, ensure_map
 from evaluation.dataset import decode_bgra, map_short_name
 from mapless.sensor_suite import load_sensor_suite
 
@@ -294,9 +294,7 @@ def main(argv=None):
     world = client.get_world()
     if world.get_settings().synchronous_mode:
         raise RuntimeError("Another client owns synchronous ticks; close it first")
-    if map_short_name(world.get_map().name) != map_short_name(args.map):
-        print(f"Loading {args.map} ...", flush=True)
-        world = client.load_world(args.map)
+    world = ensure_map(client, args.map, log=lambda text: print(text, flush=True))
     carla_map = world.get_map()
     if not capture_map_allowed(carla_map.name):
         raise RuntimeError(f"Server map {carla_map.name} is not allowed for capture")

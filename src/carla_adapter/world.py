@@ -189,6 +189,45 @@ class SynchronousWorldSession:
         return False
 
 
+def ensure_map(client, name, *, timeout_s=300.0, poll_s=2.0, log=print, sleep=None, clock=None):
+    """Return the world with map ``name`` loaded, loading it if the server has another.
+
+    A first load can take minutes. CARLA keeps loading after the client's call times
+    out, so on a timeout this polls the server until the map appears or ``timeout_s``
+    passes (the first live capture timed out at 60 s while the server was still loading).
+    """
+    import time
+
+    sleep = sleep or time.sleep
+    clock = clock or time.perf_counter
+
+    def short(map_name):
+        return str(map_name).replace("\\", "/").rsplit("/", 1)[-1]
+
+    world = client.get_world()
+    if short(world.get_map().name) == short(name):
+        return world
+    log(f"Loading {name} (can take a few minutes the first time) ...")
+    deadline = clock() + timeout_s
+    client.set_timeout(timeout_s)
+    try:
+        world = client.load_world(name)
+    except RuntimeError as error:
+        log(f"load_world did not return ({error}); waiting for the server to finish ...")
+        world = None
+    finally:
+        client.set_timeout(60.0)
+    while world is None or short(world.get_map().name) != short(name):
+        if clock() > deadline:
+            raise RuntimeError(f"{name} did not load within {timeout_s:.0f} s")
+        sleep(poll_s)
+        try:
+            world = client.get_world()
+        except RuntimeError:
+            world = None
+    return world
+
+
 def _settings_record(settings):
     """Record every exposed scalar setting, including unrelated settings."""
     result = {}

@@ -183,3 +183,63 @@ def test_destroy_failure_still_restores_and_releases_owner():
 def test_invalid_physics_timing_rejected(kwargs):
     with pytest.raises(ValueError):
         WorldTiming(**kwargs)
+
+
+class MapClient:
+    """Fake client whose load_world times out while the server keeps loading."""
+
+    def __init__(self, current, load_times_out=False, ready_after_polls=2):
+        self.current = current
+        self.load_times_out = load_times_out
+        self.ready_after_polls = ready_after_polls
+        self.loading = None
+        self.loads = []
+        self.timeouts = []
+
+    def set_timeout(self, seconds):
+        self.timeouts.append(seconds)
+
+    def _world(self, name):
+        return SimpleNamespace(get_map=lambda: SimpleNamespace(name=f"Carla/Maps/{name}"))
+
+    def get_world(self):
+        if self.loading is not None:
+            self.ready_after_polls -= 1
+            if self.ready_after_polls <= 0:
+                self.current, self.loading = self.loading, None
+        return self._world(self.current)
+
+    def load_world(self, name):
+        self.loads.append(name)
+        if self.load_times_out:
+            self.loading = name
+            raise RuntimeError("time-out of 60000ms while waiting for the simulator")
+        self.current = name
+        return self._world(name)
+
+
+def test_ensure_map_skips_loading_when_the_map_is_already_there():
+    from carla_adapter.world import ensure_map
+
+    client = MapClient("Town03")
+    world = ensure_map(client, "Town03", log=lambda text: None)
+    assert world.get_map().name.endswith("Town03") and client.loads == []
+
+
+def test_ensure_map_waits_for_a_load_that_outlives_the_client_timeout():
+    from carla_adapter.world import ensure_map
+
+    client = MapClient("Town10HD_Opt", load_times_out=True)
+    clock = iter(range(1000))
+    world = ensure_map(client, "Town03", log=lambda text: None, sleep=lambda s: None, clock=lambda: next(clock))
+    assert world.get_map().name.endswith("Town03")
+    assert client.loads == ["Town03"] and client.timeouts[0] == 300.0 and client.timeouts[-1] == 60.0
+
+
+def test_ensure_map_gives_up_after_its_own_timeout():
+    from carla_adapter.world import ensure_map
+
+    client = MapClient("Town10HD_Opt", load_times_out=True, ready_after_polls=10**6)
+    clock = iter(range(0, 10**6, 50))
+    with pytest.raises(RuntimeError, match="did not load within 300 s"):
+        ensure_map(client, "Town03", log=lambda text: None, sleep=lambda s: None, clock=lambda: next(clock))

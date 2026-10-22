@@ -1,4 +1,4 @@
-# Mapless autonomy: Phase 0 and P0.1 (contract, rig, health, calibration gate, local controller)
+# Mapless autonomy: Phase 0, P0.1 and G1b (contract, rig, health, calibration gate, local controller, first mapless drive)
 
 Branch `feature/mapless-autonomy`, built from `feature/shadow-localisation`. This is an
 extension: the frozen baseline is unchanged.
@@ -291,6 +291,8 @@ Lane-change checks there rely on LiDAR and the side cameras.
 - **With 12 settle ticks,** every gated check passes on both PCs: mask consistency,
   prop reprojection, LiDAR extrinsics, radar range, range rate and sign, IMU, GNSS,
   compass, speedometer and cleanup.
+- **G0 closed (22 Oct).** The record run on `01a086d` (PC 2) is `MEASURED_PASS`, with
+  render lag 0 on all four trials. PC 1 passed the same checks on `ffbbc21`.
 
 ### Local trajectory controller (G1a)
 
@@ -323,6 +325,52 @@ PID and progress, and its stopping logic treats the path end as the destination.
 
 The live part of G1a comes with the first mapless drive.
 
+## G1b: first mapless drive (`src/mapless`, `scripts/run_mapless_drive.py`)
+
+The car is `mapless.driver.MaplessDriver`: `SensorFrame`s and a sat-nav route in, one
+`ControlCommand` out per tick. It never sees the map, the simulator's poses or any actor.
+
+| Stage | Module | What it does |
+|---|---|---|
+| Ego motion | `ego_motion.py` | Odometry frame (wheel speed and gyro, gyro bias measured at standstill) for driving. EKF route pose initialised from GNSS and compass averaged over 1 s at standstill, then GNSS and compass updates; used only for route progress and the goal |
+| Terrain | `terrain.py` | Per sweep: road height in 2 m bands grown out from the car; points labelled ROAD, RAISED (kerb, pavement, 0.10 to 0.30 m), OBSTACLE (0.30 to 2.4 m). Evidence accumulates on a grid in the odometry frame (kerbs decay over 3 s, obstacles over 0.5 s) |
+| Corridor | `corridor.py` | Lateral profiles along last tick's centreline; right kerb = first barrier with road seen next to it; openings (side roads) ignored; lane centre `keep_right_m` left of the kerb (middle of a corridor under 5.5 m); polynomial fit with last tick's line as a prior |
+| Obstacles | `obstacles.py` | This sweep's OBSTACLE points in the car-width tube along the centreline; nearest dense cluster |
+| Planner | `planner.py` | Cruise speed, curve limit, braking ramp to a stop 2.5 m short of an obstacle (bumper) or at the goal (final-goal trajectory); stop held for 1 s after the obstacle disappears |
+| Control | `navigation_control.local` | `LocalTrajectoryController` in the odometry frame |
+
+LiDAR intensity in the simulator depends on range only, so lane paint is invisible to
+it. G1b therefore keeps to the lane by following the right kerb. Camera lane evidence is
+G1c and later.
+
+**Offline:** `sim_harness/mapless_road.py` ray-casts the rig's LiDAR against a kerbed road
+(straight and arc pieces, side-road openings, road crown, parked cars) with the suite's
+GNSS, IMU and speedometer noise. In closed loop, the driver keeps the lane to under
+0.3 m p95 on straights, 25 m radius bends and a crowned road, stops 3.2 to 3.7 m short of
+a parked car, and reaches the goal within 3 m (`tests/unit/test_mapless_g1b.py`).
+`tests/unit/test_mapless_drive_smoke.py` runs the live harness end to end on a fake
+CARLA built on that road.
+
+**Live:** `scripts/run_mapless_drive.py --scenario straight|curve|stop`. The harness picks
+the rightmost driving lane with a pavement on its right and no junction (preferring a
+pavement straight after the lane), writes the route from the map's geolocation, and
+spawns the parked car for `stop` before the car starts. It scores from truth only:
+
+| Check | Pass |
+|---|---|
+| Start-up | Localised from GNSS and compass within 3 s, no spawn pose |
+| No collision | No collision event |
+| Lane keeping | After the first 15 m: offset p95 ≤ 0.35 m, max ≤ 0.70 m |
+| Goal (straight, curve) | FINISHED, rear axle within 3 m of the goal |
+| Obstacle stop (stop) | Standing still, bumper gap 1.5 to 5.0 m, held for 5 s |
+| Speed | Never above cruise + 0.5 m/s |
+| Faults | Under 2% of driving ticks in FAULT |
+
+Reported: driver step time, start-up route-pose error, and the kerb calibration (map
+distance from lane centre to kerb against what the LiDAR found, which sets
+`--keep-right`). Each run writes `drive_report.json`, `drive_log.jsonl`, `route.json`,
+`drive_plot.png` and top-down terrain snapshots.
+
 ## Running Phase 0 live
 
 Run with CARLA 0.9.16 and no other clients:
@@ -338,6 +386,11 @@ python scripts/make_satnav_route.py --mission <saved mission.json> --name baseli
 # 3. Training data, one run per town
 python scripts/capture_mapless_dataset.py --map Town03 --samples 2000 `
     --output "$HOME\Documents\Group7_runs\capture_pilot_Town03_s5308"
+
+# 4. G1b first mapless drive (current map; --map to load another)
+python scripts/run_mapless_drive.py --scenario straight --output "$HOME\Documents\Group7_runs\g1b_straight"
+python scripts/run_mapless_drive.py --scenario curve --output "$HOME\Documents\Group7_runs\g1b_curve"
+python scripts/run_mapless_drive.py --scenario stop --output "$HOME\Documents\Group7_runs\g1b_stop"
 ```
 
 **Phase 0 gate:**
@@ -353,4 +406,5 @@ python scripts/capture_mapless_dataset.py --map Town03 --samples 2000 `
 - LiDAR ranging inside detector boxes, replacing depth.
 - Object tracker with velocities.
 - Traffic-light state.
-- Heading initialised from the compass; the EKF fed GNSS, IMU and the speedometer.
+- ~~Heading initialised from the compass; the EKF fed GNSS, IMU and the speedometer.~~
+  Done in G1b (`ego_motion.py`).
