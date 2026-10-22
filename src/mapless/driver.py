@@ -129,6 +129,8 @@ class MaplessDriver:
         if self._finished:
             return self._brake(DriveMode.FINISHED, "goal reached", d)
         if not motion.localised:
+            if classified is not None and motion.stationary:
+                self.corridor.observe_start(classified)
             return self._brake(DriveMode.STARTUP, "averaging GNSS and compass at standstill", d)
         stale = self.health.stale([self.lidar], c.lidar_max_age_s)
         corridor = self.corridor.update(self.grid, motion.odometry, t)
@@ -140,6 +142,8 @@ class MaplessDriver:
             corridor_evidence=int(len(corridor.evidence_body)),
             right_edge_5m=corridor.right_edge_from_centre_m(5.0),
             right_kerb_body=corridor.right_edge_body(5.0),
+            keep_right_m=self.corridor.keep_right_m,
+            keep_right_source=self.corridor.keep_right_source,
         )
         guidance = self.progress.update(motion.route.x_m, motion.route.y_m)
         d.update(route_index=guidance.index, goal_distance_m=guidance.goal_distance_m, route_finished=guidance.finished)
@@ -178,6 +182,9 @@ class MaplessDriver:
             target_speed_mps=None if result.diagnostics is None else result.diagnostics.target_speed_mps,
             cross_track_m=None if result.diagnostics is None else result.diagnostics.cross_track_error_m,
         )
+        if not acceptance.accepted and result.status in (LocalStatus.NO_TRAJECTORY, LocalStatus.EXPIRED):
+            # Braking because plans are refused: say why rather than sit in DRIVING (first live run).
+            return self._brake(DriveMode.FAULT, f"trajectory refused: {acceptance.reason}", d)
         if result.status is LocalStatus.FINISHED or guidance.finished and motion.stationary:
             self._finished = True
             return self._brake(DriveMode.FINISHED, "goal reached", d)

@@ -64,6 +64,7 @@ from navigation_control.types import ControllerConfig
 DT_S = 0.05
 PARKED_CAR = "vehicle.audi.a2"
 SETTLE_TICKS = 20  # brake and let the rig settle (IMU spike, spawn delay) before the car starts
+LANE_BACK_M = 15  # truth lane extended this far behind the start
 PASS, FAIL, INCOMPLETE, REPORT = "PASS", "FAIL", "INCOMPLETE", "REPORT"
 
 
@@ -359,7 +360,11 @@ class MaplessDrive:
             raise RuntimeError("Could not spawn the car at any of the next 10 sites; try another --site")
         self.site = site = sites[index] | dict(site_index=index)
         wps = site["waypoints"]
-        self.lane = np.array([core_xy(w.transform.location) for w in wps])
+        lane = np.array([core_xy(w.transform.location) for w in wps])
+        # Extend the truth lane 15 m behind the start: the rear axle starts 1.4 m behind the
+        # first waypoint, and the first live run scored that as a 1.39 m lane offset.
+        back = (lane[0] - lane[1]) / np.linalg.norm(lane[0] - lane[1])
+        self.lane = np.vstack([lane[0] + back * k for k in range(LANE_BACK_M, 0, -1)] + [lane])
         # Wheel positions are only valid once physics has run: the first live attempt read
         # misaligned axles straight after the spawn. The calibration gate also waits 30 ticks.
         self.ego.apply_control(carla.VehicleControl(brake=1.0))
@@ -378,9 +383,9 @@ class MaplessDrive:
             self.parked.set_simulate_physics(False)
         self.route = make_route(carla_map, wps, args.goal_m)
         self.route.save(args.output / "route.json")
-        self.goal_xy = self.lane[int(round(args.goal_m))]
+        self.goal_xy = self.lane[LANE_BACK_M + int(round(args.goal_m))]
         self.report["site"] = rounded(
-            {k: v for k, v in site.items() if k != "waypoints"} | dict(map=carla_map.name, start_xy_m=self.lane[0].tolist())
+            {k: v for k, v in site.items() if k != "waypoints"} | dict(map=carla_map.name, start_xy_m=self.lane[LANE_BACK_M].tolist())
         )
 
     def truth(self):
@@ -398,7 +403,7 @@ class MaplessDrive:
         return dict(
             rear_axle_xy=[x, y],
             yaw_rad=yaw,
-            s_m=float(s[0]),
+            s_m=float(s[0]) - LANE_BACK_M,  # from the route start
             lane_offset_m=float(lateral[0]),
             heading_error_rad=wrap(yaw - heading),
             speed_mps=math.hypot(v.x, v.y),
@@ -520,7 +525,7 @@ class MaplessDrive:
         pose = first["driver"].get("route_pose")
         start_error = None
         if pose:
-            true = np.array(first["truth"]["rear_axle_xy"]) - self.lane[0]
+            true = np.array(first["truth"]["rear_axle_xy"]) - self.lane[LANE_BACK_M]
             start_error = float(np.hypot(*(np.array(pose[:2]) - true)))
         checks.append(check("startup", PASS if start_s <= 3.0 else FAIL, seconds=start_s, route_pose_error_m=start_error))
         checks.append(check("no_collision", PASS if not self.report["collisions"] else FAIL, events=self.report["collisions"]))
@@ -556,7 +561,7 @@ class MaplessDrive:
         times = np.array(step_times) * 1000
         checks.append(check("driver_step_time", REPORT, p50_ms=float(np.median(times)), p95_ms=float(np.percentile(times, 95))))
         edge_errors = []
-        for r in settled:
+        for r in startup:
             kerb = r["driver"].get("right_kerb_body")
             if kerb is None:
                 continue
@@ -572,9 +577,13 @@ class MaplessDrive:
                 REPORT,
                 map_lane_centre_to_kerb_m=self.site["kerb_distance_m"],
                 lanes_between=self.site["right_lanes"],
-                keep_right_used_m=args.keep_right,
+                keep_right_used_m=last["driver"].get("keep_right_m"),
+                keep_right_source=last["driver"].get("keep_right_source"),
                 detected_kerb_bias_m=float(np.median(edge_errors)) if edge_errors else None,
-                note="bias > 0: the LiDAR kerb is found closer to the car than the map's. Suggested --keep-right: the map distance minus the bias.",
+                note=(
+                    "keep_right_used_m should match the map distance when measured at start-up."
+                    " bias > 0: the LiDAR kerb is found closer to the car than the map's."
+                ),
             )
         )
 
@@ -595,7 +604,12 @@ def main(argv=None):
     parser.add_argument("--set", action="append", default=[], metavar="SENSOR.FIELD=VALUE")
     parser.add_argument("--no-noise", action="store_true", help="Run the suite without its sensor noise")
     parser.add_argument("--speed", type=float, default=2.0, help="Cruise speed (m/s)")
-    parser.add_argument("--keep-right", type=float, default=1.75, help="Lane centre's distance left of the kerb (m)")
+    parser.add_argument(
+        "--keep-right",
+        type=float,
+        default=None,
+        help="Lane centre's distance left of the kerb (m); default: measured at start-up",
+    )
     parser.add_argument("--goal-m", type=float, default=60.0, help="Route length (m); the site needs this + 15 m without a junction")
     parser.add_argument("--obstacle-m", type=float, default=35.0, help="stop: parked car this far along the lane")
     parser.add_argument("--hold-s", type=float, default=5.0)

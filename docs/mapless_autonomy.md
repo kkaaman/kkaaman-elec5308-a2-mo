@@ -350,7 +350,7 @@ The car is `mapless.driver.MaplessDriver`: `SensorFrame`s and a sat-nav route in
 |---|---|---|
 | Ego motion | `ego_motion.py` | Odometry frame (wheel speed and gyro, gyro bias measured at standstill) for driving. EKF route pose initialised from GNSS and compass averaged over 1 s at standstill, then GNSS and compass updates; used only for route progress and the goal |
 | Terrain | `terrain.py` | Per sweep: road height in 2 m bands grown out from the car; points labelled ROAD, RAISED (kerb, pavement, 0.10 to 0.30 m), OBSTACLE (0.30 to 2.4 m). Evidence accumulates on a grid in the odometry frame (kerbs decay over 3 s, obstacles over 0.5 s) |
-| Corridor | `corridor.py` | Lateral profiles along last tick's centreline; right kerb = first barrier with road seen next to it; openings (side roads) ignored; lane centre `keep_right_m` left of the kerb (middle of a corridor under 5.5 m); polynomial fit with last tick's line as a prior |
+| Corridor | `corridor.py` | Lateral profiles along last tick's centreline; right kerb = first raised cell with road seen next to it (obstacles such as parked cars are OCCUPIED, never an edge); the kerb may not jump in either direction (side roads, cars); lane centre `keep_right_m` left of the kerb, measured from the points while the car stands in its lane at start-up (middle of a corridor under 5.5 m); polynomial fit with last tick's line as a prior, or last tick's line carried unchanged when there is too little evidence |
 | Obstacles | `obstacles.py` | This sweep's OBSTACLE points in the car-width tube along the centreline; nearest dense cluster |
 | Planner | `planner.py` | Cruise speed, curve limit, braking ramp to a stop 2.5 m short of an obstacle (bumper) or at the goal (final-goal trajectory); stop held for 1 s after the obstacle disappears |
 | Control | `navigation_control.local` | `LocalTrajectoryController` in the odometry frame |
@@ -386,9 +386,28 @@ harness writes the route from the map's geolocation and spawns the parked car fo
 | Speed | Never above cruise + 0.5 m/s |
 | Faults | Under 2% of driving ticks in FAULT |
 
-Reported: driver step time, start-up route-pose error, and the kerb calibration (map
-distance from lane centre to kerb against what the LiDAR found, which sets
-`--keep-right`). Each run writes `drive_report.json`, `drive_log.jsonl`, `route.json`,
+Reported: driver step time, start-up route-pose error, and the kerb calibration (the
+kerb offset the car measured at start-up against the map's lane-centre-to-pavement
+distance, and the LiDAR kerb's bias while driving). `--keep-right` overrides the
+start-up measurement.
+
+**First live attempt (23 Oct, PC 2, Town10HD, `2a7e9da`): the car never moved.**
+- Town10HD's rightmost lanes have two shoulder lanes before the pavement: the kerb is
+  4.39 m from the lane centre, not half a lane. With a fixed 1.75 m the corridor centre
+  was 2.6 m right of the car, every trajectory was refused (more than 2 m from the car),
+  and the driver braked while reporting DRIVING.
+- The truth lane started at the first waypoint, 1.4 m ahead of the rear axle, so the
+  log showed a 1.39 m offset that did not exist.
+- Fixes: the kerb offset is measured at start-up; refused trajectories are a FAULT with
+  the reason; parked cars on the shoulder can no longer pose as the kerb (their sills
+  are kerb-high, so a raised cell that has also seen tall points is OCCUPIED); the road
+  height comes from the car's own path first (on a narrow road the LiDAR's blind ring
+  left only pavement beside the car); the truth lane extends 15 m behind the start. The
+  synthetic road now has a Town10HD-like case: kerb 4.4 m away and cars parked on the
+  shoulder.
+- Limitation: measuring at start-up assumes the car starts aligned in its lane, as the
+  harness places it. A car placed off centre holds that offset; camera lane evidence
+  (G1c/G2) removes this. Each run writes `drive_report.json`, `drive_log.jsonl`, `route.json`,
 `drive_plot.png` and top-down terrain snapshots.
 
 ## Running Phase 0 live
