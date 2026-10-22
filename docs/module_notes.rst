@@ -97,6 +97,17 @@ Why: Keep frame, detector and command contracts independent of the world impleme
 
 No public top-level classes/functions declared; see exports/source.
 
+autonomy/baseline_operation.py
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Role (source summary)::
+
+    Load the frozen, bounded operating profile without bypassing its gate.
+
+Why: Keep frame, detector and command contracts independent of the world implementation.
+
+Declared public classes/functions: ``frozen_governor_config``, ``baseline_operational_stack``.
+
 autonomy/detector_contracts.py
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -107,6 +118,17 @@ Role (source summary)::
 Why: Keep frame, detector and command contracts independent of the world implementation.
 
 Declared public classes/functions: ``Detector``, ``ObstacleSource``.
+
+autonomy/freshness.py
+~~~~~~~~~~~~~~~~~~~~~
+
+Role (source summary)::
+
+    Operational freshness gate using existing stack and command contracts.
+
+Why: Keep frame, detector and command contracts independent of the world implementation.
+
+Declared public classes/functions: ``OperationalFreshnessGate``.
 
 autonomy/interfaces.py
 ~~~~~~~~~~~~~~~~~~~~~~
@@ -129,6 +151,28 @@ Role (source summary)::
 Why: Keep frame, detector and command contracts independent of the world implementation.
 
 Declared public classes/functions: ``MissionEvent``, ``MissionEpisode``.
+
+autonomy/obstacle_policy.py
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Role (source summary)::
+
+    Freshness-aware composition of existing tracking, clearance and governance.
+
+Why: Keep frame, detector and command contracts independent of the world implementation.
+
+Declared public classes/functions: ``CorridorObservation``, ``TrackedGovernancePolicy``.
+
+autonomy/operational.py
+~~~~~~~~~~~~~~~~~~~~~~~
+
+Role (source summary)::
+
+    Explicit startup entry point for freshness-gated tracked governance.
+
+Why: Keep frame, detector and command contracts independent of the world implementation.
+
+Declared public classes/functions: ``operational_stack``.
 
 autonomy/paths.py
 ~~~~~~~~~~~~~~~~~
@@ -680,6 +724,17 @@ Why: Expose RGB perception and deterministic fixtures through simulator-independ
 
 No public top-level classes/functions declared; see exports/source.
 
+perception/frame_detector.py
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Role (source summary)::
+
+    Frame contract adapter preserving image detector detect/track separation.
+
+Why: Expose RGB perception and deterministic fixtures through simulator-independent APIs.
+
+Declared public classes/functions: ``FrameDetector``.
+
 perception/lane_inference.py
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -768,6 +823,28 @@ Why: Use explicit graph connectivity and reusable routes rather than simulator o
 
 Declared public classes/functions: ``canonical_sha256``, ``validate_open_polyline``, ``FrozenMission``, ``load_frozen_mission``.
 
+planning/behaviour.py
+~~~~~~~~~~~~~~~~~~~~~
+
+Role (source summary)::
+
+    Conservative obstacle-clearance guards for baseline behaviour (BL-D-05).
+
+Why: Use explicit graph connectivity and reusable routes rather than simulator objects in control.
+
+Declared public classes/functions: ``ClearanceGuardConfig``, ``ClearanceGuard``.
+
+planning/corridor.py
+~~~~~~~~~~~~~~~~~~~~
+
+Role (source summary)::
+
+    Rear-axle route coordinates and conservative swept-corridor intersection.
+
+Why: Use explicit graph connectivity and reusable routes rather than simulator objects in control.
+
+Declared public classes/functions: ``RouteProjection``, ``RouteGeometry``.
+
 planning/junction_planner.py
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -811,6 +888,17 @@ Role (source summary)::
 Why: Use explicit graph connectivity and reusable routes rather than simulator objects in control.
 
 Declared public classes/functions: ``stitch_route``.
+
+planning/speed_governor.py
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Role (source summary)::
+
+    Obstacle and curvature target-speed governance for BL-D-07.
+
+Why: Use explicit graph connectivity and reusable routes rather than simulator objects in control.
+
+Declared public classes/functions: ``GovernorConfig``, ``stopping_distance``, ``speed_for_distance``, ``SpeedGovernor``.
 
 segmentation/__init__.py
 ~~~~~~~~~~~~~~~~~~~~~~~~
