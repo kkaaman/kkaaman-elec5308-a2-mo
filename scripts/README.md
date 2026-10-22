@@ -43,6 +43,7 @@ See [mapless_autonomy](../docs/mapless_autonomy.md).
 | `check_sensor_rig.py` | Live calibration gate for the mapless rig: conversions, signs, extrinsics, coverage sweep, camera mask and reprojection, radar range and range rate, timing. `--set sensor.field=value` for rig experiments |
 | `make_satnav_route.py` | Sat-nav route (GPS points and commands) for a saved mission, from the live map |
 | `capture_mapless_dataset.py` | Training-data capture on Town01–Town07 (refuses Town10HD) |
+| `inspect_mapless_capture.py` | Pilot inspection of a capture run: conditions, class shares, small pedestrians, LiDAR-to-label projection checks per camera, contact sheets (writes `<run>/inspection/`) |
 | `run_mapless_drive.py` | G1b live run: the mapless car drives a straight, a bend, or stops for a parked car, from sensors and a sat-nav route only; scored from truth |
 
 New PC setup (Windows, no admin rights): `powershell -ExecutionPolicy Bypass -File scripts\setup_group7_pc.ps1`.

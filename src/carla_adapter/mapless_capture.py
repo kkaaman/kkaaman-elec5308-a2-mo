@@ -329,8 +329,9 @@ def main(argv=None):
     saved, episodes, skipped, failure = 0, 0, 0, None
     tm = client.get_trafficmanager(args.tm_port)
     walker_controllers = []
+    session = SynchronousWorldSession(client, WorldTiming(fixed_delta_seconds=0.05))
     try:
-        with SynchronousWorldSession(client, WorldTiming(fixed_delta_seconds=0.05)) as owner:
+        with session as owner:
             tm.set_synchronous_mode(True)
             tm.set_random_device_seed(args.seed)
             world = owner.world
@@ -446,6 +447,7 @@ def main(argv=None):
             skipped_degraded_frames=skipped,
             status="COMPLETE" if failure is None and saved >= args.samples else "INCOMPLETE",
             failure=failure,
+            actors_removed_by_server=len(session.vanished_actor_ids),
         )
         (root / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
         print(json.dumps(dict(samples=saved, episodes=episodes, status=manifest["status"])), file=sys.stderr)

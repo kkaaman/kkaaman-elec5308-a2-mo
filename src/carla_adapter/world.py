@@ -66,6 +66,7 @@ class SynchronousWorldSession:
         self._claimed = False
         self._last_frame = None
         self.stop_errors = []
+        self.vanished_actor_ids = []
 
     def _brake(self):
         if self._brake_factory is not None:
@@ -126,10 +127,19 @@ class SynchronousWorldSession:
             self._actors.append(actor)
         return actor
 
-    def emergency_stop(self):
+    def _server_actor_ids(self):
+        """IDs of actors the server still has, or None if it cannot say."""
+        try:
+            return {actor.id for actor in self.world.get_actors()}
+        except Exception:
+            return None
+
+    def emergency_stop(self, server_ids=None):
         """Attempt full braking on every owned live vehicle; retain failures."""
         errors = []
         for actor in self._actors:
+            if server_ids is not None and actor.id not in server_ids:
+                continue
             try:
                 if actor.is_alive and actor.type_id.startswith("vehicle."):
                     actor.apply_control(self._brake())
@@ -151,9 +161,18 @@ class SynchronousWorldSession:
             raise
 
     def close(self):
-        """Stop, destroy owned actors, restore settings; attempt every cleanup step."""
-        errors = list(self.emergency_stop())
+        """Stop, destroy owned actors, restore settings; attempt every cleanup step.
+
+        Actors the server no longer has (walkers it removed during a long capture) are
+        recorded in ``vanished_actor_ids``, not treated as failed destroys: the first
+        Town03 capture pilot ended "Cleanup incomplete" with "not found" for 32 of them.
+        """
+        server_ids = self._server_actor_ids() if self.world is not None else None
+        errors = list(self.emergency_stop(server_ids))
         for actor in reversed(self._actors):
+            if server_ids is not None and actor.id not in server_ids:
+                self.vanished_actor_ids.append(actor.id)
+                continue
             try:
                 if actor.is_alive and not actor.destroy():
                     errors.append(f"Destroy failed for actor {actor.id}")

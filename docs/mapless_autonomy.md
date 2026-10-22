@@ -291,6 +291,10 @@ Lane-change checks there rely on LiDAR and the side cameras.
 - **With 12 settle ticks,** every gated check passes on both PCs: mask consistency,
   prop reprojection, LiDAR extrinsics, radar range, range rate and sign, IMU, GNSS,
   compass, speedometer and cleanup.
+- **Capture pilot (22 Oct, PC 1, Town03):** 2,000 samples over 17 episodes. The run
+  ended "Cleanup incomplete" because 32 walker actors had already been removed by the
+  server; the data was complete. The session now skips actors the server no longer has
+  and the manifest counts them (`actors_removed_by_server`).
 - **G0 closed (22 Oct).** The record run on `01a086d` (PC 2) is `MEASURED_PASS`, with
   render lag 0 on all four trials. PC 1 passed the same checks on `ffbbc21`.
 
@@ -390,6 +394,9 @@ python scripts/make_satnav_route.py --mission <saved mission.json> --name baseli
 # 3. Training data, one run per town
 python scripts/capture_mapless_dataset.py --map Town03 --samples 2000 `
     --output "$HOME\Documents\Group7_runs\capture_pilot_Town03_s5308"
+
+# 3b. Inspect a capture run (summary.json and contact sheets in <run>\inspection)
+python scripts/inspect_mapless_capture.py --run "$HOME\Documents\Group7_runs\capture_pilot_Town03_s5308"
 
 # 4. G1b first mapless drive (current map; --map to load another)
 python scripts/run_mapless_drive.py --scenario straight --output "$HOME\Documents\Group7_runs\g1b_straight"
