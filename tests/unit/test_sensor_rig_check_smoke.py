@@ -471,7 +471,7 @@ def run_check(monkeypatch, tmp_path, *extra):
 
 
 def test_gate_runs_end_to_end_and_passes_on_a_consistent_world(monkeypatch, tmp_path):
-    out, report = run_check(monkeypatch, tmp_path)
+    out, report = run_check(monkeypatch, tmp_path, "--save-images", "--settle-ticks", "4")
     failed = [c for c in report["checks"] if c["status"] not in ("PASS", "REPORT")]
     assert not failed, json.dumps(failed, indent=2)
     assert report["status"] == "MEASURED_PASS"
@@ -497,6 +497,10 @@ def test_gate_runs_end_to_end_and_passes_on_a_consistent_world(monkeypatch, tmp_
     assert {r["placement"] for r in coverage} >= {"ahead_5m", "left_alongside", "right_behind_10m", "behind_15m"}
     assert report["rig"]["effective_attributes"]["radar_front"]["points_per_second"] == "6000"
     assert (out / "coverage_top_down.png").exists() and (out / "samples" / "lidar_top_down.png").exists()
+    assert (out / "placements" / "ahead_10m_front.jpg").exists()
+    ahead = next(r for r in coverage if r["placement"] == "ahead_10m")["cameras"]["front"]
+    assert ahead["instance_code"] == 0 and ahead["instance_tag"] == 14
+    assert ahead["rect_contents"]["tags"][0][0] == 14  # the car fills its own box
 
 
 def test_overrides_are_recorded(monkeypatch, tmp_path):
