@@ -272,6 +272,26 @@ broken conversion, and the gate was corrected as follows.
 **Coverage finding:** no radar sees a car directly alongside, in either side lane.
 Lane-change checks there rely on LiDAR and the side cameras.
 
+### Follow-up live runs (22 Oct, both PCs, identical results)
+
+- **Spawned cars are invisible to cameras for their first ticks.** The segmentation
+  inside a spawned car's projected box held only road, lane markings and pavement for 3
+  ticks. Every camera, at every distance, first showed the car on tick 4 (0.2 s).
+  LiDAR saw it at once. Placements now settle 12 ticks (`--settle-ticks`).
+  - Consequence for scenarios: spawn scripted actors at least 4 ticks before they
+    matter, or out of view.
+- **The cameras do not lag the simulation.** A settled car jumped 1.5 m sideways 4
+  times, and the camera matched LiDAR on every jump (`camera_minus_lidar_ticks` all
+  0). The first jump after spawn took effect a tick late for both sensors, which is a
+  teleport delay, not render lag.
+- **Coverage directly alongside:** only LiDAR sees a car there. It is at the edge of the
+  side cameras (corners behind the image plane) and outside every radar. Before lane
+  changes, consider two side-facing cameras at ±90° (rig v3; the track allows 8
+  cameras).
+- **With 12 settle ticks,** every gated check passes on both PCs: mask consistency,
+  prop reprojection, LiDAR extrinsics, radar range, range rate and sign, IMU, GNSS,
+  compass, speedometer and cleanup.
+
 ### Local trajectory controller (G1a)
 
 `navigation_control.local.LocalTrajectoryController` follows moving-horizon

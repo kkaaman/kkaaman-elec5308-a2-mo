@@ -713,17 +713,22 @@ class RigCheck:
         self.remove(car)
         self.step()
         lags = [t["camera_lag_ticks"] for t in trials]
+        lidar = [t["lidar_lag_ticks"] for t in trials]
+        relative = [None if c is None or li is None else c - li for c, li in zip(lags, lidar)]
         self.report["render_lag_trials"] = trials
         self.checks.append(
             check(
                 "camera_render_lag",
-                INCOMPLETE if None in lags else max(lags) == 0,
+                INCOMPLETE if None in relative else max(abs(r) for r in relative) == 0,
                 camera_lag_ticks=lags,
-                lidar_lag_ticks=[t["lidar_lag_ticks"] for t in trials],
+                lidar_lag_ticks=lidar,
+                camera_minus_lidar_ticks=relative,
                 note=(
-                    "Ticks between a settled car jumping 1.5 m sideways and the front camera showing it."
-                    " 0 means the camera shows the frame's own world state. More than 0 means images lag"
-                    " the simulation, and perception must allow lag x speed."
+                    "Ticks between a settled car jumping 1.5 m sideways and the front camera showing it,"
+                    " judged against LiDAR on the same ticks. LiDAR ray-casts the physics state, so camera"
+                    " minus LiDAR is the camera's own lag. Live, the first jump after spawn took effect a"
+                    " tick late for both sensors (a teleport delay, not render lag). A non-zero"
+                    " difference means images lag the simulation, and perception must allow lag x speed."
                 ),
             )
         )
