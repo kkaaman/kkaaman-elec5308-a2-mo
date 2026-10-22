@@ -251,6 +251,8 @@ def _write_sample(root, frame, sensor_frame, labels, truth, cv2):
             compass_rad=sensor_frame.imu.compass_rad,
         ),
         speed_mps=sensor_frame.speed_mps,
+        calibration_id=sensor_frame.calibration_id,
+        status=[dict(name=s.name, state=s.state.value) for s in sensor_frame.status],
         truth=truth,
     )
 
@@ -258,7 +260,7 @@ def _write_sample(root, frame, sensor_frame, labels, truth, cv2):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--map", required=True, help="Town01-Town07 (optionally _Opt)")
-    parser.add_argument("--suite", type=Path, default=Path("configs/sensor_suites/mapless_v1.json"))
+    parser.add_argument("--suite", type=Path, default=Path("configs/sensor_suites/mapless_v2.json"))
     parser.add_argument("--output", type=Path, required=True, help="New folder for this run")
     parser.add_argument("--samples", type=int, default=1000, help="Samples to save")
     parser.add_argument("--save-every", type=int, default=10, help="Ticks between samples while moving")
@@ -326,7 +328,7 @@ def main(argv=None):
     )
     (root / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     rng = random.Random(args.seed)
-    saved, episodes, failure = 0, 0, None
+    saved, episodes, skipped, failure = 0, 0, 0, None
     tm = client.get_trafficmanager(args.tm_port)
     walker_controllers = []
     try:
@@ -400,8 +402,11 @@ def main(argv=None):
                             if snapshot.frame != frame:
                                 raise RuntimeError("Snapshot does not match the ticked frame")
                             speed = true_forward_speed(snapshot, ego.id)
-                            sensor_frame = rig.read(frame, speed)
+                            sensor_frame = rig.read(frame, speed, sim_time_s=snapshot.timestamp.elapsed_seconds)
                             label_images = labels.read(frame)
+                            if sensor_frame.degraded():
+                                skipped += 1  # keep the dataset clean; the rig record counts why
+                                continue
                             stopped_ticks = stopped_ticks + 1 if abs(speed) < 0.1 else 0
                             if stopped_ticks * 0.05 > 30.0:
                                 break  # stuck: next episode
@@ -440,6 +445,7 @@ def main(argv=None):
         manifest.update(
             samples=saved,
             episodes=episodes,
+            skipped_degraded_frames=skipped,
             status="COMPLETE" if failure is None and saved >= args.samples else "INCOMPLETE",
             failure=failure,
         )

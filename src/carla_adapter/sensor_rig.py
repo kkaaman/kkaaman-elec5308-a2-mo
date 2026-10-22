@@ -23,6 +23,7 @@ reproduces the same noise. Callbacks only convert and store; they never tick the
 simulator.
 """
 
+import hashlib
 import math
 import threading
 import time
@@ -39,6 +40,8 @@ from mapless.frame import (
     LidarSweep,
     RadarReturns,
     SensorFrame,
+    SensorState,
+    SensorStatus,
 )
 from mapless.geometry import camera_calibration, sensor_to_ego
 from mapless.sensor_suite import BANNED_BLUEPRINTS, BLUEPRINTS
@@ -198,7 +201,12 @@ class SensorRig:
         self._data = defaultdict(dict)
         self._first_receipt = {}
         self._gnss = {}
+        self._errors = {}
         self._last_fix_s = None
+        self._last_sim_s = None
+        self.effective_attributes = {}
+        identity = f"{suite.sha256}|{self.rear_axle_offset_m:.5f}"
+        self.calibration_id = hashlib.sha256(identity.encode()).hexdigest()[:16]
         self._condition = threading.Condition()
         self._retired = -1
         self._closed = False
@@ -252,6 +260,10 @@ class SensorRig:
                 )
                 self.sensors.append(sensor)
                 self.owner._actors.append(sensor)
+                # What CARLA actually applied (read back from the actor), for the record.
+                self.effective_attributes[spec.name] = {
+                    k: str(v) for k, v in dict(getattr(sensor, "attributes", None) or {}).items()
+                }
                 sensor.listen(lambda data, s=spec: self._receive(s, data))
             return self
         except BaseException:
@@ -287,7 +299,7 @@ class SensorRig:
         try:
             if spec.kind == "camera":
                 if (data.width, data.height) != (spec.width, spec.height):
-                    raise ValueError(f"{spec.name}: image size changed")
+                    raise ValueError(f"image size changed to {data.width}x{data.height}")
                 payload = decode_rgb(data.raw_data, data.width, data.height)
             elif spec.kind == "lidar":
                 payload = lidar_points_to_ego(data.raw_data, self.extrinsics[spec.name])
@@ -316,41 +328,51 @@ class SensorRig:
         except Exception as error:
             self.callback_errors.append(f"{spec.name}: {error}")
             del self.callback_errors[:-16]
+            frame = getattr(data, "frame", None)
+            if type(frame) is int:
+                with self._condition:
+                    self._errors.setdefault(frame, {})[spec.name] = str(error)
+                    self._condition.notify_all()
 
     # -- main thread ---------------------------------------------------------------
     def _gnss_due(self, sim_time_s):
         spec = self.suite.gnss
-        if spec is None:
+        if spec is None or sim_time_s is None:
             return False
         return self._last_fix_s is None or sim_time_s - self._last_fix_s >= spec.period_s - self.dt_s / 2
 
-    def read(self, frame, true_speed_mps, timeout_s=5.0):
-        """The frame's ``SensorFrame``. ``true_speed_mps`` feeds only the wheel-encoder model."""
+    def read(self, frame, true_speed_mps, *, sim_time_s=None, grace_s=0.5, strict=False):
+        """The frame's ``SensorFrame``, degraded rather than refused when sensors are missing.
+
+        Waits up to ``grace_s`` (wall clock) for every per-tick sensor. Anything still
+        absent is reported MISSING, and a sample rejected on arrival is INVALID. With
+        ``sim_time_s`` (the world snapshot's time), a sample stamped with any other time
+        is INVALID. ``strict=True`` (capture and calibration) raises instead and brakes.
+        ``true_speed_mps`` feeds only the wheel-encoder model.
+        """
         if type(frame) is not int or frame < 0 or not math.isfinite(true_speed_mps):
             raise ValueError("Invalid frame or speed")
-        deadline = time.monotonic() + timeout_s
+        if sim_time_s is not None and not math.isfinite(sim_time_s):
+            raise ValueError("sim_time_s must be finite")
+        deadline = time.monotonic() + grace_s
         try:
             with self._condition:
+                if self._closed or frame <= self._retired:
+                    raise RuntimeError("Rig closed or frame already read")
                 while True:
-                    if self._closed or frame <= self._retired:
-                        raise RuntimeError("Rig closed or frame already read")
-                    have = self._data.get(frame, {})
-                    if all(name in have for name in self.every_tick):
-                        break
+                    have = set(self._data.get(frame, {})) | set(self._errors.get(frame, {}))
                     remaining = deadline - time.monotonic()
-                    if remaining <= 0:
-                        missing = sorted(set(self.every_tick) - set(have))
-                        self.counts["timeout"] += 1
-                        raise TimeoutError(f"Frame {frame}: no data from {', '.join(missing)}")
+                    if all(name in have for name in self.every_tick) or remaining <= 0:
+                        break
                     self._condition.wait(remaining)
-                entries = self._data.pop(frame)
-                stamps = {round(t, 6) for t, _ in entries.values()}
-                if len(stamps) != 1:
-                    raise ValueError(f"Frame {frame}: sensor timestamps disagree {sorted(stamps)}")
-                sim_time = stamps.pop()
-                gnss_entry = None
-                if self._gnss_due(sim_time):
-                    wait_until = time.monotonic() + 0.3
+                entries = self._data.pop(frame, {})
+                errors = self._errors.pop(frame, {})
+                reference = sim_time_s
+                if reference is None and entries:
+                    stamps = sorted(t for t, _ in entries.values())
+                    reference = stamps[len(stamps) // 2]
+                if self._gnss_due(reference) and frame not in self._gnss:
+                    wait_until = time.monotonic() + min(0.3, grace_s)
                     while frame not in self._gnss and time.monotonic() < wait_until:
                         self._condition.wait(0.01)
                 gnss_entry = self._gnss.pop(frame, None)
@@ -359,41 +381,81 @@ class SensorRig:
         except Exception:
             self.owner.emergency_stop()
             raise
+        if reference is None:
+            reference = (self._last_sim_s + self.dt_s) if self._last_sim_s is not None else 0.0
+        self._last_sim_s = reference
+        statuses, valid = [], {}
+        due = self._gnss_due(reference)
+        for spec in self.suite.sensors:
+            name = spec.name
+            if spec.kind == "speedometer":
+                statuses.append(SensorStatus(name, spec.kind, SensorState.OK, reference))
+                continue
+            if name in errors:
+                statuses.append(SensorStatus(name, spec.kind, SensorState.INVALID, detail=errors[name]))
+                continue
+            entry = gnss_entry if spec.kind == "gnss" else entries.get(name)
+            if entry is None:
+                state = SensorState.NOT_DUE if spec.kind == "gnss" and not due else SensorState.MISSING
+                statuses.append(SensorStatus(name, spec.kind, state))
+                continue
+            stamp, payload = entry
+            if abs(stamp - reference) > 1e-6:
+                statuses.append(
+                    SensorStatus(name, spec.kind, SensorState.INVALID, detail=f"timestamp {stamp:.6f} != {reference:.6f}")
+                )
+                continue
+            statuses.append(SensorStatus(name, spec.kind, SensorState.OK, stamp))
+            valid[name] = payload
+        bad = [s for s in statuses if s.state in (SensorState.MISSING, SensorState.INVALID)]
+        for status in statuses:
+            self.counts[f"state_{status.state.value}"] += 1
+        if bad:
+            self.counts["degraded_frames"] += 1
+            if strict:
+                self.owner.emergency_stop()
+                raise TimeoutError(
+                    f"Frame {frame}: " + ", ".join(f"{s.name} {s.state.value} {s.detail}".strip() for s in bad)
+                )
         gnss = None
-        if gnss_entry is not None:
-            gnss = GnssFix(*gnss_entry[1])
-            self._last_fix_s = sim_time
+        if self.suite.gnss is not None and self.suite.gnss.name in valid:
+            gnss = GnssFix(*valid[self.suite.gnss.name])
+            self._last_fix_s = reference
             self.counts["gnss_fixes"] += 1
-        elif self._gnss_due(sim_time):
-            self.counts["gnss_missing"] += 1
-        accel, gyro, compass = entries[self.suite.imu.name][1]
+        imu = None
         imu_spec = self.suite.imu
-        if imu_spec.compass_white_rad:
-            compass = (compass + float(self.rng.normal(0.0, imu_spec.compass_white_rad))) % (2 * math.pi)
+        if imu_spec.name in valid:
+            accel, gyro, compass = valid[imu_spec.name]
+            if imu_spec.compass_white_rad:
+                compass = (compass + float(self.rng.normal(0.0, imu_spec.compass_white_rad))) % (2 * math.pi)
+            imu = ImuSample(accel, gyro, compass)
         self.counts["frames"] += 1
         return SensorFrame(
             episode_id=self.episode_id,
             frame_id=frame,
-            sim_time_s=sim_time,
+            sim_time_s=reference,
             received_monotonic_s=received,
             cameras=tuple(
-                CameraImage(s.name, entries[s.name][1], self.calibrations[s.name])
+                CameraImage(s.name, valid[s.name], self.calibrations[s.name])
                 for s in self.suite.cameras
+                if s.name in valid
             ),
             lidars=tuple(
-                LidarSweep(s.name, entries[s.name][1], self.extrinsics[s.name]) for s in self.suite.lidars
+                LidarSweep(s.name, valid[s.name], self.extrinsics[s.name]) for s in self.suite.lidars if s.name in valid
             ),
             radars=tuple(
-                RadarReturns(s.name, entries[s.name][1], self.extrinsics[s.name]) for s in self.suite.radars
+                RadarReturns(s.name, valid[s.name], self.extrinsics[s.name]) for s in self.suite.radars if s.name in valid
             ),
             gnss=gnss,
-            imu=ImuSample(accel, gyro, compass),
+            imu=imu,
             speed_mps=self.encoder.measure(true_speed_mps),
+            status=tuple(statuses),
+            calibration_id=self.calibration_id,
         )
 
     def _retire(self, frame):
         self._retired = max(self._retired, frame)
-        for store in (self._data, self._gnss, self._first_receipt):
+        for store in (self._data, self._gnss, self._first_receipt, self._errors):
             for key in [k for k in store if k <= frame]:
                 del store[key]
         for key in [k for k in self.receipts if k < frame - 64]:
@@ -405,7 +467,9 @@ class SensorRig:
             suite_sha256=self.suite.sha256,
             seed=self.seed,
             rear_axle_offset_m=self.rear_axle_offset_m,
+            calibration_id=self.calibration_id,
             attributes=self.attributes,
+            effective_attributes=self.effective_attributes,
             unsupported_attributes=self.unsupported_attributes,
             wheel_encoder_scale=self.encoder.scale,
             radar_velocity_is_range_rate=RADAR_VELOCITY_IS_RANGE_RATE,

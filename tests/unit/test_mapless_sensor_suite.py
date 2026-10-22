@@ -87,3 +87,26 @@ def test_a_suite_needs_camera_imu_and_speedometer():
     mount = Mount(0, 0, 1)
     with pytest.raises(ValueError, match="at least one imu"):
         SensorSuite("x", (CameraSpec("c", mount, 64, 64, 90.0), SpeedometerSpec("s")))
+
+
+def test_rig_v2_and_experiment_overrides():
+    from mapless.sensor_suite import parse_overrides
+
+    v2 = load_sensor_suite(ROOT / "configs/sensor_suites/mapless_v2.json")
+    front = next(s for s in v2.radars if s.name == "radar_front")
+    assert (front.points_per_second, front.horizontal_fov_deg, front.vertical_fov_deg) == (6000, 60.0, 15.0)
+    assert v2.lidars[0].lower_fov_deg == -30.0 and v2.lidars[0].mount.z_m == 2.2
+    assert {(c.width, c.height) for c in v2.cameras if c.name != "front"} == {(800, 450)}
+    assert v2.validate_for_timestep(0.05) == []
+    overrides = parse_overrides(["radar_front.points_per_second=1500", "radar_front.horizontal_fov_deg=30", "roof.mount.z_m=2.4"])
+    assert overrides == {"radar_front.points_per_second": 1500, "radar_front.horizontal_fov_deg": 30, "roof.mount.z_m": 2.4}
+    variant = v2.with_overrides(overrides)
+    radar = next(s for s in variant.radars if s.name == "radar_front")
+    assert radar.points_per_second == 1500 and radar.horizontal_fov_deg == 30
+    assert variant.lidars[0].mount.z_m == 2.4 and variant.sha256 != v2.sha256
+    assert "radar_front.points_per_second=1500" in variant.description
+    for bad in ({"nope.range_m": 1}, {"roof.kind": "x"}, {"roof.mount.roll": 1}, {"radar_front.range_m": -5}):
+        with pytest.raises(ValueError):
+            v2.with_overrides(bad)
+    with pytest.raises(ValueError):
+        parse_overrides(["radar_front.points_per_second"])

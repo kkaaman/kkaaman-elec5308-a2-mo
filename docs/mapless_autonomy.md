@@ -1,17 +1,18 @@
-# Mapless autonomy: Phase 0 (contract, sensor rig, sat-nav route, capture)
+# Mapless autonomy: Phase 0 and P0.1 (contract, rig, health, calibration gate, local controller)
 
 Branch `feature/mapless-autonomy`, built from `feature/shadow-localisation`. This is an
 extension: the frozen baseline is unchanged.
 
-## Goal and honest label
+## Goal and label
 
 The car drives with **no simulator truth and no map**. It sees only its sensors, and it
-is given a sat-nav route: sparse GPS points, each with a command. The rules follow the
-CARLA Leaderboard 2.0 **SENSORS track**, and scoring will use that track's driving score.
+is given a sat-nav route: sparse GPS points, each with a command. The rules are inspired
+by the CARLA Leaderboard 2.0 **SENSORS track**. It is not "Leaderboard-compliant" until
+the official wrapper and evaluator run on this CARLA version.
 
-This is not SAE Level 5. Level 5 means no limit on where or when the car can drive, and
-a handful of simulator towns cannot show that. The defensible claim is a Level 4 system
-with a broad operating domain, measured on Town10HD and on a town it never trained on.
+Report label: a mapless autonomous-driving research prototype, evaluated within a
+declared and tested operating domain. No SAE level is claimed. The working plan is
+`claude/plans/mapless_autonomy_plan.md` (v2.1) in the project.
 
 ## What the car receives (`src/mapless`)
 
@@ -141,13 +142,145 @@ only**; Town10HD is refused.
 - **Status of labels and truth:** training and evaluation data, never car inputs.
 - **Splits:** by whole run and whole town.
 
+## P0.1 additions
+
+### Rig v2
+
+`configs/sensor_suites/mapless_v2.json` is now the default; v1 is kept for comparison.
+
+| Sensor | v2 setting |
+|---|---|
+| Radars | 6,000 points/s; front 60° × 15°, 80 m; rear 90° × 15°, 60 m; mounted just outside the bumpers |
+| LiDAR | z 2.2 m; −30° to +10°; 60 m; nominal drop-off 0.20 |
+| Side and rear cameras | 800×450 |
+
+**Radar density against FOV is an experiment, not a settled choice.** Vary the suite
+from the command line:
+
+```powershell
+python scripts\check_sensor_rig.py --output <folder> --set radar_front.points_per_second=3000 --set radar_front.horizontal_fov_deg=30
+```
+
+The rig records the attributes it set, and also the attributes CARLA reports on each
+actor (`effective_attributes`).
+
+### Per-sensor health
+
+**What each frame carries.** Every `SensorFrame` has one `SensorStatus` per mounted
+sensor, plus the `calibration_id` of the suite and mount geometry used.
+
+| State | Meaning |
+|---|---|
+| OK | Data present |
+| NOT_DUE | Scheduled gap, such as GNSS between its 5 Hz fixes |
+| MISSING | Due, but no sample arrived |
+| INVALID | Rejected, with a reason (bad size, wrong timestamp, decode error) |
+
+A sensor's data is present exactly when its state is OK.
+
+**Degraded, not fatal.** The rig now delivers a degraded frame instead of stopping the
+car. `strict=True` keeps the old refuse-and-brake behaviour; capture uses the default
+mode and skips degraded samples, and the rig check counts them.
+
+**Ages.** `mapless.health.HealthTracker` turns statuses into ages and overdue flags,
+measured against each sensor's expected period.
+
+**Policy belongs to the planner, and depends on conditions.** The planner asks
+`stale(names, max_age_s)` for the sensors covering its current corridor and manoeuvre.
+Any age limit must fit inside the response time assumed in the stopping-distance
+calculation.
+
+### Calibration gate (`scripts/check_sensor_rig.py`)
+
+Run with noise off by default. The evaluator-side geometry is in
+`evaluation/rig_calibration.py`.
+
+1. **Stationary:**
+   - completeness, using the statuses;
+   - full LiDAR sweep;
+   - ego-body LiDAR hits (reported; perception masks them);
+   - no radar self-returns;
+   - IMU gravity and stillness, compass, GNSS rate.
+2. **Coverage sweep.** One parked car at a time:
+   - ego lane at 5, 10, 20, 30 and 50 m ahead, and 8 and 15 m behind;
+   - each side lane alongside, 6 and 15 m ahead, and 10 m behind.
+
+   Then box props, one per camera view. Per placement, the check records:
+   - LiDAR box points against the mirror-image box;
+   - per camera: whether the target is seen, mask consistency (the share of its LiDAR
+     points that land on its instance mask), and silhouette edge error in pixels;
+   - per radar: hits and range error along each return's ray.
+
+   Outputs: `coverage` in the JSON and `coverage_top_down.png`.
+3. **Radar motion:** stationary ego with a target receding at 3 m/s; ego and a lead car
+   both at 3 m/s.
+4. **Driving** (straight, gentle left curve, stop):
+   - GNSS displacement, speedometer, gyro yaw rate and accelerometer sign;
+   - radar sign;
+   - range rate on static-world returns, with and without the lever arm `ω × r`.
+
+**Gates:**
+
+| Check | Pass |
+|---|---|
+| LiDAR extrinsics | Every placement within 45 m has 30+ box points, and fewer than 20% of that count in the mirrored box |
+| Mask consistency | ≥ 0.85 per camera |
+| Prop reprojection | Edge error p95 ≤ 3 px over at least 8 edges |
+| Radar range | Error p95 ≤ 0.5 m at 5–40 m |
+| Radar range rate | Error p95 ≤ 0.5 m/s |
+| Radar sign | Correct in every case |
+
+Car silhouettes and radar detection coverage are reported, not gated.
+
+**Status:**
+- MEASURED_PASS: every gated check passes;
+- MEASURED_FAIL: any gated check fails;
+- INCOMPLETE: there was too little evidence to decide a check.
+
+**What the fake-world smoke test proves.** It runs the whole gate against an
+independently written fake CARLA world:
+- a consistent world passes;
+- a flipped radar sign fails;
+- a missing LiDAR y-flip fails.
+
+### Local trajectory controller (G1a)
+
+`navigation_control.local.LocalTrajectoryController` follows moving-horizon
+`LocalTrajectory` updates from a planner.
+
+**What it fixes in the baseline `PathFollower`.** Every `set_path()` resets its speed
+PID and progress, and its stopping logic treats the path end as the destination.
+
+**Behaviour:**
+- **Updates keep state.** The speed PID survives updates. A manoeuvre change restarts
+  only the progress along the new trajectory.
+- **The horizon end is not the goal.** Only `final_goal=True` can latch FINISHED.
+- **Never outrun the plan.** Speed is capped so the car can stop `stop_margin_m` before
+  the horizon end. A planner avoids that cap by sending horizons longer than
+  `minimum_horizon_m(speed)`.
+- **Stale plans brake.** An expired trajectory brakes along its own path and reports
+  EXPIRED.
+- **Implausible plans are refused.** A trajectory that starts more than 2 m from the
+  car, or has already expired, is rejected and the current one kept.
+
+**Offline evidence** (`tests/unit/test_local_controller.py`):
+- replanning every 0.1 s gives no speed dips;
+- the baseline follower under the same replanning settles about 0.5 m/s low, because
+  each `set_path()` clears its PID integral;
+- short horizons are capped;
+- an expired plan brakes in lane;
+- the final goal stops within tolerance;
+- a manoeuvre change keeps speed continuity.
+
+The live part of G1a comes with the first mapless drive.
+
 ## Running Phase 0 live
 
 Run with CARLA 0.9.16 and no other clients:
 
 ```powershell
-# 1. Rig check on the demo map (calibration only; no training data is kept)
-python scripts/check_sensor_rig.py --output "$HOME\Downloads\Group7_mapless_rigcheck"
+# 1. Calibration gate on the demo map (no training data is kept)
+python scripts/check_sensor_rig.py --output "$HOME\Documents\Group7_runs\rigcheck_v2"
 
 # 2. Sat-nav route for the baseline mission (the same saved mission used for live runs)
 python scripts/make_satnav_route.py --mission <saved mission.json> --name baseline `
@@ -155,12 +288,13 @@ python scripts/make_satnav_route.py --mission <saved mission.json> --name baseli
 
 # 3. Training data, one run per town
 python scripts/capture_mapless_dataset.py --map Town03 --samples 2000 `
-    --output "$HOME\Downloads\Group7_mapless_capture_Town03_s5308"
+    --output "$HOME\Documents\Group7_runs\capture_pilot_Town03_s5308"
 ```
 
 **Phase 0 gate:**
-- `rig_check.json` status is `MEASURED_PASS`. If `radar_velocity_sign` fails, flip
-  `RADAR_VELOCITY_IS_RANGE_RATE` and re-run.
+- `rig_check.json` status is `MEASURED_PASS` for the exact rig (v2). If the radar sign
+  checks fail, flip `RADAR_VELOCITY_IS_RANGE_RATE` and re-run.
+- Any change to mounts, FOV, resolution or timing means rerunning the gate.
 - The firewall tests pass.
 
 ## Next (Phase 1)
