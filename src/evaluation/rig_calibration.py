@@ -171,6 +171,29 @@ def target_instance(instance_ids, rect, tags=None, allowed_tags=None):
     return best // 256, best % 256
 
 
+def rect_contents(instance_ids, tags, rect, top=5):
+    """What fills ``rect`` in the segmentation image: top semantic tags and (code, tag) pairs.
+
+    A diagnostic for when the expected instance is not found.
+    """
+    h, w = instance_ids.shape
+    u0, v0 = max(0, int(math.floor(rect[0]))), max(0, int(math.floor(rect[1])))
+    u1, v1 = min(w, int(math.ceil(rect[2])) + 1), min(h, int(math.ceil(rect[3])) + 1)
+    if u1 <= u0 or v1 <= v0:
+        return dict(pixels=0, tags=[], instances=[])
+    ids = instance_ids[v0:v1, u0:u1].ravel()
+    tag = tags[v0:v1, u0:u1].ravel() if tags is not None else np.zeros_like(ids)
+    values, counts = np.unique(tag, return_counts=True)
+    order = np.argsort(-counts)[:top]
+    keys, key_counts = np.unique(ids.astype(np.int64) * 256 + tag, return_counts=True)
+    key_order = np.argsort(-key_counts)[:top]
+    return dict(
+        pixels=int(ids.size),
+        tags=[[int(values[i]), int(counts[i])] for i in order],
+        instances=[[int(keys[i] // 256), int(keys[i] % 256), int(key_counts[i])] for i in key_order],
+    )
+
+
 def instance_mask(instance_ids, tags, key):
     code, tag = key
     mask = instance_ids == code

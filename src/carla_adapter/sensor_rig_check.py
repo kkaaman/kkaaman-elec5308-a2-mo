@@ -451,6 +451,9 @@ class RigCheck:
                 rect = cal.rect_of(px)
                 if rect[2] > 0 and rect[0] < w and rect[3] > 0 and rect[1] < h:
                     ids, tags = tick["ids"][image.name]
+                    in_rect = cal.rect_contents(ids, tags, rect)
+                    if self.args.save_images:
+                        self.save_placement_image(name, image, tags, rect, lidar_points)
                     key = cal.target_instance(ids, rect, tags, cal.VEHICLE_TAGS if vehicle else None)
                     if key is not None:
                         mask = cal.instance_mask(ids, tags, key)
@@ -467,6 +470,7 @@ class RigCheck:
                             lidar_points_in_view=int(len(lpx)),
                             mask_consistency=cal.mask_consistency(lpx, mask) if len(lpx) >= 20 else None,
                         )
+                    entry["rect_contents"] = in_rect
             bearing, rng = cal.bearing_range(np.asarray(image.calibration.camera_to_ego) @ np.array(
                 [[0, -1, 0, 0], [0, 0, -1, 0], [1, 0, 0, 0], [0, 0, 0, 1]], dtype=float), centre)
             entry.update(bearing_deg=round(bearing, 1), range_m=round(rng, 2))
@@ -505,7 +509,7 @@ class RigCheck:
                 if actor is None:
                     out.append(dict(placement=name, skipped="spawn blocked"))
                     continue
-                for _ in range(3):
+                for _ in range(self.args.settle_ticks):
                     tick = self.step()
                 out.append(self.measure_target(name, actor, tick, vehicle=blueprint == TARGET_CAR))
                 self.remove(actor)
@@ -627,6 +631,23 @@ class RigCheck:
                     d["detected"] += v["hits"] > 0
         self.checks.append(check("radar_detection_coverage", REPORT, per_radar=detection))
         self.plot_coverage(rows)
+
+    def save_placement_image(self, name, image, tags, rect, lidar_points):
+        """Camera image beside its segmentation tags, with the projected true box and LiDAR points."""
+        import cv2
+
+        out = self.args.output / "placements"
+        out.mkdir(exist_ok=True)
+        rgb = np.ascontiguousarray(image.rgb[:, :, ::-1])
+        seg = cv2.applyColorMap(np.clip(tags * 9, 0, 255).astype(np.uint8), cv2.COLORMAP_JET)
+        for canvas in (rgb, seg):
+            r = [int(round(v)) for v in rect]
+            cv2.rectangle(canvas, (r[0], r[1]), (r[2], r[3]), (0, 255, 0), 2)
+            px, _ = cal.project(lidar_points, image.calibration)
+            for u, v in px.astype(int):
+                if 0 <= u < canvas.shape[1] and 0 <= v < canvas.shape[0]:
+                    cv2.circle(canvas, (int(u), int(v)), 2, (0, 0, 255), -1)
+        cv2.imwrite(str(out / f"{name}_{image.name}.jpg"), np.hstack((rgb, seg)))
 
     def plot_coverage(self, rows):
         import cv2
@@ -877,6 +898,8 @@ def main(argv=None):
     parser.add_argument("--keep-noise", action="store_true", help="Run the suite with its noise")
     parser.add_argument("--skip-placements", action="store_true")
     parser.add_argument("--skip-radar-motion", action="store_true")
+    parser.add_argument("--settle-ticks", type=int, default=3, help="Ticks between placing a target and measuring it")
+    parser.add_argument("--save-images", action="store_true", help="Save camera + segmentation images per placement")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=2000)
     args = parser.parse_args(argv)
