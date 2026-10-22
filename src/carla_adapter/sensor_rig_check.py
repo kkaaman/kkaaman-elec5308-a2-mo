@@ -458,6 +458,7 @@ class RigCheck:
                         lpx, _ = cal.project(lidar_points, image.calibration)
                         entry = dict(
                             visible=True,
+                            instance_code=int(key[0]),
                             instance_tag=int(key[1]),
                             mask_pixels=int(mask.sum()),
                             projected_rect_px=rounded(rect, 1),

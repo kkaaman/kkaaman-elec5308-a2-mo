@@ -142,7 +142,8 @@ VEHICLE_TAGS = frozenset({14, 15, 16})  # Car, Truck, Bus
 def target_instance(instance_ids, rect, tags=None, allowed_tags=None):
     """The instance covering most pixels inside ``rect``, or None.
 
-    Pixels whose semantic tag is scenery (``BACKGROUND_TAGS``) never count. With
+    Pixels whose semantic tag is scenery (``BACKGROUND_TAGS``) never count; without tags,
+    instance code 0 is treated as background instead. With
     ``allowed_tags``, only those tags count. The result is an
     ``(instance_code, tag)`` key; build the mask with :func:`instance_mask`.
     """
@@ -153,9 +154,13 @@ def target_instance(instance_ids, rect, tags=None, allowed_tags=None):
         return None
     ids = instance_ids[v0:v1, u0:u1].ravel()
     tag = np.zeros_like(ids) if tags is None else tags[v0:v1, u0:u1].ravel()
-    keep = ids != 0
-    if tags is not None:
-        keep &= ~np.isin(tag, list(BACKGROUND_TAGS))
+    if tags is None:
+        keep = ids != 0
+    else:
+        # With tags, scenery is recognised by its tag, not by instance code 0: in CARLA
+        # 0.9.16, vehicles spawned at runtime carry instance code 0 with tag 14 (second
+        # live run), so excluding code 0 hid the target car.
+        keep = ~np.isin(tag, list(BACKGROUND_TAGS))
         if allowed_tags is not None:
             keep &= np.isin(tag, list(allowed_tags))
     if not keep.any():

@@ -45,6 +45,10 @@ def test_edges_masks_and_instances():
     key = cal.target_instance(ids, (0, 0, 20, 20), tags)
     assert key == (7, 14)  # scenery tags never count
     assert cal.target_instance(ids, (0, 0, 20, 20), tags, allowed_tags={15}) is None
+    # A runtime-spawned car with instance code 0 (CARLA 0.9.16) is still found by its tag.
+    spawned = ids.copy()
+    spawned[5:10, 5:12] = 0
+    assert cal.target_instance(spawned, (4, 4, 13, 11), tags, cal.VEHICLE_TAGS) == (0, 14)
     assert cal.target_instance(np.zeros((5, 5), int), (0, 0, 5, 5)) is None
     mask = cal.instance_mask(ids, tags, key)
     assert cal.mask_rect(mask) == (5, 5, 12, 10)
