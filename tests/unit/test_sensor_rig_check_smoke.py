@@ -502,7 +502,7 @@ def test_gate_runs_end_to_end_and_passes_on_a_consistent_world(monkeypatch, tmp_
     assert ahead["instance_code"] == 0 and ahead["instance_tag"] == 14
     assert ahead["rect_contents"]["tags"][0][0] == 14  # the car fills its own box
     lag = by_name["camera_render_lag"]
-    assert lag["status"] == "PASS" and lag["camera_lag_ticks"] == [0, 0, 0, 0] and lag["lidar_lag_ticks"] == [0, 0, 0, 0]
+    assert lag["status"] == "PASS" and lag["camera_minus_lidar_ticks"] == [0, 0, 0, 0]
     assert next(r for r in coverage if r["placement"] == "ahead_10m")["first_visible_tick"]["front"] == 1
 
 
