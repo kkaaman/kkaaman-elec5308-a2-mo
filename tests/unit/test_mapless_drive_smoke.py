@@ -261,6 +261,10 @@ class FakeRig:
 
 class FakeAdapter:
     def __init__(self, vehicle):
+        # Live CARLA reports wheel positions that do not match the car until physics has
+        # run (first G1b attempt, 22 Oct). Insist on settled ticks, as the real check would fail.
+        if vehicle.world.frame - 100 < 20:
+            raise ValueError("Wheel pairs do not define aligned axles")
         self.vehicle = vehicle
         self.geometry = SimpleNamespace(wheelbase_m=3.00465, rear_axle_offset_m=OFFSET, controller_steering_limit_rad=math.radians(20))
 
