@@ -265,8 +265,16 @@ def main(argv=None):
     parser.add_argument("--samples", type=int, default=1000, help="Samples to save")
     parser.add_argument("--save-every", type=int, default=10, help="Ticks between samples while moving")
     parser.add_argument("--episode-s", type=float, default=90.0, help="Respawn the ego after this long")
-    parser.add_argument("--vehicles", type=int, default=40)
-    parser.add_argument("--walkers", type=int, default=40)
+    # The Town03 pilot (40 cars, 40 walkers) averaged 0.8 cars and 0.2 pedestrians within
+    # 30 m, and only 12 front-camera pedestrians in 200 samples were 40 px or taller.
+    parser.add_argument("--vehicles", type=int, default=80)
+    parser.add_argument("--walkers", type=int, default=150)
+    parser.add_argument(
+        "--cross-factor",
+        type=float,
+        default=0.3,
+        help="Share of walkers that cross roads (CARLA set_pedestrians_cross_factor)",
+    )
     parser.add_argument("--weather", default="cycle", help="A CARLA preset name, or 'cycle'")
     parser.add_argument("--seed", type=int, default=5308)
     parser.add_argument("--host", default="127.0.0.1")
@@ -317,6 +325,7 @@ def main(argv=None):
         weather=args.weather,
         vehicles=args.vehicles,
         walkers=args.walkers,
+        walker_cross_factor=args.cross_factor,
         save_every_ticks=args.save_every,
         episode_s=args.episode_s,
         driver="CARLA Traffic Manager autopilot (data collection only)",
@@ -336,6 +345,7 @@ def main(argv=None):
             tm.set_random_device_seed(args.seed)
             world = owner.world
             world.set_pedestrians_seed(args.seed)
+            world.set_pedestrians_cross_factor(args.cross_factor)
             library = world.get_blueprint_library()
             spawn_points = list(carla_map.get_spawn_points())
             rng.shuffle(spawn_points)
