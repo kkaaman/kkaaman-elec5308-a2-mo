@@ -5,8 +5,8 @@ simple kinematics, including constant-velocity actors, and emits sensor data in 
 own conventions, computed independently of the rig's conversion code:
 - left-handed axes;
 - radar azimuth positive to the right;
-- radar velocity positive when approaching (``RADAR_VELOCITY_IS_RANGE_RATE = False``),
-  including the sensor's lever arm;
+- radar velocity is the range rate, positive when receding, as measured live on
+  22 Oct (``RADAR_VELOCITY_IS_RANGE_RATE = True``), including the sensor's lever arm;
 - compass clockwise from north, where north is -y;
 - instance masks drawn from box silhouettes, projected in the camera's UE frame.
 
@@ -405,7 +405,7 @@ class World:
                     continue
                 u = (p - origin) / r
                 range_rate = float(u @ (v_point - v_sensor))
-                detections.append(SimpleNamespace(depth=r, azimuth=az, altitude=el, velocity=-range_rate))
+                detections.append(SimpleNamespace(depth=r, azimuth=az, altitude=el, velocity=range_rate))
         return detections
 
     def draw_instances(self, sensor, image, targets, w, h, fov):
@@ -508,7 +508,7 @@ def test_overrides_are_recorded(monkeypatch, tmp_path):
 def test_the_gate_catches_a_wrong_radar_sign(monkeypatch, tmp_path):
     import carla_adapter.sensor_rig as rig_module
 
-    monkeypatch.setattr(rig_module, "RADAR_VELOCITY_IS_RANGE_RATE", True)
+    monkeypatch.setattr(rig_module, "RADAR_VELOCITY_IS_RANGE_RATE", False)
     _, report = run_check(monkeypatch, tmp_path, "--skip-placements")
     by_name = {c["check"]: c["status"] for c in report["checks"]}
     assert by_name["radar_velocity_sign"] == "FAIL" and by_name["radar_sign_moving_target"] == "FAIL"

@@ -72,10 +72,22 @@ def _box_local(points, centre, yaw):
     return np.stack((c * p[..., 0] + s * p[..., 1], -s * p[..., 0] + c * p[..., 1], p[..., 2]), axis=-1)
 
 
-def inside_box(points, centre, yaw, extent, margin):
+def inside_box(points, centre, yaw, extent, margin, min_above_bottom_m=None):
+    """Points within the box grown by ``margin``.
+
+    With ``min_above_bottom_m``, points lower than that height above the box's bottom
+    face are excluded. This keeps road returns under and beside a target out of
+    LiDAR and radar box counts: the first live run counted them, and that made a
+    mirror-image box over empty road look occupied.
+    """
     if len(points) == 0:
         return np.zeros(0, bool)
-    return np.all(np.abs(_box_local(points, centre, yaw)) <= np.asarray(extent) + margin, axis=-1)
+    local = _box_local(points, centre, yaw)
+    extent = np.asarray(extent, dtype=float)
+    inside = np.all(np.abs(local) <= extent + margin, axis=-1)
+    if min_above_bottom_m is not None:
+        inside &= local[..., 2] >= -extent[2] + min_above_bottom_m
+    return inside
 
 
 def box_corners(centre, yaw, extent):
@@ -120,19 +132,46 @@ def rect_of(pixels):
     return (float(pixels[:, 0].min()), float(pixels[:, 1].min()), float(pixels[:, 0].max()), float(pixels[:, 1].max()))
 
 
-def target_instance(instance_ids, rect):
-    """The instance id covering most pixels inside ``rect`` (0 is background), or None."""
+# CARLA 0.9.16 semantic tags (red channel of the instance camera) that are scenery, never a
+# placed target. Road, pavement and buildings carry instance codes too; in the first live
+# run the road's code won the vote inside the target's box.
+BACKGROUND_TAGS = frozenset({0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 23, 24, 25, 26, 27, 28})
+VEHICLE_TAGS = frozenset({14, 15, 16})  # Car, Truck, Bus
+
+
+def target_instance(instance_ids, rect, tags=None, allowed_tags=None):
+    """The instance covering most pixels inside ``rect``, or None.
+
+    Pixels whose semantic tag is scenery (``BACKGROUND_TAGS``) never count. With
+    ``allowed_tags``, only those tags count. The result is an
+    ``(instance_code, tag)`` key; build the mask with :func:`instance_mask`.
+    """
     h, w = instance_ids.shape
     u0, v0 = max(0, int(math.floor(rect[0]))), max(0, int(math.floor(rect[1])))
     u1, v1 = min(w, int(math.ceil(rect[2])) + 1), min(h, int(math.ceil(rect[3])) + 1)
     if u1 <= u0 or v1 <= v0:
         return None
-    window = instance_ids[v0:v1, u0:u1].ravel()
-    window = window[window != 0]
-    if window.size == 0:
+    ids = instance_ids[v0:v1, u0:u1].ravel()
+    tag = np.zeros_like(ids) if tags is None else tags[v0:v1, u0:u1].ravel()
+    keep = ids != 0
+    if tags is not None:
+        keep &= ~np.isin(tag, list(BACKGROUND_TAGS))
+        if allowed_tags is not None:
+            keep &= np.isin(tag, list(allowed_tags))
+    if not keep.any():
         return None
-    values, counts = np.unique(window, return_counts=True)
-    return int(values[np.argmax(counts)])
+    keys = ids[keep].astype(np.int64) * 256 + tag[keep]
+    values, counts = np.unique(keys, return_counts=True)
+    best = int(values[np.argmax(counts)])
+    return best // 256, best % 256
+
+
+def instance_mask(instance_ids, tags, key):
+    code, tag = key
+    mask = instance_ids == code
+    if tags is not None:
+        mask &= tags == tag
+    return mask
 
 
 def mask_rect(mask):
@@ -143,15 +182,18 @@ def mask_rect(mask):
     return (float(xs.min()), float(ys.min()), float(xs.max() + 1), float(ys.max() + 1))
 
 
+EDGES = ("left", "top", "right", "bottom")
+
+
 def edge_errors(projected, measured, width, height, border_px=2.0):
-    """Absolute errors of the left, top, right and bottom edges that no image border clips."""
-    errors = []
+    """``{edge: absolute error}`` for the left, top, right and bottom edges no border clips."""
+    errors = {}
     limits = (0.0, 0.0, float(width), float(height))
-    for i in range(4):
+    for i, edge in enumerate(EDGES):
         near_border = min(abs(projected[i] - limits[i]), abs(measured[i] - limits[i])) <= border_px
         crosses = (i < 2 and projected[i] < limits[i]) or (i >= 2 and projected[i] > limits[i])
         if not near_border and not crosses:
-            errors.append(abs(projected[i] - measured[i]))
+            errors[edge] = abs(projected[i] - measured[i])
     return errors
 
 

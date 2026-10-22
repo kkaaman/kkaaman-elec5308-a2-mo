@@ -13,6 +13,9 @@ Conversions from CARLA (left-handed: +x forward, +y right, +z up) to the vehicle
   sign (``-gz``) was confirmed live in TEST-03; the rig check confirms all three axes.
 - **Compass:** passed through, clockwise from north, with seeded white noise added here,
   because CARLA's IMU has no compass-noise setting.
+- **Accelerometer:** CARLA's IMU reports huge accelerations for its first few ticks after
+  spawning (measured live). Consumers must not trust acceleration from the first ticks
+  of an episode; the calibration gate skips 5.
 
 The **speedometer** is the one value taken from the simulator's state. It stands for a
 wheel encoder: true forward speed with a constant seeded scale error and white noise.
@@ -47,8 +50,11 @@ from mapless.geometry import camera_calibration, sensor_to_ego
 from mapless.sensor_suite import BANNED_BLUEPRINTS, BLUEPRINTS
 
 # CARLA 0.9.16 radar ``velocity`` sign: True if positive means the target is receding.
-# Measured by scripts/check_sensor_rig.py (radar_velocity_sign check).
-RADAR_VELOCITY_IS_RANGE_RATE = False
+# Measured live by scripts/check_sensor_rig.py on 22 Oct 2026 (PC 2, Town10HD_Opt).
+# With False, the moving-target and moving-ego cases both gave a median
+# measured/expected ratio of -0.99 (834 and 6,838 returns), so CARLA's value is the range
+# rate (positive when receding), despite the documentation's "towards the sensor".
+RADAR_VELOCITY_IS_RANGE_RATE = True
 
 
 def carla_mount(mount):
@@ -204,6 +210,7 @@ class SensorRig:
         self._errors = {}
         self._last_fix_s = None
         self._last_sim_s = None
+        self._first_sim_s = None
         self.effective_attributes = {}
         identity = f"{suite.sha256}|{self.rear_axle_offset_m:.5f}"
         self.calibration_id = hashlib.sha256(identity.encode()).hexdigest()[:16]
@@ -295,7 +302,7 @@ class SensorRig:
 
     # -- callbacks (CARLA thread) ------------------------------------------------
     def _receive(self, spec, data):
-        received = time.monotonic()
+        received = time.perf_counter()
         try:
             if spec.kind == "camera":
                 if (data.width, data.height) != (spec.width, spec.height):
@@ -335,11 +342,23 @@ class SensorRig:
                     self._condition.notify_all()
 
     # -- main thread ---------------------------------------------------------------
-    def _gnss_due(self, sim_time_s):
-        spec = self.suite.gnss
-        if spec is None or sim_time_s is None:
-            return False
-        return self._last_fix_s is None or sim_time_s - self._last_fix_s >= spec.period_s - self.dt_s / 2
+    def _gnss_since(self, sim_time_s):
+        """Time since the last fix (or since the rig's first frame), or None."""
+        if self.suite.gnss is None or sim_time_s is None:
+            return None
+        base = self._last_fix_s if self._last_fix_s is not None else self._first_sim_s
+        return None if base is None else sim_time_s - base
+
+    def _gnss_expected(self, sim_time_s):
+        """A fix is scheduled about now: worth waiting briefly for its callback."""
+        since = self._gnss_since(sim_time_s)
+        return since is not None and since >= self.suite.gnss.period_s - self.dt_s / 2
+
+    def _gnss_overdue(self, sim_time_s):
+        """MISSING only when a fix is more than one tick late. CARLA's sensor_tick
+        schedule can land one tick either side of the nominal period."""
+        since = self._gnss_since(sim_time_s)
+        return since is not None and since > self.suite.gnss.period_s + self.dt_s + 1e-6
 
     def read(self, frame, true_speed_mps, *, sim_time_s=None, grace_s=0.5, strict=False):
         """The frame's ``SensorFrame``, degraded rather than refused when sensors are missing.
@@ -354,14 +373,14 @@ class SensorRig:
             raise ValueError("Invalid frame or speed")
         if sim_time_s is not None and not math.isfinite(sim_time_s):
             raise ValueError("sim_time_s must be finite")
-        deadline = time.monotonic() + grace_s
+        deadline = time.perf_counter() + grace_s
         try:
             with self._condition:
                 if self._closed or frame <= self._retired:
                     raise RuntimeError("Rig closed or frame already read")
                 while True:
                     have = set(self._data.get(frame, {})) | set(self._errors.get(frame, {}))
-                    remaining = deadline - time.monotonic()
+                    remaining = deadline - time.perf_counter()
                     if all(name in have for name in self.every_tick) or remaining <= 0:
                         break
                     self._condition.wait(remaining)
@@ -371,12 +390,12 @@ class SensorRig:
                 if reference is None and entries:
                     stamps = sorted(t for t, _ in entries.values())
                     reference = stamps[len(stamps) // 2]
-                if self._gnss_due(reference) and frame not in self._gnss:
-                    wait_until = time.monotonic() + min(0.3, grace_s)
-                    while frame not in self._gnss and time.monotonic() < wait_until:
+                if self._gnss_expected(reference) and frame not in self._gnss:
+                    wait_until = time.perf_counter() + min(0.3, grace_s)
+                    while frame not in self._gnss and time.perf_counter() < wait_until:
                         self._condition.wait(0.01)
                 gnss_entry = self._gnss.pop(frame, None)
-                received = self._first_receipt.pop(frame, time.monotonic())
+                received = self._first_receipt.pop(frame, time.perf_counter())
                 self._retire(frame)
         except Exception:
             self.owner.emergency_stop()
@@ -384,8 +403,10 @@ class SensorRig:
         if reference is None:
             reference = (self._last_sim_s + self.dt_s) if self._last_sim_s is not None else 0.0
         self._last_sim_s = reference
+        if self._first_sim_s is None:
+            self._first_sim_s = reference
         statuses, valid = [], {}
-        due = self._gnss_due(reference)
+        due = self._gnss_overdue(reference)
         for spec in self.suite.sensors:
             name = spec.name
             if spec.kind == "speedometer":

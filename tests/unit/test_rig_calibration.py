@@ -33,18 +33,34 @@ def test_expected_range_rate_with_and_without_lever_arm():
 
 
 def test_edges_masks_and_instances():
-    assert cal.edge_errors((10, 10, 50, 40), (11, 10, 52, 43), 100, 100) == [1, 0, 2, 3]
+    assert cal.edge_errors((10, 10, 50, 40), (11, 10, 52, 43), 100, 100) == {"left": 1, "top": 0, "right": 2, "bottom": 3}
     # Edges at or past the image border are not scored.
-    assert cal.edge_errors((-5, 10, 50, 40), (0, 10, 50, 40), 100, 100) == [0, 0, 0]
+    assert cal.edge_errors((-5, 10, 50, 40), (0, 10, 50, 40), 100, 100) == {"top": 0, "right": 0, "bottom": 0}
     ids = np.zeros((20, 20), int)
-    ids[5:10, 5:12] = 7
-    ids[0:3, 0:3] = 9
-    assert cal.target_instance(ids, (4, 4, 13, 11)) == 7
+    tags = np.full((20, 20), 1)  # road everywhere
+    ids[:, :] = 3  # the road carries an instance code too, and covers most of the window
+    ids[5:10, 5:12], tags[5:10, 5:12] = 7, 14  # the target car
+    ids[0:3, 0:3], tags[0:3, 0:3] = 9, 14
+    assert cal.target_instance(ids, (0, 0, 20, 20)) == (3, 0)  # without tags the road wins
+    key = cal.target_instance(ids, (0, 0, 20, 20), tags)
+    assert key == (7, 14)  # scenery tags never count
+    assert cal.target_instance(ids, (0, 0, 20, 20), tags, allowed_tags={15}) is None
     assert cal.target_instance(np.zeros((5, 5), int), (0, 0, 5, 5)) is None
-    assert cal.mask_rect(ids == 7) == (5, 5, 12, 10)
+    mask = cal.instance_mask(ids, tags, key)
+    assert cal.mask_rect(mask) == (5, 5, 12, 10)
+    ids = np.where(mask, 7, 0)
     pixels = np.array([[6.5, 6.5], [11.5, 9.5], [15.5, 15.5]])
-    assert cal.mask_consistency(pixels, ids == 7, dilate_px=0) == pytest.approx(2 / 3)
-    assert cal.mask_consistency(np.array([[13.2, 7.0]]), ids == 7, dilate_px=2) == 1.0
+    assert cal.mask_consistency(pixels, mask, dilate_px=0) == pytest.approx(2 / 3)
+    assert cal.mask_consistency(np.array([[13.2, 7.0]]), mask, dilate_px=2) == 1.0
+
+
+def test_ground_clearance_keeps_road_points_out_of_box_counts():
+    centre, extent = np.array([10.0, 0.0, 0.8]), np.array([2.0, 1.0, 0.75])
+    road = np.array([[10.0, 0.5, 0.0], [9.0, -0.5, 0.02]])
+    body = np.array([[8.1, 0.0, 0.6]])
+    points = np.vstack((road, body))
+    assert cal.inside_box(points, centre, 0.0, extent, 0.15).tolist() == [True, True, True]
+    assert cal.inside_box(points, centre, 0.0, extent, 0.15, 0.2).tolist() == [False, False, True]
 
 
 def test_projection_and_bearing():

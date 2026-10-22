@@ -243,6 +243,35 @@ independently written fake CARLA world:
 - a flipped radar sign fails;
 - a missing LiDAR y-flip fails.
 
+### First live run of the gate (22 Oct, PC 2, Town10HD_Opt, rig v2, noise off)
+
+Status MEASURED_FAIL. Every failure traced to a measurement assumption, not to a
+broken conversion, and the gate was corrected as follows.
+
+| Finding | Evidence | Change |
+|---|---|---|
+| CARLA's radar `velocity` is the range rate (positive when receding), despite the docs' "towards the sensor" | Measured/expected ratio −0.99 for a receding target (834 returns) and for a moving ego against the static world (6,838 returns); the equal-speed lead read about 0 | `RADAR_VELOCITY_IS_RANGE_RATE = True` |
+| Road returns were counted as target points | The mirror-image box over empty road held 20–40% as many LiDAR points as the real one | Box counts start 0.2 m above the box bottom |
+| The road's instance code won the mask vote | Front-camera masks spanned half the image (72,817 px) | Scenery semantic tags are excluded; car targets must carry a vehicle tag |
+| IMU accelerometer spikes after spawn | Mean \|a\| = 1,448 m/s² at rest, while gyro and compass were exact | The first 5 ticks are excluded and recorded |
+| GNSS schedule slips by a tick | 1 MISSING out of 40 ticks | MISSING only when a fix is more than one tick late |
+| Destroyed actors listed straight after the session | The ego and its 14 sensors were reported as leaked | Waits up to 5 s for the server to process the destruction |
+| Top edges of box props | About 4 px at 3 m, while left, right and bottom edges agreed to under 0.5 px | Top edges reported, not gated (the box01 mesh sits below its bounding box) |
+| Car bounding boxes are not radar truth | Positive range errors up to about 3 m on car bodies | Radar range gated on box props; cars reported |
+| LiDAR self-hits | 382 points on the ego roof at z 2.2 m, −30° | Reported; perception masks the ego body |
+| Timer resolution | `time.monotonic` ticks every 15.6 ms on Windows | `perf_counter` |
+
+**Already good on the first run:**
+- compass error 8×10⁻⁶ °;
+- gyro yaw rate error 1×10⁻⁶ rad/s;
+- GNSS displacement error 0.65° and 0.004%;
+- speedometer exact;
+- radar detection 7/7 (front) and 3/3 (each rear) inside their fields of view;
+- full 360° LiDAR sweep at about 27,000 points.
+
+**Coverage finding:** no radar sees a car directly alongside, in either side lane.
+Lane-change checks there rely on LiDAR and the side cameras.
+
 ### Local trajectory controller (G1a)
 
 `navigation_control.local.LocalTrajectoryController` follows moving-horizon
