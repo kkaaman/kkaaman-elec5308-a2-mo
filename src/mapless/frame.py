@@ -11,10 +11,22 @@ Frames and units:
 - IMU: vehicle frame. Acceleration includes gravity, as an accelerometer measures it.
   The compass is a heading in radians, clockwise from north, as the sensor reports it.
 - GNSS: WGS84 degrees. ``None`` on ticks without a fix.
+
+**Health.** Every frame carries one ``SensorStatus`` per mounted sensor. A sensor's data
+is present exactly when its state is OK; there is no silent "latest value" substitution.
+- NOT_DUE: no sample was scheduled on this tick (GNSS between fixes).
+- MISSING: a sample was due and did not arrive.
+- INVALID: a sample arrived but was rejected (bad size, timestamp or decode).
+
+Degraded frames are delivered rather than stopping the car. The driving stack decides,
+from ``mapless.health``, whether the remaining coverage supports the current motion.
+``calibration_id`` names the exact suite and mount geometry the data was converted
+with.
 """
 
 import math
 from dataclasses import dataclass
+from enum import Enum
 
 import numpy as np
 
@@ -134,6 +146,31 @@ class ImuSample:
         return self.gyro_rps[2]
 
 
+class SensorState(str, Enum):
+    OK = "ok"
+    NOT_DUE = "not_due"
+    MISSING = "missing"
+    INVALID = "invalid"
+
+
+@dataclass(frozen=True)
+class SensorStatus:
+    name: str
+    kind: str
+    state: SensorState
+    capture_time_s: float | None = None  # simulation time of the sample, when OK
+    detail: str = ""
+
+    def __post_init__(self):
+        if not isinstance(self.name, str) or not self.name:
+            raise ValueError("Status needs a sensor name")
+        object.__setattr__(self, "state", SensorState(self.state))
+        if self.state is SensorState.OK:
+            _finite("capture_time_s", self.capture_time_s)
+        elif self.capture_time_s is not None:
+            raise ValueError("Only an OK status carries a capture time")
+
+
 @dataclass(frozen=True)
 class SensorFrame:
     episode_id: str
@@ -144,8 +181,10 @@ class SensorFrame:
     lidars: tuple
     radars: tuple
     gnss: GnssFix | None
-    imu: ImuSample
+    imu: ImuSample | None
     speed_mps: float
+    status: tuple
+    calibration_id: str
 
     def __post_init__(self):
         if not isinstance(self.episode_id, str) or not self.episode_id.strip():
@@ -165,15 +204,38 @@ class SensorFrame:
             if any(not isinstance(item, kind) for item in items):
                 raise TypeError(f"{name} must hold {kind.__name__} values")
             object.__setattr__(self, name, items)
-        if not self.cameras:
-            raise ValueError("A frame needs at least one camera image")
         names = [item.name for group in (self.cameras, self.lidars, self.radars) for item in group]
         if len(set(names)) != len(names):
             raise ValueError("Sensor names must be unique within a frame")
         if self.gnss is not None and not isinstance(self.gnss, GnssFix):
             raise TypeError("gnss must be a GnssFix or None")
-        if not isinstance(self.imu, ImuSample):
-            raise TypeError("imu must be an ImuSample")
+        if self.imu is not None and not isinstance(self.imu, ImuSample):
+            raise TypeError("imu must be an ImuSample or None")
+        if not isinstance(self.calibration_id, str) or not self.calibration_id:
+            raise ValueError("calibration_id must be a non-empty string")
+        status = tuple(self.status)
+        if any(not isinstance(s, SensorStatus) for s in status):
+            raise TypeError("status must hold SensorStatus values")
+        if len({s.name for s in status}) != len(status):
+            raise ValueError("One status per sensor")
+        ok = {s.name for s in status if s.state is SensorState.OK}
+        by_kind = {s.name: s.kind for s in status}
+        present = set(names)
+        for kind, value in (("gnss", self.gnss), ("imu", self.imu)):
+            for name, k in by_kind.items():
+                if k == kind and (value is not None) != (name in ok):
+                    raise ValueError(f"{kind} data must be present exactly when its status is OK")
+        expected = {n for n, k in by_kind.items() if k in ("camera", "lidar", "radar") and n in ok}
+        if present != expected:
+            raise ValueError("Camera, LiDAR and radar data must be present exactly when OK")
+        object.__setattr__(self, "status", status)
+
+    def status_of(self, name):
+        return next(s for s in self.status if s.name == name)
+
+    def degraded(self):
+        """Statuses that are MISSING or INVALID on this tick."""
+        return tuple(s for s in self.status if s.state in (SensorState.MISSING, SensorState.INVALID))
 
     def camera(self, name):
         return next(c for c in self.cameras if c.name == name)

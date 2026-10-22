@@ -328,6 +328,38 @@ class SensorSuite:
             sensors.append(replace(s, **zeroed) if zeroed else s)
         return replace(self, name=f"{self.name}-noise-free", sensors=tuple(sensors))
 
+    def with_overrides(self, overrides):
+        """Copy with ``{"sensor.field": value}`` or ``{"sensor.mount.field": value}`` applied.
+
+        Used for rig experiments (for example radar density against FOV). Every value
+        passes the same validation as the suite file. The result records the overrides
+        in its name and description, so its hash differs from the base suite's.
+        """
+        if not overrides:
+            return self
+        by_name = {s.name: s for s in self.sensors}
+        changed = dict(by_name)
+        for key, value in sorted(overrides.items()):
+            parts = key.split(".")
+            if len(parts) not in (2, 3) or parts[0] not in by_name:
+                raise ValueError(f"Override {key!r} must be <sensor>.<field> or <sensor>.mount.<field>")
+            spec = changed[parts[0]]
+            if len(parts) == 3:
+                if parts[1] != "mount" or not hasattr(spec, "mount") or parts[2] not in {f.name for f in fields(Mount)}:
+                    raise ValueError(f"Unknown mount override {key!r}")
+                changed[parts[0]] = replace(spec, mount=replace(spec.mount, **{parts[2]: value}))
+            else:
+                if parts[1] in ("name", "kind", "mount") or parts[1] not in {f.name for f in fields(spec)}:
+                    raise ValueError(f"Unknown override field {key!r}")
+                changed[parts[0]] = replace(spec, **{parts[1]: value})
+        text = ", ".join(f"{k}={v}" for k, v in sorted(overrides.items()))
+        return replace(
+            self,
+            name=f"{self.name}+overrides",
+            description=f"{self.description} Overrides: {text}".strip(),
+            sensors=tuple(changed[s.name] for s in self.sensors),
+        )
+
     def validate_for_timestep(self, dt_s):
         """Problems that only show against the simulation step (empty when none)."""
         problems = []
@@ -404,3 +436,23 @@ def _reject_duplicates(pairs):
 def load_sensor_suite(path):
     text = Path(path).read_text(encoding="utf-8-sig")
     return suite_from_dict(json.loads(text, object_pairs_hook=_reject_duplicates))
+
+
+def parse_overrides(items):
+    """``["radar_front.points_per_second=3000", ...]`` to a typed dict (int, float, else str)."""
+    result = {}
+    for item in items or ():
+        key, sep, raw = item.partition("=")
+        if not sep or not key.strip():
+            raise ValueError(f"Override {item!r} must look like sensor.field=value")
+        raw = raw.strip()
+        for cast in (int, float):
+            try:
+                value = cast(raw)
+                break
+            except ValueError:
+                continue
+        else:
+            value = raw
+        result[key.strip()] = value
+    return result

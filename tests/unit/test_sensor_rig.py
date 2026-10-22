@@ -23,6 +23,7 @@ from carla_adapter.sensor_rig import (
     radar_to_returns,
 )
 from evaluation.satnav_route import carla_geolocation
+from mapless.frame import SensorState
 from mapless.geometry import sensor_to_ego
 from mapless.sensor_suite import Mount, load_sensor_suite
 
@@ -193,7 +194,7 @@ def test_rig_builds_a_vehicle_frame_sensor_frame(carla):
         assert "noise_seed" not in lidar_bp.values and "noise_seed" in imu_bp.values
         assert rig.unsupported_attributes == {}
         feed(rig, 11, 0.55)
-        frame = rig.read(11, 4.0)
+        frame = rig.read(11, 4.0, sim_time_s=0.55)
     assert [c.name for c in frame.cameras] == ["front", "front_left", "front_right", "rear"]
     assert frame.camera("front").rgb[0, 0].tolist() == [200, 0, 0]
     roof = frame.lidar("roof").points
@@ -206,20 +207,72 @@ def test_rig_builds_a_vehicle_frame_sensor_frame(carla):
     assert frame.sim_time_s == pytest.approx(0.55) and not rig.sensors
 
 
-def test_gnss_only_when_due_and_missing_data_times_out(carla):
+def test_gnss_scheduling_and_degraded_frames(carla):
     owner = Owner()
     rig = SensorRig(owner, object(), suite(), episode_id="e", rear_axle_offset_m=OFFSET, dt_s=0.05, seed=1)
     with rig:
         feed(rig, 1, 0.05)
-        assert rig.read(1, 0.0).gnss is not None
+        first = rig.read(1, 0.0, sim_time_s=0.05)
+        assert first.gnss is not None and first.degraded() == ()
         feed(rig, 2, 0.10, gnss=False)
-        assert rig.read(2, 0.0).gnss is None and rig.counts.get("gnss_missing", 0) == 0
-        feed(rig, 3, 0.15, skip=("roof",))
-        with pytest.raises(TimeoutError, match="roof"):
-            rig.read(3, 0.0, timeout_s=0.05)
+        second = rig.read(2, 0.0, sim_time_s=0.10)
+        assert second.gnss is None and second.status_of("gnss").state is SensorState.NOT_DUE
+        # A missing LiDAR sweep gives a degraded frame, not a stop.
+        feed(rig, 3, 0.15, gnss=False, skip=("roof",))
+        third = rig.read(3, 0.0, sim_time_s=0.15, grace_s=0.05)
+        assert third.status_of("roof").state is SensorState.MISSING and not third.lidars
+        assert [s.name for s in third.degraded()] == ["roof"] and owner.stops == 0
+        # GNSS is due again 0.2 s after the last fix; no fix means MISSING.
+        for k, t in ((4, 0.20), (5, 0.25)):
+            feed(rig, k, t, gnss=False)
+            rig.read(k, 0.0, sim_time_s=t)
+        feed(rig, 6, 0.30, gnss=False)
+        assert rig.read(6, 0.0, sim_time_s=0.30, grace_s=0.05).status_of("gnss").state is SensorState.MISSING
+        # A sample stamped with another time is INVALID.
+        feed(rig, 7, 0.36)
+        stale = rig.read(7, 0.0, sim_time_s=0.35)
+        assert all(s.state is SensorState.INVALID for s in stale.status if s.kind in ("camera", "lidar", "radar", "imu"))
+        assert stale.imu is None and not stale.cameras
+        # Strict mode (capture, calibration) raises and brakes instead.
+        feed(rig, 8, 0.40, skip=("front",))
+        with pytest.raises(TimeoutError, match="front missing"):
+            rig.read(8, 0.0, sim_time_s=0.40, grace_s=0.05, strict=True)
         assert owner.stops == 1
         with pytest.raises(RuntimeError, match="already read"):
             rig.read(1, 0.0)
+
+
+def test_a_bad_sample_is_invalid_with_its_reason(carla):
+    owner = Owner()
+    rig = SensorRig(owner, object(), suite(), episode_id="e", rear_axle_offset_m=OFFSET, dt_s=0.05, seed=1)
+    with rig:
+        feed(rig, 1, 0.05, skip=("rear",))
+        rear = owner.world.sensors[3]  # spawn order follows the suite: front, front_left, front_right, rear
+        rear.callback(SimpleNamespace(frame=1, timestamp=0.05, width=10, height=10, raw_data=b""))
+        frame = rig.read(1, 0.0, sim_time_s=0.05, grace_s=0.05)
+    status = frame.status_of("rear")
+    assert status.state is SensorState.INVALID and "image size" in status.detail
+    assert len(frame.cameras) == 3
+
+
+def test_health_tracker_ages_against_expected_rates(carla):
+    from mapless.health import HealthTracker
+
+    owner = Owner()
+    s = suite()
+    rig = SensorRig(owner, object(), s, episode_id="e", rear_axle_offset_m=OFFSET, dt_s=0.05, seed=1)
+    tracker = HealthTracker(s, 0.05)
+    with rig:
+        for k in range(1, 8):
+            t = 0.05 * k
+            feed(rig, k, t, gnss=(k == 1), skip=("radar_rear_left",) if k >= 4 else ())
+            report = tracker.update(rig.read(k, 0.0, sim_time_s=t, grace_s=0.02))
+    assert report["front"].age_s == 0 and not report["front"].overdue
+    assert report["radar_rear_left"].consecutive_dropouts == 4
+    assert report["radar_rear_left"].age_s == pytest.approx(0.20) and report["radar_rear_left"].overdue
+    # GNSS fixed at 0.05 s; at 0.35 s its 0.30 s age is past the 0.2 s period, so it is overdue.
+    assert report["gnss"].age_s == pytest.approx(0.30) and report["gnss"].overdue
+    assert tracker.stale(["front", "roof", "radar_rear_left"], 0.15) == ["radar_rear_left"]
 
 
 def test_noise_is_seeded_and_applied_on_the_main_thread(carla):

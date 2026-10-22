@@ -40,6 +40,8 @@ See [mapless_autonomy](../docs/mapless_autonomy.md).
 
 | Script | Purpose |
 |---|---|
-| `check_sensor_rig.py` | Live check of the mapless sensor rig: conversions, signs, extrinsics, timing |
+| `check_sensor_rig.py` | Live calibration gate for the mapless rig: conversions, signs, extrinsics, coverage sweep, camera mask and reprojection, radar range and range rate, timing. `--set sensor.field=value` for rig experiments |
 | `make_satnav_route.py` | Sat-nav route (GPS points and commands) for a saved mission, from the live map |
 | `capture_mapless_dataset.py` | Training-data capture on Town01–Town07 (refuses Town10HD) |
+
+New PC setup (Windows, no admin rights): `powershell -ExecutionPolicy Bypass -File scripts\setup_group7_pc.ps1`.

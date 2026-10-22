@@ -56,6 +56,8 @@ FRAME_FIELDS = {
     "gnss",
     "imu",
     "speed_mps",
+    "status",
+    "calibration_id",
 }
 
 

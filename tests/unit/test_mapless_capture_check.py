@@ -7,14 +7,8 @@ import numpy as np
 import pytest
 
 from carla_adapter.mapless_capture import capture_map_allowed, main, to_ego_frame
-from carla_adapter.sensor_rig_check import (
-    box_corners,
-    inside_box,
-    project,
-    rear_axle_pose,
-    rect_iou,
-    world_to_ego,
-)
+from carla_adapter.sensor_rig_check import rear_axle_pose, world_to_ego
+from evaluation.rig_calibration import box_corners, inside_box, project
 from mapless.geometry import camera_calibration
 from mapless.sensor_suite import CameraSpec, Mount
 
@@ -45,9 +39,8 @@ def test_box_membership_tells_a_box_from_its_mirror_image():
     assert not inside_box(corners, centre * (1, -1, 1), -yaw, extent, 0.15).any()
 
 
-def test_projection_and_overlap():
+def test_projection():
     cal = camera_calibration(CameraSpec("c", Mount(1.5, 0, 2.0), 1280, 720, 90.0), 1.38641)
-    px = project(np.array([[30.0, 0.0, 2.0], [-5.0, 0.0, 2.0]]), cal)
-    assert len(px) == 1 and px[0] == pytest.approx((640, 360), abs=1e-6)
-    assert rect_iou((0, 0, 10, 10), (0, 0, 10, 10)) == 1.0
-    assert rect_iou((0, 0, 10, 10), (5, 0, 15, 10)) == pytest.approx(1 / 3)
+    px, front = project(np.array([[30.0, 0.0, 2.0], [-5.0, 0.0, 2.0]]), cal)
+    assert len(px) == 1 and front.tolist() == [True, False]
+    assert px[0] == pytest.approx((640, 360), abs=1e-6)

@@ -6,7 +6,16 @@ import numpy as np
 import pytest
 
 from geometry.camera import ego_point_to_pixel
-from mapless.frame import CameraImage, GnssFix, ImuSample, LidarSweep, RadarReturns, SensorFrame
+from mapless.frame import (
+    CameraImage,
+    GnssFix,
+    ImuSample,
+    LidarSweep,
+    RadarReturns,
+    SensorFrame,
+    SensorState,
+    SensorStatus,
+)
 from mapless.geometry import camera_calibration, rotation, sensor_to_ego, yaw_from_compass
 from mapless.sensor_suite import CameraSpec, Mount
 
@@ -26,8 +35,23 @@ def frame(**changes):
         gnss=GnssFix(49.0, 8.0, 0.0),
         imu=ImuSample((0, 0, 9.81), (0, 0, 0.1), 1.0),
         speed_mps=4.8,
+        calibration_id="test",
     )
     values.update(changes)
+    if "status" not in values:
+        kinds = [("front", "camera", values["cameras"]), ("roof", "lidar", values["lidars"]), ("radar_front", "radar", values["radars"])]
+        status = [
+            SensorStatus(n, k, SensorState.OK, 0.15) if any(i.name == n for i in items) else SensorStatus(n, k, SensorState.MISSING)
+            for n, k, items in kinds
+        ]
+        status += [
+            SensorStatus("gnss", "gnss", SensorState.OK if values["gnss"] else SensorState.NOT_DUE, 0.15 if values["gnss"] else None),
+            SensorStatus("imu", "imu", SensorState.OK if values["imu"] else SensorState.MISSING, 0.15 if values["imu"] else None),
+            SensorStatus("wheel_speed", "speedometer", SensorState.OK, 0.15),
+        ]
+        extra = {i.name for g in ("cameras", "lidars", "radars") for i in values[g]} - {"front", "roof", "radar_front"}
+        status += [SensorStatus(n, "radar", SensorState.OK, 0.15) for n in extra]
+        values["status"] = tuple(status)
     return SensorFrame(**values)
 
 
@@ -38,14 +62,27 @@ def test_frame_is_read_only_and_validated():
     with pytest.raises(ValueError):
         f.lidars[0].points[0, 0] = 1
     assert f.camera("front").name == "front" and f.imu.yaw_rate_rps == 0.1
-    with pytest.raises(ValueError, match="at least one camera"):
-        frame(cameras=())
+    assert f.degraded() == ()
     with pytest.raises(ValueError, match="unique"):
         frame(radars=(RadarReturns("front", np.zeros((0, 4)), np.eye(4)),))
     with pytest.raises(ValueError, match="finite"):
         frame(lidars=(LidarSweep("roof", np.full((1, 4), np.nan), np.eye(4)),))
     with pytest.raises(ValueError, match="sensor_to_ego"):
         frame(lidars=(LidarSweep("roof", np.zeros((1, 4)), np.diag([1, -1, 1, 1])),))
+
+
+def test_degraded_frames_report_status_and_data_matches_status():
+    f = frame(cameras=(), imu=None, gnss=None)
+    assert f.status_of("front").state is SensorState.MISSING
+    assert {s.name for s in f.degraded()} == {"front", "imu"}
+    assert f.status_of("gnss").state is SensorState.NOT_DUE  # scheduled absence, not a dropout
+    ok = frame()
+    with pytest.raises(ValueError, match="present exactly"):
+        SensorFrame(**{**ok.__dict__, "status": tuple(s if s.name != "roof" else SensorStatus("roof", "lidar", "missing") for s in ok.status)})
+    with pytest.raises(ValueError, match="present exactly"):
+        SensorFrame(**{**ok.__dict__, "imu": None})
+    with pytest.raises(ValueError, match="capture time"):
+        SensorStatus("x", "camera", SensorState.MISSING, 1.0)
 
 
 def test_mount_rotation_conventions():
