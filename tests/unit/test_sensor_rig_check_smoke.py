@@ -425,8 +425,11 @@ class World:
             hull = cv2.convexHull(np.round(pixels).astype(np.int32))
             mask = np.zeros((h, w), np.uint8)
             cv2.fillConvexPoly(mask, hull, 1)
-            ident = t.id % 65536
-            image[mask == 1] = (ident % 256, ident // 256, 14, 255)  # BGRA: B, G = id; R = tag
+            # As measured live in CARLA 0.9.16: runtime vehicles carry instance code 0 (tag 14
+            # Car); props carry their own code (tag 20 Static).
+            vehicle = t.type_id.startswith("vehicle.")
+            ident, tag = (0, 14) if vehicle else (t.id % 65536, 20)
+            image[mask == 1] = (ident % 256, ident // 256, tag, 255)  # BGRA: B, G = code; R = tag
 
 
 class RadarData(list):
