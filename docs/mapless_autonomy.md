@@ -350,7 +350,7 @@ The car is `mapless.driver.MaplessDriver`: `SensorFrame`s and a sat-nav route in
 |---|---|---|
 | Ego motion | `ego_motion.py` | Odometry frame (wheel speed and gyro, gyro bias measured at standstill) for driving. EKF route pose initialised from GNSS and compass averaged over 1 s at standstill, then GNSS and compass updates; used only for route progress and the goal |
 | Terrain | `terrain.py` | Per sweep: road height in 2 m bands grown out from the car; points labelled ROAD, RAISED (kerb, pavement, 0.10 to 0.30 m), OBSTACLE (0.30 to 2.4 m). Evidence accumulates on a grid in the odometry frame (kerbs decay over 3 s, obstacles over 0.5 s) |
-| Corridor | `corridor.py` | Lateral profiles along last tick's centreline; right kerb = first raised cell with road seen next to it (obstacles such as parked cars are OCCUPIED, never an edge); the kerb may not jump in either direction (side roads, cars); lane centre `keep_right_m` left of the kerb, measured from the points while the car stands in its lane at start-up (middle of a corridor under 5.5 m); polynomial fit with last tick's line as a prior, or last tick's line carried unchanged when there is too little evidence |
+| Corridor | `corridor.py` | Lateral profiles along last tick's centreline; right kerb = first raised cell with road seen next to it (obstacles such as parked cars are OCCUPIED, never an edge); the kerb may not jump in either direction (side roads, cars); kerb evidence must lie within 0.75 m of where last tick's line puts it; lane centre `keep_right_m` left of the kerb, measured on an 8 m calibration drive along the start line with this same detector (middle of a corridor under 5.5 m); polynomial fit (degree from how far the evidence reaches) with last tick's line as a prior, continued along its tangent past the evidence, or last tick's line carried unchanged when there is too little evidence |
 | Obstacles | `obstacles.py` | This sweep's OBSTACLE points in the car-width tube along the centreline; nearest dense cluster |
 | Planner | `planner.py` | Cruise speed, curve limit, braking ramp to a stop 2.5 m short of an obstacle (bumper) or at the goal (final-goal trajectory); stop held for 1 s after the obstacle disappears |
 | Control | `navigation_control.local` | `LocalTrajectoryController` in the odometry frame |
@@ -407,7 +407,25 @@ start-up measurement.
   shoulder.
 - Limitation: measuring at start-up assumes the car starts aligned in its lane, as the
   harness places it. A car placed off centre holds that offset; camera lane evidence
-  (G1c/G2) removes this. Each run writes `drive_report.json`, `drive_log.jsonl`, `route.json`,
+  (G1c/G2) removes this.
+
+**Second live attempt (23 Oct, `f982781`): drove 50 m sensor-only at 2 m/s, then
+stopped for nothing.**
+- The kerb offset measured at a standstill from single points was 3.81 m against the
+  map's 4.39 m. The driving detector found the kerb 0.14 m inside the map's, so the car
+  held 0.45 m right of centre (lane p95 0.49 m, FAIL). The two measurements disagreed:
+  the first raised point on a rounded kerb and gutter is closer than where raised cells
+  take over.
+- About 7 m before a parked car it stopped and held to the time limit (goal 10 m away).
+  Offline, the same pattern came from the corridor itself: a stray kerb edge behind a
+  parked car at 26 m bent the cubic fit, and the bent path ran into the next parked car.
+- Fixes (`G1b-3`): the kerb offset is measured on an 8 m calibration drive along the start
+  line with the driving detector itself; lateral profiles are sampled every 5 cm so that
+  the calibration and driving read the same kerb cell; kerb evidence must lie within
+  0.75 m of where last tick's line puts it; the fit's degree follows the evidence's
+  reach and the line continues along its tangent beyond it; the obstacle's lateral
+  offset is logged. Offline: lane p95 0.05 to 0.20 m on straights, the shoulder-parking
+  road and bends down to 12 m radius with the live controller tuning; no phantom stops. Each run writes `drive_report.json`, `drive_log.jsonl`, `route.json`,
 `drive_plot.png` and top-down terrain snapshots.
 
 ## Running Phase 0 live
