@@ -509,9 +509,14 @@ class RigCheck:
                 if actor is None:
                     out.append(dict(placement=name, skipped="spawn blocked"))
                     continue
-                for _ in range(self.args.settle_ticks):
+                first_seen = {}
+                for k in range(1, self.args.settle_ticks + 1):
                     tick = self.step()
-                out.append(self.measure_target(name, actor, tick, vehicle=blueprint == TARGET_CAR))
+                    for cam in self.cameras_showing(actor, tick, blueprint == TARGET_CAR):
+                        first_seen.setdefault(cam, k)
+                row = self.measure_target(name, actor, tick, vehicle=blueprint == TARGET_CAR)
+                row["first_visible_tick"] = first_seen
+                out.append(row)
                 self.remove(actor)
                 self.step()
         self.report["coverage"] = dict(cars=rows, props=props)
@@ -631,6 +636,97 @@ class RigCheck:
                     d["detected"] += v["hits"] > 0
         self.checks.append(check("radar_detection_coverage", REPORT, per_radar=detection))
         self.plot_coverage(rows)
+
+    def cameras_showing(self, actor, tick, vehicle):
+        """Cameras whose segmentation already shows ``actor`` overlapping its projected box."""
+        centre, yaw, extent = target_box_ego(actor, tick["pose"])
+        corners = cal.box_corners(centre, yaw, extent)
+        seen = []
+        for image in tick["frame"].cameras:
+            h, w = image.rgb.shape[:2]
+            px, front = cal.project(corners, image.calibration)
+            if not front.all():
+                continue
+            rect = cal.rect_of(px)
+            if rect[2] <= 0 or rect[0] >= w or rect[3] <= 0 or rect[1] >= h:
+                continue
+            ids, tags = tick["ids"][image.name]
+            key = cal.target_instance(ids, rect, tags, cal.VEHICLE_TAGS if vehicle else None)
+            if key is None:
+                continue
+            measured = cal.mask_rect(cal.instance_mask(ids, tags, key))
+            if measured is not None and cal.rect_iou(rect, measured) >= 0.3:
+                seen.append(image.name)
+        return seen
+
+    def phase_render_lag(self):
+        """Ticks until the cameras show a settled car that has jumped sideways.
+
+        LiDAR is checked on the same ticks; it ray-casts the physics state, so it should
+        show the new position on the first tick. A camera that shows the old position on
+        the first tick is rendering the world late, which a moving car would feel as a
+        position error of lag x speed.
+        """
+        pose = self.step()["pose"]
+        car = self.place(TARGET_CAR, self.front_x + 10.0, 0.0, pose)
+        if car is None:
+            self.checks.append(check("camera_render_lag", INCOMPLETE, reason="target spawn blocked"))
+            return
+        for _ in range(15):
+            tick = self.step()
+        trials = []
+        for shift in (1.5, -1.5, 1.5, -1.5):
+            old_box = target_box_ego(car, tick["pose"])
+            t = car.get_transform()
+            wx, wy = ego_to_world_xy(tick["pose"], old_box[0][0], old_box[0][1] + shift)
+            t.location.x, t.location.y = wx, -wy
+            car.set_transform(t)
+            trial = dict(shift_m=shift, camera_lag_ticks=None, lidar_lag_ticks=None)
+            for k in range(1, 9):
+                tick = self.step()
+                new_box = target_box_ego(car, tick["pose"])
+                image = tick["frame"].camera("front")
+                ids, tags = tick["ids"]["front"]
+                rects = {}
+                for label, box in (("old", old_box), ("new", new_box)):
+                    px, _ = cal.project(cal.box_corners(*box), image.calibration)
+                    rects[label] = cal.rect_of(px)
+                union = (min(rects["old"][0], rects["new"][0]), min(rects["old"][1], rects["new"][1]),
+                         max(rects["old"][2], rects["new"][2]), max(rects["old"][3], rects["new"][3]))
+                key = cal.target_instance(ids, union, tags, cal.VEHICLE_TAGS)
+                if key is not None and trial["camera_lag_ticks"] is None:
+                    measured = cal.mask_rect(cal.instance_mask(ids, tags, key))
+                    if measured is not None and cal.rect_iou(measured, rects["new"]) > cal.rect_iou(measured, rects["old"]):
+                        trial["camera_lag_ticks"] = k - 1
+                if trial["lidar_lag_ticks"] is None:
+                    sweep = tick["frame"].lidars[0]
+                    above = min(GROUND_CLEARANCE_M, new_box[2][2])
+                    new_hits = cal.inside_box(sweep.points, *new_box, 0.1, above).sum()
+                    old_hits = cal.inside_box(sweep.points, *old_box, 0.1, above).sum()
+                    if new_hits > old_hits:
+                        trial["lidar_lag_ticks"] = k - 1
+                if trial["camera_lag_ticks"] is not None and trial["lidar_lag_ticks"] is not None:
+                    break
+            trials.append(trial)
+            for _ in range(3):
+                tick = self.step()
+        self.remove(car)
+        self.step()
+        lags = [t["camera_lag_ticks"] for t in trials]
+        self.report["render_lag_trials"] = trials
+        self.checks.append(
+            check(
+                "camera_render_lag",
+                INCOMPLETE if None in lags else max(lags) == 0,
+                camera_lag_ticks=lags,
+                lidar_lag_ticks=[t["lidar_lag_ticks"] for t in trials],
+                note=(
+                    "Ticks between a settled car jumping 1.5 m sideways and the front camera showing it."
+                    " 0 means the camera shows the frame's own world state. More than 0 means images lag"
+                    " the simulation, and perception must allow lag x speed."
+                ),
+            )
+        )
 
     def save_placement_image(self, name, image, tags, rect, lidar_points):
         """Camera image beside its segmentation tags, with the projected true box and LiDAR points."""
@@ -876,6 +972,7 @@ class RigCheck:
             self.phase_static()
             if not self.args.skip_placements:
                 self.phase_placements()
+            self.phase_render_lag()
             if not self.args.skip_radar_motion:
                 self.phase_radar_motion()
             self.phase_drive()
@@ -898,7 +995,12 @@ def main(argv=None):
     parser.add_argument("--keep-noise", action="store_true", help="Run the suite with its noise")
     parser.add_argument("--skip-placements", action="store_true")
     parser.add_argument("--skip-radar-motion", action="store_true")
-    parser.add_argument("--settle-ticks", type=int, default=3, help="Ticks between placing a target and measuring it")
+    parser.add_argument(
+        "--settle-ticks",
+        type=int,
+        default=12,
+        help="Ticks between placing a target and measuring it (live: spawned cars took over 3 ticks to appear in camera images)",
+    )
     parser.add_argument("--save-images", action="store_true", help="Save camera + segmentation images per placement")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=2000)
