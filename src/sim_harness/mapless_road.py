@@ -128,6 +128,26 @@ class ParkedCar:
 
 
 @dataclass(frozen=True)
+class SideRoad:
+    """A road meeting the main road at right angles at ``s_m`` (a junction, G1c).
+
+    ``side`` -1: on the right (its centreline leaves along -d); +1: on the left. The
+    pavement corners where it meets the main road are rounded with ``fillet_m``, as
+    CARLA's are; the inner corner's fillet sets how tightly a turn can be driven.
+    """
+
+    s_m: float
+    side: int = -1
+    width_m: float = 7.0
+    length_m: float = 40.0
+    fillet_m: float = 6.0
+
+    def __post_init__(self):
+        if self.side not in (-1, 1):
+            raise ValueError("side must be -1 (right) or +1 (left)")
+
+
+@dataclass(frozen=True)
 class RoadScene:
     kerb: KerbLine
     road_width_m: float = 7.0
@@ -136,12 +156,50 @@ class RoadScene:
     parked: tuple = ()
     openings: tuple = ()  # (s_start, s_end): side roads on the right, road surface out to 15 m
     crown_m: float = 0.0  # road centre this much higher than its edges (drainage camber)
+    side_roads: tuple = ()  # SideRoad junctions off a straight main road
 
     def on_road(self, s, d):
+        s, d = np.asarray(s, dtype=float), np.asarray(d, dtype=float)
         road = (d >= 0) & (d <= self.road_width_m)
         for s0, s1 in self.openings:
             road |= (s >= s0) & (s <= s1) & (d < 0) & (d > -15.0)
+        for sr in self.side_roads:
+            half, f, w = sr.width_m / 2, sr.fillet_m, self.road_width_m
+            if sr.side < 0:
+                body = (s >= sr.s_m - half) & (s <= sr.s_m + half) & (d < 0) & (d >= -sr.length_m)
+                corners = ((sr.s_m - half - f, -f, sr.s_m - half - f, sr.s_m - half), (sr.s_m + half + f, -f, sr.s_m + half, sr.s_m + half + f))
+                band = (d < 0) & (d >= -f)
+            else:
+                body = (s >= sr.s_m - half) & (s <= sr.s_m + half) & (d > w) & (d <= w + sr.length_m)
+                corners = ((sr.s_m - half - f, w + f, sr.s_m - half - f, sr.s_m - half), (sr.s_m + half + f, w + f, sr.s_m + half, sr.s_m + half + f))
+                band = (d > w) & (d <= w + f)
+            road |= body
+            for cs, cd, lo, hi in corners:  # the rounded pavement corner leaves road outside the fillet disc
+                road |= band & (s >= lo) & (s <= hi) & (np.hypot(s - cs, d - cd) > f)
         return road
+
+    def turn_path(self, side_road, radius_m=None):
+        """The ego lane centre through a turn into ``side_road``, as a KerbLine.
+
+        Entry lane centre (``lane_centre_m`` left of the right kerb) up to the arc, the
+        arc, then the exit lane centre: the right lane of the side road, leaving the main
+        road. A right turn's arc is concentric with the inner fillet (radius fillet +
+        lane centre) unless ``radius_m`` is given; a left turn crosses the junction box
+        with ``radius_m`` (default 9 m).
+        """
+        sr, lc, w = side_road, self.lane_centre_m, self.road_width_m
+        if any(not isinstance(piece, Straight) for piece in self.kerb.pieces):
+            raise ValueError("turn_path needs a straight main road")
+        x0, y0, h0, _ = self.kerb.starts[0]
+        start = (x0 - lc * math.sin(h0), y0 + lc * math.cos(h0), h0)
+        half = sr.width_m / 2
+        if sr.side < 0:
+            r = sr.fillet_m + lc if radius_m is None else radius_m
+            exit_s = sr.s_m - half + lc  # the side road's right lane centre, leaving along -d
+            return KerbLine([Straight(exit_s - r), Arc(-r, math.pi / 2), Straight(sr.length_m)], start=start)
+        r = 9.0 if radius_m is None else radius_m
+        exit_s = sr.s_m + half - lc  # the side road's right lane centre, leaving along +d
+        return KerbLine([Straight(exit_s - r), Arc(r, math.pi / 2), Straight(sr.length_m + w)], start=start)
 
     def box(self, car):
         x, y, h = self.kerb.pose_at(car.s_m)
@@ -227,6 +285,7 @@ class MaplessRoadWorld:
     rear_axle_offset_m: float = 1.38641
     azimuth_step_deg: float = 0.72
     noise: bool = True
+    turn: SideRoad | None = None  # the junction the route turns into (truth follows turn_path)
 
     def __post_init__(self):
         self.rng = np.random.default_rng(self.seed)
@@ -247,6 +306,7 @@ class MaplessRoadWorld:
             wheel_scale=1.0 + float(self.rng.normal(0.0, self.wheel.scale_sigma * scale)),
         )
         self._next_fix_s = 0.0
+        self.path = self.scene.turn_path(self.turn) if self.turn is not None else None
         self.boxes = [self.scene.box(car) for car in self.scene.parked]
         self.lidar_to_ego = sensor_to_ego(self.lidar.mount, self.rear_axle_offset_m)
         channels = np.linspace(self.lidar.lower_fov_deg, self.lidar.upper_fov_deg, self.lidar.channels)
@@ -258,20 +318,51 @@ class MaplessRoadWorld:
 
     # -- routes and truth ------------------------------------------------------------
     def route(self, goal_s_m, spacing_m=50.0, name="synthetic"):
-        """A LANEFOLLOW sat-nav route along the ego lane centre from the start to ``goal_s_m``."""
-        stations = list(np.arange(self.start_s_m, goal_s_m, spacing_m)) + [goal_s_m]
+        """A sat-nav route along the ego lane centre from the start to ``goal_s_m``.
+
+        With a ``turn``, the route carries the junction entry point (LEFT or RIGHT) where
+        the lane centre meets the junction box, the exit point 5 m into the side road,
+        and ``goal_s_m`` is measured along the turn path.
+        """
+        if self.path is None:
+            stations = list(np.arange(self.start_s_m, goal_s_m, spacing_m)) + [goal_s_m]
+            points = []
+            for s in stations:
+                x, y, h = self.scene.kerb.pose_at(s)
+                off = self.scene.lane_centre_m
+                lat, lon = self.plane.to_geodetic(x - off * math.sin(h), y + off * math.cos(h))
+                points.append(RoutePoint(lat, lon, Command.LANEFOLLOW))
+            return SatNavRoute(name, tuple(points))
+        sr, path = self.turn, self.path
+        entry_s = sr.s_m - sr.width_m / 2  # the junction box edge, on the entry lane
+        arc_start = path.starts[1][3]
+        arc_end = path.starts[2][3]
+        exit_s = arc_end + 5.0
+        command = Command.RIGHT if sr.side < 0 else Command.LEFT
+        # The entry point is the junction box's edge on the entry lane, as CARLA's routes
+        # place it (the lane's last waypoint before the junction), even when the turn's
+        # arc begins before it.
+        stations = [(s, Command.LANEFOLLOW) for s in np.arange(self.start_s_m, min(entry_s, arc_start) - 10.0, spacing_m)]
+        stations += [(entry_s, command), (exit_s, Command.LANEFOLLOW)]
+        if goal_s_m > exit_s + 0.5:
+            stations.append((goal_s_m, Command.LANEFOLLOW))
         points = []
-        for s in stations:
-            x, y, h = self.scene.kerb.pose_at(s)
-            off = self.scene.lane_centre_m
-            lat, lon = self.plane.to_geodetic(x - off * math.sin(h), y + off * math.cos(h))
-            points.append(RoutePoint(lat, lon, Command.LANEFOLLOW))
+        for s, cmd in stations:
+            x, y, _ = path.pose_at(s)
+            lat, lon = self.plane.to_geodetic(x, y)
+            points.append(RoutePoint(lat, lon, cmd))
         return SatNavRoute(name, tuple(points))
 
     def truth(self):
         st, car = self.state, self.car
-        s, d = self.scene.kerb.locate(np.array([[st.x, st.y]]))
-        _, _, h = self.scene.kerb.pose_at(float(s[0]))
+        if self.path is not None:
+            s, d = self.path.locate(np.array([[st.x, st.y]]))
+            _, _, h = self.path.pose_at(float(s[0]))
+            centre = 0.0
+        else:
+            s, d = self.scene.kerb.locate(np.array([[st.x, st.y]]))
+            _, _, h = self.scene.kerb.pose_at(float(s[0]))
+            centre = self.scene.lane_centre_m
         heading_error = (st.yaw - h + math.pi) % (2 * math.pi) - math.pi
         gap, collision = math.inf, False
         corners = self._body_corners()
@@ -286,7 +377,7 @@ class MaplessRoadWorld:
         return TruthSample(
             time_s=self.time_s,
             s_m=float(s[0]),
-            lane_offset_m=float(d[0]) - self.scene.lane_centre_m,
+            lane_offset_m=float(d[0]) - centre,
             heading_error_rad=heading_error,
             speed_mps=st.speed,
             front_gap_m=gap,
@@ -324,12 +415,17 @@ class MaplessRoadWorld:
         t = np.where(down & on_road, t_ground, t)
         t = np.where(down & ~on_road & top_on_pavement, t_kerb, t)
         # Over the road at kerb height but on the pavement at road level: the beam hits the
-        # kerb face. Interpolate to where it crosses the kerb line.
+        # kerb face. Bisect along the beam for where the ground changes from road to
+        # pavement (any kerb: the main road's or a side road's).
         face = down & ~on_road & ~top_on_pavement
-        boundary = np.where(d_ground < 0, 0.0, width)
-        with np.errstate(divide="ignore", invalid="ignore"):
-            f = np.clip((boundary - d_top) / (d_ground - d_top), 0.0, 1.0)
-        t = np.where(face, t_kerb + f * (t_ground - t_kerb), t)
+        lo, hi = t_kerb.copy(), t_ground.copy()  # road at lo's ground point, pavement at hi's
+        for _ in range(8):
+            mid = 0.5 * (lo + hi)
+            mid_xy = origin[:2] + mid[:, None] * directions[:, :2]
+            mid_road = self.scene.on_road(*self.scene.kerb.locate(mid_xy))
+            lo = np.where(mid_road, mid, lo)
+            hi = np.where(mid_road, hi, mid)
+        t = np.where(face, 0.5 * (lo + hi), t)
         for box in self.boxes:
             t = np.minimum(t, _ray_box(origin, directions, box))
         hit = np.isfinite(t) & (t <= r_max)

@@ -131,6 +131,10 @@ class Corridor:
         """y of the fitted centreline at body-frame x."""
         return float(np.polyval(self.coefficients, x_m))
 
+    def heading_at(self, x_m):
+        """Direction of the fitted centreline at body-frame x, radians in the vehicle frame."""
+        return math.atan(float(np.polyval(np.polyder(self.coefficients), x_m))) if len(self.coefficients) > 1 else 0.0
+
     def right_edge_body(self, x_m, within_m=2.0):
         """(x, y) in the vehicle frame of the right edge at the station nearest x (None if none)."""
         near = np.flatnonzero(np.isfinite(self.right_edge_m) & (np.abs(self.station_x_m - x_m) <= within_m))
@@ -213,6 +217,28 @@ class CorridorEstimator:
 
     def reset(self):
         self.previous = None
+
+    def seed(self, centre_body, pose, time_s):
+        """Start kerb following from a given line (the exit of a junction turn, G1c)."""
+        centre_body = np.asarray(centre_body, dtype=float).reshape(-1, 2)
+        if len(centre_body) < 2:
+            raise ValueError("seed needs at least two points")
+        n = len(centre_body)
+        self.previous = Corridor(
+            time_s=time_s,
+            pose=pose,
+            centre_body=centre_body,
+            centre_odometry=pose.to_world(centre_body),
+            valid_length_m=float(centre_body[-1, 0]),
+            coefficients=tuple(float(v) for v in np.polyfit(centre_body[:, 0], centre_body[:, 1], 1)),
+            station_x_m=centre_body[:, 0],
+            reference_y_m=centre_body[:, 1],
+            right_edge_m=np.full(n, np.nan),
+            left_edge_m=np.full(n, np.nan),
+            blocked=np.zeros(n, dtype=bool),
+            evidence_body=np.zeros((0, 2)),
+            evidence_time_s=time_s,
+        )
 
     def _profiles(self, grid, pose, stations, ref, max_age_s=None):
         """Cell labels across the reference at each station, the lateral offsets, and the centre column."""

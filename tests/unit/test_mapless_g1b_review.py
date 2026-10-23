@@ -206,8 +206,9 @@ def test_sensor_loss_in_a_bend_stops_the_car_in_its_lane(kind, steering):
     fault = after[faulted][1]
     assert fault.diagnostics["fault_steering"] == steering
     assert all(s.mode is DriveMode.FAULT and s.command.throttle == 0 for _, s in after[faulted:])
-    if kind == "lidar":  # braking along the bend, not with the wheels straight
-        assert fault.command.steering_angle_rad < -0.05
+    # Braking along the bend, not with the wheels straight: a dropped IMU or speedometer
+    # zeroes the odometry speed, which must not be read as "stationary" (review of 697d53c).
+    assert fault.command.steering_angle_rad < -0.05
     assert world.state.speed == 0
     assert max(abs(t.lane_offset_m) for t, _ in log) < IN_LANE_M
     assert not any(t.collision for t, _ in log)
@@ -383,6 +384,8 @@ def test_observe_path_counts_only_seen_ground_as_clear():
     # (review of 2b7e14d), and a kerb-high object in the lane is an obstacle.
     edge_only = ground[ground[:, 1] > 0.9]
     assert observe(edge_only).clear_to_m == 0.0
+    both_edges = ground[np.abs(ground[:, 1]) > 0.9]  # both outer strips, nothing in the middle
+    assert observe(both_edges).clear_to_m == 0.0
     low = np.array([[12.0 + 0.1 * i, 0.15 * j, 0.2] for i in range(10) for j in range(-3, 4)])
     found = observe(np.vstack((ground, low)))
     assert found.obstacle is not None and found.obstacle.distance_m == pytest.approx(12.0, abs=0.3)

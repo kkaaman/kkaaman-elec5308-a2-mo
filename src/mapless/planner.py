@@ -94,10 +94,12 @@ class LanePlanner:
         self._obstacle_point = None
         self._clear_since_s = self._clear_last_s = None
 
-    def plan(self, corridor, observation, goal_body, now_s):
+    def plan(self, corridor, observation, goal_body, now_s, hold_at_m=None):
         """``observation``: this sweep's ``PathObservation`` (None without a sweep this tick).
 
         ``goal_body``: the route goal in the vehicle frame, when it is within reach.
+        ``hold_at_m``: stop the rear axle this far along the path (a junction the car may
+        not enter yet); reported as stop reason "junction".
         """
         if not isinstance(corridor, Corridor):
             raise TypeError("corridor must be a Corridor")
@@ -143,6 +145,9 @@ class LanePlanner:
                 stop_s, state = math.inf, "clear"
             else:
                 reason = "obstacle_hold"
+
+        if hold_at_m is not None and math.isfinite(hold_at_m) and s_car + hold_at_m < stop_s:
+            stop_s, reason = s_car + hold_at_m, "junction"
 
         final_goal = False
         end = len(line)

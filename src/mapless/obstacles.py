@@ -34,7 +34,7 @@ class ObstacleConfig:
     cluster_window_m: float = 1.0
     clear_bin_m: float = 0.5
     clear_min_points: int = 2  # ground points that make a lateral strip of a slice seen ...
-    clear_strips: int = 3  # ... in at least clear_min_strips of this many strips across the tube
+    clear_strips: int = 3  # ... in the centre strip and at least clear_min_strips of this many across the tube
     clear_min_strips: int = 2
     raised_min_points: int = 12  # raised (kerb-high) points in the tube that count as an obstacle
     clear_start_m: float = 8.0  # seen ground must begin within this distance of the rear axle
@@ -42,8 +42,8 @@ class ObstacleConfig:
     gap_per_m: float = 0.3
 
     def __post_init__(self):
-        if not math.isfinite(self.margin_m) or self.margin_m < 0:
-            raise ValueError("margin_m must be non-negative")
+        if not math.isfinite(self.margin_m) or self.margin_m < -0.5:
+            raise ValueError("margin_m must be finite and not below -0.5")
         if self.min_points < 1 or self.cluster_window_m <= 0:
             raise ValueError("min_points and cluster_window_m must be positive")
 
@@ -121,14 +121,17 @@ def observe_path(sweep, corridor, body, config=None):
     enough of them stand in the tube: a 20 cm object in the lane is not driven over. Kerbs
     alongside are outside the tube by construction (review of 2b7e14d).
 
-    Seen clear needs ground in at least ``clear_min_strips`` of ``clear_strips`` strips
-    across the tube per slice: road seen beside an unobserved middle is not clearance.
+    Seen clear needs ground in the centre strip and in at least ``clear_min_strips`` of
+    ``clear_strips`` strips across the tube per slice: road seen beside an unobserved
+    middle is not clearance (review of 697d53c: both outer strips certified an unseen centre).
     """
     if not isinstance(sweep, ClassifiedSweep):
         raise TypeError("sweep must be a ClassifiedSweep")
     c = config or ObstacleConfig()
     obstacle = path_obstacle(sweep.of(PointClass.OBSTACLE), corridor, body, c)
-    low = path_obstacle(sweep.of(PointClass.RAISED), corridor, body, replace(c, min_points=c.raised_min_points))
+    # Raised points count only under the car's own track (no margin): a kerb beside the
+    # path is the road's edge, not an obstacle; a kerb under the track is.
+    low = path_obstacle(sweep.of(PointClass.RAISED), corridor, body, replace(c, min_points=c.raised_min_points, margin_m=-0.2))
     if low is not None and (obstacle is None or low.distance_m < obstacle.distance_m):
         obstacle = low
     if not corridor.ok:
@@ -152,8 +155,9 @@ def observe_path(sweep, corridor, body, config=None):
             strips = np.clip(((lateral + half) / (2 * half) * c.clear_strips).astype(int), 0, c.clear_strips - 1)
             counts = np.zeros((bins.max() + 1, c.clear_strips), dtype=int)
             np.add.at(counts, (bins, strips), 1)
-            covered = (counts >= c.clear_min_points).sum(axis=1)
-            seen = np.flatnonzero(covered >= c.clear_min_strips) * c.clear_bin_m
+            strip_seen = counts >= c.clear_min_points
+            centre = strip_seen[:, c.clear_strips // 2]  # the car's own track must be seen
+            seen = np.flatnonzero(centre & (strip_seen.sum(axis=1) >= c.clear_min_strips)) * c.clear_bin_m
             if seen.size and seen[0] <= c.clear_start_m:
                 clear = float(seen[0])
                 for x in seen[1:]:
