@@ -24,7 +24,7 @@ everything else:
 | Start-up | The car localised itself from GNSS and compass within 3 s, with no spawn pose |
 | No collision | No collision event |
 | Lane keeping | After the first 15 m: offset p95 ≤ 0.35 m and max ≤ 0.70 m |
-| Lane footprint | Whole run, calibration and start included: the car's body never crosses the lane's edges (its 0.6 m half-lane margin past the rear-axle offset) |
+| Lane footprint | Whole run, calibration and start included: no corner of the car's body crosses the lane's edges |
 | Calibration | The kerb distance was measured at a standstill and accepted, within 0.3 m of the map's |
 | Goal (straight, curve) | FINISHED, rear axle within 3 m of the goal |
 | Obstacle stop (stop) | Standing still, bumper gap 1.5 to 5.0 m, held for ``--hold-s`` |
@@ -387,6 +387,7 @@ class MaplessDrive:
         self.route = make_route(carla_map, wps, args.goal_m)
         self.route.save(args.output / "route.json")
         self.goal_xy = self.lane[LANE_BACK_M + int(round(args.goal_m))]
+        self.lane_end_s = float(np.sum(np.hypot(*np.diff(self.lane, axis=0).T))) - LANE_BACK_M
         self.report["site"] = rounded(
             {k: v for k, v in site.items() if k != "waypoints"} | dict(map=carla_map.name, start_xy_m=self.lane[LANE_BACK_M].tolist())
         )
@@ -503,6 +504,12 @@ class MaplessDrive:
                 if collisions.events:
                     end = "collision"
                     break
+                if truth["s_m"] > args.goal_m + 10.0:
+                    end = "drove past the goal"
+                    break
+                if truth["s_m"] >= self.lane_end_s - 1.0:
+                    end = "reached the end of the truth lane"
+                    break
                 if abs(truth["lane_offset_m"]) > 3.0:
                     end = "left the lane (more than 3 m off centre)"
                     break
@@ -549,17 +556,20 @@ class MaplessDrive:
             checks.append(
                 check("lane_keeping", PASS if p95 <= 0.35 and worst <= 0.70 else FAIL, p95_m=p95, max_m=worst, ticks=len(settled))
             )
-        # The whole run, calibration and start included: no part of the body outside the lane.
-        # The lane is lane_width wide; the body's half width past the rear-axle offset is the
-        # margin left. Measured at the rear axle and at the front bumper (heading error).
-        margin = self.site["lane_width_m"] / 2 - self.body.half_width_m
-        worst_body = 0.0
+        # The whole run, calibration and start included: no corner of the body outside the
+        # lane. Each corner's lateral offset from the lane centre is the rear axle's plus
+        # the corner's body position rotated by the heading error (rear overhang included).
+        half_lane = self.site["lane_width_m"] / 2
+        b = self.body
+        corners = [(b.front_m, b.half_width_m), (b.front_m, -b.half_width_m), (b.rear_m, -b.half_width_m), (b.rear_m, b.half_width_m)]
+        worst_corner = 0.0
         for r in log:
             t = r["truth"]
-            front = abs(t["lane_offset_m"] + self.body.front_m * math.sin(t["heading_error_rad"]))
-            worst_body = max(worst_body, abs(t["lane_offset_m"]), front)
+            sin_h, cos_h = math.sin(t["heading_error_rad"]), math.cos(t["heading_error_rad"])
+            for u, v in corners:
+                worst_corner = max(worst_corner, abs(t["lane_offset_m"] + u * sin_h + v * cos_h))
         checks.append(
-            check("lane_footprint", PASS if worst_body <= margin else FAIL, max_offset_m=worst_body, margin_m=margin, ticks=len(log))
+            check("lane_footprint", PASS if worst_corner <= half_lane else FAIL, max_corner_offset_m=worst_corner, half_lane_m=half_lane, ticks=len(log))
         )
         last = log[-1]
         summary = last["driver"].get("calibration")

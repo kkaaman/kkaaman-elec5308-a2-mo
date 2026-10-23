@@ -43,6 +43,7 @@ class PlannerConfig:
     validity_s: float = 0.5
     resume_clear_s: float = 1.0
     clear_beyond_m: float = 2.0
+    clear_gap_s: float = 0.15  # clear observations further apart than this are not continuous
 
     def __post_init__(self):
         for name in ("cruise_mps", "lateral_accel_mps2", "decel_mps2", "validity_s"):
@@ -86,11 +87,12 @@ class LanePlanner:
         self._hold_point = None  # odometry xy of the rear-axle stop point
         self._obstacle_point = None  # odometry xy of the held obstacle's nearest point
         self._clear_since_s = None
+        self._clear_last_s = None  # the last clear observation: continuity is judged against it
 
     def reset(self):
         self._hold_point = None
         self._obstacle_point = None
-        self._clear_since_s = None
+        self._clear_since_s = self._clear_last_s = None
 
     def plan(self, corridor, observation, goal_body, now_s):
         """``observation``: this sweep's ``PathObservation`` (None without a sweep this tick).
@@ -103,6 +105,7 @@ class LanePlanner:
             raise TypeError("observation must be a PathObservation or None")
         c = self.config
         if not corridor.ok:
+            self._clear_since_s = self._clear_last_s = None  # no corridor: clearance is not being observed
             return Plan(None, "", math.inf, math.inf, "unknown" if self._hold_point is not None else "")
         line = corridor.centre_body
         arcs = np.concatenate(([0.0], np.cumsum(np.hypot(*np.diff(line, axis=0).T))))
@@ -118,7 +121,7 @@ class LanePlanner:
             nearest = s_car + obstacle.distance_m
             point = np.interp(nearest, arcs, line[:, 0]), np.interp(nearest, arcs, line[:, 1])
             self._obstacle_point = corridor.pose.to_world(np.array([point]))[0]
-            self._clear_since_s = None
+            self._clear_since_s = self._clear_last_s = None
         elif self._hold_point is not None:
             held = corridor.pose.to_body(self._hold_point[None])
             stop_s = float(project_onto_polyline(held, line)[0][0])
@@ -126,12 +129,17 @@ class LanePlanner:
             needed = float(project_onto_polyline(where, line)[0][0]) - s_car + c.clear_beyond_m
             if observation is not None and observation.clear_to_m >= needed:
                 state = "clear"
-                self._clear_since_s = now_s if self._clear_since_s is None else self._clear_since_s
+                # Continuous means every tick: a gap (a fault, a missing sweep, the planner
+                # not called) restarts the count (review of 2b7e14d: one clear observation,
+                # 3 s of nothing, one more, and the stop released).
+                if self._clear_since_s is None or now_s - self._clear_last_s > c.clear_gap_s:
+                    self._clear_since_s = now_s
+                self._clear_last_s = now_s
             else:
                 state = "unknown"
-                self._clear_since_s = None
+                self._clear_since_s = self._clear_last_s = None
             if state == "clear" and now_s - self._clear_since_s >= c.resume_clear_s:
-                self._hold_point = self._obstacle_point = self._clear_since_s = None
+                self._hold_point = self._obstacle_point = self._clear_since_s = self._clear_last_s = None
                 stop_s, state = math.inf, "clear"
             else:
                 reason = "obstacle_hold"

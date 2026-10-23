@@ -42,6 +42,8 @@ class EgoMotionConfig:
     gnss_sigma_m: float = 1.2  # white noise plus the per-run bias the filter cannot see
     gyro_sigma_rps: float = 0.01
     max_bias_samples: int = 400
+    imu_max_age_s: float = 0.2  # yaw rate older than this: odometry is not trusted ...
+    speed_max_age_s: float = 0.2  # ... nor with a speed older than this
 
     def __post_init__(self):
         for name in ("startup_s", "compass_sigma_rad", "gnss_sigma_m", "gyro_sigma_rps"):
@@ -132,9 +134,11 @@ class EgoMotionState:
     stationary: bool
     route_sigma_m: float
     gyro_bias_rps: float
-    imu_age_s: float = 0.0  # since the last IMU sample (the yaw rate is held meanwhile)
+    imu_age_s: float = 0.0  # since the last IMU sample
     speed_age_s: float = 0.0  # since the last speedometer reading
     gnss_age_s: float = math.inf  # since the last GNSS fix
+    odometry_trusted: bool = True  # IMU and speedometer fresh: the odometry frame is sound
+    odometry_broken_s: float = 0.0  # time the odometry has spent untrusted since it was last sound
 
     @property
     def localised(self):
@@ -172,6 +176,7 @@ class EgoMotion:
         self._speed_time = -math.inf
         self._gnss_time = -math.inf
         self._speed = 0.0
+        self._untrusted_since = None
 
     def _start(self, time_s):
         xy = np.mean(self._startup_fixes, axis=0)
@@ -201,14 +206,23 @@ class EgoMotion:
         stationary = abs(recent.mean()) < c.stationary_speed_mps and np.abs(recent).max() < c.stationary_max_reading_mps
         if _ok(frame, "speedometer"):
             self._speed = 0.0 if stationary else max(0.0, float(frame.speed_mps))
-        speed = self._speed  # held while the speedometer is missing; the driver bounds how long
         fresh_gyro = frame.imu is not None
         if fresh_gyro:
             self._yaw_rate = frame.imu.yaw_rate_rps
             self._imu_time = t
         if frame.gnss is not None:
             self._gnss_time = t
-        odometry = self.odometry.update(t, speed, self._yaw_rate, stationary, fresh_gyro)
+        trusted = t - self._imu_time <= c.imu_max_age_s and t - self._speed_time <= c.speed_max_age_s
+        if trusted:
+            self._untrusted_since = None
+        elif self._untrusted_since is None:
+            self._untrusted_since = t
+        # With a stale speedometer or IMU, integrating held readings invents motion (a 3 s
+        # speedometer outage integrated 6 m for 0.8 m driven, review of 2b7e14d). Integrate
+        # nothing: the frame then lags the car by what it drove, which the driver treats as a
+        # broken frame and rebuilds from a standstill.
+        speed = self._speed if trusted else 0.0
+        odometry = self.odometry.update(t, speed, self._yaw_rate if trusted else 0.0, stationary, fresh_gyro and trusted)
         fix = None if frame.gnss is None else self.plane.to_local(frame.gnss.latitude_deg, frame.gnss.longitude_deg)
         compass = None if frame.imu is None else yaw_from_compass(frame.imu.compass_rad)
         if not self.route.initialised:
@@ -251,6 +265,8 @@ class EgoMotion:
             imu_age_s=t - self._imu_time,
             speed_age_s=t - self._speed_time,
             gnss_age_s=t - self._gnss_time,
+            odometry_trusted=trusted,
+            odometry_broken_s=0.0 if trusted else t - self._untrusted_since,
         )
 
 

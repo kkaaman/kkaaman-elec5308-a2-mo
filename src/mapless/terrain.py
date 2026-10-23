@@ -207,6 +207,19 @@ class TerrainGrid:
         self.obstacle = np.zeros_like(self.road)
         self.tall = np.zeros_like(self.road)  # obstacle hits remembered as long as kerbs are
         self.seen = np.full((self.n, self.n), -np.inf)  # simulation time each cell was last hit
+        # ... and last hit by each class, so a fresh road return cannot vouch for an old kerb
+        # (review of 2b7e14d): "fresh kerb" means a recent raised hit in that cell.
+        self.seen_by_class = {k: np.full((self.n, self.n), -np.inf) for k in (PointClass.ROAD, PointClass.RAISED, PointClass.OBSTACLE)}
+        self.time_s = None
+
+    def reset(self):
+        """Forget every observation: the odometry frame they were placed in is no longer sound."""
+        for name in ("road", "raised", "obstacle", "tall"):
+            getattr(self, name).fill(0.0)
+        self.seen.fill(-np.inf)
+        for grid in self.seen_by_class.values():
+            grid.fill(-np.inf)
+        self.origin = np.array([-self.config.size_m / 2, -self.config.size_m / 2])
         self.time_s = None
 
     def _centre(self):
@@ -215,16 +228,19 @@ class TerrainGrid:
     def _recentre(self, x, y):
         c = self.config
         shift = np.round((np.array([x, y]) - self._centre()) / c.cell_m).astype(int)
-        for name in ("road", "raised", "obstacle", "tall", "seen"):
-            old = getattr(self, name)
-            new = np.full_like(old, -np.inf) if name == "seen" else np.zeros_like(old)
+        for name in ("road", "raised", "obstacle", "tall", "seen", *self.seen_by_class):
+            old = getattr(self, name) if not isinstance(name, PointClass) else self.seen_by_class[name]
+            new = np.full_like(old, -np.inf) if name == "seen" or isinstance(name, PointClass) else np.zeros_like(old)
             di, dj = shift
             src_i = slice(max(0, di), min(self.n, self.n + di))
             dst_i = slice(max(0, -di), min(self.n, self.n - di))
             src_j = slice(max(0, dj), min(self.n, self.n + dj))
             dst_j = slice(max(0, -dj), min(self.n, self.n - dj))
             new[dst_i, dst_j] = old[src_i, src_j]
-            setattr(self, name, new)
+            if isinstance(name, PointClass):
+                self.seen_by_class[name] = new
+            else:
+                setattr(self, name, new)
         self.origin = self.origin + shift * c.cell_m
 
     def cells(self, xy):
@@ -259,12 +275,14 @@ class TerrainGrid:
         ):
             hit = np.unique(flat[inside & (sweep.cls == point_class)])
             grid.ravel()[hit] += 1.0
+            self.seen_by_class[point_class].ravel()[hit] = time_s
 
-    def seen_at(self, xy):
-        """Simulation time each odometry point's cell was last hit (-inf if never or outside)."""
+    def seen_at(self, xy, point_class=None):
+        """Simulation time each odometry point's cell was last hit, by ``point_class`` if given (-inf if never or outside)."""
         ij, inside = self.cells(xy)
         out = np.full(len(ij), -np.inf)
-        out[inside] = self.seen[ij[inside, 0], ij[inside, 1]]
+        source = self.seen if point_class is None else self.seen_by_class[PointClass(point_class)]
+        out[inside] = source[ij[inside, 0], ij[inside, 1]]
         return out
 
     def labels(self, xy, max_age_s=None):
@@ -296,7 +314,11 @@ class TerrainGrid:
         result[is_barrier] = CellLabel.BARRIER
         result[is_occupied] = CellLabel.OCCUPIED
         if max_age_s is not None and self.time_s is not None:
-            result[self.seen[i, j] < self.time_s - max_age_s] = CellLabel.UNKNOWN
+            stale = self.seen[i, j] < self.time_s - max_age_s
+            # A label is as fresh as the class that made it, not any hit in the cell.
+            stale |= is_barrier & (self.seen_by_class[PointClass.RAISED][i, j] < self.time_s - max_age_s)
+            stale |= is_road & ~is_barrier & ~is_occupied & (self.seen_by_class[PointClass.ROAD][i, j] < self.time_s - max_age_s)
+            result[stale] = CellLabel.UNKNOWN
         out[inside] = result
         return out
 

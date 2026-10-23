@@ -26,7 +26,9 @@ assumed again, at a standstill, to re-acquire a lost corridor.
   calibration (latched) or no corridor. The car brakes along its last trajectory while
   odometry is trusted, otherwise with the steering held, and recovers by itself once the
   cause is gone. It does not move off a standstill on kerb evidence older than
-  ``start_evidence_max_age_s``.
+  ``start_evidence_max_age_s``. After an IMU or speedometer outage the odometry frame is
+  broken (nothing was integrated), so the car stops and rebuilds grid, corridor, obstacle
+  hold and trajectory together from a standstill before driving again.
 
 Nothing here reads the simulator; the only inputs are ``SensorFrame``s, the sensor suite,
 the route and the car's own body and controller geometry.
@@ -70,8 +72,6 @@ class DriverConfig:
     obstacles: ObstacleConfig = field(default_factory=ObstacleConfig)
     planner: PlannerConfig = field(default_factory=PlannerConfig)
     lidar_max_age_s: float = 0.15
-    imu_max_age_s: float = 0.2  # yaw rate held longer than this: odometry is not trusted
-    speed_max_age_s: float = 0.2
     gnss_max_age_s: float = 3.0
     route_max_sigma_m: float = 4.0  # route position this uncertain: the goal cannot be judged
     start_evidence_max_age_s: float = 0.5  # move off a standstill only on kerb evidence this fresh
@@ -110,7 +110,7 @@ class MaplessDriver:
         self.dt_s = dt_s
         self.lidar = lidars[0]
         self.health = HealthTracker(suite, dt_s)
-        self.progress = RouteProgress(route)
+        self.progress = RouteProgress(route, north_sign=suite.gnss.north_sign if suite.gnss is not None else 1)
         self.ego = EgoMotion(self.progress.plane, config.ego)
         self.grid = TerrainGrid(config.terrain)
         self.corridor = CorridorEstimator(config.corridor)
@@ -120,6 +120,7 @@ class MaplessDriver:
         self._finished = False
         self._last_steer = 0.0
         self._calibrated = False
+        self._rebuild = False  # odometry was lost: grid, corridor, hold and trajectory are stale
 
     def _brake(self, mode, reason, diagnostics):
         """Standstill hold: wheels straight, brake on."""
@@ -139,10 +140,9 @@ class MaplessDriver:
         """
         c = self.config
         moving = motion.speed_mps > c.control.controller.stopped_speed_mps
-        trusted = motion.imu_age_s <= c.imu_max_age_s and motion.speed_age_s <= c.speed_max_age_s
         steer, how = (self._last_steer if moving else 0.0), "held"
         brake = HOLD
-        if trusted and self.controller.trajectory is not None:
+        if motion.odometry_trusted and not self._rebuild and self.controller.trajectory is not None:
             state = VehicleState(motion.odometry.x_m, motion.odometry.y_m, motion.odometry.yaw_rad, motion.speed_mps)
             result = self.controller.update(state, t, dt, speed_limit_mps=0.0)
             steer, how = result.command.steering_angle_rad, "trajectory"
@@ -162,7 +162,10 @@ class MaplessDriver:
         classified = None
         if frame.status_of(self.lidar).state is SensorState.OK:
             classified = classify_sweep(frame.lidar(self.lidar).xyz, c.body, c.terrain)
-            self.grid.add(classified, motion.odometry, t)
+            if motion.odometry_trusted and not self._rebuild:
+                self.grid.add(classified, motion.odometry, t)  # never placed with a broken frame
+        if not motion.odometry_trusted:
+            self._rebuild = True
         d = dict(
             time_s=t,
             odometry=(motion.odometry.x_m, motion.odometry.y_m, motion.odometry.yaw_rad),
@@ -174,6 +177,8 @@ class MaplessDriver:
             speed_age_s=motion.speed_age_s,
             gnss_age_s=motion.gnss_age_s,
             lidar_points=None if classified is None else int(len(classified.xyz)),
+            odometry_trusted=motion.odometry_trusted,
+            rebuilding=self._rebuild,
             keep_right_m=self.corridor.keep_right_m,
             keep_right_source=self.corridor.keep_right_source,
         )
@@ -181,7 +186,7 @@ class MaplessDriver:
             return self._brake(DriveMode.FINISHED, "goal reached", d)
         calibration = "configured" if self.corridor.keep_right_source == "configured" else "accepted"
         if self.corridor.keep_right_source != "configured" and not self._calibrated:
-            calibration = self.corridor.calibrate(self.grid, motion.odometry, t, motion.stationary and classified is not None)
+            calibration = self.corridor.calibrate(classified, motion.odometry, t, motion.stationary)
             self._calibrated = calibration == "accepted"
             d.update(
                 calibration=self.corridor.calibration_summary,
@@ -211,27 +216,37 @@ class MaplessDriver:
         d.update(route_index=guidance.index, goal_distance_m=guidance.goal_distance_m, route_finished=guidance.finished)
         if stale:
             return self._fault(f"LiDAR older than {c.lidar_max_age_s:.2f} s", d, motion, t, dt)
-        if motion.imu_age_s > c.imu_max_age_s:
-            return self._fault(f"IMU {motion.imu_age_s:.2f} s old", d, motion, t, dt)
-        if motion.speed_age_s > c.speed_max_age_s:
-            return self._fault(f"speedometer {motion.speed_age_s:.2f} s old", d, motion, t, dt)
+        if not motion.odometry_trusted:
+            which = "IMU" if motion.imu_age_s > c.ego.imu_max_age_s else "speedometer"
+            age = max(motion.imu_age_s, motion.speed_age_s)
+            return self._fault(f"{which} {age:.2f} s old: odometry not trusted", d, motion, t, dt)
+        if self._rebuild:
+            # The odometry frame skipped the motion during the outage, so everything placed
+            # in it (grid, corridor, obstacle hold, trajectory) is off by that much. Brake
+            # to a standstill, then rebuild from the start-up assumption: the car stands in
+            # its lane (review of 2b7e14d: resetting the corridor alone left the rest).
+            if not motion.stationary:
+                return self._fault("odometry recovered: stopping to rebuild the local frame", d, motion, t, dt)
+            self.grid.reset()
+            self.corridor.reset()
+            self.planner.reset()
+            self.controller.reset()
+            self._rebuild = False
+            d.update(frame_rebuilt=True)
+            if classified is not None:
+                self.grid.add(classified, motion.odometry, t)
+            return self._fault("local frame rebuilt from a standstill: waiting for a corridor", d, motion, t, dt)
         if motion.gnss_age_s > c.gnss_max_age_s:
             return self._fault(f"GNSS {motion.gnss_age_s:.1f} s old", d, motion, t, dt)
         if motion.route_sigma_m > c.route_max_sigma_m:
             return self._fault(f"route position uncertain ({motion.route_sigma_m:.1f} m)", d, motion, t, dt)
         if not corridor.ok:
-            if motion.stationary:
-                # Stopped without a corridor: assume again that the car stands in its lane,
-                # so the next sweeps search for the kerb from the car's own line.
+            if motion.stationary and corridor.evidence_age_s > c.corridor.evidence_max_age_s:
+                # Stopped and the corridor is gone for good: assume again that the car stands
+                # in its lane, so the next sweeps search for the kerb from the car's own line.
                 self.corridor.reset()
                 d.update(corridor_reacquire=True)
             return self._fault(f"no corridor: {corridor.reason}", d, motion, t, dt)
-        if motion.stationary and corridor.evidence_age_s > c.start_evidence_max_age_s:
-            self.corridor.reset()
-            d.update(corridor_reacquire=True)
-            return self._fault(
-                f"kerb evidence {corridor.evidence_age_s:.1f} s old: not moving off on a carried corridor", d, motion, t, dt
-            )
         observation = None if classified is None else observe_path(classified, corridor, c.body, c.obstacles)
         obstacle = None if observation is None else observation.obstacle
         goal_body = None
@@ -255,6 +270,12 @@ class MaplessDriver:
             # Stopped at the stop point: hold the brake rather than let the speed loop
             # creep. Driving resumes once the path is seen clear for resume_clear_s.
             return self._brake(DriveMode.STOPPING, f"holding for {plan.stop_reason} ({plan.hold_state})", d)
+        if motion.stationary and corridor.evidence_age_s > c.start_evidence_max_age_s:
+            # Moving off needs a kerb seen now, not a line carried from before the stop.
+            # The line is kept: it expires on its own after evidence_max_age_s.
+            return self._fault(
+                f"kerb evidence {corridor.evidence_age_s:.1f} s old: not moving off on a carried corridor", d, motion, t, dt
+            )
         if plan.trajectory is None:
             return self._fault("no plan", d, motion, t, dt)
         state = VehicleState(motion.odometry.x_m, motion.odometry.y_m, motion.odometry.yaw_rad, motion.speed_mps)

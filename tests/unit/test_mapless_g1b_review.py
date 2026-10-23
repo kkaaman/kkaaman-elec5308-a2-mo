@@ -95,8 +95,9 @@ def standstill_calibration(scene, ticks=80, **world_args):
     pose = Pose2D(0.0, 0.0, 0.0)
     status = "calibrating"
     for _ in range(ticks):
-        grid.add(classify_sweep(world.frame().lidar("roof").xyz, BODY, TerrainConfig()), pose, world.time_s)
-        status = estimator.calibrate(grid, pose, world.time_s, True)
+        sweep = classify_sweep(world.frame().lidar("roof").xyz, BODY, TerrainConfig())
+        grid.add(sweep, pose, world.time_s)
+        status = estimator.calibrate(sweep, pose, world.time_s, True)
         world.time_s += DT
         if status != "calibrating":
             break
@@ -120,6 +121,10 @@ def standstill_calibration(scene, ticks=80, **world_args):
         # Live run e: the lane runs a few degrees off the start heading soon after the start.
         pytest.param(RoadScene(KerbLine([Straight(12), Arc(30, math.radians(3.4)), Straight(150)])), {}, 1.75, id="kink"),
         pytest.param(STRAIGHT, dict(start_offset_m=0.4), 2.15, id="started_off_centre"),
+        # The live "straight" site: a 58 m radius bend through the start. A line fit read
+        # the chord, 0.4 m inside the kerb beside the car.
+        pytest.param(RoadScene(KerbLine([Arc(58, 1.2), Straight(100)]), road_width_m=11.0, lane_centre_m=4.4),
+                     dict(start_s_m=30.0), 4.4, id="bend_r58_through_the_start"),
     ],
 )
 def test_standstill_calibration_measures_the_kerb_across_the_kerb(scene, world_args, truth_m):
@@ -135,8 +140,9 @@ def test_calibration_fails_with_a_reason_instead_of_defaulting():
     grid, estimator = TerrainGrid(), CorridorEstimator()
     pose = Pose2D(0.0, 0.0, 0.0)
     for _ in range(100):  # the LiDAR reports OK but returns nothing
-        grid.add(classify_sweep(np.zeros((0, 3)), BODY, TerrainConfig()), pose, world.time_s)
-        status = estimator.calibrate(grid, pose, world.time_s, True)
+        sweep = classify_sweep(np.zeros((0, 3)), BODY, TerrainConfig())
+        grid.add(sweep, pose, world.time_s)
+        status = estimator.calibrate(sweep, pose, world.time_s, True)
         world.time_s += DT
     assert status.startswith("failed: kerb not seen")
     assert estimator.keep_right_m is None
@@ -216,6 +222,47 @@ def test_stale_ego_sensors_fault_and_recover(kind, seconds_out):
     assert any(s.mode is DriveMode.FAULT and kind.replace("speedometer", "speedometer").lower() in s.reason.lower()
                or (kind == "gnss" and "GNSS" in s.reason) for s in out)
     assert any(s.mode is DriveMode.DRIVING for _, s in log[end:])  # recovered
+    assert not any(t.collision for t, _ in log)
+    if kind != "gnss":
+        # The odometry integrated nothing during the outage, so the frame lags the car by
+        # what it drove; the car stops and rebuilds grid, corridor, hold and trajectory
+        # together before driving again (review of 2b7e14d), and ends up where it should.
+        rebuilt = [i for i, (_, s) in enumerate(log) if s.diagnostics.get("frame_rebuilt")]
+        assert rebuilt and log[rebuilt[0]][0].speed_mps < 0.1
+        assert not any(s.diagnostics.get("odometry_trusted") for _, s in log[start + 5 : end])
+        moved_during = log[end][0].s_m - log[start][0].s_m
+        assert moved_during > 0.5  # it was moving when the sensor dropped
+        after = [(t, s) for t, s in log[rebuilt[0] :] if s.mode is DriveMode.DRIVING]
+        assert after and abs(after[-1][0].lane_offset_m) < IN_LANE_M
+        truth, last = log[-1]
+        assert abs(truth.lane_offset_m) < 0.3
+
+
+def test_an_odometry_outage_does_not_poison_the_grid_or_the_hold():
+    # Hold for a parked car, lose the speedometer for 3 s while a rolling start is forced by
+    # the world (the car is pushed 2 m), regain it: the stop point must be re-measured, not
+    # kept 2 m too far ahead in the old frame.
+    pushed = {"done": False}
+
+    def tamper(k, frame, world, log):
+        holding = log and log[-1][1].reason.startswith("holding for obstacle")
+        if holding and not pushed["done"]:
+            pushed["done"] = True
+            pushed["from"] = k
+        if pushed["done"] and k < pushed["from"] + int(3.0 / DT):
+            if k == pushed["from"] + 10:
+                st = world.state
+                st.x += 2.0 * math.cos(st.yaw)
+                st.y += 2.0 * math.sin(st.yaw)
+            return degrade(frame, drop=("speedometer",))
+        return frame
+
+    log, world = run(PARKED_IN_LANE, seconds=45, tamper=tamper)
+    assert pushed["done"]
+    after = log[pushed["from"] :]
+    assert any(s.diagnostics.get("frame_rebuilt") for _, s in after)
+    gaps = [t.front_gap_m for t, s in after if s.reason.startswith("holding for obstacle")]
+    assert gaps and 1.0 <= min(gaps[-20:]) <= 5.0  # the hold was re-measured, 2 m closer
     assert not any(t.collision for t, _ in log)
 
 
@@ -332,3 +379,10 @@ def test_observe_path_counts_only_seen_ground_as_clear():
     assert observe(hole).clear_to_m == pytest.approx(8.0, abs=0.3)  # an unseen gap ends it
     assert observe(ground[ground[:, 0] > 10.0]).clear_to_m == 0.0  # must start near the car
     assert observe(np.zeros((0, 3))).clear_to_m == 0.0
+    # Ground seen only along one edge of the tube is not clearance across the car's width
+    # (review of 2b7e14d), and a kerb-high object in the lane is an obstacle.
+    edge_only = ground[ground[:, 1] > 0.9]
+    assert observe(edge_only).clear_to_m == 0.0
+    low = np.array([[12.0 + 0.1 * i, 0.15 * j, 0.2] for i in range(10) for j in range(-3, 4)])
+    found = observe(np.vstack((ground, low)))
+    assert found.obstacle is not None and found.obstacle.distance_m == pytest.approx(12.0, abs=0.3)

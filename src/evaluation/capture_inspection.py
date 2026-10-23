@@ -21,7 +21,8 @@ Reads one run folder written by ``carla_adapter.mapless_capture`` and writes, un
     than elsewhere when the label image belongs to its RGB image (ratio >= 1.5);
   - measured encounters: samples with a vehicle in the ego's path within 30 m, and with
     a pedestrian within 20 m;
-  - a verdict (``acceptance``): ACCEPT, or REJECT with the reasons.
+  - a verdict (``acceptance``) in three parts: integrity and geometry decide ACCEPT or
+    REJECT (with the reasons); coverage (encounters) only warns.
 - ``contact_sheet.png``: random samples, each as front RGB, semantic overlay, and LiDAR
   projected on the image coloured by range.
 - ``cameras_sheet.png``: every camera with its overlay, for two samples.
@@ -186,39 +187,54 @@ def manifest_suite_sha(manifest):
 
 
 def verdict(summary):
-    """ACCEPT, or REJECT with reasons; NEEDS_REPAIR for schema-1 truth boxes."""
-    reasons = []
+    """Three answers, not one (review of 2b7e14d): are the files sound, are the labels and
+    boxes right, and does the run hold enough encounters for the perception tasks?
+
+    ``integrity`` and ``geometry`` decide ACCEPT/REJECT; ``coverage`` is a warning: a run
+    thin on pedestrians still trains road, lane-marking and background classes. Schema-1
+    truth boxes make it NEEDS_REPAIR. The RGB-to-label edge ratio is a warning as well: a
+    low ratio asks for a look at the contact sheet, it does not prove a mismatch.
+    """
+    integrity, geometry, coverage = [], [], []
     if summary["status"] != "COMPLETE":
-        reasons.append(f"run status {summary['status']}")
+        integrity.append(f"run status {summary['status']}")
     i = summary["integrity"]
     if i["missing_files"]:
-        reasons.append(f"{i['missing_files']} referenced files missing")
+        integrity.append(f"{i['missing_files']} referenced files missing")
     if i["uneven_cameras"]:
-        reasons.append(f"uneven per-camera counts: {i['uneven_cameras']}")
+        integrity.append(f"uneven per-camera counts: {i['uneven_cameras']}")
     if i["rear_axle_offset_spread_m"] is not None and i["rear_axle_offset_spread_m"] > 0.01:
-        reasons.append(f"rear-axle offsets differ by {i['rear_axle_offset_spread_m']} m between episodes")
+        integrity.append(f"rear-axle offsets differ by {i['rear_axle_offset_spread_m']} m between episodes")
     if not i["suite_matches_manifest"]:
-        reasons.append("the manifest's suite does not hash to its recorded suite_sha256")
+        integrity.append("the manifest's suite does not hash to its recorded suite_sha256")
     if summary["label_shape_errors"]:
-        reasons.append("label images of the wrong shape")
+        geometry.append("label images of the wrong shape")
+    warnings = []
     for name, check in summary["projection_checks"].items():
         g, v = check["ground_points_on_ground_labels"], check["vehicle_points_on_vehicle_labels"]
         if g is not None and g < 0.9:
-            reasons.append(f"{name}: ground projection {g}")
+            geometry.append(f"{name}: ground projection {g}")
         if v is not None and check["vehicle_points"] >= 200 and v < 0.8:
-            reasons.append(f"{name}: vehicle projection {v}")
+            geometry.append(f"{name}: vehicle projection {v}")
         pairing = check.get("rgb_label_edge_ratio")
         if pairing is not None and pairing < 1.5:
-            reasons.append(f"{name}: RGB and label images do not pair (edge ratio {pairing})")
+            warnings.append(f"{name}: RGB and label images may not pair (edge ratio {pairing}); check the contact sheet")
     e = summary["encounters"]
     if e["samples_with_vehicle_in_path_30m"] < 0.05 * summary["samples"]:
-        reasons.append("fewer than 5% of samples have a vehicle in the ego's path within 30 m")
+        coverage.append("fewer than 5% of samples have a vehicle in the ego's path within 30 m")
     if e["samples_with_pedestrian_20m"] < 0.05 * summary["samples"]:
-        reasons.append("fewer than 5% of samples have a pedestrian within 20 m")
-    status = "REJECT" if reasons else "ACCEPT"
-    if not reasons and (i["schema"] or "").endswith("-1"):
-        status, reasons = "NEEDS_REPAIR", ["schema 1 truth boxes are placed on the actor origin; run scripts/repair_mapless_capture.py"]
-    return dict(status=status, reasons=reasons)
+        coverage.append("fewer than 5% of samples have a pedestrian within 20 m: weak for pedestrian training")
+    status = "REJECT" if integrity or geometry else "ACCEPT"
+    if status == "ACCEPT" and (i["schema"] or "").endswith("-1"):
+        status = "NEEDS_REPAIR"
+        geometry = ["schema 1 truth boxes are placed on the actor origin; run scripts/repair_mapless_capture.py"]
+    return dict(
+        status=status,
+        integrity=dict(status="FAIL" if integrity else "PASS", reasons=integrity),
+        geometry=dict(status="FAIL" if geometry else "PASS", reasons=geometry, warnings=warnings),
+        coverage=dict(status="WARN" if coverage else "PASS", reasons=coverage),
+        reasons=integrity + geometry,
+    )
 
 
 def inspect(run, *, max_samples=200, sheet_samples=8, seed=0, cv2=None):

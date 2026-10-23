@@ -28,7 +28,7 @@ import carla_adapter.sensor_rig_check as rig_check
 from evaluation.satnav_route import carla_geolocation
 
 ROOT = Path(__file__).resolve().parents[2]
-GEO = carla_geolocation(49.0, 8.0)
+GEO = carla_geolocation(49.0, 8.0)  # as the 0.9.16 server: latitude grows with CARLA +y
 DT = 0.05
 LANE = 3.5
 

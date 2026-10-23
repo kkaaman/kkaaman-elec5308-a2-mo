@@ -126,14 +126,22 @@ class SatNavRoute:
 
 
 class LocalTangentPlane:
-    """Equirectangular east/north metres about a reference fix."""
+    """Equirectangular east/north metres about a reference fix.
 
-    def __init__(self, latitude_deg, longitude_deg):
+    ``north_sign`` -1 flips y so that the plane stays right-handed with the compass heading
+    on a receiver whose latitude grows towards the compass's south (CARLA 0.9.16; see
+    ``GnssSpec.north_sign``).
+    """
+
+    def __init__(self, latitude_deg, longitude_deg, north_sign=1):
         if not (math.isfinite(latitude_deg) and math.isfinite(longitude_deg)) or abs(latitude_deg) >= 89:
             raise ValueError("Reference fix must be finite and away from the poles")
+        if north_sign not in (1, -1):
+            raise ValueError("north_sign must be 1 or -1")
         self.lat0, self.lon0 = float(latitude_deg), float(longitude_deg)
+        self.north_sign = int(north_sign)
         self._east = math.radians(1.0) * EARTH_RADIUS_M * math.cos(math.radians(self.lat0))
-        self._north = math.radians(1.0) * EARTH_RADIUS_M
+        self._north = math.radians(1.0) * EARTH_RADIUS_M * self.north_sign
 
     def to_local(self, latitude_deg, longitude_deg):
         return (
@@ -166,14 +174,14 @@ class RouteProgress:
     within ``goal_reach_m``.
     """
 
-    def __init__(self, route, *, reach_m=4.0, pass_corridor_m=12.0, goal_reach_m=3.0):
+    def __init__(self, route, *, reach_m=4.0, pass_corridor_m=12.0, goal_reach_m=3.0, north_sign=1):
         if not isinstance(route, SatNavRoute):
             raise TypeError("route must be a SatNavRoute")
         for name, value in (("reach_m", reach_m), ("pass_corridor_m", pass_corridor_m), ("goal_reach_m", goal_reach_m)):
             if not math.isfinite(value) or value <= 0:
                 raise ValueError(f"{name} must be positive")
         self.route = route
-        self.plane = LocalTangentPlane(route.points[0].latitude_deg, route.points[0].longitude_deg)
+        self.plane = LocalTangentPlane(route.points[0].latitude_deg, route.points[0].longitude_deg, north_sign)
         self.xy = tuple(self.plane.to_local(p.latitude_deg, p.longitude_deg) for p in route.points)
         self.reach_m, self.pass_corridor_m, self.goal_reach_m = reach_m, pass_corridor_m, goal_reach_m
         self.index = 1

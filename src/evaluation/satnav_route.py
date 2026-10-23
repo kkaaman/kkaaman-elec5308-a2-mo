@@ -24,18 +24,23 @@ _MANOEUVRE = {"left": Command.LEFT, "right": Command.RIGHT, "straight": Command.
 
 
 def carla_geolocation(reference_lat_deg, reference_lon_deg):
-    """Pure copy of CARLA's ``GeoLocation::Transform`` (Mercator, scaled at the reference).
+    """CARLA's ``GeoLocation::Transform`` as the 0.9.16 server computes it (Mercator, scaled
+    at the reference).
 
     Returns ``geolocate(x, y)`` taking CARLA x/y (left-handed, +y right) and returning
-    (latitude, longitude) in degrees. The live route script checks it against
-    ``map.transform_to_geolocation`` before trusting it.
+    (latitude, longitude) in degrees. Latitude grows with CARLA +y: the source comment
+    says the y axis is inverted "to have increasing latitudes northward", but both
+    ``map.transform_to_geolocation`` and the GNSS sensor on the live 0.9.16 server give
+    +0.9993 m of latitude per metre of CARLA +y (``scripts/check_geolocation.py``, Town04,
+    23 Oct), the opposite of the compass's north. The live route script checks this
+    formula against the map before trusting it.
     """
     scale = math.cos(math.radians(reference_lat_deg))
     mx0 = scale * math.radians(reference_lon_deg) * EARTH_RADIUS_M
     my0 = scale * EARTH_RADIUS_M * math.log(math.tan(math.radians(90.0 + reference_lat_deg) / 2))
 
     def geolocate(x, y):
-        mx, my = mx0 + x, my0 - y
+        mx, my = mx0 + x, my0 + y
         lon = math.degrees(mx / (EARTH_RADIUS_M * scale))
         lat = math.degrees(2 * math.atan(math.exp(my / (EARTH_RADIUS_M * scale)))) - 90.0
         return lat, lon

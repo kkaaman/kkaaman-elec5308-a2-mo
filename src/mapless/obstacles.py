@@ -19,7 +19,7 @@ towards a parked car between flickering detections).
 """
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 import numpy as np
 
@@ -33,7 +33,10 @@ class ObstacleConfig:
     min_points: int = 6
     cluster_window_m: float = 1.0
     clear_bin_m: float = 0.5
-    clear_min_points: int = 2  # ground points that make a slice of the tube seen
+    clear_min_points: int = 2  # ground points that make a lateral strip of a slice seen ...
+    clear_strips: int = 3  # ... in at least clear_min_strips of this many strips across the tube
+    clear_min_strips: int = 2
+    raised_min_points: int = 12  # raised (kerb-high) points in the tube that count as an obstacle
     clear_start_m: float = 8.0  # seen ground must begin within this distance of the rear axle
     gap_m: float = 1.0
     gap_per_m: float = 0.3
@@ -112,11 +115,22 @@ class PathObservation:
 
 
 def observe_path(sweep, corridor, body, config=None):
-    """This sweep's view of the path: the nearest obstacle, and how far it is seen clear."""
+    """This sweep's view of the path: the nearest obstacle, and how far it is seen clear.
+
+    Obstacles are OBSTACLE points (0.3 m up), and also RAISED points (kerb-high) when
+    enough of them stand in the tube: a 20 cm object in the lane is not driven over. Kerbs
+    alongside are outside the tube by construction (review of 2b7e14d).
+
+    Seen clear needs ground in at least ``clear_min_strips`` of ``clear_strips`` strips
+    across the tube per slice: road seen beside an unobserved middle is not clearance.
+    """
     if not isinstance(sweep, ClassifiedSweep):
         raise TypeError("sweep must be a ClassifiedSweep")
     c = config or ObstacleConfig()
     obstacle = path_obstacle(sweep.of(PointClass.OBSTACLE), corridor, body, c)
+    low = path_obstacle(sweep.of(PointClass.RAISED), corridor, body, replace(c, min_points=c.raised_min_points))
+    if low is not None and (obstacle is None or low.distance_m < obstacle.distance_m):
+        obstacle = low
     if not corridor.ok:
         return PathObservation(obstacle, 0.0)
     line = corridor.centre_body
@@ -128,13 +142,18 @@ def observe_path(sweep, corridor, body, config=None):
     if len(ground):
         s, lateral, outside = project_onto_polyline(ground, line)
         s_car, _, _ = project_onto_polyline(np.zeros((1, 2)), line)
-        along = (s - s_car[0])[(np.abs(lateral) <= half) & ~outside]
+        inside = (np.abs(lateral) <= half) & ~outside
+        along, lateral = (s - s_car[0])[inside], lateral[inside]
         limit = obstacle.distance_m if obstacle is not None else math.inf
-        along = along[(along >= 0) & (along < limit)]
+        keep = (along >= 0) & (along < limit)
+        along, lateral = along[keep], lateral[keep]
         if len(along):
             bins = np.floor(along / c.clear_bin_m).astype(int)
-            counts = np.bincount(bins)
-            seen = np.flatnonzero(counts >= c.clear_min_points) * c.clear_bin_m
+            strips = np.clip(((lateral + half) / (2 * half) * c.clear_strips).astype(int), 0, c.clear_strips - 1)
+            counts = np.zeros((bins.max() + 1, c.clear_strips), dtype=int)
+            np.add.at(counts, (bins, strips), 1)
+            covered = (counts >= c.clear_min_points).sum(axis=1)
+            seen = np.flatnonzero(covered >= c.clear_min_strips) * c.clear_bin_m
             if seen.size and seen[0] <= c.clear_start_m:
                 clear = float(seen[0])
                 for x in seen[1:]:

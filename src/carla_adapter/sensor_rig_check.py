@@ -885,17 +885,48 @@ class RigCheck:
         drive += [self.step(carla.VehicleControl(brake=1.0)) for _ in range(40)]
         straight, turn, keep_noise = drive[:60], drive[60:90], self.args.keep_noise
         fixes = [(t["frame"].gnss, t["transform"]) for t in straight if t["frame"].gnss is not None]
+        all_fixes = [(t["frame"].gnss, t["transform"]) for t in drive if t["frame"].gnss is not None]
+        declared = self.suite.gnss.north_sign
         if len(fixes) >= 2:
-            plane = LocalTangentPlane(fixes[0][0].latitude_deg, fixes[0][0].longitude_deg)
+            # Which way is north? Fit the raw (unsigned) latitude displacement against the
+            # true core-frame y over the whole drive, turn included: on CARLA 0.9.16 the
+            # GNSS latitude grows towards the compass's south (live curve run, 23 Oct).
+            raw = LocalTangentPlane(all_fixes[0][0].latitude_deg, all_fixes[0][0].longitude_deg, 1)
+            local = np.array([raw.to_local(f.latitude_deg, f.longitude_deg) for f, _ in all_fixes])
+            truth = np.array([rear_axle_pose(t, self.offset)[:2] for _, t in all_fixes])
+            dl, dt_ = local - local[0], truth - truth[0]
+            north_dot = float(np.dot(dl[:, 1], dt_[:, 1]))
+            measured_sign = 0 if abs(north_dot) < 1.0 else int(np.sign(north_dot))
+            plane = LocalTangentPlane(fixes[0][0].latitude_deg, fixes[0][0].longitude_deg, declared)
             (gx0, gy0), (gx1, gy1) = (plane.to_local(f.latitude_deg, f.longitude_deg) for f, _ in (fixes[0], fixes[-1]))
             p0, p1 = (rear_axle_pose(t, self.offset) for _, t in (fixes[0], fixes[-1]))
             measured, true = np.array([gx1 - gx0, gy1 - gy0]), np.array([p1[0] - p0[0], p1[1] - p0[1]])
             angle = math.degrees(abs(wrap(math.atan2(measured[1], measured[0]) - math.atan2(true[1], true[0]))))
             ratio = float(np.linalg.norm(measured) / max(np.linalg.norm(true), 1e-6))
             ok = angle < (5 if keep_noise else 1) and abs(ratio - 1) < (0.1 if keep_noise else 0.01)
-            self.checks.append(check("gnss_displacement", ok and np.linalg.norm(true) > 5, angle_error_deg=angle, length_ratio=ratio, true_displacement_m=float(np.linalg.norm(true))))
+            self.checks.append(
+                check(
+                    "gnss_displacement",
+                    ok and np.linalg.norm(true) > 5,
+                    angle_error_deg=angle,
+                    length_ratio=ratio,
+                    true_displacement_m=float(np.linalg.norm(true)),
+                    north_sign_declared=declared,
+                )
+            )
+            self.checks.append(
+                check(
+                    "gnss_north_sign",
+                    INCOMPLETE if measured_sign == 0 else measured_sign == declared,
+                    measured=measured_sign,
+                    declared=declared,
+                    north_dot_m2=north_dot,
+                    note="+1: latitude grows towards the compass's north. The suite's gnss.north_sign must match.",
+                )
+            )
         else:
             self.checks.append(check("gnss_displacement", INCOMPLETE, fixes=len(fixes)))
+            self.checks.append(check("gnss_north_sign", INCOMPLETE, fixes=len(fixes)))
         speed_err = [abs(t["frame"].speed_mps - t["speed"]) for t in drive]
         self.checks.append(
             check(
