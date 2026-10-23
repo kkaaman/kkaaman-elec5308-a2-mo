@@ -170,11 +170,17 @@ class SynchronousWorldSession:
         server_ids = self._server_actor_ids() if self.world is not None else None
         errors = list(self.emergency_stop(server_ids))
         for actor in reversed(self._actors):
+            try:
+                alive = actor.is_alive
+            except Exception:
+                alive = True
+            if not alive:
+                continue  # destroyed by us already (per-episode sensors), not by the server
             if server_ids is not None and actor.id not in server_ids:
                 self.vanished_actor_ids.append(actor.id)
                 continue
             try:
-                if actor.is_alive and not actor.destroy():
+                if not actor.destroy():
                     errors.append(f"Destroy failed for actor {actor.id}")
             except Exception as error:
                 errors.append(f"Destroy actor {actor.id}: {error}")

@@ -15,7 +15,7 @@ from mapless.corridor import CorridorConfig, CorridorEstimator
 from mapless.driver import DriveMode, DriverConfig, MaplessDriver
 from mapless.ego_motion import EgoMotion, EgoMotionConfig, Pose2D
 from mapless.frame import GnssFix, ImuSample, SensorFrame, SensorState, SensorStatus
-from mapless.obstacles import PathObstacle, path_obstacle, project_onto_polyline
+from mapless.obstacles import PathObservation, PathObstacle, path_obstacle, project_onto_polyline
 from mapless.planner import LanePlanner, PlannerConfig
 from mapless.satnav import LocalTangentPlane
 from mapless.sensor_suite import load_sensor_suite
@@ -196,7 +196,7 @@ def test_grid_keeps_evidence_when_it_recentres_and_obstacles_fade_faster():
 def straight_corridor(ticks=60):
     """Corridor after sliding 2 m/s along a straight lane centre for ``ticks`` sweeps."""
     world = MaplessRoadWorld(RoadScene(KerbLine([Straight(200)])), SUITE, noise=False)
-    grid, estimator = TerrainGrid(), CorridorEstimator()
+    grid, estimator = TerrainGrid(), CorridorEstimator(CorridorConfig(keep_right_m=1.75))
     corridor = None
     for _ in range(ticks):
         f = world.frame()
@@ -235,21 +235,35 @@ def test_path_obstacle_needs_a_dense_cluster_inside_the_tube():
     assert path_obstacle(np.vstack((beside, noise)), corridor, BODY) is None
 
 
-def test_planner_stops_the_bumper_short_of_an_obstacle_and_holds_briefly():
+def test_planner_stops_the_bumper_short_of_an_obstacle_and_holds_until_the_path_is_seen_clear():
     corridor = straight_corridor()
-    planner = LanePlanner(PlannerConfig(stop_gap_m=2.5, resume_clear_s=1.0), BODY)
-    plan = planner.plan(corridor, PathObstacle(15.0, 0.0, 10), None, 10.0)
-    assert plan.stop_reason == "obstacle"
+    planner = LanePlanner(PlannerConfig(stop_gap_m=2.5, resume_clear_s=1.0, clear_beyond_m=2.0), BODY)
+    plan = planner.plan(corridor, PathObservation(PathObstacle(15.0, 0.0, 10), 15.0), None, 10.0)
+    assert (plan.stop_reason, plan.hold_state) == ("obstacle", "blocked")
     assert plan.stop_distance_m == pytest.approx(15.0 - BODY.front_m - 2.5, abs=0.05)
     speeds = np.array([s.speed_mps for s in plan.trajectory.samples])
     xy = np.array([(s.x_m, s.y_m) for s in plan.trajectory.samples])
     along = corridor.pose.to_body(xy)[:, 0]
     assert np.all(speeds[along > plan.stop_distance_m + 0.5] == 0)
     assert speeds.max() <= 2.0 + 1e-9
-    held = planner.plan(corridor, None, None, 10.5)
-    assert held.stop_reason == "obstacle_hold"
-    assert held.stop_distance_m == pytest.approx(plan.stop_distance_m, abs=0.05)
-    assert planner.plan(corridor, None, None, 11.6).stop_reason == ""
+
+    def hold(observation, t):
+        p = planner.plan(corridor, observation, None, t)
+        return p.stop_reason, p.hold_state
+
+    # Not seeing the obstacle is not seeing the road clear: an occluded or missed obstacle
+    # leaves the ground behind it unseen, and the stop holds however long that lasts.
+    assert hold(PathObservation(None, 14.0), 10.5) == ("obstacle_hold", "unknown")
+    assert hold(None, 11.0) == ("obstacle_hold", "unknown")  # no sweep this tick
+    assert hold(PathObservation(None, 16.9), 30.0) == ("obstacle_hold", "unknown")  # needs 15 + 2 m
+    # Seen clear past where it stood: released after resume_clear_s of continuous clearance.
+    assert hold(PathObservation(None, 30.0), 30.1) == ("obstacle_hold", "clear")
+    assert hold(PathObservation(None, 30.0), 30.6) == ("obstacle_hold", "clear")
+    assert hold(PathObservation(None, 9.0), 30.8) == ("obstacle_hold", "unknown")  # interrupted
+    assert hold(PathObservation(None, 30.0), 31.0) == ("obstacle_hold", "clear")
+    assert hold(PathObservation(None, 30.0), 31.5) == ("obstacle_hold", "clear")
+    assert hold(PathObservation(None, 30.0), 32.0) == ("", "clear")
+    assert hold(PathObservation(None, 30.0), 32.1) == ("", "")
 
 
 def test_planner_goal_stop_is_a_final_goal_trajectory_ending_at_the_goal():
@@ -315,16 +329,14 @@ def test_closed_loop_measures_the_kerb_offset_and_ignores_parked_cars_on_the_sho
     assert not any(t.collision for t, _ in log)
     keep_right = [s.diagnostics.get("keep_right_m") for _, s in log if s.diagnostics.get("keep_right_m")]
     assert keep_right and keep_right[-1] == pytest.approx(4.4, abs=0.25)
-    assert "measured" in log[-1][1].diagnostics.get("keep_right_source", "") or "measured" in next(
-        s.diagnostics["keep_right_source"] for _, s in log if s.diagnostics.get("keep_right_source")
-    )
+    assert log[-1][1].diagnostics["keep_right_source"].startswith("measured at a standstill")
     assert np.percentile(np.abs(settled_lateral(log, after_s_m=15.0)), 95) < 0.3
     assert not any(s.reason.startswith("obstacle") for _, s in log)
 
 
 def test_measured_kerb_offset_holds_the_start_position():
-    # The limitation of measuring at start-up: the car keeps the lateral position it started
-    # in. The live harness starts it on the lane centre; camera lane evidence removes this.
+    # The start-up assumption, explicit: the car keeps the lateral position it started in.
+    # The live harness starts it on the lane centre; camera lane evidence removes this.
     log = drive(RoadScene(KerbLine([Straight(200)])), goal_s=60.0, seconds=45, start_offset_m=0.4)
     assert np.median(settled_lateral(log, after_s_m=15.0)) == pytest.approx(0.4, abs=0.15)
 

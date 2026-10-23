@@ -13,7 +13,14 @@ Reads one run folder written by ``carla_adapter.mapless_capture`` and writes, un
     - **ground:** LiDAR points near the road surface should land on road, pavement,
       lane marking, terrain or ground labels;
     - **vehicles:** LiDAR points inside a truth vehicle box should land on vehicle labels;
-  - LiDAR and radar point counts.
+  - LiDAR and radar point counts;
+  - integrity: every referenced file exists, per-camera counts match, one calibration
+    id per run, the manifest's provenance (source commit, schema, spawned counts);
+  - an RGB-to-label pairing check per camera: RGB edges are stronger on label boundaries
+    than elsewhere when the label image belongs to its RGB image (ratio >= 1.5);
+  - measured encounters: samples with a vehicle in the ego's path within 30 m, and with
+    a pedestrian within 20 m;
+  - a verdict (``acceptance``): ACCEPT, or REJECT with the reasons.
 - ``contact_sheet.png``: random samples, each as front RGB, semantic overlay, and LiDAR
   projected on the image coloured by range.
 - ``cameras_sheet.png``: every camera with its overlay, for two samples.
@@ -77,10 +84,15 @@ def read_tags(path, cv2):
 
 def lidar_points(run, sample):
     files = sample["files"]["lidar"]
-    if not files:
+    if not files or not (run / next(iter(files.values()))).exists():
         return np.zeros((0, 4), np.float32)
     with np.load(run / next(iter(files.values()))) as data:
         return data["points"]
+
+
+def complete(run, sample):
+    """Whether every file the sample refers to exists (integrity counts the others)."""
+    return all((run / rel).exists() for files in sample["files"].values() for rel in files.values())
 
 
 def labels_at(points, calibration, tags):
@@ -115,6 +127,82 @@ def share(numerator, denominator):
     return None if denominator == 0 else round(numerator / denominator, 4)
 
 
+def edge_pairing(rgb, tags, cv2, step=2):
+    """RGB gradient on label boundaries over RGB gradient elsewhere (about 1 when unpaired)."""
+    grey = cv2.cvtColor(np.ascontiguousarray(rgb[::step, ::step]), cv2.COLOR_RGB2GRAY).astype(np.float32)
+    gx, gy = np.gradient(grey)
+    strength = np.hypot(gx, gy)
+    t = tags[::step, ::step]
+    boundary = np.zeros_like(t, dtype=bool)
+    boundary[:, 1:] |= t[:, 1:] != t[:, :-1]
+    boundary[1:, :] |= t[1:, :] != t[:-1, :]
+    if boundary.sum() < 50 or (~boundary).sum() < 50:
+        return None
+    return float(strength[boundary].mean() / max(1e-6, strength[~boundary].mean()))
+
+
+def integrity(run, manifest, samples, calibrations):
+    missing, per_camera, calibration_ids = [], Counter(), Counter()
+    for sample in samples:
+        calibration_ids[sample.get("calibration_id")] += 1
+        for kind in ("rgb", "semantic", "lidar", "radar"):
+            for name, rel in sample["files"].get(kind, {}).items():
+                if kind in ("rgb", "semantic"):
+                    per_camera[f"{kind}/{name}"] += 1
+                if not (run / rel).exists():
+                    missing.append(rel)
+    cameras = sorted(calibrations)
+    counts = {name: (per_camera[f"rgb/{name}"], per_camera[f"semantic/{name}"]) for name in cameras}
+    uneven = {name: c for name, c in counts.items() if c[0] != len(samples) or c[1] != len(samples)}
+    return dict(
+        missing_files=len(missing),
+        missing_examples=missing[:10],
+        per_camera_counts={name: dict(rgb=c[0], semantic=c[1]) for name, c in counts.items()},
+        uneven_cameras=list(uneven),
+        calibration_ids=len(calibration_ids),
+        schema=manifest.get("schema"),
+        source_commit=manifest.get("source_commit"),
+        spawned=dict(vehicles=manifest.get("spawned_vehicles"), walkers=manifest.get("spawned_walkers")),
+        requested=dict(vehicles=manifest.get("vehicles"), walkers=manifest.get("walkers")),
+        actors_removed_by_server=manifest.get("actors_removed_by_server"),
+        box_geometry=manifest.get("box_geometry"),
+    )
+
+
+def verdict(summary):
+    """ACCEPT, or REJECT with reasons; NEEDS_REPAIR for schema-1 truth boxes."""
+    reasons = []
+    if summary["status"] != "COMPLETE":
+        reasons.append(f"run status {summary['status']}")
+    i = summary["integrity"]
+    if i["missing_files"]:
+        reasons.append(f"{i['missing_files']} referenced files missing")
+    if i["uneven_cameras"]:
+        reasons.append(f"uneven per-camera counts: {i['uneven_cameras']}")
+    if i["calibration_ids"] != 1:
+        reasons.append(f"{i['calibration_ids']} calibration ids in one run")
+    if summary["label_shape_errors"]:
+        reasons.append("label images of the wrong shape")
+    for name, check in summary["projection_checks"].items():
+        g, v = check["ground_points_on_ground_labels"], check["vehicle_points_on_vehicle_labels"]
+        if g is not None and g < 0.9:
+            reasons.append(f"{name}: ground projection {g}")
+        if v is not None and check["vehicle_points"] >= 200 and v < 0.8:
+            reasons.append(f"{name}: vehicle projection {v}")
+        pairing = check.get("rgb_label_edge_ratio")
+        if pairing is not None and pairing < 1.5:
+            reasons.append(f"{name}: RGB and label images do not pair (edge ratio {pairing})")
+    e = summary["encounters"]
+    if e["samples_with_vehicle_in_path_30m"] < 0.05 * summary["samples"]:
+        reasons.append("fewer than 5% of samples have a vehicle in the ego's path within 30 m")
+    if e["samples_with_pedestrian_20m"] < 0.05 * summary["samples"]:
+        reasons.append("fewer than 5% of samples have a pedestrian within 20 m")
+    status = "REJECT" if reasons else "ACCEPT"
+    if not reasons and (i["schema"] or "").endswith("-1"):
+        status, reasons = "NEEDS_REPAIR", ["schema 1 truth boxes are placed on the actor origin; run scripts/repair_mapless_capture.py"]
+    return dict(status=status, reasons=reasons)
+
+
 def inspect(run, *, max_samples=200, sheet_samples=8, seed=0, cv2=None):
     if cv2 is None:
         import cv2
@@ -133,6 +221,7 @@ def inspect(run, *, max_samples=200, sheet_samples=8, seed=0, cv2=None):
 
     weather, lights = Counter(), Counter()
     speeds, vehicles_near, pedestrians_near = [], [], []
+    in_path, ped_close = 0, 0
     for sample in samples:
         truth = sample["truth"]
         weather[truth.get("weather")] += 1
@@ -142,14 +231,19 @@ def inspect(run, *, max_samples=200, sheet_samples=8, seed=0, cv2=None):
         near = [a for a in actors if math.hypot(a["x_m"], a["y_m"]) <= 30]
         vehicles_near.append(sum(a["type_id"].startswith("vehicle.") for a in near))
         pedestrians_near.append(sum(a["type_id"].startswith("walker.") for a in near))
+        in_path += any(a["type_id"].startswith("vehicle.") and 0 < a["x_m"] <= 30 and abs(a["y_m"]) <= 2.0 for a in near)
+        ped_close += any(a["type_id"].startswith("walker.") and math.hypot(a["x_m"], a["y_m"]) <= 20 for a in near)
 
     class_pixels = {name: Counter() for name in calibrations}
     ground = {name: [0, 0] for name in calibrations}
     vehicle = {name: [0, 0] for name in calibrations}
+    pairing = {name: [] for name in calibrations}
     shape_errors = []
     ped_heights = []
     lidar_counts, radar_counts = [], Counter()
     for sample in subset:
+        if not complete(run, sample):
+            continue
         points = lidar_points(run, sample)
         lidar_counts.append(len(points))
         for name, path in sample["files"]["radar"].items():
@@ -179,6 +273,10 @@ def inspect(run, *, max_samples=200, sheet_samples=8, seed=0, cv2=None):
                 continue
             values, counts = np.unique(tags, return_counts=True)
             class_pixels[name].update(dict(zip(values.tolist(), counts.tolist())))
+            if len(pairing[name]) < 20:
+                ratio = edge_pairing(read_rgb(run / rgb_path, cv2), tags, cv2)
+                if ratio is not None:
+                    pairing[name].append(ratio)
             hit = labels_at(points, calibration, tags)
             seen = hit >= 0
             g = seen & near_ground
@@ -218,6 +316,7 @@ def inspect(run, *, max_samples=200, sheet_samples=8, seed=0, cv2=None):
             pedestrians_mean=round(float(np.mean(pedestrians_near)), 2),
             samples_with_pedestrian=int(sum(p > 0 for p in pedestrians_near)),
         ),
+        encounters=dict(samples_with_vehicle_in_path_30m=in_path, samples_with_pedestrian_20m=ped_close),
         front_pedestrian_blob_heights=ped_hist,
         class_shares=classes,
         projection_checks={
@@ -226,22 +325,28 @@ def inspect(run, *, max_samples=200, sheet_samples=8, seed=0, cv2=None):
                 ground_points=ground[name][1],
                 vehicle_points_on_vehicle_labels=share(*vehicle[name]),
                 vehicle_points=vehicle[name][1],
+                rgb_label_edge_ratio=round(float(np.median(pairing[name])), 2) if pairing[name] else None,
             )
             for name in calibrations
         },
+        integrity=integrity(run, manifest, samples, calibrations),
         label_shape_errors=shape_errors[:20],
         lidar_points_per_sweep_median=int(np.median(lidar_counts)) if lidar_counts else 0,
-        radar_returns_per_frame_mean={k: round(v / len(subset), 1) for k, v in radar_counts.items()},
+        radar_returns_per_frame_mean={k: round(v / max(1, len(lidar_counts)), 1) for k, v in radar_counts.items()},
         notes=(
             "Projection checks: expect ground >= 0.9 and vehicle >= 0.8 on every camera. A camera far"
             " below the others points to a wrong mount or a label image paired with the wrong RGB frame."
+            " rgb_label_edge_ratio >= 1.5 when the label image belongs to its RGB image."
         ),
     )
+    summary["acceptance"] = verdict(summary)
     out = run / "inspection"
     out.mkdir(exist_ok=True)
     (out / "summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
-    _contact_sheet(run, rng.sample(samples, min(sheet_samples, len(samples))), calibrations, out / "contact_sheet.png", cv2)
-    _cameras_sheet(run, rng.sample(samples, min(2, len(samples))), calibrations, out / "cameras_sheet.png", cv2)
+    whole = [s for s in samples if complete(run, s)]
+    if whole:
+        _contact_sheet(run, rng.sample(whole, min(sheet_samples, len(whole))), calibrations, out / "contact_sheet.png", cv2)
+        _cameras_sheet(run, rng.sample(whole, min(2, len(whole))), calibrations, out / "cameras_sheet.png", cv2)
     return summary
 
 
@@ -303,5 +408,17 @@ def main(argv=None):
     args = parser.parse_args(argv)
     summary = inspect(args.run, max_samples=args.max_samples, sheet_samples=args.sheet_samples, seed=args.seed)
     checks = summary["projection_checks"]
-    print(json.dumps(dict(samples=summary["samples"], episodes=summary["episodes"], projection_checks=checks), indent=2))
+    print(
+        json.dumps(
+            dict(
+                samples=summary["samples"],
+                episodes=summary["episodes"],
+                projection_checks=checks,
+                encounters=summary["encounters"],
+                integrity=summary["integrity"],
+                acceptance=summary["acceptance"],
+            ),
+            indent=2,
+        )
+    )
     print(f"Wrote {Path(args.run) / 'inspection'}")

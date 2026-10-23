@@ -128,8 +128,9 @@ top-down LiDAR view.
 
 ### `mapless_capture.py`
 
-Run with `scripts/capture_mapless_dataset.py`. Training-data capture on **Town01–Town07
-only**; Town10HD is refused.
+Run with `scripts/capture_mapless_dataset.py`. Training-data capture on **Town01–Town06
+only**; Town07 (the held-out final test town, plan section 12) and Town10HD (the
+development benchmark) are refused.
 
 - **Driving:** the ego drives on Traffic Manager autopilot through background vehicles
   and pedestrians. This is for data collection only.
@@ -284,10 +285,12 @@ Lane-change checks there rely on LiDAR and the side cameras.
   times, and the camera matched LiDAR on every jump (`camera_minus_lidar_ticks` all
   0). The first jump after spawn took effect a tick late for both sensors, which is a
   teleport delay, not render lag.
-- **Coverage directly alongside:** only LiDAR sees a car there. It is at the edge of the
-  side cameras (corners behind the image plane) and outside every radar. Before lane
-  changes, consider two side-facing cameras at ±90° (rig v3; the track allows 8
-  cameras).
+- **Coverage directly alongside:** outside every radar. The first runs also reported
+  it as unseen by the cameras, but that came from the check itself, which skipped any
+  target with a box corner behind a camera's image plane; the side cameras do see a
+  car alongside, partially (fixed in `G1b-4`: partial targets are judged from the
+  corners in front). Before lane changes, consider two side-facing cameras at ±90° (rig
+  v3; the track allows 8 cameras) for full coverage.
 - **With 12 settle ticks,** every gated check passes on both PCs: mask consistency,
   prop reprojection, LiDAR extrinsics, radar range, range rate and sign, IMU, GNSS,
   compass, speedometer and cleanup.
@@ -350,10 +353,16 @@ The car is `mapless.driver.MaplessDriver`: `SensorFrame`s and a sat-nav route in
 |---|---|---|
 | Ego motion | `ego_motion.py` | Odometry frame (wheel speed and gyro, gyro bias measured at standstill) for driving. EKF route pose initialised from GNSS and compass averaged over 1 s at standstill, then GNSS and compass updates; used only for route progress and the goal |
 | Terrain | `terrain.py` | Per sweep: road height in 2 m bands grown out from the car; points labelled ROAD, RAISED (kerb, pavement, 0.10 to 0.30 m), OBSTACLE (0.30 to 2.4 m). Evidence accumulates on a grid in the odometry frame (kerbs decay over 3 s, obstacles over 0.5 s) |
-| Corridor | `corridor.py` | Lateral profiles along last tick's centreline; right kerb = first raised cell with road seen next to it (obstacles such as parked cars are OCCUPIED, never an edge); the kerb may not jump in either direction (side roads, cars); kerb evidence must lie within 0.75 m of where last tick's line puts it; lane centre `keep_right_m` left of the kerb, measured on an 8 m calibration drive along the start line with this same detector (middle of a corridor under 5.5 m); polynomial fit (degree from how far the evidence reaches) with last tick's line as a prior, continued along its tangent past the evidence, or last tick's line carried unchanged when there is too little evidence |
-| Obstacles | `obstacles.py` | This sweep's OBSTACLE points in the car-width tube along the centreline; nearest dense cluster |
-| Planner | `planner.py` | Cruise speed, curve limit, braking ramp to a stop 2.5 m short of an obstacle (bumper) or at the goal (final-goal trajectory); stop held for 1 s after the obstacle disappears |
+| Corridor | `corridor.py` | Lateral profiles along last tick's centreline; right kerb = first raised cell with road seen next to it (obstacles such as parked cars are OCCUPIED, never an edge); the kerb may not jump in either direction (side roads, cars); kerb evidence must lie within 0.75 m of where last tick's line puts it; lane centre `keep_right_m` left of the kerb, measured at a standstill before the car moves (the kerb fitted as a line from 10 m behind to 15 m ahead with this same detector, accepted once 10 sweeps agree within 0.15 m, else a FAULT with the reason; never a default); a corridor under 5.5 m wide is one lane, driven in its middle; polynomial fit (degree from how far the evidence reaches) with last tick's line as a prior, continued along its tangent past the evidence, or last tick's line carried unchanged when there is too little evidence. Kerb cells count only if hit within 3 s, the road ahead must be observed within 1 s (an empty LiDAR ends the corridor), and the evidence time is the newest kerb hit, so a carried line ages and expires after 5 s |
+| Obstacles | `obstacles.py` | This sweep's OBSTACLE points in the car-width tube along the centreline (nearest dense cluster), and how far the tube is *seen clear*: ground observed in 0.5 m slices from near the car outwards |
+| Planner | `planner.py` | Cruise speed, curve limit, braking ramp to a stop 2.5 m short of an obstacle (bumper) or at the goal (final-goal trajectory). Obstacle hold in three states: BLOCKED (seen), CLEAR (road seen clear 2 m past where it stood), UNKNOWN (neither: the stop stays). Released only after 1 s of continuous CLEAR |
 | Control | `navigation_control.local` | `LocalTrajectoryController` in the odometry frame |
+| Driver | `driver.py` | Modes STARTUP (GNSS and compass averaging), CALIBRATING (kerb distance), DRIVING, STOPPING, FINISHED, FAULT. Faults: LiDAR older than 0.15 s, IMU or speedometer older than 0.2 s, GNSS older than 3 s, route position sigma over 4 m, failed calibration, no corridor. A fault brakes along the last trajectory while odometry is trusted (IMU and speed fresh), otherwise holds the last steering: never wheels straight in a bend. From a standstill the car moves only on kerb evidence fresher than 0.5 s; a lost corridor at a standstill is re-acquired from the start-up assumption |
+
+**Start-up assumption, explicit:** the car starts stopped, centred and aligned in a lane
+with a kerb on its right, as the harness places it. The calibration checks what it can
+(a clean kerb line within 10° of the heading, stable over 10 sweeps) and fails otherwise.
+A car placed off centre keeps that offset; camera lane evidence (G1c/G2) removes this.
 
 LiDAR intensity in the simulator depends on range only, so lane paint is invisible to
 it. G1b therefore keeps to the lane by following the right kerb. Camera lane evidence is
@@ -364,6 +373,15 @@ G1c and later.
 GNSS, IMU and speedometer noise. In closed loop, the driver keeps the lane to under
 0.3 m p95 on straights, 25 m radius bends and a crowned road, stops 3.2 to 3.7 m short of
 a parked car, and reaches the goal within 3 m (`tests/unit/test_mapless_g1b.py`).
+`tests/unit/test_mapless_g1b_review.py` runs the fault sequence from the review of
+`94b5caa`: an empty LiDAR at start-up holds the car and calibration fails with a reason;
+calibrated drives (straight, a 3.5° skewed start, a kink like live run e's, 25 m and 12 m
+bends) keep the whole body in the lane from the first tick; IMU loss in a 12 m bend
+stops the car in its lane with the steering held, LiDAR loss braking along the bend;
+stale IMU, speedometer and GNSS fault and recover; loss of road evidence does not renew
+the corridor; an occluded obstacle holds the stop with zero creep for 10 s; a removed
+one resumes only after 1 s of observed clearance. Standstill calibration reads the kerb
+within 0.07 m on straights and skewed starts and 0.1 m on a 100 m bend.
 `tests/unit/test_mapless_drive_smoke.py` runs the live harness end to end on a fake
 CARLA built on that road.
 
@@ -381,15 +399,17 @@ harness writes the route from the map's geolocation and spawns the parked car fo
 | Start-up | Localised from GNSS and compass within 3 s, no spawn pose |
 | No collision | No collision event |
 | Lane keeping | After the first 15 m: offset p95 ≤ 0.35 m, max ≤ 0.70 m |
+| Lane footprint | Whole run, calibration and start included: no part of the body outside the lane (rear axle and front bumper within half a lane minus half the car) |
+| Calibration | Kerb distance measured at a standstill and accepted, within 0.3 m of the map's |
 | Goal (straight, curve) | FINISHED, rear axle within 3 m of the goal |
 | Obstacle stop (stop) | Standing still, bumper gap 1.5 to 5.0 m, held for 5 s |
 | Speed | Never above cruise + 0.5 m/s |
 | Faults | Under 2% of driving ticks in FAULT |
 
-Reported: driver step time, start-up route-pose error, and the kerb calibration (the
-kerb offset the car measured at start-up against the map's lane-centre-to-pavement
-distance, and the LiDAR kerb's bias while driving). `--keep-right` overrides the
-start-up measurement.
+Reported: driver step time, start-up route-pose error, and the LiDAR kerb's bias while
+driving. `--keep-right` replaces the measurement (the calibration check then only
+reports). The raw sweeps until the car first moves are saved in `sweeps/` so a
+calibration can be replayed offline; snapshots show ROAD, BARRIER and OCCUPIED cells.
 
 **First live attempt (23 Oct, PC 2, Town10HD, `2a7e9da`): the car never moved.**
 - Town10HD's rightmost lanes have two shoulder lanes before the pavement: the kerb is
@@ -425,8 +445,54 @@ stopped for nothing.**
   0.75 m of where last tick's line puts it; the fit's degree follows the evidence's
   reach and the line continues along its tangent beyond it; the obstacle's lateral
   offset is logged. Offline: lane p95 0.05 to 0.20 m on straights, the shoulder-parking
-  road and bends down to 12 m radius with the live controller tuning; no phantom stops. Each run writes `drive_report.json`, `drive_log.jsonl`, `route.json`,
-`drive_plot.png` and top-down terrain snapshots.
+  road and bends down to 12 m radius with the live controller tuning; no phantom stops.
+
+**Third live attempt (23 Oct, run e, `94b5caa`): drove, held 0.64 m right, stopped and
+crept.**
+- The calibration drive read 3.6 m against the map's 4.39 m. The log shows why: the
+  lane runs about 2.5° off the start heading soon after the start, and an 8 m drive along
+  the start heading drifted 0.39 m off the lane while measuring. A heading-dependent
+  measurement cannot be made by driving the heading.
+- The stop was for a real parked car in the tube, because the car was 0.64 m right of
+  centre. The hold then released on 1 s of *missed* detections and the car crept 0.6 m
+  towards the parked car between flickering sightings.
+- A review of `94b5caa` (nine points, all taken) led to `G1b-4`:
+  - **Calibration at a standstill, as a line fit.** The kerb is fitted as a line from
+    10 m behind to 15 m ahead and the axle's perpendicular distance to it is the lane
+    centre's; a skewed start is measured across the kerb, not along the car. A
+    quadratic was tried and rejected: at a standstill the kerb is seen only where
+    LiDAR rings cross it, each edge quantised to a cell, and the curve read 1.55 m for
+    a 1.75 m straight kerb. The line's cost is a bend: 0.1 m on a 100 m radius. The
+    measurement must settle (10 clean sweeps within 0.15 m) within 4 s or the drive is a
+    FAULT with the reason. There is no default.
+  - **Freshness.** Kerb cells count only if hit within 3 s; the road ahead must be
+    observed within 1 s, so an empty or dead LiDAR ends the corridor rather than leaving
+    old road looking current; the corridor's evidence time is the newest kerb hit behind
+    it, so a carried line ages; from a standstill the car moves only on evidence fresher
+    than 0.5 s.
+  - **Ego sensors.** IMU and speedometer older than 0.2 s, GNSS older than 3 s and a
+    route sigma over 4 m are faults; the gyro bias is never learned from a reused
+    reading.
+  - **Obstacle hold in three states** (BLOCKED, CLEAR, UNKNOWN): the stop releases only
+    on observed clearance 2 m past where the obstacle stood, for 1 s.
+  - **Fault braking** along the last trajectory while odometry is trusted, else with the
+    steering held.
+  - **Harness:** a whole-run lane-footprint gate (calibration and start included), a
+    calibration gate, raw sweeps saved until the car moves, OCCUPIED in snapshots.
+  - **Capture:** truth boxes placed from CARLA's world vertices with their corners
+    (schema 2; schema-1 runs are repaired in place by
+    `scripts/repair_mapless_capture.py`, which reads each blueprint's box offset from a
+    CARLA server once and can export it); Town07 refused (held-out final test town);
+    the manifest records the source commit and the spawned counts; the inspection adds
+    integrity, per-camera counts, an RGB-to-label pairing check, measured encounters
+    and a verdict.
+  - **Rig check:** a target partly behind a camera's image plane is judged from the
+    corners in front (the "only LiDAR sees a car alongside" finding came from skipping
+    those); failing evidence fails a check even when evidence is thin; skipped phases
+    leave their gates INCOMPLETE.
+
+Each run writes `drive_report.json`, `drive_log.jsonl`, `route.json`, `drive_plot.png`,
+top-down terrain snapshots and the start-up sweeps.
 
 ## Running Phase 0 live
 
@@ -440,12 +506,16 @@ python scripts/check_sensor_rig.py --output "$HOME\Documents\Group7_runs\rigchec
 python scripts/make_satnav_route.py --mission <saved mission.json> --name baseline `
     --output configs/satnav/baseline.json
 
-# 3. Training data, one run per town
+# 3. Training data, one run per town (Town01-Town06; Town07 is the held-out test town)
 python scripts/capture_mapless_dataset.py --map Town03 --samples 2000 `
     --output "$HOME\Documents\Group7_runs\capture_pilot_Town03_s5308"
 
-# 3b. Inspect a capture run (summary.json and contact sheets in <run>\inspection)
+# 3b. Inspect a capture run (summary.json, verdict and contact sheets in <run>\inspection)
 python scripts/inspect_mapless_capture.py --run "$HOME\Documents\Group7_runs\capture_pilot_Town03_s5308"
+
+# 3c. Repair schema-1 runs (truth box centres); needs a CARLA server once, then --offsets
+python scripts/repair_mapless_capture.py --run "$HOME\Documents\Group7_runs\capture_pilot_Town03_s5308" `
+    --run "$HOME\Documents\Group7_runs\capture_pilot2_Town05_s5309" --export-offsets configs/box_offsets_0916.json
 
 # 4. G1b first mapless drive (current map; --map to load another)
 python scripts/run_mapless_drive.py --scenario straight --output "$HOME\Documents\Group7_runs\g1b_straight"
