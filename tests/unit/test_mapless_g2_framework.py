@@ -299,3 +299,30 @@ def test_training_loop_writes_a_loadable_checkpoint(tmp_path):
 def test_classified_sweep_helper_is_the_terrain_classifier():
     world, frame, classified = synthetic_sweep()
     assert isinstance(classified, ClassifiedSweep) and (classified.cls == PointClass.ROAD).sum() > 1000
+
+
+def test_a_cluster_straddling_a_range_ring_stays_one_cluster():
+    # Review of 36ba0ca: clustering per 10 m ring split a car across r = 20 m into two tracks.
+    rng = np.random.default_rng(0)
+    pts = np.column_stack((rng.uniform(18.5, 21.5, 120), rng.uniform(-0.9, 0.9, 120), rng.uniform(0.3, 1.2, 120)))
+    sweep = ClassifiedSweep(pts, pts[:, 2], np.full(len(pts), PointClass.OBSTACLE), np.zeros(1), np.zeros(1))
+    clusters = cluster_obstacles(sweep, DetectionsConfig())
+    assert len(clusters) == 1 and len(clusters[0]) == 120
+    # Two cars 4 m apart stay apart.
+    far = pts + np.array([0.0, 4.0, 0.0])
+    both = ClassifiedSweep(np.vstack((pts, far)), np.zeros(240), np.full(240, PointClass.OBSTACLE), np.zeros(1), np.zeros(1))
+    assert len(cluster_obstacles(both, DetectionsConfig())) == 2
+
+
+def test_segformer_b0_trains_and_loads_offline(tmp_path):
+    # The pretrained encoder needs the network (the PCs have it); the architecture itself,
+    # the training loop and the loader are exercised here from a fresh MiT-B0.
+    from mapless_training.train_segmentation import train
+
+    runs = [write_capture_run(tmp_path, "Town04"), write_capture_run(tmp_path, "Town02")]
+    path, info = train(runs, tmp_path / "segformer.pt", epochs=1, batch=2, size_wh=(64, 32), device="cpu", architecture="segformer_b0", pretrained=False)
+    assert info["architecture"] == "segformer_b0" and info["pretrained_encoder"] is False
+    segmenter = TorchRoadSegmenter(path, device="cpu")
+    assert segmenter.architecture == "segformer_b0"
+    seg = segmenter.segment(grey("front", forward_camera(), 64, 32))
+    assert seg.probabilities.shape == (32, 64, len(ROAD_CLASSES)) and np.allclose(seg.probabilities.sum(axis=2), 1.0, atol=1e-4)

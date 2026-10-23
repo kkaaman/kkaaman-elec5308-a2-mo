@@ -15,6 +15,7 @@
   boxes with no cluster are passed on as camera-only class evidence (no range).
 """
 
+import math
 from dataclasses import dataclass
 
 import numpy as np
@@ -39,7 +40,7 @@ class DetectionsConfig:
     link_m: float = 0.6  # link distance at 0 m ...
     link_per_m: float = 0.03  # ... growing this much per metre of range
     min_points: int = 3
-    max_cluster_m: float = 12.0  # larger clusters are a wall or a row of cars: split by cells
+    max_cluster_m: float = 12.0  # the reported extent is clamped to this (a wall, a row of cars)
     box_cover: float = 0.3  # a cluster must cover this share of the box's width to be its foreground
     class_confidence_floor: float = 0.1  # mass kept on the other classes
 
@@ -98,9 +99,10 @@ def class_probabilities(class_name, confidence, floor=0.1):
 def cluster_obstacles(sweep, config=None):
     """Range-tuned single-linkage clustering of the sweep's OBSTACLE points (vehicle frame).
 
-    Returns a list of index arrays into ``sweep.xyz``. Linking is done on a coarse grid
-    (cell = link distance at the cluster's range), which is enough for the tracker's
-    centre and extent and keeps the cost linear in the number of points.
+    Returns a list of index arrays into ``sweep.xyz``. Points are linked when within each
+    other's link distance (``link_m + link_per_m * range``, the larger of the pair), found
+    on a coarse grid of the smallest link distance so the cost stays near linear. One
+    pass over all points: a car straddling a range boundary stays one cluster.
     """
     c = config or DetectionsConfig()
     idx = np.flatnonzero(sweep.cls == PointClass.OBSTACLE)
@@ -109,37 +111,39 @@ def cluster_obstacles(sweep, config=None):
     xy = sweep.xyz[idx, :2]
     r = np.hypot(xy[:, 0], xy[:, 1])
     link = c.link_m + c.link_per_m * r
-    # Bucket by a cell size that follows the range in rings of 10 m.
-    ring = np.floor(r / 10.0).astype(int)
+    cell = float(link.min())
+    keys = np.floor(xy / cell).astype(int)
+    lookup = {}
+    for k, key in enumerate(map(tuple, keys)):
+        lookup.setdefault(key, []).append(k)
+    parent = np.arange(len(idx))
+
+    def find(i):
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+
+    # Points in a cell and its neighbours within the pair's link distance are linked; the
+    # neighbourhood radius in cells follows the larger link of the cell's points.
+    for key, members in lookup.items():
+        reach = int(math.ceil(link[members].max() / cell))
+        for di in range(-reach, reach + 1):
+            for dj in range(-reach, reach + 1):
+                others = lookup.get((key[0] + di, key[1] + dj))
+                if not others:
+                    continue
+                a, b = np.array(members), np.array(others)
+                d = np.hypot(xy[a][:, None, 0] - xy[b][None, :, 0], xy[a][:, None, 1] - xy[b][None, :, 1])
+                allowed = np.maximum(link[a][:, None], link[b][None, :])
+                for i, j in zip(*np.nonzero(d <= allowed)):
+                    parent[find(a[i])] = find(b[j])
+    roots = np.array([find(i) for i in range(len(idx))])
     out = []
-    for ring_id in np.unique(ring):
-        sel = np.flatnonzero(ring == ring_id)
-        cell = float(np.median(link[sel]))
-        keys = np.floor(xy[sel] / cell).astype(int)
-        # Union-find over the 8-neighbourhood of occupied cells.
-        lookup = {}
-        for k, key in enumerate(map(tuple, keys)):
-            lookup.setdefault(key, []).append(k)
-        parent = {key: key for key in lookup}
-
-        def find(key):
-            while parent[key] != key:
-                parent[key] = parent[parent[key]]
-                key = parent[key]
-            return key
-
-        for key in lookup:
-            for di in (-1, 0, 1):
-                for dj in (-1, 0, 1):
-                    nb = (key[0] + di, key[1] + dj)
-                    if nb in lookup and nb != key:
-                        parent[find(key)] = find(nb)
-        groups = {}
-        for key, members in lookup.items():
-            groups.setdefault(find(key), []).extend(members)
-        for members in groups.values():
-            if len(members) >= c.min_points:
-                out.append(idx[sel[np.array(members)]])
+    for root in np.unique(roots):
+        members = np.flatnonzero(roots == root)
+        if len(members) >= c.min_points:
+            out.append(idx[members])
     return out
 
 

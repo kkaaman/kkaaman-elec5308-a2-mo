@@ -641,8 +641,16 @@ constraints, coverage, stage timings). Every value validates itself.
 ### G2 (`road_segmentation`, `painting`, `road_model`, `detections`, `stack`; `mapless_training`)
 - **Segmentation**: `RoadSegmenter` interface over `road/marking/pavement/road_user/other`;
   `ConstantSegmenter` (road below the horizon at low confidence) so the stack runs
-  without a model; `TorchRoadSegmenter` runs the A1 BiSeNetV2 with a 5-class head from a
-  checkpoint carrying provenance. The car's code names no town, so the loader checks the
+  without a model; `TorchRoadSegmenter` runs either the A1 BiSeNetV2 (from scratch,
+  fastest, detail branch for sharp kerb edges) or SegFormer-B0 (ImageNet-pretrained MiT-B0
+  encoder via `transformers`, 3.7 M parameters, converges on little data, logits at 1/4
+  resolution) with a 5-class head, chosen by the checkpoint's `architecture`. The A1
+  BiSeNetV2 result is not evidence against the architecture — it was trained from
+  scratch on 19 Cityscapes classes with little data — but the pretrained encoder is the
+  safer bet on moderate data; both are trained with `--architecture` and compared on the
+  captures by pavement boundary agreement, marking recall and ms per image (section 9),
+  not mIoU. YOLOv8n-seg is an instance model for road users, not a road-surface
+  segmenter; the detector stays the A1 YOLO for boxes. The checkpoint carries provenance. The car's code names no town, so the loader checks the
   training side's attestation `test_towns_excluded` and the class list, and refuses a
   path inside any `labels` folder.
 - **Training** (`scripts/train_mapless_segmentation.py`): capture runs indexed from
@@ -693,6 +701,22 @@ constraints, coverage, stage timings). Every value validates itself.
 - **Scenarios M04–M06** (`crossing_pedestrian`, `braking_lead`, `cut_in`): scripted
   actors on the harness site with a `separation` gate (body never within 1 m) and
   completion by goal or hold. Written against the CARLA API, not yet run live.
+
+### Review of `36ba0ca` (fresh-eyes read, 24 Oct) — all taken
+Would have broken a live run: the walker spawned on the *left* of the lane (CARLA's
+right vector is (−sin yaw, cos yaw)); the radar bearing innovation was not wrapped
+across ±π in the Kalman update (a track behind the car jumped 60 m); the cut-in car
+accepted the opposing lane as "left lane" (same-direction check on `lane_id` sign
+added). Silently wrong: the turn gates compared the harness's route-start `s_m` against
+path-start junction bounds (15 m apart; `s_offset_m`); the stack's conflict cap timed the
+path with the already-capped planned speeds and flickered (now timed at the uncapped
+speed); following measured the gap from the corridor line's start, 2 m behind the axle;
+clusters were cut at 10 m range rings (one global pass now); tentative 3-point clusters
+could lead the car (confirmed/coasting only; coasting past 0.3 s leaves the live set,
+`Tracker.live`). Also: the road model labels only a 45 m window around the car and is
+built at 5 Hz (was 21–31 ms over the full 120 m grid every 2nd tick). Stack stage times
+on the dev CPU, synthetic world: drive 11 ms, paint 5, detect <1, track 1, road model
+~10 at 5 Hz; total p50 18 ms.
 
 ### Debug passes to come
 G1c: the turn scenario live on a Town10HD junction (site search census first). G2: train

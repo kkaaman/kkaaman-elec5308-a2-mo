@@ -122,9 +122,13 @@ def truth_sample(site, rear_axle_xy, yaw_rad, body):
     )
 
 
-def score_turn(log, site, modes_turning, exit_p95_m=0.35, approach_p95_m=0.35, approach_max_m=0.7, end="finished"):
-    """Gate rows (name, passed, values) from per-tick rows holding ``truth`` as ``truth_sample`` returns."""
-    start, junction_end = site.segment_bounds()
+def score_turn(log, site, modes_turning, exit_p95_m=0.35, approach_p95_m=0.35, approach_max_m=0.7, end="finished", s_offset_m=0.0):
+    """Gate rows (name, passed, values) from per-tick rows holding ``truth`` as ``truth_sample`` returns.
+
+    ``s_offset_m``: what the log's ``s_m`` subtracted from the path arc length (the harness
+    reports s from the route start, 15 m past the path's start).
+    """
+    start, junction_end = (b - s_offset_m for b in site.segment_bounds())
     rows = []
     rows.append(("turn_executed", bool(modes_turning), dict(turning_ticks=int(modes_turning))))
     excess = max(r["truth"]["corner_excess_m"] for r in log) if log else math.inf

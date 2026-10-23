@@ -70,17 +70,20 @@ class FollowingController:
     def reset(self):
         self._target, self._accel = None, 0.0
 
-    def lead_ahead(self, tracks, pose, path_body, max_ahead_m=60.0):
-        """The nearest track whose position lies within the lane along ``path_body`` (N x 2, vehicle frame)."""
+    def lead_ahead(self, tracks, pose, path_body, max_ahead_m=60.0, s_from_m=0.0):
+        """The nearest track within the lane along ``path_body`` (N x 2, vehicle frame), as
+        (distance ahead of the rear axle, track). ``s_from_m``: the rear axle's own arc length
+        on the line (the corridor line starts behind the car)."""
         best = None
         line = np.asarray(path_body, dtype=float)
         for track in tracks:
             body = pose.to_body(track.position[None])
             s, lateral, outside = project_onto_polyline(body, line)
-            if outside[0] or abs(lateral[0]) > self.config.lane_half_width_m or not 0.0 < s[0] <= max_ahead_m:
+            ahead = float(s[0]) - s_from_m
+            if outside[0] or abs(lateral[0]) > self.config.lane_half_width_m or not 0.0 < ahead <= max_ahead_m:
                 continue
-            if best is None or s[0] < best[0]:
-                best = (float(s[0]), track)
+            if best is None or ahead < best[0]:
+                best = (ahead, track)
         return best
 
     def target_speed(self, cruise_mps, ego_speed_mps, gap_m, lead_speed_mps, dt_s):

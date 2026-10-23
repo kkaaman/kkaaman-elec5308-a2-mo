@@ -1,8 +1,9 @@
 """Train the road segmenter on capture runs (plan v2.1, section 9). G2 framework.
 
-BiSeNetV2 (``segmentation.bisenetv2``) with a ``len(ROAD_CLASSES)``-class head, cross
-entropy with inverse-frequency class weights and the auxiliary heads (0.4 each),
-Adam, a few epochs. Selection is by validation boundary quality and class recall, not
+``--architecture bisenetv2`` (A1 network, from scratch, auxiliary heads at 0.4) or
+``segformer_b0`` (ImageNet-pretrained MiT-B0 encoder from ``transformers``, new head),
+``len(ROAD_CLASSES)`` classes, cross entropy with inverse-frequency class weights, Adam
+(a lower rate for the pretrained encoder), a few epochs. Selection is by validation boundary quality and class recall, not
 mIoU alone (section 9): the report records per-class IoU and recall, the share of
 kerb/pavement boundary pixels within 2 px of the truth boundary, and the runtime per
 image on this machine.
@@ -29,7 +30,13 @@ from pathlib import Path
 
 import numpy as np
 
-from mapless.road_segmentation import ROAD_CLASSES, write_provenance_sidecar
+from mapless.road_segmentation import (
+    ARCHITECTURES,
+    ROAD_CLASSES,
+    build_model,
+    logits,
+    write_provenance_sidecar,
+)
 from mapless_training.segmentation_data import (
     TorchSegmentationDataset,
     class_weights,
@@ -60,7 +67,7 @@ def boundary_agreement(pred, truth, class_index, tolerance_px=2):
     return float((t_edge & dilated).sum() / t_edge.sum())
 
 
-def evaluate(model, loader, device, torch):
+def evaluate(model, loader, device, torch, architecture="bisenetv2"):
     n = len(ROAD_CLASSES)
     total = np.zeros((n, n), dtype=np.int64)
     boundary, times = [], []
@@ -68,9 +75,9 @@ def evaluate(model, loader, device, torch):
     with torch.no_grad():
         for x, y in loader:
             begun = time.perf_counter()
-            logits = model(x.to(device))
+            main, _ = logits(model, x.to(device), architecture)
             times.append((time.perf_counter() - begun) / len(x))
-            pred = logits.argmax(dim=1).cpu().numpy()
+            pred = main.argmax(dim=1).cpu().numpy()
             truth = y.numpy()
             total += confusion(pred, truth, n)
             for p, t in zip(pred, truth):
@@ -89,12 +96,12 @@ def evaluate(model, loader, device, torch):
     )
 
 
-def train(run_dirs, output, epochs=8, batch=8, size_wh=(512, 256), lr=1e-3, device=None, cameras=None, max_samples=None, workers=0):
+def train(run_dirs, output, epochs=8, batch=8, size_wh=(512, 256), lr=1e-3, device=None, cameras=None, max_samples=None, workers=0, architecture="bisenetv2", pretrained=True):
     import cv2  # noqa: PLC0415
     import torch  # noqa: PLC0415
 
-    from segmentation.bisenetv2 import BiSeNetV2  # noqa: PLC0415
-
+    if architecture not in ARCHITECTURES:
+        raise ValueError(f"architecture must be one of {ARCHITECTURES}")
     samples, manifests = index_runs(run_dirs, cameras)
     train_samples, validation_samples, other = split(samples)
     if max_samples:
@@ -103,8 +110,14 @@ def train(run_dirs, output, epochs=8, batch=8, size_wh=(512, 256), lr=1e-3, devi
         raise ValueError("no training samples (training towns: Town01, 03, 04, 05, 06)")
     device = device or ("cuda" if torch.cuda.is_available() else "cpu")
     weights = torch.tensor(class_weights(train_samples, size_wh, cv2), dtype=torch.float32, device=device)
-    model = BiSeNetV2(num_classes=len(ROAD_CLASSES)).to(device)
-    optimiser = torch.optim.Adam(model.parameters(), lr=lr)
+    model = build_model(architecture, len(ROAD_CLASSES), pretrained=pretrained and architecture == "segformer_b0").to(device)
+    if architecture == "segformer_b0":
+        # The pretrained encoder learns slowly, the new head at the full rate.
+        encoder = [p for n, p in model.named_parameters() if n.startswith("segformer.")]
+        head = [p for n, p in model.named_parameters() if not n.startswith("segformer.")]
+        optimiser = torch.optim.AdamW([dict(params=encoder, lr=lr / 10), dict(params=head, lr=lr)], weight_decay=0.01)
+    else:
+        optimiser = torch.optim.Adam(model.parameters(), lr=lr)
     loss_fn = torch.nn.CrossEntropyLoss(weight=weights)
     loader = torch.utils.data.DataLoader(TorchSegmentationDataset(train_samples, size_wh), batch_size=batch, shuffle=True, num_workers=workers)
     val_loader = (
@@ -118,7 +131,7 @@ def train(run_dirs, output, epochs=8, batch=8, size_wh=(512, 256), lr=1e-3, devi
         losses = []
         for x, y in loader:
             x, y = x.to(device), y.to(device)
-            main, *aux = model.forward_with_aux(x)
+            main, aux = logits(model, x, architecture)
             loss = loss_fn(main, y) + 0.4 * sum(loss_fn(a, y) for a in aux)
             optimiser.zero_grad()
             loss.backward()
@@ -126,7 +139,7 @@ def train(run_dirs, output, epochs=8, batch=8, size_wh=(512, 256), lr=1e-3, devi
             losses.append(float(loss.detach()))
         row = dict(epoch=epoch + 1, loss=float(np.mean(losses)))
         if val_loader is not None:
-            row["validation"] = evaluate(model, val_loader, device, torch)
+            row["validation"] = evaluate(model, val_loader, device, torch, architecture)
         history.append(row)
         print(json.dumps(row), flush=True)
     info = provenance(
@@ -142,7 +155,8 @@ def train(run_dirs, output, epochs=8, batch=8, size_wh=(512, 256), lr=1e-3, devi
             device=device,
             towns_left_out=other,
             history=history,
-            architecture="BiSeNetV2",
+            architecture=architecture,
+            pretrained_encoder=bool(pretrained and architecture == "segformer_b0"),
         ),
     )
     output = Path(output)
@@ -165,8 +179,9 @@ def main(argv=None):
     parser.add_argument("--max-samples", type=int, default=None)
     parser.add_argument("--workers", type=int, default=0)
     parser.add_argument("--device", default=None)
+    parser.add_argument("--architecture", choices=ARCHITECTURES, default="bisenetv2")
     args = parser.parse_args(argv)
-    path, info = train(args.run, args.output, args.epochs, args.batch, (args.width, args.height), args.lr, args.device, args.camera, args.max_samples, args.workers)
+    path, info = train(args.run, args.output, args.epochs, args.batch, (args.width, args.height), args.lr, args.device, args.camera, args.max_samples, args.workers, args.architecture)
     print(json.dumps(dict(checkpoint=str(path), towns=info["training_towns"], samples=info["samples"], last=info["history"][-1] if info["history"] else None), default=str))
 
 

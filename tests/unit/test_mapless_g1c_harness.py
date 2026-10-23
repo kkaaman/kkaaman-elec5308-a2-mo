@@ -169,3 +169,41 @@ def test_turn_site_search_and_route_on_a_fake_map():
     # Entry at the lane's last waypoint, exit 5 m into the exit lane (geolocation of x).
     assert route.points[entry].latitude_deg == pytest.approx(-33.0 + 60.0 * 1e-5)
     assert route.points[entry + 1].latitude_deg == pytest.approx(-33.0 + 68.0 * 1e-5)
+
+
+def test_score_turn_takes_the_log_offset_into_account():
+    # The harness logs s_m from the route start, 15 m past the path's start: the gates must
+    # shift the junction bounds by the same offset (review of 36ba0ca).
+    site = l_site()
+    path, arcs = site.path, site.arcs
+    rows = []
+    for s in np.arange(1.0, arcs[-1] - site.extend_m - 1.0, 0.25):
+        xy = np.array([np.interp(s, arcs, path[:, 0]), np.interp(s, arcs, path[:, 1])])
+        truth = truth_sample(site, xy, heading_at(path, arcs, s), BODY) | dict(speed_mps=2.0)
+        truth["s_m"] -= 15.0
+        rows.append(dict(truth=truth))
+    gates = {name: (ok, values) for name, ok, values in score_turn(rows, site, 50, end="finished", s_offset_m=15.0)}
+    unshifted = {name: (ok, values) for name, ok, values in score_turn(rows, site, 50, end="finished")}
+    assert gates["exit_lane_keeping"][0] is True and gates["approach_lane_keeping"][0] is not False
+    assert gates["exit_lane_keeping"][1]["ticks"] > unshifted["exit_lane_keeping"][1]["ticks"]
+
+
+def test_cut_in_refuses_an_opposing_left_lane():
+    from carla_adapter.mapless_scenarios import CutInCar, ScenarioParams
+
+    class Owner:
+        def try_spawn(self, bp, t):
+            return object()
+
+    class Library:
+        def find(self, name):
+            return name
+
+    lane = chain([(x, 0.0) for x in range(0, 50)], yaw_deg=0.0, lane_id=-1)
+    opposing = chain([(x, -3.5) for x in range(0, 50)], yaw_deg=180.0, lane_id=1)
+    for w, o in zip(lane, opposing):
+        w._left = o
+    FakeWaypoint.get_left_lane = lambda self: getattr(self, "_left", None)
+    scenario = CutInCar(FakeCarla, ScenarioParams("cut_in"), lambda loc: (loc.x, -loc.y))
+    with pytest.raises(RuntimeError, match="same-direction"):
+        scenario.spawn(Owner(), Library(), lane)
