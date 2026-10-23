@@ -14,8 +14,9 @@ Reads one run folder written by ``carla_adapter.mapless_capture`` and writes, un
       lane marking, terrain or ground labels;
     - **vehicles:** LiDAR points inside a truth vehicle box should land on vehicle labels;
   - LiDAR and radar point counts;
-  - integrity: every referenced file exists, per-camera counts match, one calibration
-    id per run, the manifest's provenance (source commit, schema, spawned counts);
+  - integrity: every referenced file exists, per-camera counts match, the suite hashes
+    to the manifest's, the per-episode rear-axle offsets agree within 1 cm, and the
+    manifest's provenance (source commit, schema, spawned counts);
   - an RGB-to-label pairing check per camera: RGB edges are stronger on label boundaries
     than elsewhere when the label image belongs to its RGB image (ratio >= 1.5);
   - measured encounters: samples with a vehicle in the ego's path within 30 m, and with
@@ -154,12 +155,20 @@ def integrity(run, manifest, samples, calibrations):
     cameras = sorted(calibrations)
     counts = {name: (per_camera[f"rgb/{name}"], per_camera[f"semantic/{name}"]) for name in cameras}
     uneven = {name: c for name, c in counts.items() if c[0] != len(samples) or c[1] != len(samples)}
+    # The calibration id hashes the suite and the rear-axle offset, which the capture measures
+    # afresh each episode from the wheels, so ids differ per episode by design. What must
+    # agree is the suite, and the measured offsets to within a few millimetres.
+    records = manifest.get("rig_records") or []
+    offsets = [r.get("rear_axle_offset_m") for r in records if r.get("rear_axle_offset_m")]
+    spread = round(float(max(offsets) - min(offsets)), 4) if offsets else None
     return dict(
         missing_files=len(missing),
         missing_examples=missing[:10],
         per_camera_counts={name: dict(rgb=c[0], semantic=c[1]) for name, c in counts.items()},
         uneven_cameras=list(uneven),
         calibration_ids=len(calibration_ids),
+        rear_axle_offset_spread_m=spread,
+        suite_matches_manifest=manifest.get("suite_sha256") is None or manifest.get("suite_sha256") == manifest_suite_sha(manifest),
         schema=manifest.get("schema"),
         source_commit=manifest.get("source_commit"),
         spawned=dict(vehicles=manifest.get("spawned_vehicles"), walkers=manifest.get("spawned_walkers")),
@@ -167,6 +176,13 @@ def integrity(run, manifest, samples, calibrations):
         actors_removed_by_server=manifest.get("actors_removed_by_server"),
         box_geometry=manifest.get("box_geometry"),
     )
+
+
+def manifest_suite_sha(manifest):
+    try:
+        return suite_from_dict(manifest["suite"]).sha256
+    except Exception:
+        return None
 
 
 def verdict(summary):
@@ -179,8 +195,10 @@ def verdict(summary):
         reasons.append(f"{i['missing_files']} referenced files missing")
     if i["uneven_cameras"]:
         reasons.append(f"uneven per-camera counts: {i['uneven_cameras']}")
-    if i["calibration_ids"] != 1:
-        reasons.append(f"{i['calibration_ids']} calibration ids in one run")
+    if i["rear_axle_offset_spread_m"] is not None and i["rear_axle_offset_spread_m"] > 0.01:
+        reasons.append(f"rear-axle offsets differ by {i['rear_axle_offset_spread_m']} m between episodes")
+    if not i["suite_matches_manifest"]:
+        reasons.append("the manifest's suite does not hash to its recorded suite_sha256")
     if summary["label_shape_errors"]:
         reasons.append("label images of the wrong shape")
     for name, check in summary["projection_checks"].items():
