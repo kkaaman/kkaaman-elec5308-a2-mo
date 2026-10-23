@@ -4,18 +4,29 @@ Per tick:
 
 1. Sensor health, then ego motion (odometry frame, and the route pose once start-up
    averaging has finished).
-2. The LiDAR sweep is classified and added to the terrain grid, from the first tick on,
-   so a corridor is ready by the time the car may move.
-3. The corridor and lane centre are estimated; obstacles are looked for in its tube.
-4. The planner builds a trajectory (lane follow, obstacle stop or goal stop) and the
+2. The LiDAR sweep is classified and added to the terrain grid, from the first tick on.
+3. Until the lane centre's distance from the kerb is known, it is measured at a
+   standstill (``CorridorEstimator.calibrate``), alongside the GNSS averaging.
+4. The corridor and lane centre are estimated; the path is observed in its tube: the
+   nearest obstacle, and how far the road is seen clear.
+5. The planner builds a trajectory (lane follow, obstacle stop or goal stop) and the
    ``LocalTrajectoryController`` tracks it in the odometry frame.
+
+**Start-up assumption.** The car starts stopped, centred and aligned in a lane with a
+kerb on its right; the calibration measures that lane. It is checked as far as it can be
+(a clean, stable kerb fit within 10 degrees of the heading) and fails otherwise. It is
+assumed again, at a standstill, to re-acquire a lost corridor.
 
 **Modes:**
 - STARTUP: holding the brake while GNSS and compass are averaged.
+- CALIBRATING: holding the brake while the kerb distance is measured.
 - DRIVING / STOPPING: following the plan (STOPPING when its target speed is zero).
 - FINISHED: the route goal was reached (latched).
-- FAULT: LiDAR older than ``lidar_max_age_s`` or no corridor. The car brakes and
-  recovers by itself once both are back.
+- FAULT: stale LiDAR, IMU, speedometer or GNSS, an uncertain route position, a failed
+  calibration (latched) or no corridor. The car brakes along its last trajectory while
+  odometry is trusted, otherwise with the steering held, and recovers by itself once the
+  cause is gone. It does not move off a standstill on kerb evidence older than
+  ``start_evidence_max_age_s``.
 
 Nothing here reads the simulator; the only inputs are ``SensorFrame``s, the sensor suite,
 the route and the car's own body and controller geometry.
@@ -31,17 +42,18 @@ from mapless.corridor import CorridorConfig, CorridorEstimator
 from mapless.ego_motion import EgoMotion, EgoMotionConfig
 from mapless.frame import SensorFrame, SensorState
 from mapless.health import HealthTracker
-from mapless.obstacles import ObstacleConfig, path_obstacle
+from mapless.obstacles import ObstacleConfig, observe_path
 from mapless.planner import LanePlanner, PlannerConfig
 from mapless.satnav import RouteProgress, SatNavRoute
 from mapless.sensor_suite import SensorSuite
-from mapless.terrain import PointClass, TerrainConfig, TerrainGrid, VehicleBody, classify_sweep
+from mapless.terrain import TerrainConfig, TerrainGrid, VehicleBody, classify_sweep
 from navigation_control.local import LocalControlConfig, LocalStatus, LocalTrajectoryController
 from navigation_control.types import ControlCommand, VehicleState
 
 
 class DriveMode(str, Enum):
     STARTUP = "startup"
+    CALIBRATING = "calibrating"
     DRIVING = "driving"
     STOPPING = "stopping"
     FINISHED = "finished"
@@ -58,6 +70,11 @@ class DriverConfig:
     obstacles: ObstacleConfig = field(default_factory=ObstacleConfig)
     planner: PlannerConfig = field(default_factory=PlannerConfig)
     lidar_max_age_s: float = 0.15
+    imu_max_age_s: float = 0.2  # yaw rate held longer than this: odometry is not trusted
+    speed_max_age_s: float = 0.2
+    gnss_max_age_s: float = 3.0
+    route_max_sigma_m: float = 4.0  # route position this uncertain: the goal cannot be judged
+    start_evidence_max_age_s: float = 0.5  # move off a standstill only on kerb evidence this fresh
     hold_within_m: float = 1.5  # stopped this close to an obstacle stop point: hold the brake
 
     def __post_init__(self):
@@ -101,9 +118,37 @@ class MaplessDriver:
         self.controller = LocalTrajectoryController(config.control)
         self._last_time = None
         self._finished = False
+        self._last_steer = 0.0
+        self._calibrated = False
 
     def _brake(self, mode, reason, diagnostics):
-        return DriverStep(ControlCommand(0.0, 0.0, HOLD), mode, reason, diagnostics)
+        """Standstill hold: wheels straight, brake on."""
+        return self._emit(ControlCommand(0.0, 0.0, HOLD), mode, reason, diagnostics)
+
+    def _emit(self, command, mode, reason, diagnostics):
+        self._last_steer = command.steering_angle_rad
+        return DriverStep(command, mode, reason, diagnostics)
+
+    def _fault(self, reason, diagnostics, motion, t, dt):
+        """Brake for a fault without leaving the lane.
+
+        Along the last trajectory while odometry is trusted (the controller steers it with a
+        zero speed limit). Otherwise the last steering is held: with a dropped IMU the
+        odometry heading is stale, but a car in a bend still needs to keep turning. Never
+        wheels straight in motion (review of 94b5caa: a fault in a bend ran wide).
+        """
+        c = self.config
+        moving = motion.speed_mps > c.control.controller.stopped_speed_mps
+        trusted = motion.imu_age_s <= c.imu_max_age_s and motion.speed_age_s <= c.speed_max_age_s
+        steer, how = (self._last_steer if moving else 0.0), "held"
+        brake = HOLD
+        if trusted and self.controller.trajectory is not None:
+            state = VehicleState(motion.odometry.x_m, motion.odometry.y_m, motion.odometry.yaw_rad, motion.speed_mps)
+            result = self.controller.update(state, t, dt, speed_limit_mps=0.0)
+            steer, how = result.command.steering_angle_rad, "trajectory"
+            brake = max(HOLD, result.command.brake)
+        diagnostics.update(fault_steering=how)
+        return self._emit(ControlCommand(steer, 0.0, brake), DriveMode.FAULT, reason, diagnostics)
 
     def step(self, frame):
         if not isinstance(frame, SensorFrame):
@@ -125,43 +170,80 @@ class MaplessDriver:
             route_sigma_m=motion.route_sigma_m,
             speed_mps=motion.speed_mps,
             gyro_bias_rps=motion.gyro_bias_rps,
+            imu_age_s=motion.imu_age_s,
+            speed_age_s=motion.speed_age_s,
+            gnss_age_s=motion.gnss_age_s,
+            lidar_points=None if classified is None else int(len(classified.xyz)),
+            keep_right_m=self.corridor.keep_right_m,
+            keep_right_source=self.corridor.keep_right_source,
         )
         if self._finished:
             return self._brake(DriveMode.FINISHED, "goal reached", d)
+        calibration = "configured" if self.corridor.keep_right_source == "configured" else "accepted"
+        if self.corridor.keep_right_source != "configured" and not self._calibrated:
+            calibration = self.corridor.calibrate(self.grid, motion.odometry, t, motion.stationary and classified is not None)
+            self._calibrated = calibration == "accepted"
+            d.update(
+                calibration=self.corridor.calibration_summary,
+                keep_right_m=self.corridor.keep_right_m,
+                keep_right_source=self.corridor.keep_right_source,
+            )
+        if calibration.startswith("failed"):
+            return self._fault(f"kerb calibration {calibration}", d, motion, t, dt)
         if not motion.localised:
-            if classified is not None and motion.stationary:
-                self.corridor.observe_start(classified)
             return self._brake(DriveMode.STARTUP, "averaging GNSS and compass at standstill", d)
+        if calibration == "calibrating":
+            return self._brake(DriveMode.CALIBRATING, "measuring the kerb at standstill", d)
         stale = self.health.stale([self.lidar], c.lidar_max_age_s)
         corridor = self.corridor.update(self.grid, motion.odometry, t)
         d.update(
             corridor_ok=corridor.ok,
             corridor_reason=corridor.reason,
             corridor_valid_m=corridor.valid_length_m,
+            corridor_support_m=corridor.support_m,
+            evidence_age_s=corridor.evidence_age_s if math.isfinite(corridor.evidence_age_s) else None,
             lane_offset_m=corridor.lateral_offset_at(0.0) if corridor.ok else None,
             corridor_evidence=int(len(corridor.evidence_body)),
             right_edge_5m=corridor.right_edge_from_centre_m(5.0),
             right_kerb_body=corridor.right_edge_body(5.0),
-            keep_right_m=self.corridor.keep_right_m,
-            keep_right_source=self.corridor.keep_right_source,
         )
         guidance = self.progress.update(motion.route.x_m, motion.route.y_m)
         d.update(route_index=guidance.index, goal_distance_m=guidance.goal_distance_m, route_finished=guidance.finished)
         if stale:
-            return self._brake(DriveMode.FAULT, f"LiDAR older than {c.lidar_max_age_s:.2f} s", d)
+            return self._fault(f"LiDAR older than {c.lidar_max_age_s:.2f} s", d, motion, t, dt)
+        if motion.imu_age_s > c.imu_max_age_s:
+            return self._fault(f"IMU {motion.imu_age_s:.2f} s old", d, motion, t, dt)
+        if motion.speed_age_s > c.speed_max_age_s:
+            return self._fault(f"speedometer {motion.speed_age_s:.2f} s old", d, motion, t, dt)
+        if motion.gnss_age_s > c.gnss_max_age_s:
+            return self._fault(f"GNSS {motion.gnss_age_s:.1f} s old", d, motion, t, dt)
+        if motion.route_sigma_m > c.route_max_sigma_m:
+            return self._fault(f"route position uncertain ({motion.route_sigma_m:.1f} m)", d, motion, t, dt)
         if not corridor.ok:
-            return self._brake(DriveMode.FAULT, f"no corridor: {corridor.reason}", d)
-        obstacle = None
-        if classified is not None:
-            obstacle = path_obstacle(classified.of(PointClass.OBSTACLE), corridor, c.body, c.obstacles)
+            if motion.stationary:
+                # Stopped without a corridor: assume again that the car stands in its lane,
+                # so the next sweeps search for the kerb from the car's own line.
+                self.corridor.reset()
+                d.update(corridor_reacquire=True)
+            return self._fault(f"no corridor: {corridor.reason}", d, motion, t, dt)
+        if motion.stationary and corridor.evidence_age_s > c.start_evidence_max_age_s:
+            self.corridor.reset()
+            d.update(corridor_reacquire=True)
+            return self._fault(
+                f"kerb evidence {corridor.evidence_age_s:.1f} s old: not moving off on a carried corridor", d, motion, t, dt
+            )
+        observation = None if classified is None else observe_path(classified, corridor, c.body, c.obstacles)
+        obstacle = None if observation is None else observation.obstacle
         goal_body = None
         if guidance.index == len(self.progress.xy) - 1 and guidance.goal_distance_m < corridor.valid_length_m + 5:
             goal_body = motion.odometry.to_body(motion.route_to_odometry(np.array([self.progress.xy[-1]])))[0]
-        plan = self.planner.plan(corridor, obstacle, goal_body, t)
+        plan = self.planner.plan(corridor, observation, goal_body, t)
         d.update(
             obstacle_m=None if obstacle is None else obstacle.distance_m,
             obstacle_points=None if obstacle is None else obstacle.points,
             obstacle_lateral_m=None if obstacle is None else obstacle.lateral_m,
+            clear_to_m=None if observation is None else observation.clear_to_m,
+            hold_state=plan.hold_state,
             stop_reason=plan.stop_reason,
             stop_distance_m=plan.stop_distance_m if math.isfinite(plan.stop_distance_m) else None,
         )
@@ -171,8 +253,10 @@ class MaplessDriver:
             and motion.stationary
         ):
             # Stopped at the stop point: hold the brake rather than let the speed loop
-            # creep. Driving resumes when the obstacle has been clear for resume_clear_s.
-            return self._brake(DriveMode.STOPPING, f"holding for {plan.stop_reason}", d)
+            # creep. Driving resumes once the path is seen clear for resume_clear_s.
+            return self._brake(DriveMode.STOPPING, f"holding for {plan.stop_reason} ({plan.hold_state})", d)
+        if plan.trajectory is None:
+            return self._fault("no plan", d, motion, t, dt)
         state = VehicleState(motion.odometry.x_m, motion.odometry.y_m, motion.odometry.yaw_rad, motion.speed_mps)
         acceptance = self.controller.set_local_trajectory(plan.trajectory, state, t)
         result = self.controller.update(state, t, dt)
@@ -185,10 +269,9 @@ class MaplessDriver:
         )
         if not acceptance.accepted and result.status in (LocalStatus.NO_TRAJECTORY, LocalStatus.EXPIRED):
             # Braking because plans are refused: say why rather than sit in DRIVING (first live run).
-            return self._brake(DriveMode.FAULT, f"trajectory refused: {acceptance.reason}", d)
+            return self._fault(f"trajectory refused: {acceptance.reason}", d, motion, t, dt)
         if result.status is LocalStatus.FINISHED or guidance.finished and motion.stationary:
             self._finished = True
             return self._brake(DriveMode.FINISHED, "goal reached", d)
         mode = DriveMode.STOPPING if result.status in (LocalStatus.STOPPING, LocalStatus.EXPIRED) else DriveMode.DRIVING
-        return DriverStep(result.command, mode, plan.stop_reason, d)
-
+        return self._emit(result.command, mode, plan.stop_reason, d)

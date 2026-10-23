@@ -28,8 +28,9 @@ def render(spec, cv2):
     if np.all(optical[:, 2] > 0.1):
         px = np.column_stack((cal.cx_px + cal.fx_px * optical[:, 0] / optical[:, 2], cal.cy_px + cal.fy_px * optical[:, 1] / optical[:, 2]))
         cv2.fillConvexPoly(tags, cv2.convexHull(px.astype(np.int32)), 14)
-    rgb = np.stack([tags * 9, tags * 5, 255 - tags * 9], -1).astype(np.uint8)
-    return rgb, tags
+    rgb = np.stack([tags * 9, tags * 5, 255 - tags * 9], -1).astype(int)
+    rgb += np.random.default_rng(spec.width).integers(-12, 13, rgb.shape)  # surface texture
+    return np.clip(rgb, 0, 255).astype(np.uint8), tags
 
 
 def lidar():
@@ -52,7 +53,7 @@ def make_run(tmp_path, cv2, swap_labels=False):
         for spec in SUITE.cameras:
             rgb, tags = render(spec, cv2)
             if swap_labels:
-                tags = tags[::-1].copy()  # a label image that does not belong to its RGB image
+                tags = np.roll(tags, tags.shape[0] // 4, axis=0)  # a label image that does not belong to its RGB image
             for kind, image, ext in (("rgb", rgb[:, :, ::-1], "jpg"), ("semantic", tags, "png")):
                 rel = Path(kind if kind == "rgb" else "labels/semantic") / spec.name / f"{frame:08d}.{ext}"
                 (run / rel).parent.mkdir(parents=True, exist_ok=True)
@@ -62,9 +63,13 @@ def make_run(tmp_path, cv2, swap_labels=False):
         (run / rel).parent.mkdir(parents=True, exist_ok=True)
         np.savez_compressed(run / rel, points=lidar())
         files["lidar"]["roof"] = rel.as_posix()
-        truth = dict(weather="ClearNoon", episode=0, traffic_light_state="Green", actors=[dict(type_id="vehicle.audi.a2", **CAR)])
-        samples.append(dict(frame=frame, files=files, speed_mps=3.0, truth=truth))
-    manifest = dict(map="Carla/Maps/Town03", status="COMPLETE", suite=SUITE.as_dict(), rig_records=[dict(rear_axle_offset_m=OFFSET)])
+        walker = dict(type_id="walker.pedestrian.0001", x_m=8.0, y_m=4.0, z_m=0.9, yaw_rad=0.0, extent_m=[0.2, 0.2, 0.9])
+        truth = dict(weather="ClearNoon", episode=0, traffic_light_state="Green", actors=[dict(type_id="vehicle.audi.a2", **CAR), walker])
+        samples.append(dict(frame=frame, files=files, speed_mps=3.0, truth=truth, calibration_id="cal"))
+    manifest = dict(
+        map="Carla/Maps/Town03", status="COMPLETE", suite=SUITE.as_dict(), rig_records=[dict(rear_axle_offset_m=OFFSET)],
+        schema="group7-mapless-capture-2", source_commit="abc", spawned_vehicles=80, spawned_walkers=150, vehicles=80, walkers=150,
+    )
     (run / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
     (run / "samples.jsonl").write_text("\n".join(json.dumps(s) for s in samples), encoding="utf-8")
     return run
@@ -78,6 +83,10 @@ def test_consistent_run_passes_both_projection_checks(tmp_path):
     assert front["ground_points_on_ground_labels"] > 0.95 and front["ground_points"] > 100
     assert front["vehicle_points_on_vehicle_labels"] > 0.9 and front["vehicle_points"] > 50
     assert summary["class_shares"]["front"]["road"] > 0.3
+    assert front["rgb_label_edge_ratio"] >= 1.5
+    assert summary["encounters"] == dict(samples_with_vehicle_in_path_30m=2, samples_with_pedestrian_20m=2)
+    assert summary["integrity"]["missing_files"] == 0 and summary["integrity"]["calibration_ids"] == 1
+    assert summary["acceptance"] == dict(status="ACCEPT", reasons=[])
     assert (run / "inspection" / "contact_sheet.png").exists() and (run / "inspection" / "cameras_sheet.png").exists()
 
 
@@ -85,3 +94,21 @@ def test_mismatched_labels_show_up_in_the_projection_checks(tmp_path):
     cv2 = pytest.importorskip("cv2")
     summary = inspect(make_run(tmp_path, cv2, swap_labels=True), sheet_samples=1)
     assert summary["projection_checks"]["front"]["ground_points_on_ground_labels"] < 0.5
+    assert summary["projection_checks"]["front"]["rgb_label_edge_ratio"] < 1.5
+    assert summary["acceptance"]["status"] == "REJECT"
+    assert any("do not pair" in r for r in summary["acceptance"]["reasons"])
+
+
+def test_missing_files_and_old_schema_are_reported(tmp_path):
+    cv2 = pytest.importorskip("cv2")
+    run = make_run(tmp_path, cv2)
+    manifest = json.loads((run / "manifest.json").read_text(encoding="utf-8"))
+    manifest["schema"] = "group7-mapless-capture-1"
+    (run / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    summary = inspect(run, sheet_samples=1)
+    assert summary["acceptance"]["status"] == "NEEDS_REPAIR"
+    (run / "lidar/roof/00000110.npz").unlink()
+    (run / "rgb/front/00000110.jpg").rename(run / "rgb/front/gone.jpg")
+    summary = inspect(run, sheet_samples=1, max_samples=1)
+    assert summary["integrity"]["missing_files"] == 2
+    assert summary["acceptance"]["status"] == "REJECT"

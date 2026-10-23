@@ -313,9 +313,14 @@ def test_straight_drive_reaches_the_goal_and_passes(monkeypatch, tmp_path):
     assert not failed, json.dumps(failed, indent=2)
     assert report["status"] == "MEASURED_PASS" and report["end"] == "finished"
     assert by_name["goal"]["goal_distance_m"] <= 3.0
-    assert by_name["kerb_calibration"]["map_lane_centre_to_kerb_m"] == pytest.approx(1.75)
-    assert abs(by_name["kerb_calibration"]["detected_kerb_bias_m"]) < 0.25
+    calibration = by_name["calibration"]
+    assert calibration["map_lane_centre_to_kerb_m"] == pytest.approx(1.75)
+    assert calibration["source"].startswith("measured at a standstill")
+    assert abs(calibration["keep_right_used_m"] - 1.75) <= 0.2 and calibration["calibrating_ticks"] >= 0
+    assert abs(by_name["kerb_bias"]["detected_kerb_bias_m"]) < 0.25
+    assert by_name["lane_footprint"]["status"] == "PASS"
     assert by_name["startup"]["route_pose_error_m"] < 3.0
+    assert list((out / "sweeps").glob("*.npz"))
     route = json.loads((out / "route.json").read_text(encoding="utf-8"))
     assert {p["command"] for p in route["points"]} == {"LANEFOLLOW"}
     assert (out / "drive_plot.png").exists() and list((out / "snapshots").glob("*.png"))

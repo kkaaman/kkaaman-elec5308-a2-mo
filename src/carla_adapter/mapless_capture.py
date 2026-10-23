@@ -1,4 +1,7 @@
-"""Training-data capture for the mapless stack (Town01–Town07 only; never Town10HD).
+"""Training-data capture for the mapless stack (Town01–Town06 only; never Town07 or Town10HD).
+
+Town07 is the held-out final test town (plan, section 12) and Town10HD the development
+benchmark the baseline was tuned on: neither may appear in training data.
 
 The ego drives on CARLA's Traffic Manager autopilot through background traffic and
 pedestrians. Autopilot is used here for data collection only; it never drives a
@@ -8,7 +11,9 @@ measured run. Each saved sample holds:
 - **Training labels:** a semantic-segmentation image for every RGB camera, from a
   camera with the same mount and lens.
 - **Truth:** ego pose, velocity and control; traffic-light state; nearby vehicles and
-  pedestrians as boxes in the vehicle frame; the map lane and its marking types.
+  pedestrians as boxes in the vehicle frame (centre, yaw, extent and the four plan-view
+  corners, from CARLA's world vertices, so an off-centre bounding box is placed right);
+  the map lane and its marking types.
 
 Labels and truth are for training and evaluation only and are never inputs to the car.
 ``manifest.json`` says so and records the suite hash, map, seed and weather.
@@ -44,8 +49,8 @@ from carla_adapter.world import SynchronousWorldSession, WorldTiming, ensure_map
 from evaluation.dataset import decode_bgra, map_short_name
 from mapless.sensor_suite import load_sensor_suite
 
-TEST_ONLY_MAPS = ("Town10HD", "Town10HD_Opt")
-CAPTURE_MAPS = tuple(f"Town0{i}" for i in range(1, 8))
+TEST_ONLY_MAPS = ("Town07", "Town07_Opt", "Town10HD", "Town10HD_Opt")  # held-out final test; dev benchmark
+CAPTURE_MAPS = tuple(f"Town0{i}" for i in range(1, 7))
 WEATHERS = (
     "ClearNoon",
     "CloudyNoon",
@@ -55,7 +60,7 @@ WEATHERS = (
     "WetCloudyNoon",
     "SoftRainNoon",
 )
-SCHEMA = "group7-mapless-capture-1"
+SCHEMA = "group7-mapless-capture-2"  # 2: truth boxes placed from world vertices, with corners
 
 
 def capture_map_allowed(name):
@@ -175,20 +180,28 @@ def truth_record(vehicle, carla_map, actors, rear_axle_offset_m, radius_m=80.0):
         p = core_pose(t)
         if math.dist(p[:2], rear[:2]) > radius_m:
             continue
-        x, y, yaw = to_ego_frame(rear, p[:2], p[3])
         av = actor.get_velocity()
         c, s = math.cos(rear[3]), math.sin(rear[3])
         vx, vy = av.x, -av.y
         box = actor.bounding_box
+        # The box centre is the actor's transform plus box.location (off the actor origin
+        # for most CARLA vehicles). Place it from the box's own world vertices: the first
+        # capture pilots put the centre on the actor origin (review of 94b5caa).
+        vertices = [(v.x, -v.y, v.z) for v in box.get_world_vertices(t)]
+        centre = tuple(float(np.mean([v[k] for v in vertices])) for k in range(3))
+        x, y, yaw = to_ego_frame(rear, centre[:2], p[3])
+        bottom = sorted(vertices, key=lambda v: v[2])[:4]  # the four lower corners, plan view
+        corners = [list(to_ego_frame(rear, v[:2], p[3])[:2]) for v in bottom]
         others.append(
             dict(
                 id=actor.id,
                 type_id=actor.type_id,
                 x_m=x,
                 y_m=y,
-                z_m=p[2] - rear[2] + box.location.z,
+                z_m=centre[2] - rear[2],
                 yaw_rad=yaw,
                 extent_m=[box.extent.x, box.extent.y, box.extent.z],
+                corners_m=corners,
                 velocity_mps=[c * vx + s * vy, -s * vx + c * vy],
             )
         )
@@ -212,6 +225,21 @@ def truth_record(vehicle, carla_map, actors, rear_axle_offset_m, radius_m=80.0):
         ),
         actors=others,
     )
+
+
+def source_commit():
+    """The repository commit this capture ran from, or None outside a checkout."""
+    import subprocess
+
+    try:
+        root = Path(__file__).resolve().parents[2]
+        out = subprocess.run(["git", "rev-parse", "HEAD"], cwd=root, capture_output=True, text=True, timeout=10)
+        dirty = subprocess.run(["git", "status", "--porcelain"], cwd=root, capture_output=True, text=True, timeout=10)
+        if out.returncode != 0:
+            return None
+        return out.stdout.strip() + ("-dirty" if dirty.stdout.strip() else "")
+    except Exception:
+        return None
 
 
 def _write_sample(root, frame, sensor_frame, labels, truth, cv2):
@@ -259,7 +287,7 @@ def _write_sample(root, frame, sensor_frame, labels, truth, cv2):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    parser.add_argument("--map", required=True, help="Town01-Town07 (optionally _Opt)")
+    parser.add_argument("--map", required=True, help="Town01-Town06 (optionally _Opt)")
     parser.add_argument("--suite", type=Path, default=Path("configs/sensor_suites/mapless_v2.json"))
     parser.add_argument("--output", type=Path, required=True, help="New folder for this run")
     parser.add_argument("--samples", type=int, default=1000, help="Samples to save")
@@ -283,7 +311,7 @@ def main(argv=None):
     args = parser.parse_args(argv)
 
     if map_short_name(args.map) in TEST_ONLY_MAPS or not capture_map_allowed(args.map):
-        parser.error("Capture is allowed on Town01-Town07 only; Town10HD is test-only")
+        parser.error("Capture is allowed on Town01-Town06 only; Town07 (held-out test) and Town10HD (dev benchmark) are refused")
     if args.weather != "cycle" and args.weather not in WEATHERS:
         parser.error(f"--weather must be 'cycle' or one of {', '.join(WEATHERS)}")
     if args.output.exists():
@@ -329,6 +357,8 @@ def main(argv=None):
         save_every_ticks=args.save_every,
         episode_s=args.episode_s,
         driver="CARLA Traffic Manager autopilot (data collection only)",
+        source_commit=source_commit(),
+        box_geometry="centre and corners from bounding_box.get_world_vertices (schema 2)",
         rear_axle_offset="measured per episode from the wheels (FixedVehicleAdapter)",
         split_policy="Whole runs and whole towns; never neighbouring frames.",
         status="INCOMPLETE",
@@ -354,10 +384,12 @@ def main(argv=None):
                 for bp in library.filter("vehicle.*")
                 if bp.has_attribute("number_of_wheels") and int(bp.get_attribute("number_of_wheels")) == 4
             ]
+            spawned_vehicles = 0
             for spawn in spawn_points[: args.vehicles]:
                 actor = owner.try_spawn(rng.choice(car_blueprints), spawn)
                 if actor is not None:
                     actor.set_autopilot(True, args.tm_port)
+                    spawned_vehicles += 1
             walker_blueprints = list(library.filter("walker.pedestrian.*"))
             controller_bp = library.find("controller.ai.walker")
             for _ in range(args.walkers):
@@ -370,6 +402,7 @@ def main(argv=None):
                 controller = world.spawn_actor(controller_bp, carla.Transform(), attach_to=walker)
                 owner._actors.append(controller)
                 walker_controllers.append(controller)
+            manifest.update(spawned_vehicles=spawned_vehicles, spawned_walkers=len(walker_controllers))
             owner.tick()
             for controller in walker_controllers:
                 controller.start()

@@ -206,6 +206,7 @@ class TerrainGrid:
         self.raised = np.zeros_like(self.road)
         self.obstacle = np.zeros_like(self.road)
         self.tall = np.zeros_like(self.road)  # obstacle hits remembered as long as kerbs are
+        self.seen = np.full((self.n, self.n), -np.inf)  # simulation time each cell was last hit
         self.time_s = None
 
     def _centre(self):
@@ -214,9 +215,9 @@ class TerrainGrid:
     def _recentre(self, x, y):
         c = self.config
         shift = np.round((np.array([x, y]) - self._centre()) / c.cell_m).astype(int)
-        for name in ("road", "raised", "obstacle", "tall"):
+        for name in ("road", "raised", "obstacle", "tall", "seen"):
             old = getattr(self, name)
-            new = np.zeros_like(old)
+            new = np.full_like(old, -np.inf) if name == "seen" else np.zeros_like(old)
             di, dj = shift
             src_i = slice(max(0, di), min(self.n, self.n + di))
             dst_i = slice(max(0, -di), min(self.n, self.n - di))
@@ -249,6 +250,7 @@ class TerrainGrid:
         xy = pose.to_world(sweep.xyz[:, :2])
         ij, inside = self.cells(xy)
         flat = ij[:, 0] * self.n + ij[:, 1]
+        self.seen.ravel()[np.unique(flat[inside & (sweep.cls != PointClass.IGNORED)])] = time_s
         for point_class, grid in (
             (PointClass.ROAD, self.road),
             (PointClass.RAISED, self.raised),
@@ -258,8 +260,20 @@ class TerrainGrid:
             hit = np.unique(flat[inside & (sweep.cls == point_class)])
             grid.ravel()[hit] += 1.0
 
-    def labels(self, xy):
+    def seen_at(self, xy):
+        """Simulation time each odometry point's cell was last hit (-inf if never or outside)."""
+        ij, inside = self.cells(xy)
+        out = np.full(len(ij), -np.inf)
+        out[inside] = self.seen[ij[inside, 0], ij[inside, 1]]
+        return out
+
+    def labels(self, xy, max_age_s=None):
         """CellLabel for odometry points: BARRIER, OCCUPIED, ROAD or UNKNOWN (outside or unseen).
+
+        With ``max_age_s``, a cell not hit by any point within that long is UNKNOWN whatever
+        evidence it still holds: evidence decays slowly (a cell seen 60 times takes 12 s
+        to fall below one), so without this an empty or dead LiDAR would leave old road
+        looking current (review of 94b5caa).
 
         Only raised ground (kerb, pavement) is a BARRIER. Obstacles are OCCUPIED, so a row of
         parked cars does not become the road edge: on Town10HD's shoulders the first live
@@ -281,6 +295,8 @@ class TerrainGrid:
         result[is_road] = CellLabel.ROAD
         result[is_barrier] = CellLabel.BARRIER
         result[is_occupied] = CellLabel.OCCUPIED
+        if max_age_s is not None and self.time_s is not None:
+            result[self.seen[i, j] < self.time_s - max_age_s] = CellLabel.UNKNOWN
         out[inside] = result
         return out
 

@@ -24,18 +24,20 @@ everything else:
 | Start-up | The car localised itself from GNSS and compass within 3 s, with no spawn pose |
 | No collision | No collision event |
 | Lane keeping | After the first 15 m: offset p95 ≤ 0.35 m and max ≤ 0.70 m |
+| Lane footprint | Whole run, calibration and start included: the car's body never crosses the lane's edges (its 0.6 m half-lane margin past the rear-axle offset) |
+| Calibration | The kerb distance was measured at a standstill and accepted, within 0.3 m of the map's |
 | Goal (straight, curve) | FINISHED, rear axle within 3 m of the goal |
 | Obstacle stop (stop) | Standing still, bumper gap 1.5 to 5.0 m, held for ``--hold-s`` |
 | Speed | Never above the cruise speed + 0.5 m/s |
 | Faults | Under 2% of driving ticks in FAULT |
 
 Reported, not gated: driver step time, the start-up route-pose error, and the kerb
-calibration (map distance from lane centre to kerb, against what the LiDAR found). The
-calibration says what ``--keep-right`` should be.
+bias (where the LiDAR found the kerb against where the map has it).
 
 Outputs: ``drive_report.json``, ``drive_log.jsonl`` (one line per tick), ``route.json``,
-``drive_plot.png`` and, every ``--snapshot-every`` ticks, a top-down image of the terrain
-grid and corridor in ``snapshots/``.
+``drive_plot.png``, every ``--snapshot-every`` ticks a top-down image of the terrain grid
+and corridor in ``snapshots/`` and, until the car first moves, the raw classified sweeps
+in ``sweeps/`` (``npz``: xyz, cls), so a calibration can be replayed offline.
 """
 
 import argparse
@@ -260,6 +262,7 @@ def render_snapshot(driver, path, half_width_m=20.0, ahead_m=45.0, behind_m=10.0
     image = np.full(labels.shape + (3,), 235, np.uint8)
     image[labels == CellLabel.ROAD] = (150, 150, 150)
     image[labels == CellLabel.BARRIER] = (40, 90, 200)
+    image[labels == CellLabel.OCCUPIED] = (200, 60, 160)
     image = np.ascontiguousarray(image[::-1, ::-1])  # forward up, left on the left
 
     def px(x, y):
@@ -443,6 +446,9 @@ class MaplessDrive:
         snapshots = args.output / "snapshots"
         if args.snapshot_every:
             snapshots.mkdir()
+        sweeps = args.output / "sweeps"
+        sweeps.mkdir()
+        moved = False
         log, step_times, modes = [], [], []
         hold_ticks = 0
         finished_ticks = 0
@@ -482,6 +488,10 @@ class MaplessDrive:
                 log.append(row)
                 if args.snapshot_every and tick % args.snapshot_every == 0 and step.mode is not DriveMode.STARTUP:
                     render_snapshot(driver, snapshots / f"t{tick:05d}.png")
+                if truth["speed_mps"] < 0.05 and not moved and sf.lidars:
+                    sweep = sf.lidar(self.suite.lidars[0].name)
+                    np.savez_compressed(sweeps / f"t{tick:05d}.npz", points=sweep.points, mode=step.mode.value)
+                moved = moved or truth["speed_mps"] >= 0.05
                 if tick % 20 == 0:
                     d = step.diagnostics
                     print(
@@ -539,7 +549,37 @@ class MaplessDrive:
             checks.append(
                 check("lane_keeping", PASS if p95 <= 0.35 and worst <= 0.70 else FAIL, p95_m=p95, max_m=worst, ticks=len(settled))
             )
+        # The whole run, calibration and start included: no part of the body outside the lane.
+        # The lane is lane_width wide; the body's half width past the rear-axle offset is the
+        # margin left. Measured at the rear axle and at the front bumper (heading error).
+        margin = self.site["lane_width_m"] / 2 - self.body.half_width_m
+        worst_body = 0.0
+        for r in log:
+            t = r["truth"]
+            front = abs(t["lane_offset_m"] + self.body.front_m * math.sin(t["heading_error_rad"]))
+            worst_body = max(worst_body, abs(t["lane_offset_m"]), front)
+        checks.append(
+            check("lane_footprint", PASS if worst_body <= margin else FAIL, max_offset_m=worst_body, margin_m=margin, ticks=len(log))
+        )
         last = log[-1]
+        summary = last["driver"].get("calibration")
+        source = last["driver"].get("keep_right_source") or ""
+        used = last["driver"].get("keep_right_m")
+        if source == "configured":
+            checks.append(check("calibration", REPORT, keep_right_used_m=used, source=source, note="--keep-right given"))
+        else:
+            within = used is not None and abs(used - self.site["kerb_distance_m"]) <= 0.3
+            checks.append(
+                check(
+                    "calibration",
+                    PASS if source.startswith("measured") and within else FAIL,
+                    keep_right_used_m=used,
+                    map_lane_centre_to_kerb_m=self.site["kerb_distance_m"],
+                    source=source,
+                    summary=summary,
+                    calibrating_ticks=sum(1 for r in log if r["mode"] == DriveMode.CALIBRATING.value),
+                )
+            )
         if args.scenario in ("straight", "curve"):
             done = self.report["end"] == "finished"
             goal = last["truth"]["goal_distance_m"]
@@ -550,7 +590,7 @@ class MaplessDrive:
             checks.append(check("obstacle_stop", PASS if ok else FAIL, end=self.report["end"], gap_m=gap, held_s=hold_ticks * DT_S))
         top = max(r["truth"]["speed_mps"] for r in log)
         checks.append(check("speed", PASS if top <= args.speed + 0.5 else FAIL, max_mps=top))
-        driving = [m for m in modes if m is not DriveMode.STARTUP]
+        driving = [m for m in modes if m not in (DriveMode.STARTUP, DriveMode.CALIBRATING)]
         faults = [r["reason"] for r in startup if r["mode"] == DriveMode.FAULT.value]
         share = len(faults) / max(1, len(driving))
         reasons = {}
@@ -573,17 +613,11 @@ class MaplessDrive:
             edge_errors.append(detected - true)
         checks.append(
             check(
-                "kerb_calibration",
+                "kerb_bias",
                 REPORT,
-                map_lane_centre_to_kerb_m=self.site["kerb_distance_m"],
                 lanes_between=self.site["right_lanes"],
-                keep_right_used_m=last["driver"].get("keep_right_m"),
-                keep_right_source=last["driver"].get("keep_right_source"),
                 detected_kerb_bias_m=float(np.median(edge_errors)) if edge_errors else None,
-                note=(
-                    "keep_right_used_m should match the map distance when measured at start-up."
-                    " bias > 0: the LiDAR kerb is found closer to the car than the map's."
-                ),
+                note="bias > 0: the LiDAR kerb is found closer to the car than the map's.",
             )
         )
 

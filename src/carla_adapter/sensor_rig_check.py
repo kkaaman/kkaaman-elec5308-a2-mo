@@ -139,6 +139,18 @@ def percentiles(values_s):
     return dict(p50_ms=float(np.percentile(ms, 50)), p95_ms=float(np.percentile(ms, 95)), max_ms=float(ms.max()))
 
 
+def _evidence_verdict(values, minimum, passes):
+    """FAIL when the evidence there is already fails; INCOMPLETE when too little; else PASS.
+
+    Missing evidence must not hide a failure (review of 94b5caa).
+    """
+    if len(values) >= 2 and not passes(values):
+        return FAIL
+    if len(values) < minimum:
+        return INCOMPLETE
+    return PASS
+
+
 def check(name, status, **values):
     if isinstance(status, (bool, np.bool_)):
         status = PASS if status else FAIL
@@ -446,8 +458,12 @@ class RigCheck:
         for image in sf.cameras:
             h, w = image.rgb.shape[:2]
             px, front = cal.project(corners, image.calibration)
-            entry = dict(visible=False)
-            if front.all():
+            # A target partly behind the image plane (alongside, for the side cameras) still
+            # shows: its box is judged from the corners in front, as a partial target. The
+            # first runs skipped it and reported "only LiDAR sees a car alongside".
+            partial = not front.all()
+            entry = dict(visible=False, partial=bool(partial))
+            if front.sum() >= 4:
                 rect = cal.rect_of(px)
                 if rect[2] > 0 and rect[0] < w and rect[3] > 0 and rect[1] < h:
                     ids, tags = tick["ids"][image.name]
@@ -461,12 +477,14 @@ class RigCheck:
                         lpx, _ = cal.project(lidar_points, image.calibration)
                         entry = dict(
                             visible=True,
+                            partial=bool(partial),
                             instance_code=int(key[0]),
                             instance_tag=int(key[1]),
                             mask_pixels=int(mask.sum()),
                             projected_rect_px=rounded(rect, 1),
                             mask_rect_px=rounded(measured, 1),
-                            edge_errors_px={k: round(float(v), 2) for k, v in cal.edge_errors(rect, measured, w, h).items()},
+                            # A partial box's rect is bounded by the corners seen, not the car: no edge errors.
+                            edge_errors_px={} if partial else {k: round(float(v), 2) for k, v in cal.edge_errors(rect, measured, w, h).items()},
                             lidar_points_in_view=int(len(lpx)),
                             mask_consistency=cal.mask_consistency(lpx, mask) if len(lpx) >= 20 else None,
                         )
@@ -531,7 +549,7 @@ class RigCheck:
         self.checks.append(
             check(
                 "lidar_extrinsics",
-                INCOMPLETE if len(measured) < 6 else (not lidar_bad),
+                FAIL if lidar_bad else (INCOMPLETE if len(measured) < 6 else PASS),
                 placements_measured=len(measured),
                 failing_placements=lidar_bad,
                 note=(
@@ -546,10 +564,12 @@ class RigCheck:
                 if v.get("mask_consistency") is not None:
                     per_camera.setdefault(cam, []).append(v["mask_consistency"])
         cams = {s.name for s in self.suite.cameras}
+        failing = sorted(k for k, v in per_camera.items() if min(v) < 0.85)
         self.checks.append(
             check(
                 "camera_mask_consistency",
-                INCOMPLETE if set(per_camera) != cams else all(min(v) >= 0.85 for v in per_camera.values()),
+                FAIL if failing else (INCOMPLETE if set(per_camera) != cams else PASS),
+                failing_cameras=failing,
                 min_per_camera={k: round(min(v), 3) for k, v in per_camera.items()},
                 cameras_without_evidence=sorted(cams - set(per_camera)),
             )
@@ -570,7 +590,7 @@ class RigCheck:
         self.checks.append(
             check(
                 "camera_reprojection_props",
-                INCOMPLETE if len(gated) < 8 else cal.p95(gated) <= 3.0,
+                _evidence_verdict(gated, 8, lambda v: cal.p95(v) <= 3.0),
                 edges=len(gated),
                 p95_px=cal.p95(gated),
                 max_px=max(gated) if gated else None,
@@ -610,7 +630,7 @@ class RigCheck:
         self.checks.append(
             check(
                 "radar_range_accuracy",
-                INCOMPLETE if len(prop_range) < 10 else cal.p95(prop_range) <= 0.5,
+                _evidence_verdict(prop_range, 10, lambda v: cal.p95(v) <= 0.5),
                 returns=len(prop_range),
                 p95_m=cal.p95(prop_range),
                 median_m=float(np.median(prop_range)) if prop_range else None,
@@ -645,7 +665,7 @@ class RigCheck:
         for image in tick["frame"].cameras:
             h, w = image.rgb.shape[:2]
             px, front = cal.project(corners, image.calibration)
-            if not front.all():
+            if front.sum() < 4:
                 continue
             rect = cal.rect_of(px)
             if rect[2] <= 0 or rect[0] >= w or rect[3] <= 0 or rect[1] >= h:
@@ -977,9 +997,15 @@ class RigCheck:
             self.phase_static()
             if not self.args.skip_placements:
                 self.phase_placements()
+            else:
+                for name in ("lidar_extrinsics", "camera_mask_consistency", "camera_reprojection_props", "radar_range_accuracy"):
+                    self.checks.append(check(name, INCOMPLETE, reason="phase skipped (--skip-placements)"))
             self.phase_render_lag()
             if not self.args.skip_radar_motion:
                 self.phase_radar_motion()
+            else:
+                for name in ("radar_sign_moving_target", "radar_equal_speed_lead"):
+                    self.checks.append(check(name, INCOMPLETE, reason="phase skipped (--skip-radar-motion)"))
             self.phase_drive()
         self.report["rig"] = self.rig.record()
         self.report["timing"] = {key: percentiles(values) for key, values in self.timing.items()}

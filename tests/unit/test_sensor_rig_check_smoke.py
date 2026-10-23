@@ -504,6 +504,12 @@ def test_gate_runs_end_to_end_and_passes_on_a_consistent_world(monkeypatch, tmp_
     lag = by_name["camera_render_lag"]
     assert lag["status"] == "PASS" and lag["camera_minus_lidar_ticks"] == [0, 0, 0, 0]
     assert next(r for r in coverage if r["placement"] == "ahead_10m")["first_visible_tick"]["front"] == 1
+    # A car alongside is seen by a side camera; one partly behind an image plane is judged
+    # from the corners in front, as a partial target, with no edge errors.
+    alongside = next(r for r in coverage if r["placement"] == "left_alongside")["cameras"]
+    assert any(v.get("visible") for v in alongside.values())
+    assert all("partial" in v for v in alongside.values())
+    assert all(v["edge_errors_px"] == {} for v in alongside.values() if v.get("visible") and v["partial"])
 
 
 def test_overrides_are_recorded(monkeypatch, tmp_path):
@@ -512,6 +518,11 @@ def test_overrides_are_recorded(monkeypatch, tmp_path):
     )
     assert report["overrides"] == {"radar_front.points_per_second": 1500}
     assert report["suite_name"].endswith("+overrides")
+    # Skipped phases leave their gates INCOMPLETE: a partial run is never a pass.
+    by_name = {c["check"]: c for c in report["checks"]}
+    assert by_name["lidar_extrinsics"]["status"] == "INCOMPLETE" and "skipped" in by_name["lidar_extrinsics"]["reason"]
+    assert by_name["radar_sign_moving_target"]["status"] == "INCOMPLETE"
+    assert report["status"] == "INCOMPLETE"
     assert report["rig"]["attributes"]["radar_front"]["points_per_second"] == 1500
 
 

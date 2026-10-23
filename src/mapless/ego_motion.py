@@ -26,7 +26,7 @@ from dataclasses import dataclass, replace
 import numpy as np
 
 from autonomy.localisation import FilterTuning, PoseEstimator
-from mapless.frame import SensorFrame
+from mapless.frame import SensorFrame, SensorState
 from mapless.geometry import wrap, yaw_from_compass
 from mapless.satnav import LocalTangentPlane
 
@@ -81,11 +81,13 @@ class Odometry:
         self._bias_samples = []
         self.gyro_bias_rps = 0.0
 
-    def update(self, time_s, speed_mps, yaw_rate_rps, stationary):
+    def update(self, time_s, speed_mps, yaw_rate_rps, stationary, fresh_gyro=True):
         if self.time_s is None:
             self.time_s = time_s
         dt = time_s - self.time_s
         self.time_s = time_s
+        if stationary and not fresh_gyro:
+            return self.pose  # never learn the bias from a reused reading
         if stationary:
             samples = self._bias_samples
             samples.append(yaw_rate_rps)
@@ -130,6 +132,9 @@ class EgoMotionState:
     stationary: bool
     route_sigma_m: float
     gyro_bias_rps: float
+    imu_age_s: float = 0.0  # since the last IMU sample (the yaw rate is held meanwhile)
+    speed_age_s: float = 0.0  # since the last speedometer reading
+    gnss_age_s: float = math.inf  # since the last GNSS fix
 
     @property
     def localised(self):
@@ -163,6 +168,10 @@ class EgoMotion:
         self._startup_began_s = None
         self._yaw_rate = 0.0
         self._speeds = []
+        self._imu_time = -math.inf
+        self._speed_time = -math.inf
+        self._gnss_time = -math.inf
+        self._speed = 0.0
 
     def _start(self, time_s):
         xy = np.mean(self._startup_fixes, axis=0)
@@ -182,16 +191,24 @@ class EgoMotion:
         # The speedometer reads noise around zero at a standstill. Judge standstill on a short
         # mean, and integrate zero speed while stationary (clamping noise at zero would
         # otherwise creep forwards).
-        reading = float(frame.speed_mps)
-        self._speeds.append(reading)
-        if len(self._speeds) > c.speed_window:
-            del self._speeds[0]
-        recent = np.asarray(self._speeds)
+        if _ok(frame, "speedometer"):
+            reading = float(frame.speed_mps)
+            self._speed_time = t
+            self._speeds.append(reading)
+            if len(self._speeds) > c.speed_window:
+                del self._speeds[0]
+        recent = np.asarray(self._speeds) if self._speeds else np.zeros(1)
         stationary = abs(recent.mean()) < c.stationary_speed_mps and np.abs(recent).max() < c.stationary_max_reading_mps
-        speed = 0.0 if stationary else max(0.0, reading)
-        if frame.imu is not None:
+        if _ok(frame, "speedometer"):
+            self._speed = 0.0 if stationary else max(0.0, float(frame.speed_mps))
+        speed = self._speed  # held while the speedometer is missing; the driver bounds how long
+        fresh_gyro = frame.imu is not None
+        if fresh_gyro:
             self._yaw_rate = frame.imu.yaw_rate_rps
-        odometry = self.odometry.update(t, speed, self._yaw_rate, stationary)
+            self._imu_time = t
+        if frame.gnss is not None:
+            self._gnss_time = t
+        odometry = self.odometry.update(t, speed, self._yaw_rate, stationary, fresh_gyro)
         fix = None if frame.gnss is None else self.plane.to_local(frame.gnss.latitude_deg, frame.gnss.longitude_deg)
         compass = None if frame.imu is None else yaw_from_compass(frame.imu.compass_rad)
         if not self.route.initialised:
@@ -231,4 +248,11 @@ class EgoMotion:
             stationary=stationary,
             route_sigma_m=sigma,
             gyro_bias_rps=self.odometry.gyro_bias_rps,
+            imu_age_s=t - self._imu_time,
+            speed_age_s=t - self._speed_time,
+            gnss_age_s=t - self._gnss_time,
         )
+
+
+def _ok(frame, kind):
+    return any(status.kind == kind and status.state is SensorState.OK for status in frame.status)

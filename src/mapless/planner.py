@@ -12,8 +12,15 @@ Past a stop point every speed is zero. A goal stop is sent as a final-goal traje
 that ends at the goal, so the controller latches FINISHED there.
 
 **Stop hold.** One sweep can miss an obstacle that the previous ones saw (occlusion,
-drop-off). The last obstacle stop point is kept in the odometry frame and still applies
-until no obstacle has been seen for ``resume_clear_s``.
+drop-off). The last obstacle stop point is kept in the odometry frame and holds in one
+of three states:
+
+- BLOCKED: an obstacle is seen; the stop point follows it.
+- CLEAR: the tube is seen clear (ground observed, nothing standing on it) to
+  ``clear_beyond_m`` past where the obstacle was. Only ``resume_clear_s`` of continuous
+  CLEAR releases the stop.
+- UNKNOWN: neither. The stop stays. A missed or occluded obstacle is not clearance
+  (review of 94b5caa; live run e released after 1 s of missed detections and crept 0.6 m).
 """
 
 import math
@@ -22,7 +29,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from mapless.corridor import Corridor
-from mapless.obstacles import PathObstacle, project_onto_polyline
+from mapless.obstacles import PathObservation, project_onto_polyline
 from mapless.terrain import VehicleBody
 from navigation_control.local import LocalTrajectory, TrajectorySample
 
@@ -35,6 +42,7 @@ class PlannerConfig:
     stop_gap_m: float = 2.5
     validity_s: float = 0.5
     resume_clear_s: float = 1.0
+    clear_beyond_m: float = 2.0
 
     def __post_init__(self):
         for name in ("cruise_mps", "lateral_accel_mps2", "decel_mps2", "validity_s"):
@@ -51,6 +59,7 @@ class Plan:
     stop_reason: str  # "", "obstacle", "obstacle_hold", "goal"
     stop_distance_m: float  # rear-axle distance along the path to the stop point (inf if none)
     curve_speed_mps: float  # lowest curve limit on the trajectory
+    hold_state: str = ""  # "", "blocked", "clear", "unknown"
 
 
 def curvature(coefficients, x):
@@ -75,38 +84,57 @@ class LanePlanner:
         self.config = config
         self.body = body
         self._hold_point = None  # odometry xy of the rear-axle stop point
-        self._last_seen_s = -math.inf
+        self._obstacle_point = None  # odometry xy of the held obstacle's nearest point
+        self._clear_since_s = None
 
     def reset(self):
         self._hold_point = None
-        self._last_seen_s = -math.inf
+        self._obstacle_point = None
+        self._clear_since_s = None
 
-    def plan(self, corridor, obstacle, goal_body, now_s):
-        """``goal_body``: the route goal in the vehicle frame, when it is within reach."""
+    def plan(self, corridor, observation, goal_body, now_s):
+        """``observation``: this sweep's ``PathObservation`` (None without a sweep this tick).
+
+        ``goal_body``: the route goal in the vehicle frame, when it is within reach.
+        """
         if not isinstance(corridor, Corridor):
             raise TypeError("corridor must be a Corridor")
-        if obstacle is not None and not isinstance(obstacle, PathObstacle):
-            raise TypeError("obstacle must be a PathObstacle or None")
+        if observation is not None and not isinstance(observation, PathObservation):
+            raise TypeError("observation must be a PathObservation or None")
         c = self.config
         if not corridor.ok:
-            return Plan(None, "", math.inf, math.inf)
+            return Plan(None, "", math.inf, math.inf, "unknown" if self._hold_point is not None else "")
         line = corridor.centre_body
         arcs = np.concatenate(([0.0], np.cumsum(np.hypot(*np.diff(line, axis=0).T))))
         s_car = float(project_onto_polyline(np.zeros((1, 2)), line)[0][0])
 
-        stop_s, reason = math.inf, ""
+        stop_s, reason, state = math.inf, "", ""
+        obstacle = None if observation is None else observation.obstacle
         if obstacle is not None:
             stop_s = s_car + obstacle.distance_m - self.body.front_m - c.stop_gap_m
-            reason = "obstacle"
-            self._last_seen_s = now_s
+            reason, state = "obstacle", "blocked"
             point = np.interp(stop_s, arcs, line[:, 0]), np.interp(stop_s, arcs, line[:, 1])
             self._hold_point = corridor.pose.to_world(np.array([point]))[0]
-        elif self._hold_point is not None and now_s - self._last_seen_s <= c.resume_clear_s:
+            nearest = s_car + obstacle.distance_m
+            point = np.interp(nearest, arcs, line[:, 0]), np.interp(nearest, arcs, line[:, 1])
+            self._obstacle_point = corridor.pose.to_world(np.array([point]))[0]
+            self._clear_since_s = None
+        elif self._hold_point is not None:
             held = corridor.pose.to_body(self._hold_point[None])
             stop_s = float(project_onto_polyline(held, line)[0][0])
-            reason = "obstacle_hold"
-        else:
-            self._hold_point = None
+            where = corridor.pose.to_body(self._obstacle_point[None])
+            needed = float(project_onto_polyline(where, line)[0][0]) - s_car + c.clear_beyond_m
+            if observation is not None and observation.clear_to_m >= needed:
+                state = "clear"
+                self._clear_since_s = now_s if self._clear_since_s is None else self._clear_since_s
+            else:
+                state = "unknown"
+                self._clear_since_s = None
+            if state == "clear" and now_s - self._clear_since_s >= c.resume_clear_s:
+                self._hold_point = self._obstacle_point = self._clear_since_s = None
+                stop_s, state = math.inf, "clear"
+            else:
+                reason = "obstacle_hold"
 
         final_goal = False
         end = len(line)
@@ -139,4 +167,10 @@ class LanePlanner:
             manoeuvre_id="goal_stop" if final_goal else "lane_follow",
             final_goal=final_goal,
         )
-        return Plan(trajectory, reason, stop_s - s_car if math.isfinite(stop_s) else math.inf, float(curve.min()))
+        return Plan(
+            trajectory,
+            reason,
+            stop_s - s_car if math.isfinite(stop_s) else math.inf,
+            float(curve.min()),
+            state,
+        )
