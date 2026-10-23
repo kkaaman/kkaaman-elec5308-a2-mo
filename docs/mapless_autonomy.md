@@ -542,6 +542,8 @@ the car.
   error at start 1.9 m; driver step p95 24 ms.
 - The first curve run with the same code failed only the footprint gate's own
   measurement (the lane heading read by index drifted 10° in the bend); fixed in `1348ec6`.
+- Beyond the gate: the straight at 4 m/s (`--speed 4`) also MEASURED_PASS, lane offset
+  within 0.16 m, zero faults, no retuning.
 
 ## Running Phase 0 live
 
