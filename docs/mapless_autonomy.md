@@ -531,6 +531,18 @@ top-down terrain snapshots and the start-up sweeps.
   goal or the truth lane's end; the capture verdict splits integrity, geometry and
   coverage (coverage only warns; the edge ratio is a warning).
 
+**G1b closed (23 Oct, PC 2, Town10HD_Opt, `955740b`/`1348ec6`): straight, stop and curve
+all MEASURED_PASS**, sensor-only at 2 m/s, no map, no simulator pose, no actor truth in
+the car.
+- Straight (60 m): lane p95 0.26 m, zero faults, goal within 3 m.
+- Stop: stopped with a 3.5 m bumper gap and held, zero faults, no creep.
+- Curve (90° at 39 m radius, 63 m): lane p95 0.06 m, max 0.064 m; worst body corner 1.32 m
+  from the lane centre (half lane 1.75 m); calibration 4.20 m against the map's 4.385 m
+  (the map measures to the sidewalk lane, the LiDAR to the 10 cm contour); route-pose
+  error at start 1.9 m; driver step p95 24 ms.
+- The first curve run with the same code failed only the footprint gate's own
+  measurement (the lane heading read by index drifted 10° in the bend); fixed in `1348ec6`.
+
 ## Running Phase 0 live
 
 Run with CARLA 0.9.16 and no other clients:
