@@ -13,6 +13,18 @@ everything else:
 - **Route** (sat-nav role): LANEFOLLOW points every 25 m along that lane to the goal,
   placed with the map's own geolocation.
 - **Obstacle** (``stop``): a parked car in the ego lane, spawned before the car starts.
+- **Turns** (``turn_left``, ``turn_right``, G1c): a rightmost approach lane that ends at a
+  junction with a connecting lane leaving at about 90 degrees to the commanded side and
+  an exit lane of ``--exit-m``. The route carries the entry point (the lane's last
+  waypoint before the junction) with the command and the exit point 5 m into the exit
+  lane, as CARLA's routes do. Truth and gates are junction-aware
+  (``evaluation.junction_truth``): a permitted area of approach, connecting and exit
+  lanes, each with its own width.
+- **Stack** (``scripts/run_mapless_stack.py``): the same harness drives ``MaplessStack``
+  (G2/G3 stages around the driver) with ``--admission A|B|C`` and the segmenter and
+  detector by configuration; the log carries track counts and decision records.
+- **Moving actors** (``crossing_pedestrian``, ``braking_lead``, ``cut_in``; M04–M06,
+  framework): scripted by ``carla_adapter.mapless_scenarios``, scored on separation.
 - **Scoring** (truth): lane-centre offset of the rear axle, heading error, bumper gap to
   the parked car, collisions (collision sensor, harness only), goal distance, and the
   route-pose error of the car's GNSS/compass filter.
@@ -28,6 +40,8 @@ everything else:
 | Calibration | The kerb distance was measured at a standstill and accepted, within 0.3 m of the map's |
 | Goal (straight, curve) | FINISHED, rear axle within 3 m of the goal |
 | Obstacle stop (stop) | Standing still, bumper gap 1.5 to 5.0 m, held for ``--hold-s`` |
+| Turn (turn_left, turn_right) | TURNING entered; no corner outside the permitted area; ends on the commanded exit lane; exit-leg p95 ≤ 0.35 m |
+| Separation (moving actors) | Body never within 1 m of the scripted actor |
 | Speed | Never above the cruise speed + 0.5 m/s |
 | Faults | Under 2% of driving ticks in FAULT |
 
@@ -49,16 +63,20 @@ from pathlib import Path
 
 import numpy as np
 
+from carla_adapter.mapless_scenarios import SCENARIOS as ACTOR_SCENARIOS
+from carla_adapter.mapless_scenarios import make_scenario, score_moving
 from carla_adapter.sensor_rig import SensorRig, true_forward_speed
 from carla_adapter.sensor_rig_check import rear_axle_pose
 from carla_adapter.vehicle import FixedVehicleAdapter
 from carla_adapter.world import SynchronousWorldSession, WorldTiming, _settings_record, ensure_map
+from evaluation.junction_truth import TurnSite, score_turn, truth_sample
 from mapless.corridor import CorridorConfig
 from mapless.driver import DriveMode, DriverConfig, MaplessDriver
 from mapless.obstacles import project_onto_polyline
 from mapless.planner import PlannerConfig
 from mapless.satnav import Command, RoutePoint, SatNavRoute
 from mapless.sensor_suite import load_sensor_suite, parse_overrides
+from mapless.stack import Admission, MaplessStack, StackConfig
 from mapless.terrain import CellLabel, VehicleBody
 from navigation_control.local import LocalControlConfig
 from navigation_control.types import ControllerConfig
@@ -68,6 +86,8 @@ PARKED_CAR = "vehicle.audi.a2"
 SETTLE_TICKS = 20  # brake and let the rig settle (IMU spike, spawn delay) before the car starts
 LANE_BACK_M = 15  # truth lane extended this far behind the start
 PASS, FAIL, INCOMPLETE, REPORT = "PASS", "FAIL", "INCOMPLETE", "REPORT"
+TURN_SCENARIOS = {"turn_left": "LEFT", "turn_right": "RIGHT"}
+LANE_SCENARIOS = ("straight", "curve", "stop")
 
 
 # -- site and route (map side) ---------------------------------------------------------
@@ -212,6 +232,112 @@ def make_route(carla_map, waypoints, goal_m, spacing_m=25.0, name="g1b"):
     return SatNavRoute(name, tuple(points), provenance=dict(source="map lane centre", spacing_m=spacing_m))
 
 
+def follow_junction(wp, max_m=80.0):
+    """Waypoints every 1 m through a junction's connecting lane, from its first waypoint
+    to the first non-junction waypoint (the exit lane's start); None if it never leaves."""
+    points = [wp]
+    while len(points) < max_m:
+        nxt = points[-1].next(1.0)
+        if not nxt:
+            return None
+        points.append(nxt[0])
+        if not nxt[0].is_junction:
+            return points
+    return None
+
+
+def find_turn_sites(carla, carla_map, command, approach_m, exit_m, junction_clearance_m=8.0, angle_tolerance_deg=30.0):
+    """Sites for a commanded turn: a rightmost lane run ending at a junction whose connecting
+    lane turns about 90 degrees to ``command``'s side into a rightmost exit lane."""
+    want = -math.pi / 2 if command == "RIGHT" else math.pi / 2
+    census = dict(segments=0, no_junction_end=0, not_rightmost=0, too_short=0, no_matching_exit=0, exit_too_short=0, sites=0)
+    sites, seen = [], set()
+    for start, _ in carla_map.get_topology():
+        census["segments"] += 1
+        if start.lane_type != carla.LaneType.Driving or start.is_junction:
+            continue
+        key = (start.road_id, start.section_id if hasattr(start, "section_id") else 0, start.lane_id)
+        if key in seen:
+            continue
+        seen.add(key)
+        kerb, crossed, source = right_kerb(carla, start)
+        if kerb is None:
+            census["not_rightmost"] += 1
+            continue
+        run = follow_lane(start, 400.0)
+        end_next = run[-1].next(1.0)
+        if not end_next or not end_next[0].is_junction:
+            census["no_junction_end"] += 1
+            continue
+        if len(run) - 1 < approach_m + junction_clearance_m:
+            census["too_short"] += 1
+            continue
+        approach = run[-(int(approach_m) + 1) :]
+        entry_heading = lane_heading(approach[-1])
+        match = None
+        for first in end_next:
+            through = follow_junction(first)
+            if through is None:
+                continue
+            exit_wp = through[-1]
+            change = wrap(lane_heading(exit_wp) - entry_heading)
+            if abs(wrap(change - want)) > math.radians(angle_tolerance_deg):
+                continue
+            exit_kerb, _, exit_source = right_kerb(carla, exit_wp)
+            if exit_kerb is None:
+                continue
+            exit_run = follow_lane(exit_wp, exit_m + 5.0)
+            if len(exit_run) - 1 < exit_m:
+                census["exit_too_short"] += 1
+                continue
+            match = (through, exit_run, change, exit_kerb, exit_source)
+            break
+        if match is None:
+            census["no_matching_exit"] += 1
+            continue
+        through, exit_run, change, exit_kerb, exit_source = match
+        census["sites"] += 1
+        sites.append(
+            dict(
+                approach=approach,
+                junction=through,
+                exit=exit_run,
+                kerb_distance_m=kerb,
+                kerb_source=source,
+                exit_kerb_distance_m=exit_kerb,
+                exit_kerb_source=exit_source,
+                right_lanes=crossed,
+                heading_change_deg=math.degrees(change),
+                lane_width_m=approach[-1].lane_width,
+                junction_width_m=float(np.median([w.lane_width for w in through])),
+                exit_width_m=exit_run[0].lane_width,
+                road_id=approach[0].road_id,
+                lane_id=approach[0].lane_id,
+                junction_id=through[0].junction_id if hasattr(through[0], "junction_id") else None,
+                junction_length_m=len(through) - 1,
+            )
+        )
+    sites.sort(key=lambda site: (site["kerb_source"] != "sidewalk", len(site["right_lanes"]), abs(abs(site["heading_change_deg"]) - 90)))
+    return sites, census
+
+
+def make_turn_route(carla_map, site, command, exit_in_m=5.0, spacing_m=25.0, name="g1c"):
+    """LANEFOLLOW points along the approach, the entry point with the command at the lane's
+    last waypoint before the junction, the exit point ``exit_in_m`` into the exit lane,
+    then LANEFOLLOW to the goal at the exit run's end."""
+    approach, exit_run = site["approach"], site["exit"]
+
+    def point(wp, cmd):
+        fix = carla_map.transform_to_geolocation(wp.transform.location)
+        return RoutePoint(fix.latitude, fix.longitude, cmd)
+
+    points = [point(approach[int(round(s))], Command.LANEFOLLOW) for s in np.arange(0.0, len(approach) - 1 - 10.0, spacing_m)]
+    points.append(point(approach[-1], Command.RIGHT if command == "RIGHT" else Command.LEFT))
+    points.append(point(exit_run[min(len(exit_run) - 1, int(round(exit_in_m)))], Command.LANEFOLLOW))
+    points.append(point(exit_run[-1], Command.LANEFOLLOW))
+    return SatNavRoute(name, tuple(points), provenance=dict(source="map lane centre", spacing_m=spacing_m, junction="entry at the lane's last waypoint, exit 5 m in"))
+
+
 # -- live helpers ------------------------------------------------------------------------
 class CollisionMonitor:
     def __init__(self, owner, vehicle):
@@ -337,12 +463,23 @@ class MaplessDrive:
         self.suite, self.args, self.report = suite, args, report
         self.library = self.world.get_blueprint_library()
 
+    @property
+    def turn_command(self):
+        return TURN_SCENARIOS.get(self.args.scenario)
+
+    @property
+    def actor_scenario(self):
+        return self.args.scenario if self.args.scenario in ACTOR_SCENARIOS else None
+
     def setup(self):
         carla, args = self.carla, self.args
         self.world.set_weather(carla.WeatherParameters.ClearNoon)
         carla_map = self.world.get_map()
+        if self.turn_command:
+            return self.setup_turn(carla_map)
         length = args.goal_m + 15.0
-        sites, census = find_sites(carla, carla_map, args.scenario, length)
+        lane_kind = "straight" if self.actor_scenario else args.scenario
+        sites, census = find_sites(carla, carla_map, lane_kind, length)
         self.report["site_census"] = census
         if len(sites) <= args.site:
             runs = ", ".join(f"{r['length_m']} m" for r in census["longest_rightmost_runs_m"])
@@ -376,6 +513,12 @@ class MaplessDrive:
         self.adapter = FixedVehicleAdapter(self.ego)
         self.offset = self.adapter.geometry.rear_axle_offset_m
         self.parked = None
+        self.actor = None
+        self.turn_site = None
+        if self.actor_scenario:
+            self.actor = make_scenario(carla, self.actor_scenario, core_xy, **(args.actor_params or {}))
+            self.actor.spawn(self.owner, self.library, wps)
+            self.report["actor"] = self.actor.params.record()
         if args.scenario == "stop":
             wp = wps[int(round(args.obstacle_m))]
             t = wp.transform
@@ -393,9 +536,75 @@ class MaplessDrive:
             {k: v for k, v in site.items() if k != "waypoints"} | dict(map=carla_map.name, start_xy_m=self.lane[LANE_BACK_M].tolist())
         )
 
+    def setup_turn(self, carla_map):
+        carla, args, command = self.carla, self.args, self.turn_command
+        sites, census = find_turn_sites(carla, carla_map, command, args.approach_m, args.exit_m)
+        self.report["site_census"] = census
+        if len(sites) <= args.site:
+            raise RuntimeError(
+                f"Only {len(sites)} {args.scenario} sites on this map for --approach-m {args.approach_m:g} "
+                f"--exit-m {args.exit_m:g}; --site {args.site} not available. Census: {json.dumps(census)}."
+            )
+        self.ego = None
+        for index in range(args.site, min(len(sites), args.site + 10)):
+            spawn = sites[index]["approach"][0].transform
+            spawn.location.z += 0.3
+            self.ego = self.owner.try_spawn(self.library.find("vehicle.tesla.model3"), spawn)
+            if self.ego is not None:
+                break
+        if self.ego is None:
+            raise RuntimeError("Could not spawn the car at any of the next 10 turn sites; try another --site")
+        site = sites[index] | dict(site_index=index)
+        self.site = site
+        approach = np.array([core_xy(w.transform.location) for w in site["approach"]])
+        back = (approach[0] - approach[1]) / np.linalg.norm(approach[0] - approach[1])
+        approach = np.vstack([approach[0] + back * k for k in range(LANE_BACK_M, 0, -1)] + [approach])
+        self.turn_site = TurnSite(
+            command,
+            approach,
+            np.array([core_xy(w.transform.location) for w in site["junction"]]),
+            np.array([core_xy(w.transform.location) for w in site["exit"]]),
+            site["lane_width_m"],
+            site["junction_width_m"],
+            site["exit_width_m"],
+        )
+        self.lane = self.turn_site.path
+        self.ego.apply_control(carla.VehicleControl(brake=1.0))
+        for _ in range(30):
+            self.owner.tick()
+        self.adapter = FixedVehicleAdapter(self.ego)
+        self.offset = self.adapter.geometry.rear_axle_offset_m
+        self.parked = None
+        self.actor = None
+        self.route = make_turn_route(carla_map, site, command)
+        self.route.save(args.output / "route.json")
+        self.goal_xy = self.turn_site.exit[-1]
+        self.lane_arcs = self.turn_site.arcs
+        self.lane_end_s = float(self.lane_arcs[-1]) - LANE_BACK_M
+        self.report["site"] = rounded(
+            {k: v for k, v in site.items() if k not in ("approach", "junction", "exit")}
+            | dict(map=carla_map.name, start_xy_m=approach[LANE_BACK_M].tolist(), junction_bounds_m=[b - LANE_BACK_M for b in self.turn_site.segment_bounds()])
+        )
+
     def truth(self):
         t = self.ego.get_transform()
         x, y, _, yaw = rear_axle_pose(t, self.offset)
+        if self.turn_site is not None:
+            sample = truth_sample(self.turn_site, (x, y), yaw, self.body)
+            v = self.ego.get_velocity()
+            return dict(
+                rear_axle_xy=[x, y],
+                yaw_rad=yaw,
+                s_m=sample["s_m"] - LANE_BACK_M,
+                lane_offset_m=sample["lane_offset_m"],
+                segment=sample["segment"],
+                corner_excess_m=sample["corner_excess_m"],
+                corner_offset_max_m=sample["corner_excess_m"],
+                heading_error_rad=sample["heading_error_rad"],
+                speed_mps=math.hypot(v.x, v.y),
+                goal_distance_m=float(math.dist((x, y), self.goal_xy)),
+                gap_m=None,
+            )
         s, lateral, outside = project_onto_polyline(np.array([[x, y]]), self.lane)
         # The lane heading at the car's arc length (the waypoints are not exactly 1 m
         # apart in bends: reading the segment by index drifted up to 10 degrees on the
@@ -473,8 +682,14 @@ class MaplessDrive:
                 frame = self.owner.tick()
                 snap = self.world.get_snapshot()
                 rig.read(frame, true_forward_speed(snap, self.ego.id), sim_time_s=snap.timestamp.elapsed_seconds)
-            driver = MaplessDriver(self.suite, self.route, config, DT_S)
+            if args.stack:
+                stack_config = StackConfig(admission=Admission.preset(args.admission), segmenter=args.segmenter, detector=args.detector)
+                driver = MaplessStack(self.suite, self.route, config, stack_config, DT_S)
+                self.report["stack"] = dict(admission=args.admission, segmenter=args.segmenter or "constant", detector=args.detector or "none")
+            else:
+                driver = MaplessDriver(self.suite, self.route, config, DT_S)
             start_time = None
+            actor_truths = []
             for tick in range(int(args.max_s / DT_S)):
                 frame = self.owner.tick()
                 snap = self.world.get_snapshot()
@@ -485,6 +700,9 @@ class MaplessDrive:
                 step_times.append(time.perf_counter() - begun)
                 self.adapter.apply(step.command)
                 truth = self.truth()
+                if self.actor is not None:
+                    self.actor.step(tick, truth)
+                    actor_truths.append(self.actor.truth())
                 modes.append(step.mode)
                 row = dict(
                     tick=tick,
@@ -499,7 +717,7 @@ class MaplessDrive:
                 out.write(json.dumps(rounded(row)) + "\n")
                 log.append(row)
                 if args.snapshot_every and tick % args.snapshot_every == 0 and step.mode is not DriveMode.STARTUP:
-                    render_snapshot(driver, snapshots / f"t{tick:05d}.png")
+                    render_snapshot(driver.driver if args.stack else driver, snapshots / f"t{tick:05d}.png")
                 if truth["speed_mps"] < 0.05 and not moved and sf.lidars:
                     sweep = sf.lidar(self.suite.lidars[0].name)
                     np.savez_compressed(sweeps / f"t{tick:05d}.npz", points=sweep.points, mode=step.mode.value)
@@ -515,7 +733,7 @@ class MaplessDrive:
                 if collisions.events:
                     end = "collision"
                     break
-                if truth["s_m"] > args.goal_m + 10.0:
+                if self.turn_site is None and truth["s_m"] > args.goal_m + 10.0:
                     end = "drove past the goal"
                     break
                 if truth["s_m"] >= self.lane_end_s - 1.0:
@@ -531,18 +749,22 @@ class MaplessDrive:
                         break
                 held = step.mode is DriveMode.STOPPING and step.reason.startswith("holding") and truth["speed_mps"] < 0.05
                 hold_ticks = hold_ticks + 1 if held else 0
-                if args.scenario == "stop" and hold_ticks * DT_S >= args.hold_s:
+                if (args.scenario == "stop" or self.actor is not None) and hold_ticks * DT_S >= args.hold_s:
                     end = "held at the obstacle"
                     break
             self.adapter.stop()
             self.owner.tick()
+            if self.actor is not None:
+                self.actor.destroy()
         self.report["end"] = end
         self.report["collisions"] = collisions.events
         self.report["rig"] = rig.record()
+        if args.stack:
+            (args.output / "decisions.jsonl").write_text("\n".join(json.dumps(rounded(r.as_dict())) for r in driver.records), encoding="utf-8")
         plot(log, args.output / "drive_plot.png", args.speed)
-        self.score(log, step_times, modes, hold_ticks)
+        self.score(log, step_times, modes, hold_ticks, actor_truths)
 
-    def score(self, log, step_times, modes, hold_ticks):
+    def score(self, log, step_times, modes, hold_ticks, actor_truths=()):
         args, checks = self.args, self.report["checks"]
         startup = [r for r in log if r["mode"] != DriveMode.STARTUP.value]
         if not startup:
@@ -558,22 +780,33 @@ class MaplessDrive:
         checks.append(check("startup", PASS if start_s <= 3.0 else FAIL, seconds=start_s, route_pose_error_m=start_error))
         checks.append(check("no_collision", PASS if not self.report["collisions"] else FAIL, events=self.report["collisions"]))
         s0 = first["truth"]["s_m"]
-        settled = [r for r in startup if r["truth"]["s_m"] > s0 + 15.0 and r["truth"]["speed_mps"] > 0.3]
-        if len(settled) < 100:
-            checks.append(check("lane_keeping", INCOMPLETE, settled_ticks=len(settled)))
+        if self.turn_site is not None:
+            # Junction-aware gates (review of 697d53c, point F): the car must leave the approach
+            # lane's corridor, so the permitted area replaces the lane footprint gate.
+            turning = sum(1 for m in modes if m is DriveMode.TURNING)
+            for name, passed, values in score_turn(log, self.turn_site, turning, end=self.report["end"]):
+                status = INCOMPLETE if passed is None else (PASS if passed else FAIL)
+                checks.append(check(name, status, **values))
         else:
-            off = np.abs([r["truth"]["lane_offset_m"] for r in settled])
-            p95, worst = float(np.percentile(off, 95)), float(off.max())
+            settled = [r for r in startup if r["truth"]["s_m"] > s0 + 15.0 and r["truth"]["speed_mps"] > 0.3]
+            if len(settled) < 100:
+                checks.append(check("lane_keeping", INCOMPLETE, settled_ticks=len(settled)))
+            else:
+                off = np.abs([r["truth"]["lane_offset_m"] for r in settled])
+                p95, worst = float(np.percentile(off, 95)), float(off.max())
+                checks.append(
+                    check("lane_keeping", PASS if p95 <= 0.35 and worst <= 0.70 else FAIL, p95_m=p95, max_m=worst, ticks=len(settled))
+                )
+            # The whole run, calibration and start included: no corner of the body outside the
+            # lane (each corner projected onto the lane centreline itself, so bends are exact).
+            half_lane = self.site["lane_width_m"] / 2
+            worst_corner = max(r["truth"]["corner_offset_max_m"] for r in log)
             checks.append(
-                check("lane_keeping", PASS if p95 <= 0.35 and worst <= 0.70 else FAIL, p95_m=p95, max_m=worst, ticks=len(settled))
+                check("lane_footprint", PASS if worst_corner <= half_lane else FAIL, max_corner_offset_m=worst_corner, half_lane_m=half_lane, ticks=len(log))
             )
-        # The whole run, calibration and start included: no corner of the body outside the
-        # lane (each corner projected onto the lane centreline itself, so bends are exact).
-        half_lane = self.site["lane_width_m"] / 2
-        worst_corner = max(r["truth"]["corner_offset_max_m"] for r in log)
-        checks.append(
-            check("lane_footprint", PASS if worst_corner <= half_lane else FAIL, max_corner_offset_m=worst_corner, half_lane_m=half_lane, ticks=len(log))
-        )
+        if self.actor is not None:
+            moving = score_moving(log, actor_truths, self.body)
+            checks.append(check("separation", PASS if moving["separation_ok"] else FAIL, **moving))
         last = log[-1]
         summary = last["driver"].get("calibration")
         source = last["driver"].get("keep_right_source") or ""
@@ -593,7 +826,11 @@ class MaplessDrive:
                     calibrating_ticks=sum(1 for r in log if r["mode"] == DriveMode.CALIBRATING.value),
                 )
             )
-        if args.scenario in ("straight", "curve"):
+        if self.actor is not None:
+            # A moving-actor run completes by reaching the goal or by holding behind the actor.
+            ok = self.report["end"] in ("finished", "held at the obstacle")
+            checks.append(check("completion", PASS if ok else FAIL, end=self.report["end"], goal_distance_m=last["truth"]["goal_distance_m"]))
+        elif args.scenario != "stop":
             done = self.report["end"] == "finished"
             goal = last["truth"]["goal_distance_m"]
             checks.append(check("goal", PASS if done and goal <= 3.0 else FAIL, end=self.report["end"], goal_distance_m=goal))
@@ -641,9 +878,9 @@ def _config_dict(config):
     return asdict(config)
 
 
-def main(argv=None):
+def main(argv=None, stack=False):
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    parser.add_argument("--scenario", choices=("straight", "curve", "stop"), required=True)
+    parser.add_argument("--scenario", choices=LANE_SCENARIOS + tuple(TURN_SCENARIOS) + tuple(ACTOR_SCENARIOS), required=True)
     parser.add_argument("--output", type=Path, required=True, help="New folder for the run")
     parser.add_argument("--map", default=None, help="Load this map first (default: the server's current map)")
     parser.add_argument("--site", type=int, default=0, help="Which suitable site on the map (0 = first)")
@@ -659,6 +896,12 @@ def main(argv=None):
     )
     parser.add_argument("--goal-m", type=float, default=60.0, help="Route length (m); the site needs this + 15 m without a junction")
     parser.add_argument("--obstacle-m", type=float, default=35.0, help="stop: parked car this far along the lane")
+    parser.add_argument("--approach-m", type=float, default=40.0, help="turns: approach lane length before the junction")
+    parser.add_argument("--exit-m", type=float, default=30.0, help="turns: exit lane length after the junction (the goal)")
+    parser.add_argument("--actor-param", action="append", default=[], metavar="NAME=VALUE", help="moving actors: scenario parameter override")
+    parser.add_argument("--admission", choices=("A", "B", "C"), default="A", help="stack: sensor admission preset (A camera+LiDAR, B +front radar, C +rear radars)")
+    parser.add_argument("--segmenter", default=None, help="stack: road segmenter checkpoint (default: constant)")
+    parser.add_argument("--detector", default=None, help="stack: 'yolo' or none")
     parser.add_argument("--hold-s", type=float, default=5.0)
     parser.add_argument("--max-s", type=float, default=150.0)
     parser.add_argument("--snapshot-every", type=int, default=40, help="Ticks between terrain snapshots (0: none)")
@@ -666,6 +909,11 @@ def main(argv=None):
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=2000)
     args = parser.parse_args(argv)
+    args.stack = stack
+    args.actor_params = {}
+    for item in args.actor_param:
+        name, _, value = item.partition("=")
+        args.actor_params[name] = float(value)
     if args.output.exists():
         parser.error("Output folder exists; choose a new one")
     if args.scenario == "stop" and not 15 <= args.obstacle_m <= args.goal_m - 10:
@@ -688,7 +936,7 @@ def main(argv=None):
     args.output.mkdir(parents=True)
     initial_settings = _settings_record(world.get_settings())
     report = dict(
-        purpose="G1b first mapless drive: sensors and a sat-nav route only",
+        purpose=("mapless stack (G2/G3)" if stack else "G1 mapless drive") + ": sensors and a sat-nav route only",
         scenario=args.scenario,
         server=client.get_server_version(),
         map=world.get_map().name,

@@ -608,6 +608,98 @@ only through its LiDAR); the harness scenario and live runs come next.
   right turn is infeasible for this body (rear-axle minimum ≈8.25 m); the live site search
   must measure the junction's lane radius.
 
+## G1c harness, G2 and G3 frameworks (24 Oct)
+
+The remaining gates have their code structure in place: contracts, modules with the
+plan's numbers, the harness hooks and unit tests on synthetic data. Each is a framework
+to debug against captures and live CARLA, not a result.
+
+### Contracts (`src/mapless/contracts.py`, plan section 7)
+`ObjectTrack` (odometry frame, `[x, y, vx, vy]` with covariance, class probabilities
+over `car/truck/bike/pedestrian/unknown`, lifecycle status, sensor support, measured
+footprint), `Prediction` (time-indexed occupied regions), `LocalRoadModel` (grid layers
+occupancy/free/unknown/ground height/road/marking/pavement/age, lane, exit and stop-line
+candidates, visibility) and `DecisionRecord` (proposed and executed action, veto reason,
+constraints, coverage, stage timings). Every value validates itself.
+
+### G1c harness (`turn_left`, `turn_right`; `evaluation/junction_truth.py`)
+- **Site search** (`find_turn_sites`): a rightmost lane run ending at a junction whose
+  connecting lane turns about 90° to the commanded side (±30°) into a rightmost exit lane
+  of `--exit-m`; approach of `--approach-m`. The connecting lane is walked waypoint by
+  waypoint until it leaves the junction.
+- **Route** (`make_turn_route`): LANEFOLLOW every 25 m on the approach, the entry point
+  with LEFT/RIGHT at the lane's last waypoint before the junction (where CARLA's routes
+  put it), the exit point 5 m into the exit lane, the goal at the exit run's end.
+- **Truth and gates** (review point F): the permitted area is approach, connecting and
+  exit lane, each with its own width (the connecting lane is wider, plus 0.5 m, carried
+  5 m into the exit as the turn winds out); body corners project onto it. Gates:
+  `turn_executed`, `junction_footprint` (no corner outside the permitted area),
+  `correct_exit` (ends on the commanded exit lane within its half width),
+  `exit_lane_keeping` (p95 ≤ 0.35 m from 8 m past the junction), `approach_lane_keeping`.
+  Tested on a fake map (L-shaped topology with a straight-on branch) and a synthetic log.
+
+### G2 (`road_segmentation`, `painting`, `road_model`, `detections`, `stack`; `mapless_training`)
+- **Segmentation**: `RoadSegmenter` interface over `road/marking/pavement/road_user/other`;
+  `ConstantSegmenter` (road below the horizon at low confidence) so the stack runs
+  without a model; `TorchRoadSegmenter` runs the A1 BiSeNetV2 with a 5-class head from a
+  checkpoint carrying provenance. The car's code names no town, so the loader checks the
+  training side's attestation `test_towns_excluded` and the class list, and refuses a
+  path inside any `labels` folder.
+- **Training** (`scripts/train_mapless_segmentation.py`): capture runs indexed from
+  `samples.jsonl`, CARLA tags mapped to the five classes, split by town (train 01/03/04/
+  05/06, validate 02; Town07 and Town10HD refused at index time), inverse-frequency class
+  weights, auxiliary heads, per-class IoU and recall, pavement boundary agreement within
+  2 px and ms per image reported per epoch. Exercised end to end on a two-sample
+  synthetic run (CPU, one epoch) and loaded back by the car's loader.
+- **Painting**: LiDAR points projected into each camera in depth order (nearest per
+  4-px bucket; a point more than 1 m or 8 % deeper is hidden); class probabilities
+  averaged over the cameras that saw a point; unpainted points stay uniform.
+- **Road model**: semantic evidence on the terrain grid's own lattice, following its
+  recentring, decayed (τ 4 s) and dropped when older than 3 s; layers assembled from the
+  terrain labels; lane candidates from marking bands (quadratic fits), stop lines from
+  transverse marking runs, visibility along the car's axis. Ground height is a zero layer
+  until section 9 item 4 is built.
+- **Detections**: range-tuned clustering of obstacle points (link 0.6 m + 0.03 m/m, in
+  10 m rings); `Detector` interface with `YoloDetector` (A1 ultralytics detector) and
+  `NoDetector`; each box takes its foreground cluster (nearest 20th-percentile depth among
+  clusters covering ≥30 % of the box), never the median of every point in the box; boxes
+  with no cluster become camera-only class evidence with a bearing hint.
+- **Stack** (`MaplessStack`): the G1 driver, then segment/paint (every 2nd tick), cluster/
+  detect/join, radar (as admitted), track, predict, follow; a following speed or a
+  predicted conflict within 3 s reaches the driver as `speed_cap_mps`; a `DecisionRecord`
+  per tick with stage timings. Admission presets A (camera+LiDAR), B (+front radar),
+  C (+rear radars) for the section 10 ablation. On the synthetic world with a grey camera
+  and a synthetic front radar the stack tracks a parked car (confirmed, LiDAR-supported)
+  and the driver stops short of it. `scripts/run_mapless_stack.py` runs it on the drive
+  harness (`--admission`, `--segmenter`, `--detector`), writing `decisions.jsonl`.
+
+### G3 (`radar`, `tracking`, `prediction`, `following`; `carla_adapter/mapless_scenarios.py`)
+- **Radar**: returns to the vehicle frame; ego-motion compensation with the lever arm
+  (`v_sensor = v_ego + ω × r`, range rate positive when the range grows, as measured on
+  CARLA 0.9.16); conservative single-linkage clustering (1.5 m, 1 m/s) with wide clusters
+  split; an empty frame is reported empty, never as clear.
+- **Tracker**: one CV-EKF per track; gates on space and class, then Mahalanobis χ² 9.21
+  (2-D position) and 6.63 (radial speed, checked separately: an inconsistent rate updates
+  range and bearing only); one-to-one nearest-first assignment; tentative → confirmed at
+  3 hits in 5 frames, coasting to 0.3 s, deleted after 0.75 s; tentative tracks within
+  12 m ahead are reported as hazards. Synthetic: a car moving away at 3 m/s is confirmed
+  with its velocity within 0.6 m/s; radar-only tracks start without an extent.
+- **Prediction**: constant velocity 4 s at 0.2 s (6 s for lane changes), footprint
+  inflated by 2σ position uncertainty + 0.3 m, pedestrians widening at 1 m/s;
+  `first_conflict` finds the earliest path point inside a region.
+- **Following**: gap 4 m + 2 s·v, acceleration ≤ 1 m/s², jerk ≤ 2 m/s³ (rate-limited
+  target), worst-case cap from the lead braking at 6 m/s² with a 0.5 s response and
+  4 m/s² ego braking, stopping 2.5 m + 1 m short; nearest in-lane track ahead is the lead.
+- **Scenarios M04–M06** (`crossing_pedestrian`, `braking_lead`, `cut_in`): scripted
+  actors on the harness site with a `separation` gate (body never within 1 m) and
+  completion by goal or hold. Written against the CARLA API, not yet run live.
+
+### Debug passes to come
+G1c: the turn scenario live on a Town10HD junction (site search census first). G2: train
+on the Town03/04/05 captures, benchmark the segmenter against the A1 models by boundary
+quality and runtime, swap `--detector yolo` in and measure the join on the captures'
+truth boxes, then S0–S5 on the baseline route. G3: the A/B/C ablation on M04–M06.
+
 ## Running Phase 0 live
 
 Run with CARLA 0.9.16 and no other clients:

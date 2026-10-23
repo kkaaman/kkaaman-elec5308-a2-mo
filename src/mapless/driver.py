@@ -123,6 +123,8 @@ class MaplessDriver:
         self.planner = LanePlanner(config.planner, config.body)
         self.turn = JunctionTurn(config.junction, config.body, self.corridor)
         self._turning = False
+        self.speed_cap_mps = None  # the stack's following/prediction cap for this tick (None: none)
+        self.last_motion = self.last_classified = self.last_plan = None
         self._turn_done = None  # route index of the junction entry whose turn is complete
         self._mouth_odo = None  # the junction mouth, odometry frame, nearest seen since the approach began
         self._lane_heading_odo = None  # the entry lane's direction, odometry frame, latched as the approach begins
@@ -175,8 +177,10 @@ class MaplessDriver:
         classified = None
         if frame.status_of(self.lidar).state is SensorState.OK:
             classified = classify_sweep(frame.lidar(self.lidar).xyz, c.body, c.terrain)
-            if motion.odometry_trusted and not self._rebuild:
-                self.grid.add(classified, motion.odometry, t)  # never placed with a broken frame
+        # For the stack around the driver (G2/G3): this tick's inputs, read after step().
+        self.last_motion, self.last_classified, self.last_plan = motion, classified, None
+        if classified is not None and motion.odometry_trusted and not self._rebuild:
+            self.grid.add(classified, motion.odometry, t)  # never placed with a broken frame
         if not motion.odometry_trusted:
             self._rebuild = True
         d = dict(
@@ -356,7 +360,8 @@ class MaplessDriver:
         goal_body = None
         if guidance.index == len(self.progress.xy) - 1 and guidance.goal_distance_m < corridor.valid_length_m + 5:
             goal_body = motion.odometry.to_body(motion.route_to_odometry(np.array([self.progress.xy[-1]])))[0]
-        plan = self.planner.plan(corridor, observation, goal_body, t, hold_at_m=hold_at)
+        plan = self.planner.plan(corridor, observation, goal_body, t, hold_at_m=hold_at, speed_cap_mps=self.speed_cap_mps)
+        self.last_plan = plan
         d.update(
             obstacle_m=None if obstacle is None else obstacle.distance_m,
             obstacle_points=None if obstacle is None else obstacle.points,
