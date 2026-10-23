@@ -545,6 +545,69 @@ the car.
 - Beyond the gate: the straight at 4 m/s (`--speed 4`) also MEASURED_PASS, lane offset
   within 0.16 m, zero faults, no retuning.
 
+## G1c: first commanded turn (`src/mapless/junction.py`)
+
+A 90° turn at a junction from the sat-nav's LEFT/RIGHT command, LiDAR only, planned in
+the car's own frame. Developed in the synthetic world first (`SideRoad` in
+`sim_harness/mapless_road.py`: a side road with filleted pavement corners, seen by the car
+only through its LiDAR); the harness scenario and live runs come next.
+
+- **Junction context from the route.** The entry point carries the command, the next point
+  is the exit; the exit heading is ±90° from the car's own corridor (the two GNSS points
+  are only good to ~8°, so the route's heading is used only when it disagrees by more
+  than 35°). The route point locates the exit road, never the exit lane (review of
+  `697d53c`, point B).
+- **The kerb confirms the junction.** A right turn is entered only once the right kerb is
+  seen to end for ≥3 m within 6 m of the route's entry, with observed road where the
+  kerb would be (a kerb that runs out of the observed range is unknown ground, not an
+  opening). A route that claims a junction the kerb does not show holds the car short of
+  the entry. The mouth (the kerb opening, or the entry less a margin) only comes nearer
+  while waiting, so a flickering opening cannot let the car creep forward.
+- **Exit lane from LiDAR.** The exit road is read from the terrain grid along a probe
+  line through the route's exit point in the exit heading: at each 1 m station the cell
+  labels across the line (the corridor estimator's own profile search) give the last road
+  cell and the first raised cell right of the line; the kerb is their midpoint while the
+  unseen strip between them is ≤2 m. At 20 m the LiDAR's rings are a metre apart, so
+  either cell alone is up to a ring spacing out (0.35–0.7 m on the synthetic turns); the
+  midpoint reads 0.1–0.4 m from the truth and improves as the car nears. Raw sweep points
+  were tried first and placed the kerb 1–2 m off at 25 m (a pavement top seen at a grazing
+  angle reads as road). The stations are kept 2 s and fitted as a line (≥3 stations over
+  ≥4 m, MAD ≤0.4 m). The exit direction is the prior's: a fitted direction is used only
+  between 6° and 15° off it, because the range bias of the stations read a straight kerb
+  as 2.5° skewed and the exit line ran into it 10 m on. The prior is a right angle to
+  the entry lane's direction, latched in the odometry frame as the approach begins
+  (nearer the mouth the kerb runs out and the corridor's fit tilts with it; measured from
+  the car's heading instead, a 1.5° error drifted the exit line 0.6 m).
+- **Arc candidates.** Entry line → arc (R 8.5–16 m, 0.5 m steps) → exit line; each
+  candidate's full body footprint is swept over the grid, with the 0.2 m planning margin
+  on the arc and the lane-keeping margin (0.05 m) on the straights (in a 3.5 m lane the
+  body has 0.7 m to the kerb and kerb cells reach 0.25 m into the road: with the margin
+  on the exit straight too, a lane placed 0.3 m off left no feasible radius). Unknown
+  cells count against `verified_m` (review point A). Clearance is the body's nearest
+  approach to a kerb or obstacle cell over the arc (margin excluded; counted twice, a
+  correct lane read 0.25 m and the commit test was a knife edge). The chosen candidate is
+  the nearest to the nominal 9.5 m among those with ≥0.3 m clearance — the widest
+  clearance swung 2.6 m into the exit road's opposing lane (point E) — else the widest.
+  The choice is latched within 1 m and committed when the exit is kerb-measured, the body
+  clears by ≥0.3 m and the tangent is within 3 m. While committed the latched path is
+  followed to its end whatever the route says; the car is only ever driven as far as the
+  footprint lies on observed road.
+- **Hand-back.** Once the heading is within 10° of the exit and the arc is behind, the
+  kerb corridor is seeded with the exit line and takes over only when it finds its own
+  corridor. A sensor loss mid-turn faults with the steering held while braking (the
+  `_fault` steering is now zeroed only once the car is measured stationary, not when
+  untrusted odometry reports zero speed; review point 1). Seen-clear needs the centre
+  strip plus one of the outer two (point 2).
+- **Synthetic results (offline tests, `tests/unit/test_mapless_g1c.py`):** right turn
+  (10 m fillets) max lane offset 0.52 m against the truth arc in the box (the planned
+  9.5 m arc is not the truth path), 0.07 m on exit; left turn 0.50 m / 0.03 m; both hand
+  back and finish. Deliberate failures: a route junction the kerb does
+  not show holds short of the entry; an exit point shifted 3 m is corrected by the kerb; a
+  car parked across the exit lane leaves no clearing radius and the car waits at the
+  mouth; LiDAR loss mid-turn brakes with the steering held. Known limit: a 6 m fillet
+  right turn is infeasible for this body (rear-axle minimum ≈8.25 m); the live site search
+  must measure the junction's lane radius.
+
 ## Running Phase 0 live
 
 Run with CARLA 0.9.16 and no other clients:
