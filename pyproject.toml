@@ -13,6 +13,7 @@ dependencies = [
     "torch",
     "torchvision",
     "ultralytics",
+    "transformers",
     "PyYAML",
     "matplotlib",
     "lap>=0.5.12",

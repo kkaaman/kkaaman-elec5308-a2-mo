@@ -33,7 +33,7 @@ ALLOWED_INTERNAL = {
     "segmentation",
     "traffic_perception",
 }
-ALLOWED_EXTERNAL = {"numpy", "cv2", "torch", "torchvision", "ultralytics", "scipy"}
+ALLOWED_EXTERNAL = {"numpy", "cv2", "torch", "torchvision", "ultralytics", "scipy", "transformers"}
 FORBIDDEN_WORDS = (
     "town0",
     "town10",

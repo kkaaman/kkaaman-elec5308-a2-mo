@@ -128,15 +128,17 @@ class CutInCar(BrakingLeadCar):
         p = self.params
         wp = waypoints[min(len(waypoints) - 1, int(round(p.lead_start_m)))]
         left = wp.get_left_lane()
-        if left is None or left.lane_type != self.carla.LaneType.Driving:
-            raise RuntimeError("The cut-in scenario needs a Driving lane on the left of the site")
+        # On a two-way road the lane to the left of the rightmost lane is the opposing one
+        # (opposite lane_id sign): the cut-in needs a same-direction lane.
+        if left is None or left.lane_type != self.carla.LaneType.Driving or left.lane_id * wp.lane_id < 0:
+            raise RuntimeError("The cut-in scenario needs a same-direction Driving lane on the left of the site")
         t = left.transform
         t.location.z += 0.3
         self.actor = owner.try_spawn(library.find(LEAD_CAR), t)
         if self.actor is None:
             raise RuntimeError("Could not place the cut-in car")
         self.waypoints = waypoints
-        self.left_waypoints = [w.get_left_lane() or w for w in waypoints]
+        self.left_waypoints = [(lw if (lw := w.get_left_lane()) is not None and lw.lane_id * w.lane_id > 0 else w) for w in waypoints]
         self.braking = False
         self.cut_start = None
         return self.actor
@@ -180,7 +182,8 @@ class CrossingPedestrian(ScriptedActor):
         t = wp.transform
         yaw = math.radians(t.rotation.yaw)
         # Start 4 m right of the lane centre (on the pavement), facing left across the lane.
-        right = (math.sin(yaw), -math.cos(yaw))  # CARLA frame: right of heading
+        # CARLA frame (y to the right, yaw clockwise from above): forward (cos, sin), right (-sin, cos).
+        right = (-math.sin(yaw), math.cos(yaw))
         t.location.x += 4.0 * right[0]
         t.location.y += 4.0 * right[1]
         t.location.z += 1.0

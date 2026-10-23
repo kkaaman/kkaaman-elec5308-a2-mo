@@ -186,3 +186,32 @@ def test_lead_ahead_picks_the_nearest_track_in_the_lane():
     behind = ObjectTrack(3, 0.0, [-5, 0.0, 0, 0], np.eye(4), {"car": 1.0}, TrackStatus.CONFIRMED, 5, 0)
     lead = follow.lead_ahead([in_lane, nearer_beside, behind], ORIGIN, path)
     assert lead is not None and lead[1].track_id == 1 and lead[0] == pytest.approx(25.0)
+
+
+# -- regressions from the review of 36ba0ca ------------------------------------------------
+def test_radar_bearing_innovation_wraps_across_pi():
+    # A track behind the car in the odometry frame (bearing near +-pi): the update must not
+    # read a 2*pi bearing error (the first version jumped the track 60 m in one update).
+    sensor_to_ego = np.eye(4)
+    sensor_to_ego[0, 3] = -2.45
+    tracker = Tracker(TrackerConfig())
+    pose = Pose2D(0.0, 0.0, math.pi)  # the car faces -x in the odometry frame
+    for k in range(20):
+        t = k * 0.05
+        # Object 10 m straight behind the sensor in the vehicle frame (bearing pi in the car),
+        # i.e. at odometry (+12.45, 0): bearing 0 there, pi in the body: wrapping matters.
+        radar = RadarReturns("radar_rear", np.array([[10.0, math.pi - 0.001, 0.0, 0.0], [10.2, math.pi - 0.002, 0.0, 0.0]], dtype=np.float32), sensor_to_ego)
+        tracks = tracker.update(t, pose, radar=measure(radar, 0.0, 0.0))
+    assert len(tracks) == 1
+    assert np.hypot(*(tracks[0].position - np.array([12.45, 0.0]))) < 1.0
+    assert tracks[0].speed_mps < 1.0
+
+
+def test_coasting_tracks_leave_the_live_set_after_coast_s():
+    tracker = Tracker(TrackerConfig(coast_s=0.3, delete_s=0.75))
+    for k in range(5):
+        tracker.update(k * 0.05, ORIGIN, lidar=[LidarMeasurement(np.array([10.0, 0.0]))])
+    tracker.update(0.4, ORIGIN)  # 0.2 s unseen: still live
+    assert len(tracker.live()) == 1 and len(tracker.hazards(ORIGIN)) == 1
+    tracker.update(0.7, ORIGIN)  # 0.5 s unseen: kept for re-association, not for planning
+    assert tracker.snapshot() and tracker.live() == [] and tracker.hazards(ORIGIN) == []

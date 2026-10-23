@@ -35,6 +35,7 @@ from mapless.detections import DetectionsConfig, Detector, NoDetector, cluster_o
 from mapless.driver import DriveMode, MaplessDriver
 from mapless.following import FollowingConfig, FollowingController
 from mapless.frame import SensorFrame, SensorState
+from mapless.obstacles import project_onto_polyline
 from mapless.painting import PaintingConfig, paint
 from mapless.prediction import PredictionConfig, first_conflict, predict_all
 from mapless.radar import RadarConfig, measure
@@ -74,7 +75,7 @@ class StackConfig:
     prediction: PredictionConfig = field(default_factory=PredictionConfig)
     following: FollowingConfig = field(default_factory=FollowingConfig)
     conflict_horizon_s: float = 3.0
-    road_model_every: int = 2  # build the road model every this many ticks (10 Hz at 0.05 s)
+    road_model_every: int = 4  # build the road model every this many ticks (5 Hz at 0.05 s; it is a slow product)
     segment_every: int = 2
 
 
@@ -169,7 +170,7 @@ class MaplessStack:
                     radar_measurements.extend(measure(radar, motion.speed_mps, motion.yaw_rate_rps, c.radar))
             # -- track and predict ----------------------------------------------------------
             tracks = tuple(self.tracker.update(t, pose, measurements, radar_measurements, camera_only))
-            live = [tr for tr in tracks if tr.status is not TrackStatus.DELETED]
+            live = self.tracker.live(tracks)
             predictions = tuple(predict_all(live, c.prediction))
             timing["track"] = (time.perf_counter() - begun) * 1000
             # -- follow and conflicts --------------------------------------------------------
@@ -200,8 +201,12 @@ class MaplessStack:
         if corridor is None or not corridor.ok:
             return None
         path_body = corridor.centre_body
+        # The corridor line starts behind the rear axle: arc lengths are measured from the car.
+        s_car = float(project_onto_polyline(np.zeros((1, 2)), path_body)[0][0])
         cap = None
-        lead = self.following.lead_ahead(tracks, pose, path_body)
+        # Only tracks the tracker vouches for lead the car (a 3-point tentative cluster must not).
+        leads = [tr for tr in self.tracker.live(tracks) if tr.status in (TrackStatus.CONFIRMED, TrackStatus.COASTING)]
+        lead = self.following.lead_ahead(leads, pose, path_body, s_from_m=s_car)
         if lead is not None:
             s, track = lead
             gap = s - self.driver.config.body.front_m
@@ -210,11 +215,14 @@ class MaplessStack:
         else:
             self.following.reset()
         if predictions and plan is not None and plan.trajectory is not None:
+            # Time the path at the speed the car would drive without any cap (the planned
+            # speeds already carry this tick's cap, which fed back on itself: a cap of zero
+            # made every conflict look far away and the cap flickered tick to tick).
             samples = plan.trajectory.samples
-            xy = np.array([[s.x_m, s.y_m] for s in samples])
-            speeds = np.array([max(s.speed_mps, 0.3) for s in samples])
+            xy = np.array([[smp.x_m, smp.y_m] for smp in samples])
+            speed = max(motion.speed_mps, min(self.driver.config.planner.cruise_mps, max(plan.curve_speed_mps, 0.5)))
             seg = np.hypot(*np.diff(xy, axis=0).T)
-            times = np.concatenate(([0.0], np.cumsum(seg / speeds[:-1])))
+            times = np.concatenate(([0.0], np.cumsum(seg / speed)))
             hit = first_conflict(predictions, xy, times, self.driver.config.body.half_width_m)
             if hit is not None and hit[0] <= c.conflict_horizon_s:
                 cap = 0.0

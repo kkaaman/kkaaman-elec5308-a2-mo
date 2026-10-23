@@ -5,8 +5,13 @@ A ``RoadSegmenter`` turns one camera image into per-pixel class probabilities ov
 The painted LiDAR (``mapless.painting``) and the road model (``mapless.road_model``) read
 these; nothing else in the car does.
 
-``TorchRoadSegmenter`` runs the A1 BiSeNetV2 architecture (``segmentation.bisenetv2``)
-with a head of ``len(ROAD_CLASSES)`` classes, trained by
+``TorchRoadSegmenter`` runs one of two architectures with a head of ``len(ROAD_CLASSES)``
+classes, chosen by the checkpoint's ``architecture``: the A1 BiSeNetV2
+(``segmentation.bisenetv2``, trained from scratch, fastest, sharp boundaries from its
+detail branch) or SegFormer-B0 (``transformers``, ImageNet-pretrained encoder, 3.7 M
+parameters, converges with little data; logits at 1/4 resolution, upsampled). The two
+are compared on the captures by boundary quality, class recall and runtime (plan,
+section 9), not mIoU alone. Both are trained by
 ``scripts/train_mapless_segmentation.py`` on the capture labels. The checkpoint carries
 its provenance (training towns, capture runs, label mapping, suite hash) and the
 training side's attestation that no test-only town was used (the car's code names no
@@ -118,18 +123,64 @@ def check_provenance(provenance):
     return provenance
 
 
-class TorchRoadSegmenter(RoadSegmenter):
-    """BiSeNetV2 with a ``len(ROAD_CLASSES)``-class head, from a checkpoint with provenance.
+ARCHITECTURES = ("bisenetv2", "segformer_b0")
+SEGFORMER_PRETRAINED = "nvidia/mit-b0"  # ImageNet-1k encoder; the head is new
 
-    The checkpoint is a dict ``{"state_dict": ..., "provenance": {...}, "input_size":
-    [w, h]}`` written by the training script. Inference resizes to ``input_size``,
-    normalises as the A1 preprocessing does, and resizes the softmax back to the image.
+
+def build_model(architecture, num_classes=len(ROAD_CLASSES), pretrained=False):
+    """A fresh model of ``architecture`` with ``num_classes`` outputs (training builds it
+    ``pretrained`` where an encoder is available; inference loads a state dict into it)."""
+    if architecture == "bisenetv2":
+        from segmentation.bisenetv2 import BiSeNetV2  # noqa: PLC0415
+
+        return BiSeNetV2(num_classes=num_classes)
+    if architecture == "segformer_b0":
+        from transformers import SegformerForSemanticSegmentation  # noqa: PLC0415
+
+        if pretrained:
+            return SegformerForSemanticSegmentation.from_pretrained(SEGFORMER_PRETRAINED, num_labels=num_classes, ignore_mismatched_sizes=True)
+        return SegformerForSemanticSegmentation(_segformer_b0_config(num_classes))
+    raise ValueError(f"unknown architecture {architecture!r}; one of {ARCHITECTURES}")
+
+
+def _segformer_b0_config(num_classes):
+    """MiT-B0 hyper-parameters, so a checkpoint loads with no network access."""
+    from transformers import SegformerConfig  # noqa: PLC0415
+
+    return SegformerConfig(
+        num_labels=num_classes,
+        depths=[2, 2, 2, 2],
+        hidden_sizes=[32, 64, 160, 256],
+        decoder_hidden_size=256,
+        num_attention_heads=[1, 2, 5, 8],
+    )
+
+
+def logits(model, x, architecture):
+    """Main logits (N x C x H x W at the input size) and auxiliary logits for training."""
+    import torch  # noqa: PLC0415
+
+    if architecture == "bisenetv2":
+        if model.training:
+            main, *aux = model.forward_with_aux(x)
+            return main, list(aux)
+        return model(x), []
+    out = model(pixel_values=x).logits
+    return torch.nn.functional.interpolate(out, size=x.shape[-2:], mode="bilinear", align_corners=False), []
+
+
+class TorchRoadSegmenter(RoadSegmenter):
+    """BiSeNetV2 or SegFormer-B0 with a ``len(ROAD_CLASSES)``-class head, from a checkpoint
+    with provenance.
+
+    The checkpoint is a dict ``{"state_dict": ..., "provenance": {..., "architecture":
+    ...}, "input_size": [w, h]}`` written by the training script. Inference resizes to
+    ``input_size``, normalises as the A1 preprocessing does, and resizes the softmax back
+    to the image.
     """
 
     def __init__(self, checkpoint_path, device=None):
         import torch  # noqa: PLC0415
-
-        from segmentation.bisenetv2 import BiSeNetV2  # noqa: PLC0415
 
         path = Path(checkpoint_path)
         if path.is_dir() or "labels" in path.parts:
@@ -138,9 +189,10 @@ class TorchRoadSegmenter(RoadSegmenter):
         if not isinstance(payload, dict) or "state_dict" not in payload or "provenance" not in payload:
             raise ValueError("checkpoint must hold state_dict and provenance")
         self._provenance = check_provenance(dict(payload["provenance"]))
+        self.architecture = self._provenance.get("architecture", "bisenetv2")
         self.input_size = tuple(int(v) for v in payload.get("input_size", (512, 256)))
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
-        self.model = BiSeNetV2(num_classes=len(ROAD_CLASSES))
+        self.model = build_model(self.architecture, len(ROAD_CLASSES))
         self.model.load_state_dict(payload["state_dict"])
         self.model.to(self.device).eval()
         self._torch = torch
@@ -158,8 +210,8 @@ class TorchRoadSegmenter(RoadSegmenter):
         h, w = image.rgb.shape[:2]
         tensor = preprocess_image(np.ascontiguousarray(image.rgb), self.input_size).to(self.device)
         with torch.no_grad():
-            logits = self.model(tensor)
-            probs = torch.softmax(logits, dim=1)[0].permute(1, 2, 0).cpu().numpy()
+            main, _ = logits(self.model, tensor, self.architecture)
+            probs = torch.softmax(main, dim=1)[0].permute(1, 2, 0).cpu().numpy()
         probs = cv2.resize(probs, (w, h), interpolation=cv2.INTER_LINEAR)
         probs = probs / np.maximum(probs.sum(axis=2, keepdims=True), 1e-6)
         return Segmentation(image.name, probs.astype(np.float32))

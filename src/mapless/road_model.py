@@ -36,6 +36,7 @@ class RoadModelConfig:
     semantic_max_age_s: float = 3.0  # older painted cells are unknown
     terrain_max_age_s: float = 3.0
     min_evidence: float = 1.0
+    window_m: float = 45.0  # cells labelled within this of the car when the model is built
     lane_band_m: float = 3.5  # marking bands searched this far either side of the lane centre
     lane_ahead_m: float = 30.0
     stop_line_min_width_m: float = 2.0  # a transverse marking run at least this wide ...
@@ -114,9 +115,18 @@ class RoadModelBuilder:
         c, g = self.config, self.grid
         self._follow_grid()
         n = g.n
-        ij = np.indices((n, n)).reshape(2, -1).T
-        xy = g.origin + (ij + 0.5) * g.config.cell_m
-        labels = g.labels(xy, max_age_s=c.terrain_max_age_s).reshape(n, n)
+        # Label only the cells within window_m of the car (the LiDAR's reach): the rest of
+        # the 120 m grid is unknown by construction and costs as much to label.
+        labels = np.full((n, n), CellLabel.UNKNOWN, dtype=np.int8)
+        ij, _ = g.cells(np.array([[pose.x_m, pose.y_m]]))
+        ci, cj = int(ij[0, 0]), int(ij[0, 1])
+        half = int(math.ceil(c.window_m / g.config.cell_m))
+        i0, i1 = max(0, ci - half), min(n, ci + half + 1)
+        j0, j1 = max(0, cj - half), min(n, cj + half + 1)
+        if i1 > i0 and j1 > j0:
+            ii, jj = np.meshgrid(np.arange(i0, i1), np.arange(j0, j1), indexing="ij")
+            xy = g.origin + (np.column_stack((ii.ravel(), jj.ravel())) + 0.5) * g.config.cell_m
+            labels[i0:i1, j0:j1] = g.labels(xy, max_age_s=c.terrain_max_age_s).reshape(i1 - i0, j1 - j0)
         occupancy = ((labels == CellLabel.BARRIER) | (labels == CellLabel.OCCUPIED)).astype(np.float32)
         free = (labels == CellLabel.ROAD).astype(np.float32)
         unknown = (labels == CellLabel.UNKNOWN).astype(np.float32)

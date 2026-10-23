@@ -784,7 +784,7 @@ class MaplessDrive:
             # Junction-aware gates (review of 697d53c, point F): the car must leave the approach
             # lane's corridor, so the permitted area replaces the lane footprint gate.
             turning = sum(1 for m in modes if m is DriveMode.TURNING)
-            for name, passed, values in score_turn(log, self.turn_site, turning, end=self.report["end"]):
+            for name, passed, values in score_turn(log, self.turn_site, turning, end=self.report["end"], s_offset_m=LANE_BACK_M):
                 status = INCOMPLETE if passed is None else (PASS if passed else FAIL)
                 checks.append(check(name, status, **values))
         else:

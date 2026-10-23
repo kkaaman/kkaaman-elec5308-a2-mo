@@ -132,8 +132,8 @@ class Tracker:
         track.time_s += dt
 
     @staticmethod
-    def _kalman(track, z, h, H, R):
-        y = z - h
+    def _kalman(track, y, H, R):
+        """Update with innovation ``y`` (already wrapped for angles)."""
         S = H @ track.P @ H.T + R
         K = track.P @ H.T @ np.linalg.inv(S)
         track.x = track.x + K @ y
@@ -193,7 +193,7 @@ class Tracker:
                 t, m = self.tracks[ids[i]], lidar[j]
                 H = np.zeros((2, 4))
                 H[0, 0] = H[1, 1] = 1.0
-                self._kalman(t, z_odo[j], t.x[:2], H, np.eye(2) * m.sigma_m**2)
+                self._kalman(t, z_odo[j] - t.x[:2], H, np.eye(2) * m.sigma_m**2)
                 self._absorb(t, m.class_probabilities, "lidar", time_s)
                 if m.extent is not None:
                     t.footprint = (m.extent[0], m.extent[1], pose.yaw_rad + m.extent[2])
@@ -234,10 +234,10 @@ class Tracker:
                 z, h, H, R, y, S, sensor_odo = models[(i, j)]
                 d2_rate = float(y[2] ** 2 / S[2, 2])
                 if d2_rate <= CHI2_1D:
-                    self._kalman(t, z, h, H, R)
+                    self._kalman(t, y, H, R)
                 else:
                     # Radial speed inconsistent with the track: use range and bearing only.
-                    self._kalman(t, z[:2], h[:2], H[:2], R[:2, :2])
+                    self._kalman(t, y[:2], H[:2], R[:2, :2])
                 self._absorb(t, None, "radar", time_s)
                 hit.add(ids[i])
             # Unassigned radar objects start tracks too (a car beyond the LiDAR's range).
@@ -326,13 +326,25 @@ class Tracker:
             )
         return out
 
-    def hazards(self, pose, within_m=None):
-        """Tracks the planner must act on: confirmed ones, plus tentative ones within hazard_m."""
-        limit = self.config.hazard_m if within_m is None else within_m
+    def live(self, tracks=None):
+        """Tracks the planner may act on: confirmed, or coasting for at most coast_s; a
+        track unseen for longer is kept only for re-association, not for planning."""
+        now = self._time or 0.0
         out = []
-        for track in self.snapshot():
+        for track in self.snapshot() if tracks is None else tracks:
             if track.status is TrackStatus.DELETED:
                 continue
+            if track.status is TrackStatus.COASTING and now - self.tracks[track.track_id].last_hit_s > self.config.coast_s:
+                continue
+            out.append(track)
+        return out
+
+    def hazards(self, pose, within_m=None):
+        """Tracks the planner must act on: confirmed ones (coasting at most coast_s), plus
+        tentative ones within hazard_m ahead: close hazards act before confirmation."""
+        limit = self.config.hazard_m if within_m is None else within_m
+        out = []
+        for track in self.live():
             body = pose.to_body(track.position[None])[0]
             near = 0.0 <= body[0] and np.hypot(*body) <= limit
             if track.status in (TrackStatus.CONFIRMED, TrackStatus.COASTING) or near:
