@@ -67,7 +67,8 @@ def make_run(tmp_path, cv2, swap_labels=False):
         truth = dict(weather="ClearNoon", episode=0, traffic_light_state="Green", actors=[dict(type_id="vehicle.audi.a2", **CAR), walker])
         samples.append(dict(frame=frame, files=files, speed_mps=3.0, truth=truth, calibration_id="cal"))
     manifest = dict(
-        map="Carla/Maps/Town03", status="COMPLETE", suite=SUITE.as_dict(), rig_records=[dict(rear_axle_offset_m=OFFSET)],
+        map="Carla/Maps/Town03", status="COMPLETE", suite=SUITE.as_dict(), suite_sha256=SUITE.sha256,
+        rig_records=[dict(rear_axle_offset_m=OFFSET), dict(rear_axle_offset_m=OFFSET + 0.002)],
         schema="group7-mapless-capture-2", source_commit="abc", spawned_vehicles=80, spawned_walkers=150, vehicles=80, walkers=150,
     )
     (run / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
@@ -85,7 +86,8 @@ def test_consistent_run_passes_both_projection_checks(tmp_path):
     assert summary["class_shares"]["front"]["road"] > 0.3
     assert front["rgb_label_edge_ratio"] >= 1.5
     assert summary["encounters"] == dict(samples_with_vehicle_in_path_30m=2, samples_with_pedestrian_20m=2)
-    assert summary["integrity"]["missing_files"] == 0 and summary["integrity"]["calibration_ids"] == 1
+    assert summary["integrity"]["missing_files"] == 0 and summary["integrity"]["rear_axle_offset_spread_m"] == 0.002
+    assert summary["integrity"]["suite_matches_manifest"]
     assert summary["acceptance"] == dict(status="ACCEPT", reasons=[])
     assert (run / "inspection" / "contact_sheet.png").exists() and (run / "inspection" / "cameras_sheet.png").exists()
 
@@ -107,6 +109,9 @@ def test_missing_files_and_old_schema_are_reported(tmp_path):
     (run / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
     summary = inspect(run, sheet_samples=1)
     assert summary["acceptance"]["status"] == "NEEDS_REPAIR"
+    manifest["rig_records"].append(dict(rear_axle_offset_m=OFFSET + 0.05))
+    (run / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    assert any("rear-axle" in r for r in inspect(run, sheet_samples=1)["acceptance"]["reasons"])
     (run / "lidar/roof/00000110.npz").unlink()
     (run / "rgb/front/00000110.jpg").rename(run / "rgb/front/gone.jpg")
     summary = inspect(run, sheet_samples=1, max_samples=1)
