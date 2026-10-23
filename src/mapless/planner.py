@@ -94,12 +94,13 @@ class LanePlanner:
         self._obstacle_point = None
         self._clear_since_s = self._clear_last_s = None
 
-    def plan(self, corridor, observation, goal_body, now_s, hold_at_m=None):
+    def plan(self, corridor, observation, goal_body, now_s, hold_at_m=None, speed_cap_mps=None):
         """``observation``: this sweep's ``PathObservation`` (None without a sweep this tick).
 
         ``goal_body``: the route goal in the vehicle frame, when it is within reach.
         ``hold_at_m``: stop the rear axle this far along the path (a junction the car may
         not enter yet); reported as stop reason "junction".
+        ``speed_cap_mps``: a lower cruise speed for this plan (lead-car following).
         """
         if not isinstance(corridor, Corridor):
             raise TypeError("corridor must be a Corridor")
@@ -159,7 +160,7 @@ class LanePlanner:
 
         k = np.abs(polyline_curvature(line))
         curve = np.sqrt(c.lateral_accel_mps2 / np.maximum(k, 1e-6))
-        speed = np.minimum(c.cruise_mps, curve)
+        speed = np.minimum(c.cruise_mps if speed_cap_mps is None else min(c.cruise_mps, max(0.0, speed_cap_mps)), curve)
         speed = np.minimum(speed, np.sqrt(2.0 * c.decel_mps2 * np.maximum(0.0, stop_s - arcs)))
         speed[arcs >= stop_s] = 0.0
         points, speeds = line[:end], speed[:end]
