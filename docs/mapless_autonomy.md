@@ -353,11 +353,23 @@ The car is `mapless.driver.MaplessDriver`: `SensorFrame`s and a sat-nav route in
 |---|---|---|
 | Ego motion | `ego_motion.py` | Odometry frame (wheel speed and gyro, gyro bias measured at standstill) for driving. EKF route pose initialised from GNSS and compass averaged over 1 s at standstill, then GNSS and compass updates; used only for route progress and the goal |
 | Terrain | `terrain.py` | Per sweep: road height in 2 m bands grown out from the car; points labelled ROAD, RAISED (kerb, pavement, 0.10 to 0.30 m), OBSTACLE (0.30 to 2.4 m). Evidence accumulates on a grid in the odometry frame (kerbs decay over 3 s, obstacles over 0.5 s) |
-| Corridor | `corridor.py` | Lateral profiles along last tick's centreline; right kerb = first raised cell with road seen next to it (obstacles such as parked cars are OCCUPIED, never an edge); the kerb may not jump in either direction (side roads, cars); kerb evidence must lie within 0.75 m of where last tick's line puts it; lane centre `keep_right_m` left of the kerb, measured at a standstill before the car moves (the kerb fitted as a line from 10 m behind to 15 m ahead with this same detector, accepted once 10 sweeps agree within 0.15 m, else a FAULT with the reason; never a default); a corridor under 5.5 m wide is one lane, driven in its middle; polynomial fit (degree from how far the evidence reaches) with last tick's line as a prior, continued along its tangent past the evidence, or last tick's line carried unchanged when there is too little evidence. Kerb cells count only if hit within 3 s, the road ahead must be observed within 1 s (an empty LiDAR ends the corridor), and the evidence time is the newest kerb hit, so a carried line ages and expires after 5 s |
+| Corridor | `corridor.py` | Lateral profiles along last tick's centreline; right kerb = first raised cell with road seen next to it (obstacles such as parked cars are OCCUPIED, never an edge); the kerb may not jump in either direction (side roads, cars); kerb evidence must lie within 0.75 m of where last tick's line puts it; lane centre `keep_right_m` left of the kerb, measured at a standstill before the car moves (the kerb's raw inner contour from 10 m behind to 15 m ahead fitted as a quadratic, or a line when only one side is seen, accepted once 10 sweeps agree within 0.15 m, else a FAULT with the reason; never a default); a corridor under 5.5 m wide is one lane, driven in its middle; polynomial fit (degree from how far the evidence reaches) with last tick's line as a prior, continued along its tangent past the evidence, or last tick's line carried unchanged when there is too little evidence. Kerb cells count only if hit within 3 s, the road ahead must be observed within 1 s (an empty LiDAR ends the corridor), and the evidence time is the newest kerb hit, so a carried line ages and expires after 5 s |
 | Obstacles | `obstacles.py` | This sweep's OBSTACLE points in the car-width tube along the centreline (nearest dense cluster), and how far the tube is *seen clear*: ground observed in 0.5 m slices from near the car outwards |
 | Planner | `planner.py` | Cruise speed, curve limit, braking ramp to a stop 2.5 m short of an obstacle (bumper) or at the goal (final-goal trajectory). Obstacle hold in three states: BLOCKED (seen), CLEAR (road seen clear 2 m past where it stood), UNKNOWN (neither: the stop stays). Released only after 1 s of continuous CLEAR |
 | Control | `navigation_control.local` | `LocalTrajectoryController` in the odometry frame |
 | Driver | `driver.py` | Modes STARTUP (GNSS and compass averaging), CALIBRATING (kerb distance), DRIVING, STOPPING, FINISHED, FAULT. Faults: LiDAR older than 0.15 s, IMU or speedometer older than 0.2 s, GNSS older than 3 s, route position sigma over 4 m, failed calibration, no corridor. A fault brakes along the last trajectory while odometry is trusted (IMU and speed fresh), otherwise holds the last steering: never wheels straight in a bend. From a standstill the car moves only on kerb evidence fresher than 0.5 s; a lost corridor at a standstill is re-acquired from the start-up assumption |
+
+**Sat-nav frame.** The local plane is built from the route's first point with the
+receiver's `north_sign` from the sensor suite: +1 on Earth, −1 on CARLA 0.9.16, where
+the GNSS sensor's latitude grows towards the compass's *south* (measured by
+`scripts/check_gnss_frame.py` on a Town05 capture: north per core y = −0.9993; found when
+the live curve run drove the bend correctly while its route frame went the other way and
+the goal was never reached). The rig check now measures the sign (`gnss_north_sign`) and
+fails when the suite's value is wrong. `scripts/check_geolocation.py` on the live server
+(Town04, 23 Oct) gave +0.9993 m of latitude per metre of CARLA +y for both the GNSS
+sensor and `map.transform_to_geolocation`, so the route and the receiver share one frame
+and the sign is the whole fix; the offline formula `carla_geolocation` was corrected to
+match the server (it had followed the source comment, which says the opposite).
 
 **Start-up assumption, explicit:** the car starts stopped, centred and aligned in a lane
 with a kerb on its right, as the harness places it. The calibration checks what it can
@@ -493,6 +505,31 @@ crept.**
 
 Each run writes `drive_report.json`, `drive_log.jsonl`, `route.json`, `drive_plot.png`,
 top-down terrain snapshots and the start-up sweeps.
+
+**Fourth live attempt (23 Oct, `2b7e14d`, three scenarios): drove all three.**
+- Straight: finished, lane p95 0.26 m, zero faults. Stop: stopped 3.5 m short and held 130 s
+  with zero creep. Curve: drove the 90° bend at −0.11 m the whole way.
+- What failed, and why: the standstill calibration read 3.98/4.13 m against the driving
+  detector's 4.24 m. The saved sweeps showed the "straight" site bends at 58 m radius; a
+  line fit through 25 m of kerb reads the chord. The stop run's faults were the new
+  stale-evidence rule misfiring at a standstill (only the LiDAR's ring crossings hit the
+  kerb when stopped: 4 edges, too few to refit, so the carried line was treated as
+  unsupported and reset every tick). The curve run never reached its goal because the
+  route frame was mirrored (above) and ran past the end of the truth lane.
+- Fixes (`G1b-5`, with a second review of `2b7e14d`): calibration from the raw kerb contour
+  as a quadratic (reads within 0.07 m on straights, skewed starts, kinks and bends to 50 m
+  radius offline; 4.13 m on the live sweeps); fresh kerb hits renew a carried line even when
+  too few to refit, and the corridor is reset only once its evidence has expired; the
+  obstacle hold is checked before the moving-off rule. From the review: an IMU or
+  speedometer outage integrates nothing (holding the last speed invented 6 m for 0.8 m
+  driven) and the odometry is marked untrusted, nothing is placed in the grid meanwhile,
+  and on recovery the car stops and rebuilds grid, corridor, obstacle hold and trajectory
+  together; the clearance count restarts on any gap (a fault, a missing sweep); seen-clear
+  needs ground in 2 of 3 strips across the tube; kerb-high objects in the tube are
+  obstacles; per-class cell timestamps so a fresh road hit cannot vouch for an old kerb;
+  the footprint gate uses the four body corners; the harness ends a run cleanly past the
+  goal or the truth lane's end; the capture verdict splits integrity, geometry and
+  coverage (coverage only warns; the edge ratio is a warning).
 
 ## Running Phase 0 live
 

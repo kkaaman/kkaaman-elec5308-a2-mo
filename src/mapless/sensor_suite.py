@@ -191,12 +191,20 @@ class GnssSpec:
     period_s: float = 0.2
     white_m: float = 0.5
     bias_sigma_m: float = 1.0  # constant per-axis offset, drawn once per run
+    # +1: latitude increases towards the compass's north, as on Earth. -1: it increases
+    # towards the compass's south, as measured on CARLA 0.9.16 (Town10HD, Town05: the GNSS
+    # sensor's latitude grows with CARLA +y while the compass's north is CARLA -y). The
+    # local plane uses it so that the route frame is right-handed with the heading; a
+    # wrong value mirrors the route and the live curve run drove away from its goal.
+    north_sign: int = 1
     kind: str = "gnss"
 
     def __post_init__(self):
         _finite("period_s", self.period_s, positive=True)
         _finite("white_m", self.white_m, nonnegative=True)
         _finite("bias_sigma_m", self.bias_sigma_m, nonnegative=True)
+        if self.north_sign not in (1, -1):
+            raise ValueError("north_sign must be 1 or -1")
 
 
 @dataclass(frozen=True)

@@ -251,19 +251,30 @@ def test_planner_stops_the_bumper_short_of_an_obstacle_and_holds_until_the_path_
         p = planner.plan(corridor, observation, None, t)
         return p.stop_reason, p.hold_state
 
+    def clear_run(t0, seconds, clear_to=30.0):
+        last = None
+        for k in range(int(round(seconds / 0.05)) + 1):
+            last = hold(PathObservation(None, clear_to), t0 + 0.05 * k)
+        return last
+
     # Not seeing the obstacle is not seeing the road clear: an occluded or missed obstacle
     # leaves the ground behind it unseen, and the stop holds however long that lasts.
-    assert hold(PathObservation(None, 14.0), 10.5) == ("obstacle_hold", "unknown")
-    assert hold(None, 11.0) == ("obstacle_hold", "unknown")  # no sweep this tick
+    assert hold(PathObservation(None, 14.0), 10.05) == ("obstacle_hold", "unknown")
+    assert hold(None, 10.1) == ("obstacle_hold", "unknown")  # no sweep this tick
     assert hold(PathObservation(None, 16.9), 30.0) == ("obstacle_hold", "unknown")  # needs 15 + 2 m
-    # Seen clear past where it stood: released after resume_clear_s of continuous clearance.
-    assert hold(PathObservation(None, 30.0), 30.1) == ("obstacle_hold", "clear")
-    assert hold(PathObservation(None, 30.0), 30.6) == ("obstacle_hold", "clear")
-    assert hold(PathObservation(None, 9.0), 30.8) == ("obstacle_hold", "unknown")  # interrupted
-    assert hold(PathObservation(None, 30.0), 31.0) == ("obstacle_hold", "clear")
-    assert hold(PathObservation(None, 30.0), 31.5) == ("obstacle_hold", "clear")
-    assert hold(PathObservation(None, 30.0), 32.0) == ("", "clear")
-    assert hold(PathObservation(None, 30.0), 32.1) == ("", "")
+    # Seen clear past where it stood, every tick for resume_clear_s: released.
+    assert clear_run(30.05, 0.5) == ("obstacle_hold", "clear")
+    assert hold(PathObservation(None, 9.0), 30.6) == ("obstacle_hold", "unknown")  # interrupted
+    assert clear_run(30.65, 0.9) == ("obstacle_hold", "clear")  # 0.95 s of continuous clearance
+    assert hold(PathObservation(None, 30.0), 31.65) == ("", "clear")  # 1.0 s: released
+    assert hold(PathObservation(None, 30.0), 31.7) == ("", "")
+    # Clearance must be continuous (review of 2b7e14d): one clear tick, 3 s of no planner
+    # calls (a fault), one more clear tick: still holding, the count restarted.
+    planner.plan(corridor, PathObservation(PathObstacle(15.0, 0.0, 10), 15.0), None, 40.0)
+    assert hold(PathObservation(None, 30.0), 40.05) == ("obstacle_hold", "clear")
+    assert hold(PathObservation(None, 30.0), 43.05) == ("obstacle_hold", "clear")
+    assert clear_run(43.1, 0.9) == ("obstacle_hold", "clear")
+    assert hold(PathObservation(None, 30.0), 44.05) == ("", "clear")
 
 
 def test_planner_goal_stop_is_a_final_goal_trajectory_ending_at_the_goal():

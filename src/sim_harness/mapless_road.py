@@ -233,11 +233,11 @@ class MaplessRoadWorld:
         x, y, h = self.scene.kerb.pose_at(self.start_s_m)
         off = self.scene.lane_centre_m + self.start_offset_m
         self.state = CarState(x - off * math.sin(h), y + off * math.cos(h), h + self.start_heading_error_rad)
-        self.plane = LocalTangentPlane(*REFERENCE_FIX)
+        self.gnss = next(s for s in self.suite.sensors if s.kind == "gnss")
+        self.plane = LocalTangentPlane(*REFERENCE_FIX, north_sign=self.gnss.north_sign)
         self.time_s = 0.0
         self.frame_id = 0
         self.lidar = self.suite.lidars[0]
-        self.gnss = next(s for s in self.suite.sensors if s.kind == "gnss")
         self.imu = next(s for s in self.suite.sensors if s.kind == "imu")
         self.wheel = next(s for s in self.suite.sensors if s.kind == "speedometer")
         scale = 1.0 if self.noise else 0.0

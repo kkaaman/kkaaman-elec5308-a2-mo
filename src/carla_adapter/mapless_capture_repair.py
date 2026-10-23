@@ -18,6 +18,7 @@ plan-view corners (as schema 2 writes them); the original is kept as
 import argparse
 import json
 import math
+import os
 import shutil
 import sys
 from pathlib import Path
@@ -32,10 +33,10 @@ def box_offsets_from_carla(type_ids, host, port):
 
     client = carla.Client(host, port)
     client.set_timeout(30.0)
+    offsets = {"_server": client.get_server_version()}
     world = client.get_world()
     library = world.get_blueprint_library()
     spawn_points = world.get_map().get_spawn_points()
-    offsets = {}
     for i, type_id in enumerate(sorted(type_ids)):
         bp = library.find(type_id)
         actor = None
@@ -65,7 +66,7 @@ def repair_actor(actor, offset):
     return dict(actor, x_m=x, y_m=y, corners_m=corners, schema1_x_m=actor["x_m"], schema1_y_m=actor["y_m"])
 
 
-def repair_run(run, offsets):
+def repair_run(run, offsets, server=None):
     run = Path(run)
     manifest_path = run / "manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -94,15 +95,23 @@ def repair_run(run, offsets):
         out.append(json.dumps(sample))
     if missing:
         raise RuntimeError(f"No box offset for {sorted(missing)}; nothing written")
-    samples_path.write_text("\n".join(out) + "\n", encoding="utf-8")
+    _atomic_write(samples_path, "\n".join(out) + "\n")
     manifest.update(
         schema=SCHEMA_2,
         box_geometry="centre and corners repaired from per-blueprint bounding_box.location (schema 1 capture)",
         repaired_from=SCHEMA_1,
         box_offsets=offsets,
+        box_offsets_server=server,
     )
-    manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    _atomic_write(manifest_path, json.dumps(manifest, indent=2))
     return len(out)
+
+
+def _atomic_write(path, text):
+    """Write via a temporary file and replace, so a crash leaves the old file whole."""
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_text(text, encoding="utf-8")
+    os.replace(tmp, path)
 
 
 def type_ids_in(run):
@@ -124,6 +133,7 @@ def main(argv=None):
     parser.add_argument("--no-carla", action="store_true", help="Fail instead of asking CARLA for missing offsets")
     args = parser.parse_args(argv)
     offsets = json.loads(args.offsets.read_text(encoding="utf-8")) if args.offsets else {}
+    offsets.setdefault("_server", "unknown")  # the CARLA version the offsets were read on
     needed = set()
     for run in args.run:
         needed |= type_ids_in(run)
@@ -135,7 +145,7 @@ def main(argv=None):
     if args.export_offsets:
         args.export_offsets.write_text(json.dumps(offsets, indent=2, sort_keys=True), encoding="utf-8")
     for run in args.run:
-        n = repair_run(run, {k: offsets[k] for k in type_ids_in(run)})
+        n = repair_run(run, {k: offsets[k] for k in type_ids_in(run)}, server=offsets.get("_server"))
         print(json.dumps(dict(run=str(run), samples=n, status="repaired")), file=sys.stderr)
 
 

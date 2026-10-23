@@ -88,7 +88,7 @@ def test_consistent_run_passes_both_projection_checks(tmp_path):
     assert summary["encounters"] == dict(samples_with_vehicle_in_path_30m=2, samples_with_pedestrian_20m=2)
     assert summary["integrity"]["missing_files"] == 0 and summary["integrity"]["rear_axle_offset_spread_m"] == 0.002
     assert summary["integrity"]["suite_matches_manifest"]
-    assert summary["acceptance"] == dict(status="ACCEPT", reasons=[])
+    assert summary["acceptance"]["status"] == "ACCEPT" and summary["acceptance"]["coverage"]["status"] == "PASS"
     assert (run / "inspection" / "contact_sheet.png").exists() and (run / "inspection" / "cameras_sheet.png").exists()
 
 
@@ -97,8 +97,8 @@ def test_mismatched_labels_show_up_in_the_projection_checks(tmp_path):
     summary = inspect(make_run(tmp_path, cv2, swap_labels=True), sheet_samples=1)
     assert summary["projection_checks"]["front"]["ground_points_on_ground_labels"] < 0.5
     assert summary["projection_checks"]["front"]["rgb_label_edge_ratio"] < 1.5
-    assert summary["acceptance"]["status"] == "REJECT"
-    assert any("do not pair" in r for r in summary["acceptance"]["reasons"])
+    assert summary["acceptance"]["status"] == "REJECT"  # the projection checks fail
+    assert any("may not pair" in w for w in summary["acceptance"]["geometry"]["warnings"])
 
 
 def test_missing_files_and_old_schema_are_reported(tmp_path):
@@ -116,4 +116,16 @@ def test_missing_files_and_old_schema_are_reported(tmp_path):
     (run / "rgb/front/00000110.jpg").rename(run / "rgb/front/gone.jpg")
     summary = inspect(run, sheet_samples=1, max_samples=1)
     assert summary["integrity"]["missing_files"] == 2
-    assert summary["acceptance"]["status"] == "REJECT"
+    assert summary["acceptance"]["status"] == "REJECT" and summary["acceptance"]["integrity"]["status"] == "FAIL"
+
+
+def test_thin_coverage_warns_but_does_not_reject(tmp_path):
+    cv2 = pytest.importorskip("cv2")
+    run = make_run(tmp_path, cv2)
+    lines = [json.loads(line) for line in (run / "samples.jsonl").read_text(encoding="utf-8").splitlines()]
+    for sample in lines:
+        sample["truth"]["actors"] = [a for a in sample["truth"]["actors"] if not a["type_id"].startswith("walker.")]
+    (run / "samples.jsonl").write_text("\n".join(json.dumps(s) for s in lines), encoding="utf-8")
+    verdict = inspect(run, sheet_samples=1)["acceptance"]
+    assert verdict["status"] == "ACCEPT" and verdict["coverage"]["status"] == "WARN"
+    assert any("pedestrian" in r for r in verdict["coverage"]["reasons"])

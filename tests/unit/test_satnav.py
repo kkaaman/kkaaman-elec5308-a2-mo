@@ -7,7 +7,7 @@ import pytest
 
 from autonomy.paths import FIXTURES_DIR
 from evaluation.satnav_route import carla_geolocation, junction_traversals, satnav_from_mission
-from mapless.satnav import Command, LocalTangentPlane, RouteProgress, SatNavRoute
+from mapless.satnav import Command, LocalTangentPlane, RoutePoint, RouteProgress, SatNavRoute
 from planning.lane_graph import LaneTopology
 from sim_harness.baseline import mission_route
 
@@ -31,7 +31,7 @@ def route(mission, topology):
 
 def car_xy(route, x, y):
     """What the car computes from a fix at mission point (x, y): GPS -> its own plane."""
-    plane = LocalTangentPlane(route.points[0].latitude_deg, route.points[0].longitude_deg)
+    plane = LocalTangentPlane(route.points[0].latitude_deg, route.points[0].longitude_deg, north_sign=-1)
     return plane.to_local(*GEO(x, -y))
 
 
@@ -51,16 +51,16 @@ def test_route_has_one_entry_and_exit_per_junction(route, mission, topology):
 
 def test_tangent_plane_matches_carlas_projection(mission):
     lat0, lon0 = GEO(0.0, 0.0)
-    plane = LocalTangentPlane(lat0, lon0)
+    plane = LocalTangentPlane(lat0, lon0, north_sign=-1)  # CARLA 0.9.16: latitude grows with CARLA +y
     for x, y in ((100.0, 0.0), (0.0, 100.0), (-300.0, 250.0), (800.0, -600.0)):
         east, north = plane.to_local(*GEO(x, y))
-        # CARLA y is right, so north is -y.
+        # With north_sign -1 the plane is the core frame: CARLA y is right, so core y is -y.
         assert (east, north) == pytest.approx((x, -y), abs=0.01 * max(1.0, math.hypot(x, y) / 100))
         assert plane.to_geodetic(east, north) == pytest.approx(GEO(x, y), abs=1e-9)
 
 
 def test_progress_walks_the_route_in_order_and_flags_turns(route, mission):
-    progress = RouteProgress(route)
+    progress = RouteProgress(route, north_sign=-1)
     seen = []
     for x, y in mission.points_xy_m:
         g = progress.update(*car_xy(route, x, y))
@@ -76,7 +76,7 @@ def test_progress_walks_the_route_in_order_and_flags_turns(route, mission):
 def test_progress_survives_gnss_noise_and_never_goes_backwards(route, mission):
     rng = np.random.default_rng(1)
     bias = rng.normal(0, 1.0, 2)
-    progress = RouteProgress(route)
+    progress = RouteProgress(route, north_sign=-1)
     last = 1
     for x, y in mission.points_xy_m:
         cx, cy = car_xy(route, x, y)
@@ -104,3 +104,18 @@ def test_route_file_round_trip_and_validation(route, tmp_path):
     document["points"].insert(1, dict(document["points"][0]))
     with pytest.raises(ValueError, match="0.5 m apart"):
         SatNavRoute.from_dict(document)
+
+
+def test_plane_north_sign_keeps_the_frame_right_handed_with_the_heading():
+    plain = LocalTangentPlane(-33.9, 151.2)
+    mirrored = LocalTangentPlane(-33.9, 151.2, north_sign=-1)
+    lat, lon = plain.to_geodetic(10.0, 20.0)  # a fix 20 m north of the origin
+    assert plain.to_local(lat, lon) == pytest.approx((10.0, 20.0), abs=1e-6)
+    # A receiver whose latitude grows southward reports that fix for a car 20 m south:
+    # the mirrored plane puts it at y = -20, where the compass heading says it is.
+    assert mirrored.to_local(lat, lon) == pytest.approx((10.0, -20.0), abs=1e-6)
+    assert mirrored.to_local(*mirrored.to_geodetic(3.0, -7.0)) == pytest.approx((3.0, -7.0), abs=1e-6)
+    with pytest.raises(ValueError):
+        LocalTangentPlane(0.0, 0.0, north_sign=2)
+    route = SatNavRoute("r", (RoutePoint(lat, lon, Command.LANEFOLLOW), RoutePoint(*plain.to_geodetic(10.0, 80.0), Command.LANEFOLLOW)))
+    assert RouteProgress(route, north_sign=-1).xy[1] == pytest.approx((0.0, -60.0), abs=1e-6)

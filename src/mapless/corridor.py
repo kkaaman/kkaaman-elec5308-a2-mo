@@ -15,8 +15,8 @@ Each tick:
    starts from the median of the nearest edges.
 4. **Lane centre.** Traffic keeps right: the lane centre is ``keep_right_m`` left of the
    right edge. By default that distance is measured at a standstill before the car moves
-   (``calibrate``): the kerb is fitted as a line from 10 m behind to 15 m ahead with this
-   same detector, and the rear axle's distance to it is the lane centre's. It is never
+   (``calibrate``): the kerb's raw inner contour from 10 m behind to 15 m ahead is fitted
+   as a curve, and the rear axle's distance to it is the lane centre's. It is never
    defaulted. A corridor narrower than ``two_lane_min_m`` is one lane,
    and the centre is its middle. Only kerbs are edges: parked cars and other obstacles
    are OCCUPIED, never the road edge.
@@ -38,7 +38,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from mapless.ego_motion import Pose2D
-from mapless.terrain import CellLabel, TerrainGrid
+from mapless.terrain import CellLabel, ClassifiedSweep, PointClass, TerrainGrid
 
 
 @dataclass(frozen=True)
@@ -266,18 +266,24 @@ class CorridorEstimator:
     def calibrating(self):
         return self.keep_right_m is None
 
-    def calibrate(self, grid, pose, time_s, stationary):
+    def calibrate(self, sweep, pose, time_s, stationary):
         """Measure ``keep_right_m`` while standing still; call every tick until it settles.
 
-        The car stands centred and aligned in its lane. Each sweep, the right kerb is found
-        with the driving detector itself at stations from ``calibration_behind_m`` behind to
-        ``calibration_far_m`` ahead, and fitted (``_fit_kerb``); the rear axle's
-        perpendicular distance to the fit is the lane centre's distance from the kerb. Not a
-        median edge along the car's heading, and not measured while driving that heading: in
-        live run e the lane ran about 2.5 degrees off the start heading, an 8 m calibration
-        drive drifted 0.39 m off the lane, and it read 3.6 m where the map has 4.39 m. The
-        same detector on the same grid keeps the cell quantisation of the kerb the same in
-        calibration and driving, so it cancels.
+        The car stands centred and aligned in its lane. Each sweep, the right kerb's inner
+        contour is taken from the raw classified points (``_kerb_contour``): at stations
+        from ``calibration_behind_m`` behind to ``calibration_far_m`` ahead, the innermost
+        RAISED point with road just inside it and nothing tall beside it. The contour is
+        fitted as a quadratic when both sides of the axle are seen, else a line
+        (``_fit_kerb``), and the axle's nearest distance to the fit is the lane centre's
+        distance from the kerb.
+
+        Why raw points and a curve: the live "straight" site on Town10HD bends at 58 m
+        radius, and a line through 25 m of its kerb read the chord, 0.4 m inside the kerb
+        beside the car (run with 2b7e14d). The grid's cell-quantised edges were too coarse
+        for a curve (a quadratic on them read 1.55 m for a 1.75 m straight kerb); the raw
+        contour has hundreds of points per station and reads within 0.07 m on straights,
+        skewed starts and bends down to 50 m radius offline. Not measured while driving
+        the start heading either: run e drifted 0.39 m off a lane 2.5 degrees off it.
 
         Accepted once ``calibration_min_fits`` sweeps give clean fits (scatter, span,
         heading) that agree within ``calibration_max_spread_m``. Not settled within
@@ -296,10 +302,11 @@ class CorridorEstimator:
         self.keep_right_source = "calibrating"
         if self._calibration_began_s is None:
             self._calibration_began_s = time_s
-        if stationary:
-            stations = np.arange(-c.calibration_behind_m, c.calibration_far_m + 1e-9, c.calibration_station_m)
-            right, _, _, _ = self._edges_along(grid, pose, stations, np.zeros_like(stations))
-            fit = self._fit_kerb(stations, right)
+        if sweep is not None and not isinstance(sweep, ClassifiedSweep):
+            raise TypeError("sweep must be a ClassifiedSweep or None")
+        if stationary and sweep is not None:
+            stations, contour = self._kerb_contour(sweep)
+            fit = self._fit_kerb(stations, contour)
             if fit is not None and fit["clean"]:
                 self._fits.append(fit)
             self._last_fit = fit
@@ -310,10 +317,13 @@ class CorridorEstimator:
             self.keep_right_source = f"measured at a standstill ({summary['good_fits']} sweeps)"
             summary["status"] = "accepted"
             last = self._fits[-1]
-            # The first prior: a line parallel to the fitted kerb, keep_right to its left.
-            slope, intercept = last["coefficients"]
+            # The first prior: the fitted kerb moved keep_right along its normal, to the left.
+            kerb = np.poly1d(last["coefficients"])
             xs = np.arange(c.start_m, c.calibration_far_m + c.extrapolate_m + 1e-9, c.step_m)
-            ys = intercept + slope * xs + self.keep_right_m * math.hypot(1.0, slope)
+            slope = kerb.deriv()(xs)
+            norm = np.hypot(1.0, slope)
+            px, py = xs - self.keep_right_m * slope / norm, kerb(xs) + self.keep_right_m / norm
+            ys = np.interp(xs, px, py)
             centre_body = np.column_stack((xs, ys))
             self.previous = Corridor(
                 time_s=time_s,
@@ -321,7 +331,7 @@ class CorridorEstimator:
                 centre_body=centre_body,
                 centre_odometry=pose.to_world(centre_body),
                 valid_length_m=float(xs[-1]),
-                coefficients=(float(slope), float(ys[0] - slope * xs[0])),
+                coefficients=tuple(float(v) for v in np.polyfit(xs, ys, len(last["coefficients"]) - 1)),
                 station_x_m=xs,
                 reference_y_m=ys,
                 right_edge_m=np.full(len(xs), np.nan),
@@ -338,43 +348,70 @@ class CorridorEstimator:
             return "failed: " + why
         return "calibrating"
 
-    def _fit_kerb(self, stations, right):
-        """Fit one sweep's right-kerb edges as a line; the rear axle's distance to it.
+    def _kerb_contour(self, sweep):
+        """Per station, y of the innermost raised point on the right (NaN where no kerb)."""
+        c = self.config
+        xyz, cls = sweep.xyz, sweep.cls
+        step = c.calibration_station_m
+        right = (xyz[:, 1] < -1.0) & (xyz[:, 1] > -c.lateral_search_m)
+        stations = np.arange(-c.calibration_behind_m, c.calibration_far_m + 1e-9, step)
+        contour = np.full(len(stations), np.nan)
+        for i, s in enumerate(stations):
+            in_slice = right & (xyz[:, 0] >= s - step / 2) & (xyz[:, 0] < s + step / 2)
+            raised = xyz[in_slice & (cls == PointClass.RAISED), 1]
+            if raised.size < 3:
+                continue
+            y = float(raised.max())
+            road = xyz[in_slice & (cls == PointClass.ROAD), 1]
+            tall = xyz[in_slice & (cls == PointClass.OBSTACLE), 1]
+            # Road must be seen just inside it (a pavement's far side is not the kerb) and
+            # nothing tall within 1 m (a parked car's sills are kerb-high).
+            if not np.any((road > y) & (road < y + 2 * c.max_unseen_m)) or np.any(np.abs(tall - y) < 1.0):
+                continue
+            contour[i] = y
+        return stations, contour
 
-        A line, so a skewed start is measured across the kerb, not along the car (run e). At
-        a standstill the kerb is seen only where LiDAR rings cross it, each edge quantised by
-        the grid's cells (up to +-0.15 m): too sparse and coarse for a curve. A quadratic fit
-        to the same edges read 1.55 m for a 1.75 m straight kerb; the line reads it within
-        0.07 m. The cost is a bend: the line sits about 10 m^2 / R off the kerb's nearest
-        point (0.1 m on a 100 m radius, measured in the closed loop). Edges more than 0.3 m
-        from a first fit are dropped before the second.
+    def _fit_kerb(self, stations, right):
+        """Fit one sweep's kerb contour; the rear axle's nearest distance to it.
+
+        A quadratic when the kerb is seen well on both sides of the axle (the axle is then
+        bracketed, and a bend measured, not chorded), otherwise a line. Stations more than
+        0.3 m from a first fit are dropped before the second.
         """
         c = self.config
         ok = np.isfinite(right)
         if ok.sum() < c.calibration_min_stations or np.ptp(stations[ok]) < c.calibration_min_span_m:
             return None
         x, y = stations[ok], right[ok]
-        slope, intercept = np.polyfit(x, y, 1)
-        keep = np.abs(y - (intercept + slope * x)) <= 0.3
+        n_side = c.calibration_min_stations - 2
+        degree = 2 if ok.sum() >= 20 and (x < -2).sum() >= n_side and (x > 2).sum() >= n_side else 1
+        coefficients = np.polyfit(x, y, degree)
+        keep = np.abs(y - np.polyval(coefficients, x)) <= 0.3
         if keep.sum() >= c.calibration_min_stations and not keep.all():
-            slope, intercept = np.polyfit(x[keep], y[keep], 1)
+            coefficients = np.polyfit(x[keep], y[keep], degree)
         elif keep.sum() < c.calibration_min_stations:
             keep = np.ones(len(x), dtype=bool)
-        residual = np.abs(y[keep] - (intercept + slope * x[keep]))
+        residual = np.abs(y[keep] - np.polyval(coefficients, x[keep]))
+        xs = np.linspace(float(x[keep].min()), float(x[keep].max()), 400)
+        distance = float(np.min(np.hypot(xs, np.polyval(coefficients, xs))))
+        slope = float(np.polyval(np.polyder(coefficients), 0.0))
         heading = math.degrees(math.atan(slope))
         span = float(np.ptp(x[keep]))
         fit = dict(
-            distance=float(-intercept / math.hypot(1.0, slope)),
+            distance=distance,
             heading_deg=heading,
+            curvature=2.0 * float(coefficients[0]) if degree == 2 else 0.0,
             mad=float(np.median(residual)),
             stations=int(keep.sum()),
             behind=int((x[keep] < 0).sum()),
             span=span,
-            coefficients=(float(slope), float(intercept)),
+            degree=degree,
+            coefficients=tuple(float(v) for v in coefficients),
         )
         fit["clean"] = bool(
             fit["mad"] <= c.calibration_max_mad_m
             and abs(heading) <= c.calibration_max_heading_deg
+            and abs(fit["curvature"]) <= 1.0 / c.reference_min_radius_m
             and span >= c.calibration_min_span_m
         )
         return fit
@@ -396,6 +433,8 @@ class CorridorEstimator:
                 distance_m=round(float(np.median(d)), 3),
                 spread_m=round(float(np.percentile(d, 90) - np.percentile(d, 10)), 3),
                 heading_deg=round(float(np.median([f["heading_deg"] for f in fits])), 2),
+                curvature=round(float(np.median([f["curvature"] for f in fits])), 4),
+                quadratic_share=round(float(np.mean([f["degree"] == 2 for f in fits])), 2),
                 mad_m=round(float(np.median([f["mad"] for f in fits])), 3),
                 stations=int(np.median([f["stations"] for f in fits])),
             )
@@ -464,7 +503,7 @@ class CorridorEstimator:
                 stations[rows] - offsets[jr[rows]] * np.sin(heading[rows]),
                 ref[rows] + offsets[jr[rows]] * np.cos(heading[rows]),
             ))
-            self._edge_seen_s[rows] = grid.seen_at(pose.to_world(kerb))
+            self._edge_seen_s[rows] = grid.seen_at(pose.to_world(kerb), PointClass.RAISED)
         take = usable & left_seen
         left[take] = offsets[jl[take]] - c.lateral_step_m / 2 + half_cell
         # Continuity: no jumps in either direction; seed with the median of the nearest edges.
@@ -488,7 +527,13 @@ class CorridorEstimator:
         reason = "" if len(centre_body) >= 2 else "previous corridor used up"
         if not reason and valid < c.min_valid_m:
             reason = f"road ahead observed only to {valid:.1f} m"
-        age = time_s - previous.evidence_time_s
+        # Carrying the line does not renew its evidence; the kerb hits that did arrive do,
+        # even when too few to refit (at a standstill only the LiDAR's ring crossings hit the
+        # kerb: 4 edges on the live stop run, and the car was faulted for stale evidence
+        # while a fresh kerb stood beside it).
+        seen = self._edge_seen_s[np.isfinite(self._edge_seen_s)]
+        evidence_time = max(previous.evidence_time_s, float(seen.max()) if len(seen) else -math.inf)
+        age = time_s - evidence_time
         if not reason and age > c.evidence_max_age_s:
             reason = f"kerb evidence {age:.1f} s old"
         if reason:
@@ -511,7 +556,7 @@ class CorridorEstimator:
             blocked=blocked,
             evidence_body=evidence,
             reason=reason,
-            evidence_time_s=previous.evidence_time_s,  # carrying a line does not renew it
+            evidence_time_s=evidence_time,
             support_m=float(support),
         )
         if corridor.ok:
