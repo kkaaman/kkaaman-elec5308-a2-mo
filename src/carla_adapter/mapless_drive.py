@@ -387,7 +387,8 @@ class MaplessDrive:
         self.route = make_route(carla_map, wps, args.goal_m)
         self.route.save(args.output / "route.json")
         self.goal_xy = self.lane[LANE_BACK_M + int(round(args.goal_m))]
-        self.lane_end_s = float(np.sum(np.hypot(*np.diff(self.lane, axis=0).T))) - LANE_BACK_M
+        self.lane_arcs = np.concatenate(([0.0], np.cumsum(np.hypot(*np.diff(self.lane, axis=0).T))))
+        self.lane_end_s = float(self.lane_arcs[-1]) - LANE_BACK_M
         self.report["site"] = rounded(
             {k: v for k, v in site.items() if k != "waypoints"} | dict(map=carla_map.name, start_xy_m=self.lane[LANE_BACK_M].tolist())
         )
@@ -396,8 +397,17 @@ class MaplessDrive:
         t = self.ego.get_transform()
         x, y, _, yaw = rear_axle_pose(t, self.offset)
         s, lateral, outside = project_onto_polyline(np.array([[x, y]]), self.lane)
-        i = int(np.clip(round(float(s[0])), 0, len(self.lane) - 2))
+        # The lane heading at the car's arc length (the waypoints are not exactly 1 m
+        # apart in bends: reading the segment by index drifted up to 10 degrees on the
+        # 39 m curve site and failed the footprint gate on a run at -0.06 m).
+        i = int(np.clip(np.searchsorted(self.lane_arcs, float(s[0])) - 1, 0, len(self.lane) - 2))
         heading = math.atan2(*(self.lane[i + 1] - self.lane[i])[::-1])
+        # Each body corner's own offset from the lane centre, for the footprint gate.
+        b, c, sn = self.body, math.cos(yaw), math.sin(yaw)
+        corners = np.array(
+            [(x + c * u - sn * v, y + sn * u + c * v) for u, v in ((b.front_m, b.half_width_m), (b.front_m, -b.half_width_m), (b.rear_m, -b.half_width_m), (b.rear_m, b.half_width_m))]
+        )
+        _, corner_lateral, _ = project_onto_polyline(corners, self.lane)
         gap = None
         if self.parked is not None:
             p = core_xy(self.parked.get_transform().location)
@@ -409,6 +419,7 @@ class MaplessDrive:
             yaw_rad=yaw,
             s_m=float(s[0]) - LANE_BACK_M,  # from the route start
             lane_offset_m=float(lateral[0]),
+            corner_offset_max_m=float(np.abs(corner_lateral).max()),
             heading_error_rad=wrap(yaw - heading),
             speed_mps=math.hypot(v.x, v.y),
             goal_distance_m=float(math.dist((x, y), self.goal_xy)),
@@ -557,17 +568,9 @@ class MaplessDrive:
                 check("lane_keeping", PASS if p95 <= 0.35 and worst <= 0.70 else FAIL, p95_m=p95, max_m=worst, ticks=len(settled))
             )
         # The whole run, calibration and start included: no corner of the body outside the
-        # lane. Each corner's lateral offset from the lane centre is the rear axle's plus
-        # the corner's body position rotated by the heading error (rear overhang included).
+        # lane (each corner projected onto the lane centreline itself, so bends are exact).
         half_lane = self.site["lane_width_m"] / 2
-        b = self.body
-        corners = [(b.front_m, b.half_width_m), (b.front_m, -b.half_width_m), (b.rear_m, -b.half_width_m), (b.rear_m, b.half_width_m)]
-        worst_corner = 0.0
-        for r in log:
-            t = r["truth"]
-            sin_h, cos_h = math.sin(t["heading_error_rad"]), math.cos(t["heading_error_rad"])
-            for u, v in corners:
-                worst_corner = max(worst_corner, abs(t["lane_offset_m"] + u * sin_h + v * cos_h))
+        worst_corner = max(r["truth"]["corner_offset_max_m"] for r in log)
         checks.append(
             check("lane_footprint", PASS if worst_corner <= half_lane else FAIL, max_corner_offset_m=worst_corner, half_lane_m=half_lane, ticks=len(log))
         )

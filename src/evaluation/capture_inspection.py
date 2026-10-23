@@ -31,6 +31,7 @@ Truth and labels are read here for inspection only; they never reach the car.
 """
 
 import argparse
+import hashlib
 import json
 import math
 import random
@@ -180,8 +181,11 @@ def integrity(run, manifest, samples, calibrations):
 
 
 def manifest_suite_sha(manifest):
+    """Hash of the suite exactly as the manifest stores it (``SensorSuite.sha256`` hashes
+    ``as_dict()``, so this reproduces it; re-parsing would add fields the suite gained since)."""
     try:
-        return suite_from_dict(manifest["suite"]).sha256
+        text = json.dumps(manifest["suite"], sort_keys=True, separators=(",", ":"))
+        return hashlib.sha256(text.encode()).hexdigest()
     except Exception:
         return None
 

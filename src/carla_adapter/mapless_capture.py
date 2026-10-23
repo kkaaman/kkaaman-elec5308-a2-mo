@@ -234,7 +234,7 @@ def source_commit():
     try:
         root = Path(__file__).resolve().parents[2]
         out = subprocess.run(["git", "rev-parse", "HEAD"], cwd=root, capture_output=True, text=True, timeout=10)
-        dirty = subprocess.run(["git", "status", "--porcelain"], cwd=root, capture_output=True, text=True, timeout=10)
+        dirty = subprocess.run(["git", "status", "--porcelain", "--untracked-files=no"], cwd=root, capture_output=True, text=True, timeout=10)
         if out.returncode != 0:
             return None
         return out.stdout.strip() + ("-dirty" if dirty.stdout.strip() else "")
