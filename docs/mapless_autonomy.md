@@ -870,6 +870,47 @@ reports the kerb-station error and lane error per tick; configuration variants
 (`--junction exit_kerb_edge='"midpoint"'`) run against the same frames. The smoke test
 checks the replay reproduces the live driver tick for tick.
 
+### Fifth live turn (24 Oct, PC 2, `3c4177e`), recorded: the cause, found by replay
+Same result (footprint +0.49 m), but this run carried the sensor frames. The replay
+(`scripts/replay_mapless_frames.py`, rigid fit odometry→truth RMS 0.28 m) reproduces the
+live driver tick for tick and scores the exit-kerb stations against the site's true kerb:
+
+| rule for the kerb within the unseen strip | kerb error at commit (t=21, 27 m) | lane error | at t=29 |
+|---|---|---|---|
+| `road` (the road's last ROAD cell; the rule shipped) | −1.20 m (into the road) | −1.04 m | −0.32 m |
+| `midpoint` | −0.57 m | −0.41 m | −0.32 m |
+| `barrier` / `raised` (the first raised cell beyond the road) | −0.16 m | +0.01 m | −0.19 m |
+
+The grid across the exit kerb at t=21 (`kerb_cells.py`): BARRIER cells sit within a cell
+of the true kerb line, then ~1.5 m of unseen cells on the *road* side, then the road.
+The point classes say why: the road near the kerb gets a return only where a ring lands
+(8 road points within 2 m of the kerb in the whole sweep at 28 m), while the pavement
+behind the kerb is furnished — hedges, poles, trees — and returns raised and obstacle
+points right behind the kerb line. The `road` rule was chosen on the synthetic world,
+whose pavements are bare: there nothing raised is seen for metres behind a 0.15 m kerb
+at range (its shadow), so the first raised cell lies a metre onto the pavement and the
+road's edge is the better kerb (`edge_eval.py`: `road` 0.0–0.4 m, `barrier` +0.8–1.1 m on
+right turns). Two worlds, two answers; the live one decides. Taken:
+- **Kerb = the first cell with fresh raised evidence beyond the road** (`exit_kerb_edge`
+  `"raised"`; the kerb face returns raised points even where a cell's road returns outvote
+  them into ROAD, `TerrainGrid.raised_evidence`). On the recording the lane is placed
+  within 0.03 m of truth from the first measurement and the latched line is 0.22 m right
+  of truth (toward the kerb — the side the clearance checks guard).
+- **The synthetic side roads carry pavement furniture** (`side_road_hedges`: a 0.25 m
+  verge 0.3 m behind both kerbs — raised, not an obstacle, so its cells read BARRIER as
+  the live kerb's do), which halves the bare-pavement bias on synthetic right turns
+  (+0.3 m). The synthetic left turn reads its exit kerb from ~38 m across the box, where
+  the verge's raised returns lie up to a metre behind the kerb: it commits ~1.3 m right of
+  truth and swings wide in the box before the refinement and hand-back correct it (test
+  bound 2.6 m, noted). The live footprint gate is the measure; the synthetic world's
+  kerb-at-range behaviour is a known limit of that world.
+- **The latched exit line is the measured one** the path was built on; the route point is
+  kept separately as the probe the exit road is searched around (external review of
+  `7b1e3c6`: the refinement had compared new measurements against the route point, 2.7 m
+  from the lane, so its first verdict was a spurious "2.7 m off" and the re-anchor a
+  no-op). When no same-radius arc reaches a moved exit line from the entry straight, the
+  refinement falls through to a fresh arc from the car instead of returning.
+
 ### External review of `6773e24` (ChatGPT, 24 Oct): nine findings, seven taken
 Taken, each with tests:
 1. **Verified turn space** — within the stopping envelope (`near_cover_m` 8 m) a pose is

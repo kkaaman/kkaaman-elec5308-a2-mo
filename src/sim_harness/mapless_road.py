@@ -160,6 +160,7 @@ class RoadScene:
     openings: tuple = ()  # (s_start, s_end): side roads on the right, road surface out to 15 m
     crown_m: float = 0.0  # road centre this much higher than its edges (drainage camber)
     side_roads: tuple = ()  # SideRoad junctions off a straight main road
+    hedges: tuple = ()  # raw boxes (cx, cy, heading, half length, half width, height): pavement furniture (see side_road_hedges)
 
     def on_road(self, s, d):
         s, d = np.asarray(s, dtype=float), np.asarray(d, dtype=float)
@@ -208,6 +209,26 @@ class RoadScene:
         x, y, h = self.kerb.pose_at(car.s_m)
         cx, cy = x - car.offset_m * math.sin(h), y + car.offset_m * math.cos(h)
         return (cx, cy, h, car.length_m / 2, car.width_m / 2, car.height_m)
+
+
+def side_road_hedges(side_road, main_width_m=7.0, setback_m=0.3, width_m=0.6, height_m=0.25):
+    """A hedge along both pavements of a side road, ``setback_m`` behind its kerbs, from
+    just past the corner fillets to its end: the furniture CARLA's pavements carry (Town10HD
+    has hedges, poles and trees right behind the kerb). On a bare pavement the LiDAR sees
+    nothing raised for metres behind a 0.15 m kerb at 25 m range (the kerb's shadow), so
+    the first raised cell beyond the road lies a metre or more onto the pavement; with the
+    furniture it lies at the kerb, as it does live."""
+    sr = side_road
+    half, f = sr.width_m / 2, sr.fillet_m
+    boxes = []
+    for kerb_s, sign in ((sr.s_m - half, -1.0), (sr.s_m + half, 1.0)):
+        s_centre = kerb_s + sign * (setback_m + width_m / 2)
+        if sr.side < 0:
+            d0, d1 = -(f + 1.0), -sr.length_m
+        else:
+            d0, d1 = main_width_m + f + 1.0, main_width_m + sr.length_m
+        boxes.append((s_centre, 0.5 * (d0 + d1), math.pi / 2, abs(d1 - d0) / 2, width_m / 2, height_m))
+    return tuple(boxes)
 
 
 @dataclass(frozen=True)
@@ -310,7 +331,7 @@ class MaplessRoadWorld:
         )
         self._next_fix_s = 0.0
         self.path = self.scene.turn_path(self.turn) if self.turn is not None else None
-        self.boxes = [self.scene.box(car) for car in self.scene.parked]
+        self.boxes = [self.scene.box(car) for car in self.scene.parked] + list(self.scene.hedges)
         self.lidar_to_ego = sensor_to_ego(self.lidar.mount, self.rear_axle_offset_m)
         channels = np.linspace(self.lidar.lower_fov_deg, self.lidar.upper_fov_deg, self.lidar.channels)
         azimuths = np.arange(0.0, 360.0, self.azimuth_step_deg)
