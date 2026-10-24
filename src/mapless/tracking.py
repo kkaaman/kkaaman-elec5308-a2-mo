@@ -17,10 +17,12 @@ not updates the position only. Assignment is one to one, nearest normalised dist
 first (an optimal assignment can replace ``_assign`` without touching the rest).
 
 Lifecycle: tentative on the first hit; confirmed at 3 hits in 5 frames; coasts up to
-``coast_s`` without a hit, predicted forward; deleted after ``delete_s``. A tentative
-track within ``hazard_m`` is still reported to the planner as a hazard: close hazards
-act before confirmation. Deleting a track never clears occupied space (the grid keeps
-its own evidence).
+``coast_s`` without a hit, predicted forward; deleted after ``delete_s``. Only a track
+that was confirmed coasts: a tentative one that misses stays tentative (external review
+of the G3 framework: a single cluster then one missed frame became COASTING and was
+accepted as a lead car). A tentative track within ``hazard_m`` is still reported to the
+planner as a hazard: close hazards act before confirmation. Deleting a track never
+clears occupied space (the grid keeps its own evidence).
 
 The tracker is pure arithmetic over measurements it is given; it never sees an actor,
 an ID or a pose from the simulator.
@@ -302,14 +304,16 @@ class Tracker:
         out = []
         for t in self.tracks.values():
             since = (self._time or t.time_s) - t.last_hit_s
+            # ``confirmed`` is independent of this frame's observation: a confirmed track
+            # unseen this frame coasts; an unconfirmed one stays tentative until deleted.
             if since > c.delete_s:
                 status = TrackStatus.DELETED
+            elif not t.confirmed:
+                status = TrackStatus.TENTATIVE
             elif since > 1e-9:
                 status = TrackStatus.COASTING
-            elif t.confirmed:
-                status = TrackStatus.CONFIRMED
             else:
-                status = TrackStatus.TENTATIVE
+                status = TrackStatus.CONFIRMED
             out.append(
                 ObjectTrack(
                     track_id=t.track_id,
@@ -327,14 +331,15 @@ class Tracker:
         return out
 
     def live(self, tracks=None):
-        """Tracks the planner may act on: confirmed, or coasting for at most coast_s; a
-        track unseen for longer is kept only for re-association, not for planning."""
+        """Tracks the planner may act on: seen this frame, or unseen for at most coast_s
+        (confirmed ones coasting, tentative ones still tentative); a track unseen for
+        longer is kept only for re-association, not for planning."""
         now = self._time or 0.0
         out = []
         for track in self.snapshot() if tracks is None else tracks:
-            if track.status is TrackStatus.DELETED:
+            if track.status is TrackStatus.DELETED or track.track_id not in self.tracks:
                 continue
-            if track.status is TrackStatus.COASTING and now - self.tracks[track.track_id].last_hit_s > self.config.coast_s:
+            if now - self.tracks[track.track_id].last_hit_s > self.config.coast_s:
                 continue
             out.append(track)
         return out

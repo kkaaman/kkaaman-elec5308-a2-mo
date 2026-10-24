@@ -9,6 +9,12 @@ and ``painted`` says whether any did.
 
 Frames: LiDAR points in the vehicle frame; ``CameraCalibration.camera_to_ego`` maps the
 optical frame (+X right, +Y down, +Z forward) into the vehicle frame.
+
+Time: a sweep is painted only with the segmentation of the images taken with it. The
+stack hands ``paint`` a ``SegmentedFrame`` carrying the source frame id and the sweep's
+own frame id; a mismatch is refused (review of the G3 framework: the stack segmented
+every second tick and painted every tick, projecting the current LiDAR into the previous
+image's segmentation, so moving edges smeared by a tick of travel).
 """
 
 from dataclasses import dataclass
@@ -16,6 +22,26 @@ from dataclasses import dataclass
 import numpy as np
 
 from mapless.road_segmentation import ROAD_CLASSES, Segmentation
+
+
+@dataclass(frozen=True)
+class SegmentedFrame:
+    """The segmentations of one sensor frame's images, tagged with where they came from."""
+
+    frame_id: int
+    time_s: float
+    segmentations: tuple
+
+    def __post_init__(self):
+        object.__setattr__(self, "segmentations", tuple(self.segmentations))
+        if any(not isinstance(s, Segmentation) for s in self.segmentations):
+            raise TypeError("segmentations must be Segmentation objects")
+
+    def __iter__(self):
+        return iter(self.segmentations)
+
+    def __len__(self):
+        return len(self.segmentations)
 
 
 @dataclass(frozen=True)
@@ -72,9 +98,15 @@ def nearest_in_bucket(u, v, depth, visible, width, height, config):
     return keep
 
 
-def paint(points_ego, cameras, segmentations, config=None):
-    """Paint vehicle-frame LiDAR points from ``cameras`` (CameraImages) and their ``segmentations``."""
+def paint(points_ego, cameras, segmentations, config=None, frame_id=None):
+    """Paint vehicle-frame LiDAR points from ``cameras`` (CameraImages) and their ``segmentations``.
+
+    ``frame_id`` is the sweep's frame; when ``segmentations`` is a ``SegmentedFrame`` from
+    another frame the call is refused, never painted with stale pixels.
+    """
     c = config or PaintingConfig()
+    if isinstance(segmentations, SegmentedFrame) and frame_id is not None and segmentations.frame_id != frame_id:
+        raise ValueError(f"segmentation of frame {segmentations.frame_id} cannot paint the sweep of frame {frame_id}")
     n = len(points_ego)
     probs = np.zeros((n, len(ROAD_CLASSES)), dtype=np.float64)
     count = np.zeros(n, dtype=int)

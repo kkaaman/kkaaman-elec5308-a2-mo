@@ -183,6 +183,14 @@ class DecisionRecord:
     safety checks let through; ``veto_reason`` says why they differ. ``constraints``
     lists what bounded the plan (an obstacle, a prediction, unknown ground, a hold);
     ``coverage`` the sensors that were healthy; ``timing_ms`` the stage times.
+
+    The stack's speed cap is computed after the driver has produced this tick's command,
+    so it reaches the driver one tick later: ``cap_applied_mps`` is the cap the command
+    of this tick was planned under (the previous tick's result) and ``speed_cap_next_mps``
+    the one computed this tick for the next (review of the G3 framework: one field read
+    as if the fresh cap had shaped this command). ``frame_generation`` counts the local
+    (odometry) frame rebuilds; records from different generations are not comparable in
+    position.
     """
 
     time_s: float
@@ -192,6 +200,9 @@ class DecisionRecord:
     constraints: tuple = ()
     coverage: dict = field(default_factory=dict)
     timing_ms: dict = field(default_factory=dict)
+    cap_applied_mps: float | None = None
+    speed_cap_next_mps: float | None = None
+    frame_generation: int = 0
 
     ACTIONS = ("FOLLOW", "WAIT", "PREPARE_LEFT", "PREPARE_RIGHT", "COMMIT", "STOP")
 
@@ -202,6 +213,12 @@ class DecisionRecord:
                 raise ValueError(f"unknown action {name!r}")
         if self.proposed != self.executed and not self.veto_reason:
             raise ValueError("a vetoed action needs a veto_reason")
+        for name in ("cap_applied_mps", "speed_cap_next_mps"):
+            value = getattr(self, name)
+            if value is not None:
+                _finite(name, value)
+        if type(self.frame_generation) is not int or self.frame_generation < 0:
+            raise ValueError("frame_generation must be a non-negative integer")
 
     def as_dict(self):
         return dict(
@@ -212,4 +229,7 @@ class DecisionRecord:
             constraints=list(self.constraints),
             coverage=dict(self.coverage),
             timing_ms=dict(self.timing_ms),
+            cap_applied_mps=self.cap_applied_mps,
+            speed_cap_next_mps=self.speed_cap_next_mps,
+            frame_generation=self.frame_generation,
         )

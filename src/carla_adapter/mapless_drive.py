@@ -41,7 +41,8 @@ everything else:
 | Goal (straight, curve) | FINISHED, rear axle within 3 m of the goal |
 | Obstacle stop (stop) | Standing still, bumper gap 1.5 to 5.0 m, held for ``--hold-s`` |
 | Turn (turn_left, turn_right) | TURNING entered; no corner outside the permitted area; ends on the commanded exit lane; exit-leg p95 ≤ 0.35 m |
-| Separation (moving actors) | Body never within 1 m of the scripted actor |
+| Separation (moving actors) | Ego box to actor box (oriented polygons) never under 1 m; INCOMPLETE without actor measurements |
+| Completion (moving actors) | Per scenario: walker yielded to then goal reached; cut-in gap ≥ 1 m then goal; braking lead held behind for ``--hold-s`` or goal |
 | Speed | Never above the cruise speed + 0.5 m/s |
 | Faults | Under 2% of driving ticks in FAULT |
 
@@ -64,7 +65,7 @@ from pathlib import Path
 import numpy as np
 
 from carla_adapter.mapless_scenarios import SCENARIOS as ACTOR_SCENARIOS
-from carla_adapter.mapless_scenarios import make_scenario, score_moving
+from carla_adapter.mapless_scenarios import make_scenario, score_completion, score_moving
 from carla_adapter.sensor_rig import SensorRig, true_forward_speed
 from carla_adapter.sensor_rig_check import rear_axle_pose
 from carla_adapter.vehicle import FixedVehicleAdapter
@@ -792,6 +793,7 @@ class MaplessDrive:
                             f" open={_fmt(d.get('kerb_opening_m'))} R={_fmt(d.get('turn_radius_m'))} exit={d.get('turn_exit')}"
                             f" kerb@{_fmt(fit.get('kerb_from_probe_m'))} ver={_fmt(d.get('turn_verified_m'))}"
                             f" clr={_fmt(d.get('turn_clearance_m'))} {d.get('turn') or ''}"
+                            + (f" [{d['turn_refine']}]" if d.get("turn_refine") else "")
                         )
                     print(line, flush=True)
                 if collisions.events:
@@ -826,7 +828,9 @@ class MaplessDrive:
                 if junction_hold_ticks * DT_S >= args.junction_hold_s:
                     end = f"held at the junction for {args.junction_hold_s:g} s: {step.diagnostics.get('turn') or 'exit lane not measured'}"
                     break
-                if (args.scenario == "stop" or self.actor is not None) and hold_ticks * DT_S >= args.hold_s:
+                # A scripted actor decides whether a hold is an endpoint for its scenario
+                # (the crossing walker must be waited out, not held against; review).
+                if (args.scenario == "stop" or (self.actor is not None and self.actor.hold_ends_run())) and hold_ticks * DT_S >= args.hold_s:
                     end = "held at the obstacle"
                     break
             self.adapter.stop()
@@ -884,7 +888,8 @@ class MaplessDrive:
             )
         if self.actor is not None:
             moving = score_moving(log, actor_truths, self.body)
-            checks.append(check("separation", PASS if moving["separation_ok"] else FAIL, **moving))
+            ok = moving["separation_ok"]
+            checks.append(check("separation", INCOMPLETE if ok is None else (PASS if ok else FAIL), **moving))
         last = log[-1]
         summary = last["driver"].get("calibration")
         source = last["driver"].get("keep_right_source") or ""
@@ -905,9 +910,11 @@ class MaplessDrive:
                 )
             )
         if self.actor is not None:
-            # A moving-actor run completes by reaching the goal or by holding behind the actor.
-            ok = self.report["end"] in ("finished", "held at the obstacle")
-            checks.append(check("completion", PASS if ok else FAIL, end=self.report["end"], goal_distance_m=last["truth"]["goal_distance_m"]))
+            # What completes the run depends on the scenario (review: a hold is only an
+            # endpoint behind a lead that has stopped); the required outcome is reported.
+            completion = score_completion(self.actor_scenario, log, actor_truths, self.body, self.report["end"], hold_ticks * DT_S)
+            passed = completion.pop("passed")
+            checks.append(check("completion", INCOMPLETE if passed is None else (PASS if passed else FAIL), **completion))
         elif args.scenario != "stop":
             done = self.report["end"] == "finished"
             goal = last["truth"]["goal_distance_m"]

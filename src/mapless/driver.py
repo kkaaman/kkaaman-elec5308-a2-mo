@@ -324,6 +324,7 @@ class MaplessDriver:
                 # the turn was committed; move the exit straight (same arc, same tangent
                 # point) when the re-measured line has shifted by more than the latch width.
                 refined = self.turn.replan_same_arc(self.grid, motion.odometry, t, min_shift_m=c.junction.refine_shift_m)
+                d.update(turn_refine=self.turn.refine_note)
                 if refined is not None:
                     plan_turn = refined
                     d.update(turn="exit line refined from closer by")

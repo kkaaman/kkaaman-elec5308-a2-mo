@@ -18,11 +18,13 @@ from mapless.contracts import (
 from mapless.ego_motion import Pose2D
 from mapless.following import FollowingConfig, FollowingController, worst_case_speed_cap
 from mapless.frame import RadarReturns
-from mapless.prediction import PredictionConfig, first_conflict, predict
+from mapless.prediction import PredictionConfig, first_conflict, first_footprint_conflict, predict
 from mapless.radar import RadarConfig, cluster_returns, ego_radial_speed, measure
+from mapless.terrain import VehicleBody
 from mapless.tracking import CHI2_2D, LidarMeasurement, Tracker, TrackerConfig
 
 ORIGIN = Pose2D(0.0, 0.0, 0.0)
+BODY = VehicleBody()  # front 3.78 m ahead of the rear axle, 1.01 m behind, 1.05 m half width
 
 
 def uniform():
@@ -215,3 +217,98 @@ def test_coasting_tracks_leave_the_live_set_after_coast_s():
     assert len(tracker.live()) == 1 and len(tracker.hazards(ORIGIN)) == 1
     tracker.update(0.7, ORIGIN)  # 0.5 s unseen: kept for re-association, not for planning
     assert tracker.snapshot() and tracker.live() == [] and tracker.hazards(ORIGIN) == []
+
+
+# -- regressions from the external review of the G3 framework ------------------------------
+def test_a_tentative_track_that_misses_a_frame_is_no_lead():
+    # One detection, then one missed frame: the track used to read COASTING (a status the
+    # following stage accepts), so a 3-point cluster seen once led the car.
+    tracker = Tracker(TrackerConfig())
+    tracker.update(0.0, ORIGIN, lidar=[LidarMeasurement(np.array([20.0, 0.0]), None, {"car": 0.9, "unknown": 0.1})])
+    tracks = tracker.update(0.05, ORIGIN)
+    assert len(tracks) == 1 and tracks[0].status is TrackStatus.TENTATIVE
+    path = np.column_stack((np.arange(0, 50.0), np.zeros(50)))
+    assert FollowingController().lead_ahead(tracks, ORIGIN, path) is None
+    # Still a hazard when close (acts before confirmation), still deleted by the timer.
+    assert tracker.hazards(ORIGIN) == [] and tracker.update(0.1, ORIGIN, lidar=[LidarMeasurement(np.array([8.0, 0.0]))])
+    assert [round(t.position[0]) for t in tracker.hazards(ORIGIN)] == [8]
+    assert all(t.status is TrackStatus.TENTATIVE for t in tracker.snapshot())
+    assert tracker.update(1.0, ORIGIN) == []
+    # Confirmed first, then a miss: coasting, and a lead.
+    confirmed = Tracker(TrackerConfig())
+    for k in range(3):
+        confirmed.update(k * 0.05, ORIGIN, lidar=[LidarMeasurement(np.array([20.0, 0.0]))])
+    tracks = confirmed.update(0.15, ORIGIN)
+    assert tracks[0].status is TrackStatus.COASTING
+    assert FollowingController().lead_ahead(tracks, ORIGIN, path) is not None
+
+
+def test_prediction_uncertainty_follows_the_object_heading():
+    cfg = PredictionConfig(process_noise_m2ps3=0.0)
+    # Northbound car with a 3 m along-track (odometry y) sigma: ~6 m longitudinal inflation,
+    # none lateral. The first version added the y variance to the width.
+    north = ObjectTrack(1, 0.0, [0, 0, 0, 5], np.diag([0.01, 9.0, 0.0, 0.0]), {"car": 1.0}, TrackStatus.CONFIRMED, 5, 0, footprint=(4.5, 2.0, math.pi / 2))
+    pred = predict(north, cfg)
+    assert pred.heading_rad == pytest.approx(math.pi / 2)
+    assert pred.half_extents[0, 0] == pytest.approx(4.5 / 2 + 0.3 + 6.0, abs=0.05)
+    assert pred.half_extents[0, 1] == pytest.approx(2.0 / 2 + 0.3 + 0.2, abs=0.05)
+    # The same scene rotated by 90 degrees gives the same footprints (frame independence).
+    P = np.array([[0.4, 0.1, 0.05, 0.0], [0.1, 0.2, 0.0, 0.02], [0.05, 0.0, 0.3, 0.05], [0.0, 0.02, 0.05, 0.1]])
+    east = ObjectTrack(2, 0.0, [10, 2, 4, 1], P, {"car": 1.0}, TrackStatus.CONFIRMED, 5, 0, footprint=(4.5, 2.0, 0.2))
+    R = np.array([[0, -1], [1, 0]])  # +90 degrees
+    T = np.block([[R, np.zeros((2, 2))], [np.zeros((2, 2)), R]])
+    rotated = ObjectTrack(2, 0.0, T @ east.state, T @ P @ T.T, {"car": 1.0}, TrackStatus.CONFIRMED, 5, 0, footprint=(4.5, 2.0, 0.2 + math.pi / 2))
+    a, b = predict(east, PredictionConfig()), predict(rotated, PredictionConfig())
+    assert np.allclose(a.half_extents, b.half_extents, atol=1e-6)
+    assert np.allclose((R @ a.centres.T).T, b.centres, atol=1e-9)
+    # Position-velocity cross terms propagate: sigma_long(t)^2 = P_pp + 2 t P_pv + t^2 P_vv.
+    cross = ObjectTrack(3, 0.0, [0, 0, 5, 0], np.array([[1.0, 0, 0.5, 0], [0, 0.1, 0, 0], [0.5, 0, 0.25, 0], [0, 0, 0, 0.0]]), {"car": 1.0}, TrackStatus.CONFIRMED, 5, 0, footprint=(4.5, 2.0, 0.0))
+    p3 = predict(cross, cfg)
+    t = p3.times_s
+    assert np.allclose(p3.half_extents[:, 0], 2.25 + 0.3 + 2 * np.sqrt(1.0 + 2 * 0.5 * t + 0.25 * t**2))
+    # Process noise grows the region over the horizon even with a perfect estimate.
+    sure = ObjectTrack(4, 0.0, [0, 0, 5, 0], np.zeros((4, 4)), {"car": 1.0}, TrackStatus.CONFIRMED, 5, 0, footprint=(4.5, 2.0, 0.0))
+    grown = predict(sure, PredictionConfig()).half_extents
+    assert grown[-1, 0] > grown[0, 0] + 1.0 and (np.diff(grown[:, 0]) >= 0).all()
+
+
+def small_obstacle(track_id, xy):
+    # A stationary 0.3 m object with a sharp estimate: its region is ~0.47 m half extent.
+    return ObjectTrack(track_id, 0.0, [xy[0], xy[1], 0, 0], np.eye(4) * 1e-4, {"pedestrian": 1.0}, TrackStatus.CONFIRMED, 5, 0, footprint=(0.3, 0.3, 0.0))
+
+
+def test_footprint_conflicts_cover_the_overhangs_not_a_disc():
+    cfg = PredictionConfig(process_noise_m2ps3=0.0, pedestrian_lateral_mps=0.0)
+    # Straight path along +x at 5 m/s, time zero at the rear axle.
+    path = np.column_stack((np.arange(-5.0, 40.0, 0.5), np.zeros(90)))
+    times = path[:, 0] / 5.0
+    # Under the bonnet now: 3 m ahead of the axle, 0.9 m off centre. The body covers it at
+    # t = 0, so the first prediction step already conflicts (the disc about the axle only
+    # caught it once the axle had driven up to it, a step or two later).
+    front = predict(small_obstacle(1, (3.0, 0.9)), cfg)
+    hit = first_footprint_conflict([front], path, times, BODY)
+    assert hit is not None and hit[1] == 1 and hit[0] == pytest.approx(0.2)
+    disc = first_conflict([front], path, times, BODY.half_width_m)
+    assert disc is not None and disc[0] >= 0.4
+    # Just beside the car (2 m to the left): no conflict ever.
+    beside = predict(small_obstacle(2, (1.0, 2.0)), cfg)
+    assert first_footprint_conflict([beside], path, times, BODY) is None
+    # A left turn of radius 20 m: an object the rear-right corner touches 2 s in, 1.9 m from
+    # the axle there (outside the old 1.05 m disc + its 0.47 m region). The oriented body
+    # finds it no later than that (the front-right corner, swinging wide, reaches the spot
+    # about a second earlier, which is right); the pose-sampled headings carry the turn.
+    R = 20.0
+    s = np.arange(0.0, 30.0, 0.25)
+    arc = np.column_stack((R * np.sin(s / R), R * (1 - np.cos(s / R))))
+    arc_times = s / 5.0
+    theta = 10.0 / R
+    axle = np.array([R * math.sin(theta), R * (1 - math.cos(theta))])
+    rot = np.array([[math.cos(theta), -math.sin(theta)], [math.sin(theta), math.cos(theta)]])
+    corner = axle + rot @ np.array([BODY.rear_m - 0.3, -BODY.half_width_m - 0.3])
+    rear = predict(small_obstacle(3, corner), cfg)
+    hit = first_footprint_conflict([rear], arc, arc_times, BODY)
+    assert hit is not None and hit[1] == 3 and 0.5 <= hit[0] <= 2.1
+    # The same object mirrored to the inside of the turn, 2.2 m from the axle path: beside
+    # the car throughout, no conflict (the check is not merely a wider disc).
+    inside = axle + rot @ np.array([0.0, BODY.half_width_m + 1.15])
+    assert first_footprint_conflict([predict(small_obstacle(4, inside), cfg)], arc, arc_times, BODY) is None

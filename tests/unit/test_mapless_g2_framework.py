@@ -12,11 +12,11 @@ import pytest
 from autonomy.interfaces import CameraCalibration
 from mapless.corridor import CorridorConfig
 from mapless.detections import DetectionsConfig, ImageBox, cluster_obstacles, join
-from mapless.driver import DriveMode, DriverConfig
+from mapless.driver import DriveMode, DriverConfig, DriverStep
 from mapless.ego_motion import Pose2D
 from mapless.frame import CameraImage, RadarReturns, SensorFrame, SensorState, SensorStatus
 from mapless.geometry import camera_calibration
-from mapless.painting import PaintingConfig, paint
+from mapless.painting import PaintedPoints, PaintingConfig, SegmentedFrame, paint
 from mapless.road_model import RoadModelBuilder
 from mapless.road_segmentation import (
     ROAD_CLASSES,
@@ -36,8 +36,9 @@ from mapless.terrain import (
     VehicleBody,
     classify_sweep,
 )
+from mapless.tracking import LidarMeasurement
 from navigation_control.local import LocalControlConfig
-from navigation_control.types import ControllerConfig
+from navigation_control.types import ControlCommand, ControllerConfig
 from sim_harness.mapless_road import KerbLine, MaplessRoadWorld, ParkedCar, RoadScene, Straight
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -242,6 +243,84 @@ def test_stack_runs_end_to_end_and_tracks_the_parked_car():
     assert last_truth.front_gap_m > 1.5
 
 
+def test_painting_refuses_another_frames_segmentation():
+    calibration = forward_camera()
+    image = grey("front", calibration)
+    seg = ConstantSegmenter(0.5, 0.6).segment(image)
+    tagged = SegmentedFrame(7, 0.35, [seg])
+    pts = np.array([[10.0, 0.0, 0.0]])
+    assert paint(pts, [image], tagged, PaintingConfig(), frame_id=7).painted[0]
+    with pytest.raises(ValueError, match="frame 7"):
+        paint(pts, [image], tagged, PaintingConfig(), frame_id=8)
+
+
+def test_stack_paints_only_on_segmentation_ticks_and_records_the_cap_as_next():
+    # Review of the G3 framework: the stack segmented every 2nd tick but painted every tick
+    # (projecting the current LiDAR into the previous image's segmentation), and the record
+    # read as if the cap computed this tick had shaped this tick's command.
+    car = ParkedCar(55.0, 1.75)
+    scene = RoadScene(KerbLine([Straight(150)]), parked=(car,))
+    world = MaplessRoadWorld(scene, SUITE, start_s_m=15.0)
+    car_xy = scene.kerb.pose_at(car.s_m)
+    h = car_xy[2]
+    car_world = (car_xy[0] - car.offset_m * math.sin(h), car_xy[1] + car.offset_m * math.cos(h))
+    config = DriverConfig(body=BODY, control=control(), corridor=CorridorConfig(keep_right_m=1.75))
+    stack = MaplessStack(SUITE, world.route(70.0), config, StackConfig(admission=Admission.preset("A")), DT)
+    adds = []
+    previous = None
+    for _ in range(int(6 / DT)):
+        frame = with_camera_and_radar(world.frame(), world, car_world)
+        step = stack.step(frame)
+        world.apply(step.command)
+        if stack.road_model.time_s is not None and stack.road_model.time_s != previous:
+            adds.append((stack._tick, frame.frame_id, stack._segmentations.frame_id))
+            previous = stack.road_model.time_s
+    assert len(adds) > 5, "the road model should have received semantic evidence"
+    assert all(tick % stack.config.segment_every == 0 for tick, _, _ in adds), "evidence added off a segmentation tick"
+    assert all(seg_id == frame_id for _, frame_id, seg_id in adds), "painted with another frame's segmentation"
+    # The cap computed on one tick is the one applied on the next; the first tick had none.
+    records = stack.records
+    assert records[0].cap_applied_mps is None
+    assert all(r.cap_applied_mps == p.speed_cap_next_mps for p, r in zip(records, records[1:]))
+    assert records[-1].as_dict()["frame_generation"] == 0 and "speed_cap_next_mps" in records[-1].as_dict()
+
+
+def test_stack_clears_its_spatial_state_when_the_driver_rebuilds_the_frame():
+    # Review of the G3 framework: after an odometry outage the driver rebuilds grid, corridor
+    # and trajectory from a standstill, but tracks, semantic evidence, the following history
+    # and the cached segmentation survived in the old frame.
+    world, frame, classified = synthetic_sweep()
+    config = DriverConfig(body=BODY, control=control(), corridor=CorridorConfig(keep_right_m=1.75))
+    stack = MaplessStack(SUITE, world.route(70.0), config, StackConfig(), DT)
+    pose = Pose2D(0.0, 0.0, 0.0)
+    for k in range(4):
+        stack.tracker.update(k * DT, pose, lidar=[LidarMeasurement(np.array([20.0, 0.0]), (4.5, 2.0, 0.0), {"car": 0.9, "unknown": 0.1})])
+    probs = np.zeros((len(classified.xyz), len(ROAD_CLASSES)), dtype=np.float32)
+    probs[:, ROAD_CLASSES.index("road")] = 1.0
+    stack.driver.grid.add(classified, pose, 0.0)
+    stack.road_model.add(classified.xyz, PaintedPoints(probs, np.ones(len(probs), dtype=bool), np.ones(len(probs), dtype=int)), pose, 0.0)
+    stack.following.target_speed(4.0, 2.0, 20.0, 0.0, DT)
+    stack._segmentations = SegmentedFrame(3, 0.15, [])
+    stack.driver.speed_cap_mps = 1.0
+    assert stack.tracker.tracks and stack.road_model.evidence["road"].sum() > 0 and stack.following._target is not None
+    # The driver reports the rebuild in its diagnostics on the tick it happens.
+    rebuilt = DriverStep(ControlCommand(0.0, 0.0, 0.6), DriveMode.FAULT, "local frame rebuilt from a standstill", {"frame_rebuilt": True, "rebuilding": True})
+    stack.driver.step = lambda f: rebuilt
+    step = stack.step(frame)
+    assert stack.tracker.tracks == {} and stack.tracker.live() == []
+    assert stack.road_model.evidence["road"].sum() == 0.0 and stack.road_model.time_s is None
+    assert stack.following._target is None and stack._segmentations is None and stack._model is None
+    assert step.decision.frame_generation == 1 and step.diagnostics["frame_generation"] == 1
+    assert step.decision.cap_applied_mps == 1.0 and step.decision.speed_cap_next_mps is None
+    # While the driver is still stopping to rebuild, nothing is placed in the stale frame.
+    stopping = DriverStep(ControlCommand(0.0, 0.0, 0.6), DriveMode.FAULT, "odometry recovered: stopping to rebuild the local frame", {"rebuilding": True})
+    stack.driver.step = lambda f: stopping
+    before = stack.tracker._next_id
+    step = stack.step(frame)
+    assert stack.tracker.tracks == {} and stack.tracker._next_id == before and step.tracks == ()
+    assert step.decision.frame_generation == 1
+
+
 def test_admission_presets():
     assert Admission.preset("A") == Admission(True, True, False, False)
     assert Admission.preset("B").front_radar and not Admission.preset("B").rear_radars
@@ -291,9 +370,51 @@ def test_training_loop_writes_a_loadable_checkpoint(tmp_path):
     assert seg.probabilities.shape == (32, 64, len(ROAD_CLASSES))
     assert np.allclose(seg.probabilities.sum(axis=2), 1.0, atol=1e-4)
     assert segmenter.provenance["training_towns"] == ["Town03"]
+    assert info["validated"] is True and info["seed"] == 0 and info["selection"]["best_epoch"] == 1
+    assert path.name == "model.pt" and path.with_name("model_last.pt").exists()
+    assert info["history"][-1]["validation"]["timing"]["synchronised"] is False  # CPU: nothing to synchronise
     # A labels folder is never a checkpoint location.
     with pytest.raises(ValueError):
         TorchRoadSegmenter(tmp_path / "labels" / "model.pt")
+
+
+def test_training_refuses_unaccepted_runs_and_names_smoke_checkpoints(tmp_path):
+    # Review: index_runs documented refusing INCOMPLETE runs but accepted them, and a run
+    # with no validation split was saved as if it were a trained model.
+    from mapless_training.segmentation_data import class_weights, index_runs, weight_samples
+    from mapless_training.train_segmentation import train
+
+    incomplete = write_capture_run(tmp_path, "Town03")
+    (incomplete / "manifest.json").write_text(json.dumps(dict(map="Carla/Maps/Town03", status="INCOMPLETE", suite_sha256="abc", seed=1)), encoding="utf-8")
+    with pytest.raises(ValueError, match="INCOMPLETE"):
+        index_runs([incomplete])
+    samples, manifests = index_runs([incomplete], allow_unaccepted=True)
+    assert manifests[str(incomplete)]["acceptance"] == dict(source="manifest", status="INCOMPLETE", integrity=None, geometry=None, accepted=False, reasons=["run status INCOMPLETE"])
+    # The inspection's verdict outranks a COMPLETE manifest.
+    rejected = write_capture_run(tmp_path, "Town04")
+    (rejected / "inspection").mkdir()
+    verdict = dict(status="REJECT", integrity=dict(status="PASS", reasons=[]), geometry=dict(status="FAIL", reasons=["front: ground projection 0.4"]), reasons=["front: ground projection 0.4"])
+    (rejected / "inspection" / "summary.json").write_text(json.dumps(dict(acceptance=verdict)), encoding="utf-8")
+    with pytest.raises(ValueError, match="ground projection"):
+        index_runs([rejected])
+    verdict["status"], verdict["geometry"] = "ACCEPT", dict(status="PASS", reasons=[])
+    (rejected / "inspection" / "summary.json").write_text(json.dumps(dict(acceptance=verdict)), encoding="utf-8")
+    _, manifests = index_runs([rejected])
+    assert manifests[str(rejected)]["acceptance"]["source"] == "inspection" and manifests[str(rejected)]["acceptance"]["accepted"]
+    # Class-weight images are drawn evenly across runs and cameras, not from the head of the index.
+    import cv2
+
+    many = index_runs([write_capture_run(tmp_path / "many", "Town05", n=6), write_capture_run(tmp_path / "few", "Town06", n=2)])[0]
+    chosen = weight_samples(many, limit=4, seed=0)
+    assert sorted(s.town for s in chosen) == ["Town05", "Town05", "Town06", "Town06"]
+    assert [s.frame for s in weight_samples(many, limit=4, seed=0)] == [s.frame for s in chosen]
+    assert class_weights(many, (64, 32), cv2, limit=4).shape == (len(ROAD_CLASSES),)
+    # No validation split: a smoke checkpoint, named and marked as such, with its seed recorded.
+    path, info = train([incomplete], tmp_path / "model.pt", epochs=2, batch=2, size_wh=(64, 32), device="cpu", seed=7, allow_unaccepted=True)
+    assert path.name == "model_smoke.pt" and not path.with_name("model_smoke_last.pt").exists()
+    assert info["validated"] is False and info["smoke"] is True and info["seed"] == 7 and info["allow_unaccepted"] is True
+    assert info["selection"]["validated"] is False and info["selection"]["best_miou"] is None and info["selection"]["best_epoch"] in (1, 2)
+    assert TorchRoadSegmenter(path, device="cpu").provenance["validated"] is False
 
 
 def test_classified_sweep_helper_is_the_terrain_classifier():

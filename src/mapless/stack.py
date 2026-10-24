@@ -5,8 +5,11 @@ Per tick, in order:
 1. **Drive** — ``MaplessDriver.step`` (health, ego motion, terrain grid, kerb corridor,
    obstacle clearance, junction turns, planner, controller). It is the G1 car and keeps
    its own safety rules; the stack only reads its inputs and may lower its speed.
-2. **Segment and paint** — each admitted camera is segmented (``road_segmentation``)
-   and the sweep painted (``painting``); the road model accumulates the result.
+2. **Segment and paint** — every ``segment_every`` ticks each admitted camera is
+   segmented (``road_segmentation``) and that same frame's sweep painted (``painting``);
+   the road model accumulates the result and ages it between those ticks. A sweep is
+   never painted with another frame's segmentation (external review of the G3 framework:
+   painting every tick projected the current LiDAR into the previous image).
 3. **Detect and cluster** — obstacle points are clustered; detector boxes claim their
    foreground clusters (``detections``).
 4. **Track** — clusters, radar objects and camera classes update the tracker
@@ -14,10 +17,19 @@ Per tick, in order:
    radar; +rear radars).
 5. **Predict and follow** — predictions over the horizon (``prediction``); the nearest
    confirmed track in the lane sets a following speed (``following``), and a predicted
-   conflict on the car's path within ``conflict_horizon_s`` caps the speed to zero.
-   Both reach the driver as ``speed_cap_mps`` for the next tick; the driver's own
-   obstacle stop remains the backstop.
-6. **Record** — a ``DecisionRecord`` with stage timings and coverage.
+   conflict with the car's own oriented footprint along its planned path within
+   ``conflict_horizon_s`` caps the speed to zero. Both reach the driver as
+   ``speed_cap_mps`` for the next tick, and the record says so: ``cap_applied_mps`` is
+   what this tick's command was planned under, ``speed_cap_next_mps`` what was just
+   computed. The driver's own obstacle stop remains the backstop.
+6. **Record** — a ``DecisionRecord`` with stage timings, coverage and the local-frame
+   generation.
+
+When the driver rebuilds its local frame after an odometry outage (``frame_rebuilt`` in
+its diagnostics), everything the stack placed in the old frame goes with it: tracks,
+semantic evidence, following history and the cached segmentation (same review: they
+survived the rebuild and were read against the new frame). While the driver is stopping
+to rebuild, the stack adds nothing.
 
 The stack never sees the simulator: everything comes in through the ``SensorFrame``.
 Status: the plumbing runs on synthetic frames (tests); the learned segmenter and the
@@ -36,8 +48,8 @@ from mapless.driver import DriveMode, MaplessDriver
 from mapless.following import FollowingConfig, FollowingController
 from mapless.frame import SensorFrame, SensorState
 from mapless.obstacles import project_onto_polyline
-from mapless.painting import PaintingConfig, paint
-from mapless.prediction import PredictionConfig, first_conflict, predict_all
+from mapless.painting import PaintingConfig, SegmentedFrame, paint
+from mapless.prediction import PredictionConfig, first_footprint_conflict, predict_all
 from mapless.radar import RadarConfig, measure
 from mapless.road_model import RoadModelBuilder, RoadModelConfig
 from mapless.road_segmentation import RoadSegmenter, load_segmenter
@@ -110,8 +122,9 @@ class MaplessStack:
         for spec in suite.radars:
             self.radar_roles[spec.name] = "front" if abs(spec.mount.yaw_deg) < 90 else "rear"
         self._tick = 0
-        self._segmentations = []
+        self._segmentations = None  # the last SegmentedFrame (its frame id says which sweep it may paint)
         self._model = None
+        self.frame_generation = 0  # bumped on every local-frame rebuild
         self.records = []
 
     @staticmethod
@@ -136,6 +149,8 @@ class MaplessStack:
             raise TypeError("step(SensorFrame)")
         c = self.config
         timing = {}
+        # The cap the driver plans this tick's command under is last tick's result.
+        cap_applied = self.driver.speed_cap_mps
         begun = time.perf_counter()
         step = self.driver.step(frame)
         timing["drive"] = (time.perf_counter() - begun) * 1000
@@ -145,14 +160,23 @@ class MaplessStack:
         tracks, predictions = (), ()
         cap = None
         coverage = {s.name: s.state.value for s in frame.status}
-        if motion is not None and motion.route is not None and motion.odometry_trusted and sweep is not None and c.admission.lidar:
+        # -- local frame rebuild -----------------------------------------------------------
+        rebuilt = bool(step.diagnostics.get("frame_rebuilt"))
+        if rebuilt:
+            self.reset_spatial()
+            self.frame_generation += 1
+        # While the driver stops to rebuild, the odometry frame lags the car: nothing is placed in it.
+        frame_usable = rebuilt or not step.diagnostics.get("rebuilding")
+        if motion is not None and motion.route is not None and motion.odometry_trusted and frame_usable and sweep is not None and c.admission.lidar:
             pose = motion.odometry
             # -- segment and paint ---------------------------------------------------------
             begun = time.perf_counter()
             cameras = [im for im in frame.cameras if frame.status_of(im.name).state is SensorState.OK] if c.admission.cameras else []
+            painted = None
             if cameras and self._tick % c.segment_every == 0:
-                self._segmentations = [self.segmenter.segment(im) for im in cameras]
-            painted = paint(sweep.xyz, cameras, self._segmentations, c.painting) if cameras and self._segmentations else None
+                # Segment and paint the same frame: the sweep and the images were taken together.
+                self._segmentations = SegmentedFrame(frame.frame_id, t, [self.segmenter.segment(im) for im in cameras])
+                painted = paint(sweep.xyz, cameras, self._segmentations, c.painting, frame_id=frame.frame_id)
             if painted is not None:
                 self.road_model.add(sweep.xyz, painted, pose, t)
             timing["paint"] = (time.perf_counter() - begun) * 1000
@@ -182,15 +206,35 @@ class MaplessStack:
                 begun = time.perf_counter()
                 self._model = self.road_model.build(pose, t)
                 timing["road_model"] = (time.perf_counter() - begun) * 1000
-        self.driver.speed_cap_mps = cap
+        self.driver.speed_cap_mps = cap  # a request for the next tick's plan
         proposed = "WAIT" if step.mode is DriveMode.STOPPING else ("STOP" if step.mode is DriveMode.FAULT else "FOLLOW")
         executed, veto = proposed, ""
-        if cap is not None and cap <= 0.0 and proposed == "FOLLOW":
+        # ``executed`` describes this tick's command, so only the cap that shaped it (last
+        # tick's) can have vetoed it; the cap just computed is recorded as the next request.
+        if cap_applied is not None and cap_applied <= 0.0 and proposed == "FOLLOW":
             executed, veto = "STOP", "predicted conflict on the path"
         constraints = tuple(k for k in ("obstacle_m", "stop_reason", "turn") if step.diagnostics.get(k))
-        record = DecisionRecord(t, proposed, executed, veto, constraints, coverage, {k: round(v, 2) for k, v in timing.items()})
+        record = DecisionRecord(
+            t,
+            proposed,
+            executed,
+            veto,
+            constraints,
+            coverage,
+            {k: round(v, 2) for k, v in timing.items()},
+            cap_applied_mps=cap_applied,
+            speed_cap_next_mps=cap,
+            frame_generation=self.frame_generation,
+        )
         self.records.append(record)
-        diagnostics = dict(step.diagnostics, tracks=len(tracks), speed_cap_mps=cap, stack_timing_ms=record.timing_ms)
+        diagnostics = dict(
+            step.diagnostics,
+            tracks=len(tracks),
+            speed_cap_mps=cap_applied,
+            speed_cap_next_mps=cap,
+            frame_generation=self.frame_generation,
+            stack_timing_ms=record.timing_ms,
+        )
         return StackStep(step.command, step.mode, step.reason, diagnostics, tracks, predictions, self._model, record)
 
     def _speed_cap(self, motion, pose, tracks, predictions, t):
@@ -222,17 +266,28 @@ class MaplessStack:
             xy = np.array([[smp.x_m, smp.y_m] for smp in samples])
             speed = max(motion.speed_mps, min(self.driver.config.planner.cruise_mps, max(plan.curve_speed_mps, 0.5)))
             seg = np.hypot(*np.diff(xy, axis=0).T)
-            times = np.concatenate(([0.0], np.cumsum(seg / speed)))
-            hit = first_conflict(predictions, xy, times, self.driver.config.body.half_width_m)
+            arcs = np.concatenate(([0.0], np.cumsum(seg)))
+            # Time zero is the car itself, not the path's first sample (which lies behind it).
+            s_now = float(project_onto_polyline(np.array([[pose.x_m, pose.y_m]]), xy)[0][0])
+            times = (arcs - s_now) / speed
+            # The car's whole oriented body along the path, not a disc about the rear axle.
+            hit = first_footprint_conflict(predictions, xy, times, self.driver.config.body)
             if hit is not None and hit[0] <= c.conflict_horizon_s:
                 cap = 0.0
         return cap
 
-    def reset(self):
+    def reset_spatial(self):
+        """Drop everything kept in the odometry frame: tracks, semantic evidence, the
+        following history and the cached segmentation (the frame they were placed in is gone)."""
         self.tracker.reset()
         self.road_model.reset()
         self.following.reset()
-        self._segmentations, self._model = [], None
+        self._segmentations, self._model = None, None
+        self.driver.speed_cap_mps = None
+
+    def reset(self):
+        self.reset_spatial()
+        self.frame_generation = 0
 
 
 def record_rows(records):

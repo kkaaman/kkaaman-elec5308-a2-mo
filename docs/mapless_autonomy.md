@@ -831,6 +831,63 @@ arc end unchanged or better); left turn seed 2 stops in the junction box, as it 
 `6773e24` (commits a 15 m arc on a knife-edge 0.3 m clearance that is then blocked), a
 known synthetic failure to revisit before the live left turns.
 
+### Third live turn (24 Oct, PC 2, `7b1e3c6`): same path, refinement did not fire
+Identical to the second run to the centimetre (same seed, same world) and the refinement
+never moved the path: the console showed `exit=None kerb@-` from the moment the turn was
+committed. Two changes so the next run tells why and acts sooner:
+- The refinement's verdict is printed each tick in brackets (`[exit kerb not read from
+  here]`, `[exit line +0.9 m off for 0.3 s]`, `[… re-anchored]`, `[… fresh arc from here
+  (not clear)]`); `turn_refine` in the drive log.
+- The evidence test is temporal, not a station count: a re-measured line that differs from
+  the latched by more than `refine_shift_m` replaces it once it has held within
+  `refine_candidate_m` (0.3 m) of itself for `refine_persist_s` (0.5 s). The kerb estimate
+  jumps by a metre from one tick to the next as a far station enters or leaves the fit;
+  on the synthetic right turn (seed 5308) the line committed on was 1.15 m off the one
+  read every tick afterwards, and the station-count rule (fewer stations from closer in)
+  blocked the correction for 3 s. It now fires 0.5 s after commit.
+
+### External review of `6773e24` (ChatGPT, 24 Oct): nine findings, seven taken
+Taken, each with tests:
+1. **Verified turn space** — within the stopping envelope (`near_cover_m` 8 m) a pose is
+   verified only when observed road spans the body's width (`near_column_share` 0.8 of
+   the footprint's lateral columns hold a ROAD cell), with the 1 m gap allowance only;
+   beyond it the 40% share rule stands as tentative support. A half-unknown footprint
+   and an unknown centre strip no longer verify (`test_mapless_swept_check.py`).
+2. **Conflict check covers the whole car** — `first_footprint_conflict`: oriented ego
+   box at time-aligned poses along the path (time zero at the car, not the corridor's
+   first sample), tested at each prediction step's window ends and every path sample
+   inside it. An object under the bonnet is a conflict at the first step.
+3. **Prediction uncertainty in the object's frame** — P_pos(t) = P_pp + t(P_pv + P_vp) +
+   t²P_vv + (q t³/3)I rotated into the heading frame; a scene rotated 90° gives the same
+   footprints; a 3 m along-track σ inflates by 6 m along, 0.2 m across.
+4. **Stack follows the frame rebuild** — `reset_spatial()` on the driver's `frame_rebuilt`
+   (tracker, road model, following, cached segmentation, cap); nothing added while
+   `rebuilding`; `DecisionRecord.frame_generation`.
+5. **Segment and paint the same frame** — painting only on segmentation ticks with a
+   `SegmentedFrame(frame_id, …)`; `paint` refuses another frame's segmentation; the road
+   model ages its evidence between.
+6. **No confirmation bypass** — only a previously confirmed track coasts; a tentative miss
+   stays TENTATIVE (hazard, never a lead); `lead_ahead` accepts CONFIRMED/COASTING only.
+7. **Moving-scenario evaluator** — separation is the oriented-polygon distance between
+   the ego box and the actor's bounding box (its local offset included), overlap → 0 →
+   FAIL, no measurements → INCOMPLETE; completion per scenario: `crossing_pedestrian`
+   must yield, then resume and reach the goal after the walker clears (a hold ends the
+   run only once the walker is past the lane); `cut_in` must settle a safe gap and reach
+   the goal; `braking_lead` may end in a sustained safe hold. `required` is reported.
+   Training: `index_runs` requires integrity and geometry PASS from the capture
+   inspection (`allow_unaccepted` for smoke), best validated checkpoint saved (`_last.pt`
+   kept; no validation → `_smoke.pt`, provenance `validated: false`), class weights
+   sampled across runs and cameras, synchronised warmed-up GPU timing, seed recorded;
+   the stack records `cap_applied_mps` (this command) and `speed_cap_next_mps`.
+
+Documented as limits, not patched: (8) the semantic road model is built but does not yet
+select the corridor or the exit lane — the turn still places the exit lane `keep_right`
+left of the exit kerb, so training a better segmenter alone does not solve shoulder →
+plain-lane transitions; the matching-kerb site filter is a test-domain restriction and
+those transitions are unsupported until the G2 lane-position milestone. The near-cover
+rule is coverage, not visibility reasoning: an occluded exit still reads as unknown and
+holds the car at the verified distance, which is the intended conservative behaviour.
+
 ### Debug passes to come
 G1c: the turn scenario live on a Town10HD junction (site search census first). G2: train
 on the Town03/04/05 captures, benchmark the segmenter against the A1 models by boundary

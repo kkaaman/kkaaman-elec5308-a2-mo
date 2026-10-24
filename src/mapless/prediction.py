@@ -6,8 +6,20 @@ the position uncertainty at that time plus ``margin_m``; pedestrians get a wider
 envelope because they turn without warning. A track without a measured footprint gets
 its class's default size.
 
+The uncertainty is taken in the object's own frame (review of the G3 framework: the
+first version added the odometry-frame X variance to the length and the Y variance to
+the width, so a northbound car's along-track uncertainty widened it instead of
+lengthening it). The position covariance is propagated over the horizon with its
+position–velocity cross terms, ``P_pos(t) = P_pp + t (P_pv + P_vp) + t^2 P_vv``, plus the
+process (white acceleration) growth, then rotated into the heading frame; the footprint
+grows by ``uncertainty_sigmas`` of the longitudinal and lateral sigma plus ``margin_m``.
+
 A prediction is a region the planner must keep the car out of, not a forecast it may
 rely on: the regions only grow with time.
+
+``first_footprint_conflict`` tests the predicted regions against the car's oriented
+footprint at the time-aligned poses along its planned path (the rear-axle path expanded
+by half the width alone left the 3.78 m front overhang unchecked, same review).
 """
 
 import math
@@ -35,10 +47,36 @@ class PredictionConfig:
     pedestrian_lateral_mps: float = 1.0  # a pedestrian may step sideways this fast
     uncertainty_sigmas: float = 2.0  # position uncertainty counted at this many sigma
     stationary_mps: float = 0.3  # slower tracks keep their measured heading
+    # Unmodelled acceleration over the horizon as continuous white noise: position variance
+    # grows by q t^3 / 3. The tracker drives its CV model with 1.5 m/s^2 white acceleration
+    # at a 0.05 s tick, which is q = 1.5^2 * 0.05 in these units (1 m sigma at 3 s).
+    process_noise_m2ps3: float = 1.5**2 * 0.05
 
     def __post_init__(self):
         if self.step_s <= 0 or self.horizon_s < self.step_s or self.lane_change_horizon_s < self.horizon_s:
             raise ValueError("PredictionConfig: step_s > 0 and horizon_s <= lane_change_horizon_s")
+        if self.process_noise_m2ps3 < 0 or self.uncertainty_sigmas < 0:
+            raise ValueError("PredictionConfig: non-negative process_noise_m2ps3 and uncertainty_sigmas")
+
+
+def position_sigmas(covariance, times, heading_rad, process_noise_m2ps3=0.0):
+    """(sigma_longitudinal, sigma_lateral) at each of ``times`` for a 4x4 ``[x, y, vx, vy]``
+    covariance, in the frame of ``heading_rad``.
+
+    ``P_pos(t) = P_pp + t (P_pv + P_vp) + t^2 P_vv + (q t^3 / 3) I``, rotated by -heading.
+    """
+    P = np.asarray(covariance, dtype=float)
+    t = np.asarray(times, dtype=float)
+    P_pp, P_pv, P_vv = P[:2, :2], P[:2, 2:], P[2:, 2:]
+    cross = P_pv + P_pv.T
+    c, s = math.cos(heading_rad), math.sin(heading_rad)
+    R = np.array([[c, s], [-s, c]])  # odometry -> heading frame
+    pos = P_pp[None] + t[:, None, None] * cross[None] + (t**2)[:, None, None] * P_vv[None]
+    pos = pos + (process_noise_m2ps3 * t**3 / 3.0)[:, None, None] * np.eye(2)[None]
+    local = R[None] @ pos @ R.T[None]
+    sigma_long = np.sqrt(np.maximum(local[:, 0, 0], 0.0))
+    sigma_lat = np.sqrt(np.maximum(local[:, 1, 1], 0.0))
+    return sigma_long, sigma_lat
 
 
 def predict(track, config=None, lane_change=False):
@@ -56,13 +94,10 @@ def predict(track, config=None, lane_change=False):
     else:
         length, width = DEFAULT_SIZE[track.best_class]
         heading = math.atan2(*track.velocity[::-1]) if speed > c.stationary_mps else 0.0
-    # Position uncertainty grows with the velocity uncertainty: sigma_p(t)^2 = P_pp + t^2 P_vv.
-    P = track.covariance
-    sigma_along = np.sqrt(np.maximum(P[0, 0] + times**2 * P[2, 2], 0.0))
-    sigma_across = np.sqrt(np.maximum(P[1, 1] + times**2 * P[3, 3], 0.0))
+    sigma_long, sigma_lat = position_sigmas(track.covariance, times, heading, c.process_noise_m2ps3)
     inflate = c.uncertainty_sigmas
-    half_length = length / 2 + c.margin_m + inflate * sigma_along
-    half_width = width / 2 + c.margin_m + inflate * sigma_across
+    half_length = length / 2 + c.margin_m + inflate * sigma_long
+    half_width = width / 2 + c.margin_m + inflate * sigma_lat
     if track.best_class == "pedestrian":
         half_width = half_width + c.pedestrian_lateral_mps * times
         half_length = np.maximum(half_length, half_width)
@@ -75,7 +110,11 @@ def predict_all(tracks, config=None, lane_change=False):
 
 def first_conflict(predictions, path_xy, path_times_s, body_radius_m):
     """The earliest (time_s, track_id) at which a path point comes within ``body_radius_m``
-    of a predicted region, or None. ``path_xy`` (N x 2, odometry frame) at ``path_times_s``."""
+    of a predicted region, or None. ``path_xy`` (N x 2, odometry frame) at ``path_times_s``.
+
+    A disc around each path point: for a point-like path (a waypoint list, a planned
+    centre). The stack uses ``first_footprint_conflict`` for the car's own body.
+    """
     path = np.asarray(path_xy, dtype=float).reshape(-1, 2)
     times = np.asarray(path_times_s, dtype=float)
     best = None
@@ -88,6 +127,95 @@ def first_conflict(predictions, path_xy, path_times_s, body_radius_m):
             c, s = math.cos(pred.heading_rad), math.sin(pred.heading_rad)
             along, across = c * p[0] + s * p[1], -s * p[0] + c * p[1]
             if abs(along) <= pred.half_extents[k, 0] + body_radius_m and abs(across) <= pred.half_extents[k, 1] + body_radius_m:
+                if best is None or t < best[0]:
+                    best = (float(t), pred.track_id)
+                break
+    return best
+
+
+# -- oriented footprints -------------------------------------------------------------------
+def box_corners(centre, heading_rad, along_min, along_max, across_half):
+    """The four corners (4 x 2) of a box spanning ``[along_min, along_max]`` along
+    ``heading_rad`` and ``[-across_half, across_half]`` across it, about ``centre``."""
+    c, s = math.cos(heading_rad), math.sin(heading_rad)
+    local = np.array([[along_min, -across_half], [along_max, -across_half], [along_max, across_half], [along_min, across_half]])
+    return np.asarray(centre, dtype=float) + local @ np.array([[c, s], [-s, c]])
+
+
+def boxes_overlap(a, b):
+    """Separating-axis test for two oriented boxes given as corners (4 x 2 each)."""
+    for poly in (a, b):
+        for e in (poly[1] - poly[0], poly[3] - poly[0]):
+            axis = np.array([-e[1], e[0]])
+            pa, pb = a @ axis, b @ axis
+            if pa.max() < pb.min() or pb.max() < pa.min():
+                return False
+    return True
+
+
+def path_headings(path_xy):
+    """Heading at each path sample from the segment leaving it (the last one keeps its
+    predecessor's; a zero-length segment keeps the previous heading)."""
+    path = np.asarray(path_xy, dtype=float).reshape(-1, 2)
+    n = len(path)
+    if n < 2:
+        return np.zeros(n)
+    d = np.diff(path, axis=0)
+    ok = np.hypot(*d.T) > 1e-9
+    if not ok.any():
+        return np.zeros(n)
+    seg = np.arctan2(d[:, 1], d[:, 0])
+    source = np.maximum.accumulate(np.where(ok, np.arange(n - 1), -1))  # last proper segment at or before i
+    source[source < 0] = int(np.argmax(ok))
+    headings = seg[source]
+    return np.append(headings, headings[-1])
+
+
+def pose_at(path, times, headings, t):
+    """(x, y, yaw) on the path at time ``t`` (clamped to the path's span)."""
+    if t <= times[0]:
+        return path[0, 0], path[0, 1], headings[0]
+    if t >= times[-1]:
+        return path[-1, 0], path[-1, 1], headings[-1]
+    i = int(np.searchsorted(times, t, side="right"))
+    i = min(max(i, 1), len(times) - 1)
+    span = times[i] - times[i - 1]
+    w = 0.0 if span <= 0 else (t - times[i - 1]) / span
+    xy = path[i - 1] + w * (path[i] - path[i - 1])
+    return xy[0], xy[1], headings[i - 1]
+
+
+def first_footprint_conflict(predictions, path_xy, path_times_s, body):
+    """The earliest (time_s, track_id) at which the car's oriented footprint, placed at
+    the time-aligned poses along its path, overlaps a predicted region, or None.
+
+    ``path_xy`` (N x 2, odometry frame, rear-axle positions) at ``path_times_s`` (seconds
+    from now; samples at negative times are where the car has been and are skipped).
+    ``body`` has ``rear_m``, ``front_m`` and ``half_width_m`` (``VehicleBody``). Each
+    prediction step covers the half-step window around its time; the car's footprint is
+    tested at the window's ends and at every path sample inside it, so the swept region
+    between consecutive samples is covered to within the body's own length.
+    """
+    path = np.asarray(path_xy, dtype=float).reshape(-1, 2)
+    times = np.asarray(path_times_s, dtype=float)
+    if len(path) == 0 or len(times) != len(path):
+        return None
+    headings = path_headings(path)
+    end = float(times[-1])
+    best = None
+    for pred in predictions:
+        step = float(pred.times_s[0]) if len(pred.times_s) == 1 else float(pred.times_s[1] - pred.times_s[0])
+        for k, t in enumerate(pred.times_s):
+            lo = 0.0 if k == 0 else max(0.0, t - step / 2)
+            hi = t + step / 2
+            if lo > end + step / 2:
+                break
+            hl, hw = pred.half_extents[k]
+            obstacle = box_corners(pred.centres[k], pred.heading_rad, -hl, hl, hw)
+            inside = np.flatnonzero((times > lo) & (times < hi))
+            poses = [pose_at(path, times, headings, lo), pose_at(path, times, headings, hi)]
+            poses += [(path[i, 0], path[i, 1], headings[i]) for i in inside]
+            if any(boxes_overlap(box_corners((x, y), yaw, body.rear_m, body.front_m, body.half_width_m), obstacle) for x, y, yaw in poses):
                 if best is None or t < best[0]:
                     best = (float(t), pred.track_id)
                 break
