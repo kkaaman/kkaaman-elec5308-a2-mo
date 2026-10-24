@@ -207,3 +207,49 @@ def test_cut_in_refuses_an_opposing_left_lane():
     scenario = CutInCar(FakeCarla, ScenarioParams("cut_in"), lambda loc: (loc.x, -loc.y))
     with pytest.raises(RuntimeError, match="same-direction"):
         scenario.spawn(Owner(), Library(), lane)
+
+
+def test_turn_site_search_refuses_a_kerb_mismatch_and_a_bent_approach():
+    # Review of 1931070: the car places the exit lane keep_right (measured on the approach)
+    # left of the exit kerb, so a shoulder lane turning into a plain lane would put it in the
+    # opposing lane. The harness refuses such sites, and bent approaches (skewed exit heading).
+    carla_map = FakeMap()
+    for wp in carla_map.exit:
+        wp.lane_width = 6.0  # exit kerb 3.0 m from the lane centre vs 1.75 m on the approach
+    sites, census = find_turn_sites(FakeCarla, carla_map, "RIGHT", 40.0, 30.0)
+    assert sites == [] and census["kerb_mismatch"] == 1
+    sites, census = find_turn_sites(FakeCarla, carla_map, "RIGHT", 40.0, 30.0, max_kerb_mismatch_m=2.0)
+    assert len(sites) == 1 and sites[0]["kerb_mismatch_m"] == pytest.approx(1.25)
+    bent = FakeMap()
+    for k, wp in enumerate(bent.approach):
+        wp.transform.rotation.yaw = -8.0 * (k / len(bent.approach))  # 8 degrees of bend over the approach
+    sites, census = find_turn_sites(FakeCarla, bent, "RIGHT", 40.0, 30.0)
+    assert sites == [] and census["approach_bent"] == 1
+
+
+def test_lane_heading_near_the_car_ignores_a_bend_far_ahead():
+    # Review of 1931070: the corridor's quadratic slope at the car was tilted 2.3 degrees by
+    # the kerb running out into the junction mouth 10 m ahead, and that skew went straight
+    # into the exit heading. The near-evidence line is not tilted.
+    from mapless.corridor import Corridor
+    from mapless.ego_motion import Pose2D
+
+    xs = np.arange(-10.0, 31.0, 1.0)
+    ys = np.where(xs > 15.0, 0.02 * (xs - 15.0) ** 2, 0.0)  # straight, then bending away
+    coefficients = tuple(np.polyfit(xs, ys, 2))
+    corridor = Corridor(
+        time_s=0.0,
+        pose=Pose2D(0.0, 0.0, 0.0),
+        centre_body=np.column_stack((xs, np.polyval(coefficients, xs))),
+        centre_odometry=np.column_stack((xs, np.polyval(coefficients, xs))),
+        valid_length_m=30.0,
+        coefficients=coefficients,
+        station_x_m=xs,
+        reference_y_m=np.zeros_like(xs),
+        right_edge_m=np.full_like(xs, -1.75),
+        left_edge_m=np.full_like(xs, np.nan),
+        blocked=np.zeros_like(xs, dtype=bool),
+        evidence_body=np.column_stack((xs, ys)),
+    )
+    assert abs(math.degrees(corridor.heading_at(0.0))) > 1.0  # the whole-line fit is tilted at the car
+    assert abs(math.degrees(corridor.heading_near())) < 0.05  # the near evidence is straight

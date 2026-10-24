@@ -128,6 +128,7 @@ class MaplessDriver:
         self._turn_done = None  # route index of the junction entry whose turn is complete
         self._mouth_odo = None  # the junction mouth, odometry frame, nearest seen since the approach began
         self._lane_heading_odo = None  # the entry lane's direction, odometry frame, latched as the approach begins
+        self._turn_corridor = None  # the last turn path steered along (the stop line if the latched path fails mid-arc)
         self.controller = LocalTrajectoryController(config.control)
         self._last_time = None
         self._finished = False
@@ -249,7 +250,7 @@ class MaplessDriver:
             self.planner.reset()
             self.controller.reset()
             self.turn.reset()  # a latched turn path lived in the old frame too
-            self._turning, self._mouth_odo, self._lane_heading_odo = False, None, None
+            self._turning, self._mouth_odo, self._lane_heading_odo, self._turn_corridor = False, None, None, None
             self._rebuild = False
             d.update(frame_rebuilt=True)
             if classified is not None:
@@ -274,12 +275,47 @@ class MaplessDriver:
         self.turn.observe(classified, motion.odometry, t)
         if self.turn.committed:
             # In the turn: follow the latched path to its end, whatever the route says.
+            exit_heading_body = self.turn.exit_heading_body(motion.odometry)
             plan_turn = self.turn.follow(self.grid, motion.odometry, t)
             if plan_turn is None:
-                hold_at = 0.0
-                d.update(turn="latched path no longer clears the terrain")
-            else:
-                corridor = plan_turn.corridor
+                # A newly seen kerb or obstacle cell under the latched path (review of 1931070:
+                # the first version sat in the junction for good). Near the entry heading the
+                # car is still on the straight: drop the latch and plan afresh this tick. Near
+                # the exit heading it is on the exit lane: hand over to kerb following now. In
+                # between: one fresh arc from here; failing that, stop along the turn path (not
+                # the pre-turn kerb line, which would be a steering jump).
+                turned = abs(wrap_angle(motion.odometry.yaw_rad - self._lane_heading_odo)) if self._lane_heading_odo is not None else math.inf
+                if turned <= c.junction.replan_max_heading_rad and junction is not None:
+                    self.turn.uncommit()
+                    d.update(turn="latched path blocked: re-planning")
+                else:
+                    resumed = None
+                    if abs(exit_heading_body) <= c.junction.exit_tolerance_rad and self._turn_corridor is not None:
+                        self.corridor.seed(motion.odometry.to_body(self._turn_corridor.centre_odometry), motion.odometry, t)
+                        resumed = self.corridor.update(self.grid, motion.odometry, t)
+                    if resumed is not None and resumed.ok:
+                        corridor, hold_at = resumed, None
+                        self._turning = False
+                        self._turn_done = None if junction is None else junction[-1]
+                        self._mouth_odo = self._lane_heading_odo = self._turn_corridor = None
+                        self.turn.reset()
+                        junction = None
+                        d.update(turn="latched path blocked at the exit: handed back to the kerb corridor")
+                    else:
+                        plan_turn = self.turn.replan_same_arc(self.grid, motion.odometry, t)
+                        if plan_turn is not None:
+                            d.update(turn="latched path blocked: exit line re-anchored, same arc")
+                        else:
+                            plan_turn = self.turn.replan_mid_arc(self.grid, motion.odometry, t)
+                            if plan_turn is None:
+                                if self._turn_corridor is not None:
+                                    corridor = self._turn_corridor
+                                hold_at = 0.0
+                                d.update(turn="latched path no longer clears the terrain: stopping on it")
+                            else:
+                                d.update(turn="latched path blocked: re-planned mid-arc")
+            if plan_turn is not None:
+                corridor = self._turn_corridor = plan_turn.corridor
                 hold_at = max(0.0, plan_turn.verified_m - c.body.front_m)
                 d.update(turn_radius_m=plan_turn.radius_m, turn_arc_end_m=plan_turn.arc_end_m, turn_verified_m=plan_turn.verified_m, turn_clearance_m=round(plan_turn.clearance_m, 2) if math.isfinite(plan_turn.clearance_m) else None)
                 if abs(plan_turn.exit_heading_rad) <= c.junction.exit_tolerance_rad and plan_turn.arc_end_m < 0.0:
@@ -291,12 +327,13 @@ class MaplessDriver:
                         corridor, hold_at = resumed, None
                         self._turning = False
                         self._turn_done = None if junction is None else junction[-1]
-                        self._mouth_odo = self._lane_heading_odo = None
+                        self._mouth_odo = self._lane_heading_odo = self._turn_corridor = None
                         self.turn.reset()
+                        junction = None  # this junction is done this tick too: no hold at its entry
                         d.update(turn="handed back to the kerb corridor")
                     else:
                         d.update(turn=f"kerb corridor not ready: {resumed.reason}")
-        elif junction is not None:
+        if not self.turn.committed and junction is not None:
             entry, exit_point, exit_heading, command, _ = junction
             opening = kerb_opening(corridor, self.grid, c.junction.opening_min_m) if corridor.ok else None
             d.update(junction_command=command.value, junction_entry_m=float(entry[0]), kerb_opening_m=opening)
@@ -309,7 +346,9 @@ class MaplessDriver:
                 )
                 if near and confirmed:
                     self._turning = True
-                    self._lane_heading_odo = motion.odometry.yaw_rad + (corridor.heading_at(0.0) if corridor.ok else 0.0)
+                    # The lane's direction from the kerb evidence beside and behind the car: the
+                    # whole-corridor fit is already tilted by the kerb running out into the mouth.
+                    self._lane_heading_odo = motion.odometry.yaw_rad + (corridor.heading_near() if corridor.ok else 0.0)
                 elif near:
                     # The route says a junction is here and the kerb does not: do not enter.
                     hold_at = max(0.0, float(entry[0]) - c.body.front_m - c.planner.stop_gap_m)
@@ -343,15 +382,15 @@ class MaplessDriver:
                     measured = plan_turn.exit_source == "kerb" and plan_turn.clearance_m >= c.junction.commit_clearance_m
                     if measured:
                         # Steer along the planned turn, as far as its footprint is on observed road.
-                        corridor = plan_turn.corridor
+                        corridor = self._turn_corridor = plan_turn.corridor
                         hold_at = max(0.0, plan_turn.verified_m - c.body.front_m)
                     else:
                         # Keep to the lane (the route's point never places the exit lane) and
                         # wait at the mouth, where the exit road is in view.
                         hold_at = max(0.0, min(plan_turn.verified_m, mouth) - c.body.front_m)
-        elif self._turning:
+        elif not self.turn.committed and self._turning:
             self._turning = False  # the route moved on before the turn began: kerb following again
-            self._mouth_odo = self._lane_heading_odo = None
+            self._mouth_odo = self._lane_heading_odo = self._turn_corridor = None
             self.turn.reset()
         if not corridor.ok:
             return self._fault(f"no corridor: {corridor.reason}", d, motion, t, dt)
@@ -442,7 +481,7 @@ class MaplessDriver:
         if self._lane_heading_odo is not None:
             lane = wrap_angle(self._lane_heading_odo - motion.odometry.yaw_rad)
         else:
-            lane = corridor.heading_at(0.0) if corridor.ok else 0.0
+            lane = corridor.heading_near() if corridor.ok else 0.0
         prior = lane + (-math.pi / 2 if command is Command.RIGHT else math.pi / 2)
         heading = prior if abs(wrap_angle(route_heading - prior)) <= math.radians(35) else route_heading
         return body[0], body[1], heading, command, entry_i

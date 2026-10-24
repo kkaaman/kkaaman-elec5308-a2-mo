@@ -718,6 +718,75 @@ built at 5 Hz (was 21–31 ms over the full 120 m grid every 2nd tick). Stack st
 on the dev CPU, synthetic world: drive 11 ms, paint 5, detect <1, track 1, road model
 ~10 at 5 Hz; total p50 18 ms.
 
+### Second review, of the G1c turn code before its first live run (24 Oct) — all taken
+A separate read of `junction.py`, the driver's junction block and the turn harness, with
+instrumented synthetic runs, found:
+- **The exit lane is placed `keep_right` left of the exit kerb** — `keep_right` is the
+  approach lane's kerb distance (4.4 m on Town10HD's shoulder lanes). Emulated with a
+  12 m main road turning into a 7 m side road: the car finished 2.6 m into the opposing
+  lane, cleanly, and nothing in the car can tell (the opposing lane is road; the
+  hand-back corridor finds the kerb at `keep_right` and is content). Until lane markings
+  are read (G2) this is a declared limit: the harness picks only sites whose exit kerb
+  distance matches the approach's within `--max-kerb-mismatch` 0.3 m (census key
+  `kerb_mismatch`), and ends a turn run when a body corner is more than 1 m outside the
+  permitted area.
+- **The exit heading prior inherited the corridor's tilt.** The lane direction was taken
+  from the quadratic's slope at the car, which the kerb running out into the mouth 10 m
+  ahead tilts by 2.3° even on the noise-free synthetic road; that skew went into the
+  exit heading and, absorbed by the median over stations ~14 m out, moved the exit lane
+  0.95 m. Now: the lane direction is a line through the kerb evidence beside and behind
+  the car (`Corridor.heading_near`), the exit-kerb line is fitted and anchored at the exit
+  point itself, and its direction is used from 1.5° up to 5° (a larger fitted skew is two
+  station clusters levering, not a skew — one such 11° fit put the car 2.8 m off). The
+  harness also refuses approaches bent more than 5°.
+- **The exit search looked outward from the probe line only.** With a 3 m route error
+  toward the kerb (GNSS bias, seed 3) the line lay on the pavement, found a barrier and
+  no road, and the exit was never measured: the car held at the mouth and faulted. The
+  exit road is now the run of ROAD cells nearest the line on either side; its right end
+  and the first raised cell beyond bracket the kerb. `exit_max_distance_m` 7.5 m (4.4 m
+  shoulder + 3 m route error; the profile spans ±8 m), `max_entry_offset_m` 10 m (the
+  opening is read ~4 m into the fillet, the box edge up to 10 m past it).
+- **A blocked latched path stopped the car in the junction for good.** A kerb cell newly
+  seen under the latched path made `follow` fail and nothing re-planned. Now: while the
+  car has turned less than 20° from the entry heading the latch is dropped and the turn
+  re-planned the same tick; deeper into the arc the car stops along the turn path (not
+  the pre-turn kerb line, which would have been a steering jump).
+- **The kerb edge rule.** With the exit kerb bracket in hand, the road's outer edge is the
+  kerb when the unseen strip is wider than two cells (the strip lies on the pavement side
+  in both geometries measured: the kerb's shadow seen from the road, sparse pavement
+  returns seen end-on); the midpoint sat 0.3–0.6 m onto the pavement. Far exit lanes are
+  sampled by a ring or two, so a road run of 0.5 m counts, the strip may be 3 m (ring
+  spacing at 25–30 m) and three stations over 2 m fit the lateral position (the direction
+  is the prior's unless eight stations over 10 m say otherwise).
+- **Mid-arc.** A blocked latched path deep in the arc is re-planned as one arc tangent to
+  the car's heading and to the exit line re-measured from there (closer, so better); blocked
+  within 10° of the exit heading, the kerb corridor is seeded from the turn path and takes
+  over at once (the car is on the exit lane already). Only when both fail does the car stop,
+  along the turn path.
+- **The exit heading stays the prior's.** A line fitted through the stations reads a
+  slope anyway (the kerb estimate's bias grows with range), and a fitted −4° sent one exit
+  straight 1.6 m off a straight kerb; the fitted skew is now reported only, and the lateral
+  position is read from the nearest stations (within 8 m of the nearest), where the
+  estimate is best. A latched path blocked far along (the exit straight against a kerb cell
+  at 20 m) is re-anchored on the re-measured exit line with the same arc and tangent point,
+  so the car's heading does not jump; the entry-line re-plan is used only while the car has
+  turned less than 5°.
+- **Outcome over fourteen synthetic turns** (both sides, GNSS seeds 1–5, seed 5308 with and
+  without noise): the exit kerb is read within 0.5 m of the truth in all fourteen (ten
+  within 0.35 m), all complete without collision, and the largest excursion against the
+  truth arc is 1.9 m on one left turn (0.2–1.2 m on the rest; a different radius is a
+  different path, and the permitted-area gate, not this number, is the safety measure). Driver step time through the planning phase 28 ms p50 / 42 ms
+  p95 on the dev CPU (the swept check is now one vectorised placement, and radii are tried
+  nearest the nominal first, stopping at the first with the commit clearance — the full
+  sweep of sixteen cost 70 ms).
+- The nominal radius is `nominal_fillet_m` (7.75) + `keep_right`, so a shoulder lane gets
+  the wider arc its connecting lane has (9.5 m cut 1.1–1.4 m inside the map centreline
+  and would have failed the footprint gate). The console now prints the turn
+  diagnostics (`entry`, `open`, `R`, `exit`, `kerb@`, `ver`, `clr`, the turn state) and a
+  run waiting at the mouth ends after `--junction-hold-s` 25 s with the reason, instead
+  of sitting out `--max-s`. Also found: the synthetic side road was 40 m long and the
+  exit lane's road surface ran out 2.4 m before the goal on some seeds (now 80 m).
+
 ### Debug passes to come
 G1c: the turn scenario live on a Town10HD junction (site search census first). G2: train
 on the Town03/04/05 captures, benchmark the segmenter against the A1 models by boundary
@@ -751,6 +820,19 @@ python scripts/repair_mapless_capture.py --run "$HOME\Documents\Group7_runs\capt
 python scripts/run_mapless_drive.py --scenario straight --output "$HOME\Documents\Group7_runs\g1b_straight"
 python scripts/run_mapless_drive.py --scenario curve --output "$HOME\Documents\Group7_runs\g1b_curve"
 python scripts/run_mapless_drive.py --scenario stop --output "$HOME\Documents\Group7_runs\g1b_stop"
+
+# 5. G1c first commanded turn (site census in the error message if none fits; --site N for another)
+python scripts/run_mapless_drive.py --scenario turn_right --output "$HOME\Documents\Group7_runs\g1c_right"
+python scripts/run_mapless_drive.py --scenario turn_left --output "$HOME\Documents\Group7_runs\g1c_left"
+
+# 6. G2 road segmenter on the accepted captures (needs `pip install -e .[test,docs]` for transformers;
+#    not while CARLA is rendering on the same GPU). Compare the two by the per-epoch validation JSON.
+python scripts/train_mapless_segmentation.py --run "$HOME\Documents\Group7_runs\capture_pilot_Town03_s5308" `
+    --run "$HOME\Documents\Group7_runs\capture_Town04_s5311" --output models\road_seg_b0.pt --architecture segformer_b0 --epochs 8
+python scripts/train_mapless_segmentation.py --run ... --output models\road_seg_bisenet.pt --architecture bisenetv2 --epochs 8
+
+# 7. G2/G3 stack on the drive harness (after G1c; --admission A|B|C, --segmenter <checkpoint>, --detector yolo)
+python scripts/run_mapless_stack.py --scenario straight --admission B --output "$HOME\Documents\Group7_runs\stack_straight"
 ```
 
 **Phase 0 gate:**

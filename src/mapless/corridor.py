@@ -135,6 +135,24 @@ class Corridor:
         """Direction of the fitted centreline at body-frame x, radians in the vehicle frame."""
         return math.atan(float(np.polyval(np.polyder(self.coefficients), x_m))) if len(self.coefficients) > 1 else 0.0
 
+    def heading_near(self, x_from_m=-10.0, x_to_m=10.0):
+        """Direction of the kerb evidence between two body-frame x, as a straight line (radians).
+
+        The fitted centreline is a quadratic over the whole look-ahead: where the kerb runs
+        out into a junction mouth or bends, its slope at the car is tilted by what lies 20 m
+        ahead (2.3 degrees with a fillet starting 10 m before the box). A line through the
+        evidence beside and behind the car is not. Falls back to ``heading_at(0)`` when the
+        evidence is too thin.
+        """
+        e = self.evidence_body
+        if len(e) == 0:
+            return self.heading_at(0.0)
+        near = e[(e[:, 0] >= x_from_m) & (e[:, 0] <= x_to_m)]
+        if len(near) < 6 or np.ptp(near[:, 0]) < 6.0:
+            return self.heading_at(0.0)
+        slope, _ = np.polyfit(near[:, 0], near[:, 1], 1)
+        return math.atan(float(slope))
+
     def right_edge_body(self, x_m, within_m=2.0):
         """(x, y) in the vehicle frame of the right edge at the station nearest x (None if none)."""
         near = np.flatnonzero(np.isfinite(self.right_edge_m) & (np.abs(self.station_x_m - x_m) <= within_m))

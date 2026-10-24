@@ -246,11 +246,23 @@ def follow_junction(wp, max_m=80.0):
     return None
 
 
-def find_turn_sites(carla, carla_map, command, approach_m, exit_m, junction_clearance_m=8.0, angle_tolerance_deg=30.0):
+def find_turn_sites(carla, carla_map, command, approach_m, exit_m, junction_clearance_m=8.0, angle_tolerance_deg=30.0, max_kerb_mismatch_m=0.3, max_approach_bend_deg=5.0):
     """Sites for a commanded turn: a rightmost lane run ending at a junction whose connecting
-    lane turns about 90 degrees to ``command``'s side into a rightmost exit lane."""
+    lane turns about 90 degrees to ``command``'s side into a rightmost exit lane.
+
+    Two map-truth filters keep the first live turns inside what the LiDAR-only car can do
+    (the harness may choose the site; the car never sees these numbers):
+    - the exit lane's kerb distance must match the approach lane's within
+      ``max_kerb_mismatch_m``: the car places the exit lane ``keep_right`` (measured on the
+      approach) left of the exit kerb, so a shoulder lane turning into a plain lane would
+      put it 2.6 m into the opposing lane (review of 1931070), and nothing in the car can
+      tell until lane markings are read (G2);
+    - the approach must be straight within ``max_approach_bend_deg`` over its length: the
+      exit heading is a right angle to the approach lane's fitted direction, and a bend
+      skews it.
+    """
     want = -math.pi / 2 if command == "RIGHT" else math.pi / 2
-    census = dict(segments=0, no_junction_end=0, not_rightmost=0, too_short=0, no_matching_exit=0, exit_too_short=0, sites=0)
+    census = dict(segments=0, no_junction_end=0, not_rightmost=0, too_short=0, approach_bent=0, no_matching_exit=0, exit_too_short=0, kerb_mismatch=0, sites=0)
     sites, seen = [], set()
     for start, _ in carla_map.get_topology():
         census["segments"] += 1
@@ -273,6 +285,10 @@ def find_turn_sites(carla, carla_map, command, approach_m, exit_m, junction_clea
             census["too_short"] += 1
             continue
         approach = run[-(int(approach_m) + 1) :]
+        bend, _, _ = site_shape(approach)
+        if bend > math.radians(max_approach_bend_deg):
+            census["approach_bent"] += 1
+            continue
         entry_heading = lane_heading(approach[-1])
         match = None
         for first in end_next:
@@ -285,6 +301,9 @@ def find_turn_sites(carla, carla_map, command, approach_m, exit_m, junction_clea
                 continue
             exit_kerb, _, exit_source = right_kerb(carla, exit_wp)
             if exit_kerb is None:
+                continue
+            if abs(exit_kerb - kerb) > max_kerb_mismatch_m:
+                census["kerb_mismatch"] += 1
                 continue
             exit_run = follow_lane(exit_wp, exit_m + 5.0)
             if len(exit_run) - 1 < exit_m:
@@ -311,6 +330,8 @@ def find_turn_sites(carla, carla_map, command, approach_m, exit_m, junction_clea
                 lane_width_m=approach[-1].lane_width,
                 junction_width_m=float(np.median([w.lane_width for w in through])),
                 exit_width_m=exit_run[0].lane_width,
+                approach_bend_deg=math.degrees(bend),
+                kerb_mismatch_m=abs(exit_kerb - kerb),
                 road_id=approach[0].road_id,
                 lane_id=approach[0].lane_id,
                 junction_id=through[0].junction_id if hasattr(through[0], "junction_id") else None,
@@ -440,6 +461,10 @@ def plot(log, path, cruise_mps):
     cv2.imwrite(str(path), img)
 
 
+def _fmt(value):
+    return "-" if value is None else (f"{value:.2f}" if isinstance(value, (int, float)) else str(value))
+
+
 def rounded(value, digits=3):
     if isinstance(value, float):
         return round(value, digits) if math.isfinite(value) else None
@@ -538,7 +563,7 @@ class MaplessDrive:
 
     def setup_turn(self, carla_map):
         carla, args, command = self.carla, self.args, self.turn_command
-        sites, census = find_turn_sites(carla, carla_map, command, args.approach_m, args.exit_m)
+        sites, census = find_turn_sites(carla, carla_map, command, args.approach_m, args.exit_m, max_kerb_mismatch_m=args.max_kerb_mismatch)
         self.report["site_census"] = census
         if len(sites) <= args.site:
             raise RuntimeError(
@@ -672,6 +697,7 @@ class MaplessDrive:
         moved = False
         log, step_times, modes = [], [], []
         hold_ticks = 0
+        junction_hold_ticks = 0
         finished_ticks = 0
         end = "time limit"
         with rig, CollisionMonitor(self.owner, self.ego) as collisions, open(
@@ -724,12 +750,20 @@ class MaplessDrive:
                 moved = moved or truth["speed_mps"] >= 0.05
                 if tick % 20 == 0:
                     d = step.diagnostics
-                    print(
+                    line = (
                         f"t={row['time_s']:6.1f}s s={truth['s_m']:6.1f}m off={truth['lane_offset_m']:+.2f}m"
                         f" v={truth['speed_mps']:.2f} {step.mode.value:9} {step.reason[:40]:40}"
-                        f" corridor={d.get('corridor_valid_m')} obstacle={d.get('obstacle_m')}",
-                        flush=True,
+                        f" corridor={d.get('corridor_valid_m')} obstacle={d.get('obstacle_m')}"
                     )
+                    if self.turn_site is not None:
+                        fit = d.get("turn_exit_fit") or {}
+                        line += (
+                            f" | {truth['segment'][:4]} excess={truth['corner_excess_m']:+.2f} entry={_fmt(d.get('junction_entry_m'))}"
+                            f" open={_fmt(d.get('kerb_opening_m'))} R={_fmt(d.get('turn_radius_m'))} exit={d.get('turn_exit')}"
+                            f" kerb@{_fmt(fit.get('kerb_from_probe_m'))} ver={_fmt(d.get('turn_verified_m'))}"
+                            f" clr={_fmt(d.get('turn_clearance_m'))} {d.get('turn') or ''}"
+                        )
+                    print(line, flush=True)
                 if collisions.events:
                     end = "collision"
                     break
@@ -739,8 +773,13 @@ class MaplessDrive:
                 if truth["s_m"] >= self.lane_end_s - 1.0:
                     end = "reached the end of the truth lane"
                     break
-                if abs(truth["lane_offset_m"]) > 3.0:
+                if self.turn_site is None and abs(truth["lane_offset_m"]) > 3.0:
                     end = "left the lane (more than 3 m off centre)"
+                    break
+                if self.turn_site is not None and truth["corner_excess_m"] > 1.0:
+                    # A corner a metre outside the permitted area: the exit lane was placed
+                    # wrongly (opposing lane or pavement). Stop before it gets worse.
+                    end = "left the permitted area (corner more than 1 m outside)"
                     break
                 if step.mode is DriveMode.FINISHED and truth["speed_mps"] < 0.05:
                     finished_ticks += 1
@@ -749,6 +788,14 @@ class MaplessDrive:
                         break
                 held = step.mode is DriveMode.STOPPING and step.reason.startswith("holding") and truth["speed_mps"] < 0.05
                 hold_ticks = hold_ticks + 1 if held else 0
+                # A turn that waits at the junction mouth (no confirmed opening, no clearing
+                # radius, exit kerb not measured) is a result, not a time-out: end it after
+                # --junction-hold-s and say why, instead of sitting out --max-s.
+                waiting = self.turn_site is not None and truth["speed_mps"] < 0.05 and step.diagnostics.get("stop_reason") == "junction"
+                junction_hold_ticks = junction_hold_ticks + 1 if waiting else 0
+                if junction_hold_ticks * DT_S >= args.junction_hold_s:
+                    end = f"held at the junction for {args.junction_hold_s:g} s: {step.diagnostics.get('turn') or 'exit lane not measured'}"
+                    break
                 if (args.scenario == "stop" or self.actor is not None) and hold_ticks * DT_S >= args.hold_s:
                     end = "held at the obstacle"
                     break
@@ -898,6 +945,8 @@ def main(argv=None, stack=False):
     parser.add_argument("--obstacle-m", type=float, default=35.0, help="stop: parked car this far along the lane")
     parser.add_argument("--approach-m", type=float, default=40.0, help="turns: approach lane length before the junction")
     parser.add_argument("--exit-m", type=float, default=30.0, help="turns: exit lane length after the junction (the goal)")
+    parser.add_argument("--max-kerb-mismatch", type=float, default=0.3, help="turns: exit kerb distance may differ from the approach's by this (m)")
+    parser.add_argument("--junction-hold-s", type=float, default=25.0, help="turns: end the run after waiting this long at the junction mouth")
     parser.add_argument("--actor-param", action="append", default=[], metavar="NAME=VALUE", help="moving actors: scenario parameter override")
     parser.add_argument("--admission", choices=("A", "B", "C"), default="A", help="stack: sensor admission preset (A camera+LiDAR, B +front radar, C +rear radars)")
     parser.add_argument("--segmenter", default=None, help="stack: road segmenter checkpoint (default: constant)")
