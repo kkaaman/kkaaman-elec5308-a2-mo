@@ -64,6 +64,7 @@ from pathlib import Path
 
 import numpy as np
 
+from carla_adapter.frame_record import FrameRecorder
 from carla_adapter.mapless_scenarios import SCENARIOS as ACTOR_SCENARIOS
 from carla_adapter.mapless_scenarios import make_scenario, score_completion, score_moving
 from carla_adapter.sensor_rig import SensorRig, true_forward_speed
@@ -496,6 +497,25 @@ def _fmt(value):
     return "-" if value is None else (f"{value:.2f}" if isinstance(value, (int, float)) else str(value))
 
 
+def driver_config(body, wheelbase_m, steering_limit_rad, speed_mps, keep_right_m):
+    """The driver configuration the harness runs with (shared with the offline replay)."""
+    controller = ControllerConfig(
+        wheelbase_m=wheelbase_m,
+        max_steering_angle_rad=steering_limit_rad,
+        lookahead_m=4.0,
+        kp=0.45,
+        ki=0.15,
+        stopping_deceleration_mps2=1.0,
+        hold_brake=0.5,
+    )
+    return DriverConfig(
+        body=body,
+        control=LocalControlConfig(controller),
+        corridor=CorridorConfig(keep_right_m=keep_right_m),
+        planner=PlannerConfig(cruise_mps=speed_mps),
+    )
+
+
 def rounded(value, digits=3):
     if isinstance(value, float):
         return round(value, digits) if math.isfinite(value) else None
@@ -695,21 +715,7 @@ class MaplessDrive:
         carla, args = self.carla, self.args
         self.setup()
         self.body = vehicle_body(self.ego, self.offset)
-        controller = ControllerConfig(
-            wheelbase_m=self.adapter.geometry.wheelbase_m,
-            max_steering_angle_rad=self.adapter.geometry.controller_steering_limit_rad,
-            lookahead_m=4.0,
-            kp=0.45,
-            ki=0.15,
-            stopping_deceleration_mps2=1.0,
-            hold_brake=0.5,
-        )
-        config = DriverConfig(
-            body=self.body,
-            control=LocalControlConfig(controller),
-            corridor=CorridorConfig(keep_right_m=args.keep_right),
-            planner=PlannerConfig(cruise_mps=args.speed),
-        )
+        config = driver_config(self.body, self.adapter.geometry.wheelbase_m, self.adapter.geometry.controller_steering_limit_rad, args.speed, args.keep_right)
         self.report["driver_config"] = rounded(_config_dict(config))
         rig = SensorRig(
             self.owner,
@@ -725,6 +731,29 @@ class MaplessDrive:
             snapshots.mkdir()
         sweeps = args.output / "sweeps"
         sweeps.mkdir()
+        record_frames = args.record_frames == "all" or (args.record_frames == "turns" and self.turn_site is not None)
+        recorder = FrameRecorder(args.output / "frames", self.suite, rig.calibration_id, rig.episode_id, rig.extrinsics) if record_frames else None
+        if self.turn_site is not None:
+            ts = self.turn_site
+            (args.output / "turn_truth.json").write_text(
+                json.dumps(
+                    dict(
+                        command=ts.command,
+                        approach=np.round(ts.approach, 3).tolist(),
+                        junction=np.round(ts.junction, 3).tolist(),
+                        exit=np.round(ts.exit, 3).tolist(),
+                        approach_width_m=ts.approach_width_m,
+                        junction_width_m=ts.junction_width_m,
+                        exit_width_m=ts.exit_width_m,
+                        kerb_distance_m=self.site.get("kerb_distance_m"),
+                        exit_kerb_distance_m=self.site.get("exit_kerb_distance_m"),
+                        lane_back_m=LANE_BACK_M,
+                        frame="evaluator core frame (CARLA x, -y); rear-axle truth in drive_log.jsonl is in the same frame",
+                    ),
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
         moved = False
         log, step_times, modes = [], [], []
         hold_ticks = 0
@@ -752,6 +781,8 @@ class MaplessDrive:
                 snap = self.world.get_snapshot()
                 sf = rig.read(frame, true_forward_speed(snap, self.ego.id), sim_time_s=snap.timestamp.elapsed_seconds)
                 start_time = sf.sim_time_s if start_time is None else start_time
+                if recorder is not None:
+                    recorder.record(tick, sf)
                 begun = time.perf_counter()
                 step = driver.step(sf)
                 step_times.append(time.perf_counter() - begun)
@@ -838,6 +869,9 @@ class MaplessDrive:
             if self.actor is not None:
                 self.actor.destroy()
         self.report["end"] = end
+        if recorder is not None:
+            recorder.close()
+            self.report["frames_recorded"] = recorder.ticks
         self.report["roll_back_ticks"] = self.adapter.roll_back_ticks
         self.report["collisions"] = collisions.events
         self.report["rig"] = rig.record()
@@ -993,6 +1027,12 @@ def main(argv=None, stack=False):
     parser.add_argument("--max-s", type=float, default=150.0)
     parser.add_argument("--snapshot-every", type=int, default=40, help="Ticks between terrain snapshots (0: none)")
     parser.add_argument("--seed", type=int, default=5308)
+    parser.add_argument(
+        "--record-frames",
+        choices=("none", "turns", "all"),
+        default="turns",
+        help="Record the sensor frames (LiDAR as int16 cm, GNSS, IMU, speed, status) under <output>/frames for an offline replay: ~90 KB a tick",
+    )
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=2000)
     args = parser.parse_args(argv)

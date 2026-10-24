@@ -846,6 +846,30 @@ committed. Two changes so the next run tells why and acts sooner:
   read every tick afterwards, and the station-count rule (fewer stations from closer in)
   blocked the correction for 3 s. It now fires 0.5 s after commit.
 
+### Fourth live turn (24 Oct, PC 2, `b4959ea`): refinement fired, footprint still +0.47 m
+The console verdicts showed what the exit estimate does from inside the junction: right
+after commit a reading 2.7 m off held for 0.5 s and re-anchored the path (the trajectory
+hardly changed, as the car was still on the entry straight), then readings within ±0.3 m
+of the latched for five seconds, then at t=28 (car two thirds round the arc) a reading
+0.86 m right of the latched replaced it with a fresh 8.9 m arc from the car's pose: lane
+offset at the arc end 0.28 m against 1.1 m before, but the corner excess had already
+peaked at +0.47 m. The commit measurement (`kerb@1.5`, 115 stations, MAD 0.014, read at
+27 m) was consistent and wrong by ~1.3 m — the true exit kerb is 4.385 m from the lane
+centre (site truth), the car's keep-right 4.204 m, and the path 1.1 m left of the lane.
+A consistent error at range is a bias of the kerb-edge rule (the road's last ROAD cell
+read as the kerb; from 27 m the unseen strip between the last road return and the kerb
+lies on the road side), the opposite of the synthetic world's geometry that chose it.
+
+**Instead of guessing on the next live run, the harness now records the sensor frames**
+(`--record-frames turns` by default: LiDAR as int16 cm, GNSS, IMU, speed and status per
+tick under `<run>/frames`, ~90 KB a tick) and `turn_truth.json` (the site's lane
+centrelines and kerb distances), and the drive log carries the latched and measured exit
+points and the kerb stations in odometry. `scripts/replay_mapless_frames.py` runs the
+same driver over the recording open loop, ties odometry to truth by a rigid fit, and
+reports the kerb-station error and lane error per tick; configuration variants
+(`--junction exit_kerb_edge='"midpoint"'`) run against the same frames. The smoke test
+checks the replay reproduces the live driver tick for tick.
+
 ### External review of `6773e24` (ChatGPT, 24 Oct): nine findings, seven taken
 Taken, each with tests:
 1. **Verified turn space** — within the stopping envelope (`near_cover_m` 8 m) a pose is
@@ -925,6 +949,9 @@ python scripts/run_mapless_drive.py --scenario stop --output "$HOME\Documents\Gr
 # 5. G1c first commanded turn (site census in the error message if none fits; --site N for another)
 python scripts/run_mapless_drive.py --scenario turn_right --output "$HOME\Documents\Group7_runs\g1c_right"
 python scripts/run_mapless_drive.py --scenario turn_left --output "$HOME\Documents\Group7_runs\g1c_left"
+#    Turn runs record the sensor frames under <output>\frames (--record-frames none|turns|all, ~90 KB a
+#    tick); zip the run folder for the offline replay on the development machine:
+python scripts/replay_mapless_frames.py --run <run folder> --junction exit_kerb_edge='"midpoint"' --out replay.jsonl
 
 # 6. G2 road segmenter on the accepted captures (needs `pip install -e .[test,docs]` for transformers;
 #    not while CARLA is rendering on the same GPU). Compare the two by the per-epoch validation JSON.
