@@ -139,7 +139,10 @@ class SideRoad:
     s_m: float
     side: int = -1
     width_m: float = 7.0
-    length_m: float = 40.0
+    # Long enough that the exit lane's road surface runs on past the turn tests' goal (the
+    # arc end + 25 m) by the corridor's look-ahead: at 40 m the kerb corridor ran out of
+    # observed road 2.4 m before the goal on some GNSS seeds and the car faulted there.
+    length_m: float = 80.0
     fillet_m: float = 6.0
 
     def __post_init__(self):

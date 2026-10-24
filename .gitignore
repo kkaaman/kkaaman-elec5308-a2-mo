@@ -22,3 +22,6 @@ docs/_build/
 
 # Raw run outputs (runs/<scenario>/<run-id>/); curated evidence goes in docs/
 runs/
+
+# Mapless training checkpoints (large; the .provenance.json sidecar is kept as evidence)
+models/*.pt
