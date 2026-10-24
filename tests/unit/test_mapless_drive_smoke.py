@@ -267,6 +267,7 @@ class FakeAdapter:
             raise ValueError("Wheel pairs do not define aligned axles")
         self.vehicle = vehicle
         self.geometry = SimpleNamespace(wheelbase_m=3.00465, rear_axle_offset_m=OFFSET, controller_steering_limit_rad=math.radians(20))
+        self.roll_back_ticks = 0
 
     def apply(self, command):
         self.vehicle.pending = command
@@ -300,6 +301,7 @@ def run_drive(monkeypatch, tmp_path, *extra):
     WORLD[:] = [World()]
     monkeypatch.setitem(sys.modules, "carla", fake_carla_module())
     monkeypatch.setattr(drive, "FixedVehicleAdapter", FakeAdapter)
+    monkeypatch.setattr(drive, "HoldingVehicleAdapter", FakeAdapter)  # the harness's subclass of the baseline adapter (3c6a457)
     monkeypatch.setattr(drive, "SensorRig", FakeRig)
     out = tmp_path / "drive"
     drive.main(["--suite", str(ROOT / "configs/sensor_suites/mapless_v2.json"), "--output", str(out), *extra])

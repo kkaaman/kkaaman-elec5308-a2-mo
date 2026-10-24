@@ -807,6 +807,30 @@ The site search found a matching-kerb site at once; the approach was clean (offs
 Also seen: a phantom obstacle 1.5 cm ahead for one tick as the car braked hard (LiDAR
 pitch under braking), released by the clearance rule.
 
+### Second live turn (24 Oct, PC 2, Town10HD_Opt, `3c6a457`): first right turn driven
+Every gate passed but `junction_footprint`: the car waited at the real mouth, committed
+a 12 m arc on a kerb-measured exit line, drove it, handed back to the kerb corridor on the
+exit lane and reached the goal (exit lane keeping p95 within 0.35 m, no collision). The
+footprint gate failed by 0.50 m: the arc ran ~1.1 m left of the true exit lane. The exit
+kerb had been measured once, from 25–35 m (`kerb@1.46` at t=21), and never again: the
+latched path was never blocked (shoulder clearance 1.45–2.2 m), so the better readings
+from closer by were never used, and the lane offset at the arc end was +1.1 m before the
+kerb corridor corrected it to +0.03 m.
+
+**Fix: the committed path follows the exit measurement while the car is on the arc.**
+Each tick before the arc end the exit line is re-measured; when it has moved by more than
+`refine_shift_m` (0.5 m, above the synthetic re-measurement scatter of ±0.3 m) across its own direction, on at least as much kerb evidence as
+the latched line had, the path is re-anchored (`replan_same_arc(min_shift_m=…)`). Keeping
+the tangent point moves the arc's start along the entry straight, so once the car is in
+the arc the re-anchored path no longer passes under it (on the synthetic left turns it
+jumped 0.8 m sideways); when the re-anchored path is more than `refine_max_jump_m`
+(0.25 m) from the car, the refinement is instead one fresh arc from the car's own pose to
+the new exit line (`_mid_arc`, the geometry `replan_mid_arc` uses). Synthetic turns: 11
+of 12 noisy seeds complete as before (refinement fired on 9 of them, offsets at the
+arc end unchanged or better); left turn seed 2 stops in the junction box, as it did at
+`6773e24` (commits a 15 m arc on a knife-edge 0.3 m clearance that is then blocked), a
+known synthetic failure to revisit before the live left turns.
+
 ### Debug passes to come
 G1c: the turn scenario live on a Town10HD junction (site search census first). G2: train
 on the Town03/04/05 captures, benchmark the segmenter against the A1 models by boundary
