@@ -53,7 +53,9 @@ class JunctionConfig:
     # connecting lane has; 7.75 + 1.75 = 9.5 m on a plain lane.
     nominal_fillet_m: float = 7.75
     radius_step_m: float = 0.5
-    latch_m: float = 1.0  # keep the last radius while it is feasible
+    latch_m: float = 1.0
+    refine_shift_m: float = 0.5  # a committed path follows a re-measured exit line that moved by more than this
+    refine_max_jump_m: float = 0.25  # a re-anchored path further than this from the car is rebuilt from the car's pose instead  # keep the last radius while it is feasible
     margin_m: float = 0.2  # around the body when choosing a turn
     follow_margin_m: float = 0.05  # around the body when re-verifying the latched turn (hysteresis)
     commit_clearance_m: float = 0.3  # a turn is entered only with this much clearance from kerbs
@@ -319,6 +321,7 @@ class JunctionTurn:
         self._committed = None  # (odometry points, arc end index, exit heading in odometry) once the turn has begun
         self._exit_odo = None  # the route's exit point and heading in the odometry frame, kept for a mid-arc re-plan
         self._entry = None  # (pose at commit, y_entry, radius): the entry frame the latched path was built in
+        self._exit_fit = None  # the exit-line fit the latched path rests on; a refinement needs at least its evidence
 
     @property
     def barrier_age_s(self):
@@ -497,6 +500,7 @@ class JunctionTurn:
             self._committed = (pose.to_world(points), arc_index, pose.yaw_rad + exit_heading_body)
             self._exit_odo = (pose.to_world(np.array([exit_point_body]))[0], pose.yaw_rad + exit_heading_body)
             self._entry = (pose, y_entry, radius)  # the frame the path was built in, for a same-arc re-anchor
+            self._exit_fit = fit
         n = len(points)
         length = float(arc_end + c.after_turn_m)
         turn = Corridor(
@@ -523,6 +527,7 @@ class JunctionTurn:
         self._committed = None
         self._exit_odo = None
         self._entry = None
+        self._exit_fit = None
 
     @property
     def committed(self):
@@ -581,23 +586,36 @@ class JunctionTurn:
         heading_body = wrap(exit_heading_odo - pose.yaw_rad)
         return TurnPlan(turn, self._radius, "kerb", 0.0, arc_end, heading_body, verified, None, clearance)
 
-    def replan_same_arc(self, grid, pose, time_s):
+    def replan_same_arc(self, grid, pose, time_s, min_shift_m=None):
         """Re-anchor the latched path on the exit line re-measured from here, keeping its
         radius and tangent point: the arc's end and the exit straight move with the exit
         lane estimate (a few decimetres, from closer by), the car's own heading does not
         change. For a block far along the path (the exit straight read against a kerb cell
         at 20 m) this is the right remedy; a block at the car's own position needs
-        ``replan_mid_arc``. Returns a TurnPlan and re-latches, or None."""
+        ``replan_mid_arc``. With ``min_shift_m`` it is the routine refinement while the car
+        drives the arc: the exit kerb is read better from closer by (the first live turn
+        committed on a reading from 30 m that was 1.1 m off, and nothing revisited it until
+        the kerb corridor took over on the exit lane). Returns a TurnPlan and re-latches,
+        or None."""
         if self._entry is None or self._exit_odo is None:
             return None
         c = self.config
         entry_pose, y_entry, radius = self._entry
         exit_odo, heading_odo = self._exit_odo
-        exit_point, source, heading, _ = self.exit_line(grid, pose, pose.to_body(exit_odo[None])[0], wrap(heading_odo - pose.yaw_rad))
+        exit_point, source, heading, fit = self.exit_line(grid, pose, pose.to_body(exit_odo[None])[0], wrap(heading_odo - pose.yaw_rad))
         if source != "kerb":
             return None
         exit_odo_new = pose.to_world(np.array([exit_point]))[0]
         heading_odo_new = pose.yaw_rad + heading
+        if min_shift_m is not None:
+            # Refinement, not a repair: only when the exit line has moved by more than the
+            # latch width across its own direction, on at least as much kerb evidence as the
+            # latched line had (a reading from a worse angle does not replace a better one).
+            normal = np.array([-math.sin(heading_odo_new), math.cos(heading_odo_new)])
+            if abs(float((exit_odo - exit_odo_new) @ normal)) < min_shift_m:
+                return None
+            if self._exit_fit is not None and fit["stations"] < self._exit_fit["stations"]:
+                return None
         built = _arc_path(y_entry, entry_pose.to_body(exit_odo_new[None])[0], wrap(heading_odo_new - entry_pose.yaw_rad), radius, c.step_m, c.after_turn_m)
         if built is None:
             return None
@@ -607,6 +625,14 @@ class JunctionTurn:
         ahead = np.flatnonzero(body[:, 0] > -1.0)
         if ahead.size < 2:
             return None
+        if min_shift_m is not None:
+            # Keeping the tangent point moves the arc's start along the entry straight: once
+            # the car is in the arc the re-anchored path no longer passes under it (on the
+            # synthetic left turns it jumped 0.8 m sideways and the car left the lane). Then
+            # the refinement is a fresh arc from the car's own pose to the new exit line.
+            nearest = int(np.argmin(np.abs(body[:, 0])))
+            if abs(float(body[nearest, 1])) > c.refine_max_jump_m:
+                return self._mid_arc(grid, pose, time_s, exit_point, heading, fit)
         hazards = _HazardField(grid, pose, self.barrier_age_s)
         feasible, _, _ = _swept_check(grid, pose, body[int(ahead[0]) :], self.body, c, self.barrier_age_s, hazards, margin_m=c.follow_margin_m, road_memory_s=self.road_memory_s)
         if not feasible:
@@ -615,6 +641,7 @@ class JunctionTurn:
         arc_index = int(np.searchsorted(arcs, arc_end - 1e-6))
         self._committed = (points_odo, arc_index, heading_odo_new)
         self._exit_odo = (exit_odo_new, heading_odo_new)
+        self._exit_fit = fit
         return self.follow(grid, pose, time_s)
 
     def replan_mid_arc(self, grid, pose, time_s):
@@ -629,11 +656,14 @@ class JunctionTurn:
         """
         if self._exit_odo is None:
             return None
-        c = self.config
         exit_odo, heading_odo = self._exit_odo
         exit_point, source, heading, fit = self.exit_line(grid, pose, pose.to_body(exit_odo[None])[0], wrap(heading_odo - pose.yaw_rad))
         if source != "kerb":
             return None
+        return self._mid_arc(grid, pose, time_s, exit_point, heading, fit)
+
+    def _mid_arc(self, grid, pose, time_s, exit_point, heading, fit):
+        c = self.config
         e = np.asarray(exit_point, dtype=float)
         theta = wrap(heading)
         if abs(theta) < math.radians(10):
@@ -664,5 +694,6 @@ class JunctionTurn:
         arc_index = int(np.searchsorted(arcs, arc_end - 1e-6))
         self._committed = (pose.to_world(points), arc_index, pose.yaw_rad + theta)
         self._exit_odo = (pose.to_world(np.array([exit_point]))[0], pose.yaw_rad + theta)
+        self._exit_fit = fit
         self._radius = radius
         return self.follow(grid, pose, time_s)

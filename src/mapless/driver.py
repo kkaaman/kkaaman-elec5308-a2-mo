@@ -319,6 +319,14 @@ class MaplessDriver:
                                 d.update(turn="latched path no longer clears the terrain: stopping on it")
                             else:
                                 d.update(turn="latched path blocked: re-planned mid-arc")
+            if plan_turn is not None and plan_turn.arc_end_m > 0.0:
+                # Still on the arc: the exit kerb is read better from here than from where
+                # the turn was committed; move the exit straight (same arc, same tangent
+                # point) when the re-measured line has shifted by more than the latch width.
+                refined = self.turn.replan_same_arc(self.grid, motion.odometry, t, min_shift_m=c.junction.refine_shift_m)
+                if refined is not None:
+                    plan_turn = refined
+                    d.update(turn="exit line refined from closer by")
             if plan_turn is not None:
                 corridor = self._turn_corridor = plan_turn.corridor
                 hold_at = max(0.0, plan_turn.verified_m - c.body.front_m)
