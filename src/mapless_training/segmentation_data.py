@@ -7,7 +7,9 @@ to ``mapless.road_segmentation.ROAD_CLASSES`` with ``carla_tags_to_classes``.
 Splits are by whole run and by town, never by neighbouring frames (section 12):
 - train: Town01, 03, 04, 05, 06; validation: Town02; Town07 is the held-out final test
   town and Town10HD the development benchmark — a run from either is refused.
-``provenance()`` records the runs, towns, suite hashes and label mapping for the
+A run is also refused unless its capture inspection accepted it (integrity and geometry
+PASS; the manifest's COMPLETE status stands in when no inspection has run), except with
+``allow_unaccepted=True`` for smoke runs. ``provenance()`` records the runs, towns, suite hashes and label mapping for the
 checkpoint, which the deployed loader checks before using the weights.
 """
 
@@ -40,15 +42,42 @@ class Sample:
     town: str
 
 
-def index_runs(run_dirs, cameras=None):
-    """Samples from each run; refuses runs from test-only towns and runs that are INCOMPLETE."""
+def acceptance_of(run, manifest):
+    """The capture inspection's verdict (``<run>/inspection/summary.json``, written by
+    ``evaluation.capture_inspection``) when it ran; otherwise the manifest's status alone,
+    which is all a run has before inspection. ``accepted`` needs integrity and geometry PASS."""
+    summary = Path(run) / "inspection" / "summary.json"
+    if summary.exists():
+        verdict = json.loads(summary.read_text(encoding="utf-8")).get("acceptance") or {}
+        integrity, geometry = verdict.get("integrity") or {}, verdict.get("geometry") or {}
+        accepted = integrity.get("status") == "PASS" and geometry.get("status") == "PASS"
+        return dict(
+            source="inspection",
+            status=verdict.get("status"),
+            integrity=integrity.get("status"),
+            geometry=geometry.get("status"),
+            accepted=accepted,
+            reasons=list(verdict.get("reasons") or (["inspection summary holds no verdict"] if not verdict else [])),
+        )
+    status = manifest.get("status")
+    complete = status == "COMPLETE"
+    return dict(source="manifest", status=status, integrity=None, geometry=None, accepted=complete, reasons=[] if complete else [f"run status {status}"])
+
+
+def index_runs(run_dirs, cameras=None, allow_unaccepted=False):
+    """Samples from each run; refuses runs from test-only towns and runs the inspection (or,
+    without one, the manifest) does not accept. ``allow_unaccepted`` is for smoke runs only;
+    the acceptance is recorded per run either way so the provenance shows it."""
     samples, manifests = [], {}
     for run in map(Path, run_dirs):
         manifest = json.loads((run / "manifest.json").read_text(encoding="utf-8"))
         town = town_of(manifest)
         if town in REFUSED_TOWNS:
             raise ValueError(f"{run}: {town} is a test-only town and may not be trained on")
-        manifests[str(run)] = dict(town=town, suite_sha256=manifest.get("suite_sha256"), seed=manifest.get("seed"), status=manifest.get("status"))
+        acceptance = acceptance_of(run, manifest)
+        if not acceptance["accepted"] and not allow_unaccepted:
+            raise ValueError(f"{run}: not accepted for training by its {acceptance['source']} ({acceptance['status']}: {'; '.join(acceptance['reasons']) or 'integrity/geometry not PASS'}); pass allow_unaccepted=True only for a smoke run")
+        manifests[str(run)] = dict(town=town, suite_sha256=manifest.get("suite_sha256"), seed=manifest.get("seed"), status=manifest.get("status"), acceptance=acceptance)
         with open(run / "samples.jsonl", encoding="utf-8") as lines:
             for line in lines:
                 row = json.loads(line)
@@ -83,10 +112,28 @@ def load_pair(sample, size_wh, cv2):
     return np.ascontiguousarray(rgb), labels
 
 
-def class_weights(samples, size_wh, cv2, limit=200):
-    """Inverse-frequency class weights from up to ``limit`` label images."""
+def weight_samples(samples, limit=200, seed=0):
+    """Up to ``limit`` samples taken evenly across (run, camera) groups, round robin over a
+    seeded shuffle of each group, so one long capture or one camera does not set the
+    frequencies alone (the first ``limit`` samples of the index would)."""
+    groups = {}
+    for sample in samples:
+        groups.setdefault((str(sample.run), sample.camera), []).append(sample)
+    rng = np.random.default_rng(seed)
+    queues = [list(rng.permutation(len(g))) for g in groups.values()]
+    pools = list(groups.values())
+    chosen = []
+    while len(chosen) < min(limit, len(samples)):
+        for pool, queue in zip(pools, queues):
+            if queue and len(chosen) < limit:
+                chosen.append(pool[queue.pop()])
+    return chosen
+
+
+def class_weights(samples, size_wh, cv2, limit=200, seed=0):
+    """Inverse-frequency class weights from up to ``limit`` label images, stratified by run and camera."""
     counts = np.zeros(len(ROAD_CLASSES))
-    for sample in samples[:limit]:
+    for sample in weight_samples(samples, limit, seed):
         _, labels = load_pair(sample, size_wh, cv2)
         counts += np.bincount(labels.ravel(), minlength=len(ROAD_CLASSES))[: len(ROAD_CLASSES)]
     freq = counts / max(counts.sum(), 1)

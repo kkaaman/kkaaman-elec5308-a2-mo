@@ -10,9 +10,11 @@ Given the lead track ahead in the lane, the speed the car should hold this tick:
   capped so that the ego still stops ``standstill_m`` short.
 
 The stopping distance formula is the plan's: ``v t_response + v^2 / (2 a_min) +
-standstill_margin + uncertainty_margin``. A lead track that is coasting (not seen this
-frame) is followed with its last state; one that has been deleted is no lead, and the
-planner's own clearance rule takes over.
+standstill_margin + uncertainty_margin``. Only a track the tracker has confirmed leads
+the car: a confirmed one that is coasting (not seen this frame) is followed with its
+last state; a tentative one never is (review of the G3 framework: a tentative track that
+missed a frame used to read as coasting and lead the car), and one that has been deleted
+is no lead, so the planner's own clearance rule takes over.
 """
 
 import math
@@ -20,7 +22,10 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from mapless.contracts import TrackStatus
 from mapless.obstacles import project_onto_polyline
+
+LEAD_STATUSES = (TrackStatus.CONFIRMED, TrackStatus.COASTING)
 
 
 @dataclass(frozen=True)
@@ -73,10 +78,13 @@ class FollowingController:
     def lead_ahead(self, tracks, pose, path_body, max_ahead_m=60.0, s_from_m=0.0):
         """The nearest track within the lane along ``path_body`` (N x 2, vehicle frame), as
         (distance ahead of the rear axle, track). ``s_from_m``: the rear axle's own arc length
-        on the line (the corridor line starts behind the car)."""
+        on the line (the corridor line starts behind the car). Tentative and deleted
+        tracks are never leads, whatever the caller passes."""
         best = None
         line = np.asarray(path_body, dtype=float)
         for track in tracks:
+            if track.status not in LEAD_STATUSES:
+                continue
             body = pose.to_body(track.position[None])
             s, lateral, outside = project_onto_polyline(body, line)
             ahead = float(s[0]) - s_from_m

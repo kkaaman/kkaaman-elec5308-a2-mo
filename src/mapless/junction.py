@@ -55,6 +55,8 @@ class JunctionConfig:
     radius_step_m: float = 0.5
     latch_m: float = 1.0
     refine_shift_m: float = 0.5  # a committed path follows a re-measured exit line that moved by more than this
+    refine_persist_s: float = 0.5  # ... and has held (within refine_candidate_m of itself) for this long
+    refine_candidate_m: float = 0.3
     refine_max_jump_m: float = 0.25  # a re-anchored path further than this from the car is rebuilt from the car's pose instead  # keep the last radius while it is feasible
     margin_m: float = 0.2  # around the body when choosing a turn
     follow_margin_m: float = 0.05  # around the body when re-verifying the latched turn (hysteresis)
@@ -79,6 +81,8 @@ class JunctionConfig:
     observed_share: float = 0.4  # of a pose's footprint cells seen as road: the pose is observed
     gap_m: float = 1.0  # unobserved poses allowed over this length ...
     gap_per_m: float = 0.3  # ... or this fraction of their distance (LiDAR rings spread out)
+    near_cover_m: float = 8.0  # within this along the path (the stopping envelope) verified means covered across the body's width ...
+    near_column_share: float = 0.8  # ... : this share of the footprint's lateral columns hold observed road, gaps allowed gap_m only
     after_turn_m: float = 15.0  # centreline continues this far past the arc
     exit_tolerance_rad: float = math.radians(10)  # hand back to kerb following within this of the exit heading
     replan_max_heading_rad: float = math.radians(5)  # a blocked latched path is re-planned from the entry line while the car has turned less than this (beyond: mid-arc)
@@ -291,12 +295,21 @@ def _swept_check(grid, pose, points, body, c, barrier_age_s, hazard_xy=None, mar
         clearance = float(hazard_xy.query(scored).min()) + margin
     road = grid.labels(world, max_age_s=c.road_memory_s if road_memory_s is None else road_memory_s).reshape(len(points), per_pose) == CellLabel.ROAD
     observed = road.mean(axis=1) >= c.observed_share
+    # Sparse support is not verified free space (review of 6773e24: a footprint with ROAD on
+    # one half and UNKNOWN on the other passed as observed at 40%). Within the stopping
+    # envelope a pose counts only when observed road spans the body's width: a share of
+    # the footprint's lateral columns (each the body's length long) holds a ROAD cell.
+    # Beyond it the share rule stands, as far LiDAR rings never cover a footprint, so a
+    # far pose is tentative support that the car grows into, never drives into blind.
+    near = arcs <= c.near_cover_m
+    columns = road.reshape(len(points), nu, nv).any(axis=1).mean(axis=1)
+    observed = np.where(near, observed & (columns >= c.near_column_share), observed)
     observed[0] = True  # under the car: the LiDAR's blind ring
     verified = 0.0
-    for x, seen in zip(arcs, observed):
+    for x, seen, is_near in zip(arcs, observed, near):
         if seen:
             verified = float(x)
-        elif x - verified > max(c.gap_m, c.gap_per_m * x):
+        elif x - verified > (c.gap_m if is_near else max(c.gap_m, c.gap_per_m * x)):
             break
     return True, verified, clearance
 
@@ -321,7 +334,9 @@ class JunctionTurn:
         self._committed = None  # (odometry points, arc end index, exit heading in odometry) once the turn has begun
         self._exit_odo = None  # the route's exit point and heading in the odometry frame, kept for a mid-arc re-plan
         self._entry = None  # (pose at commit, y_entry, radius): the entry frame the latched path was built in
-        self._exit_fit = None  # the exit-line fit the latched path rests on; a refinement needs at least its evidence
+        self._exit_fit = None  # the exit-line fit the latched path rests on; a refinement must read the kerb from nearer
+        self.refine_note = None  # why the last refinement did or did not move the path (console diagnostics)
+        self._refine_candidate = None  # (odometry exit point, first seen) of a re-measured line that differs from the latched
 
     @property
     def barrier_age_s(self):
@@ -443,7 +458,15 @@ class JunctionTurn:
                     heading = exit_heading_body + math.atan(slope)
                     ch, sh = math.cos(exit_heading_body), math.sin(exit_heading_body)
                     point = (exit_point_body[0] - sh * lateral, exit_point_body[1] + ch * lateral)
-                    fit = dict(stations=int(keep.sum()), mad=round(mad, 3), kerb_from_probe_m=round(float(distance), 2), heading_fix_deg=round(math.degrees(math.atan(slope)), 1), fitted_skew_deg=round(fitted_deg, 1))
+                    kept_body = pose.to_body(probe.to_world(np.column_stack((x[keep], y[keep]))))
+                    fit = dict(
+                        stations=int(keep.sum()),
+                        mad=round(mad, 3),
+                        kerb_from_probe_m=round(float(distance), 2),
+                        heading_fix_deg=round(math.degrees(math.atan(slope)), 1),
+                        fitted_skew_deg=round(fitted_deg, 1),
+                        range_m=round(float(np.median(np.hypot(kept_body[:, 0], kept_body[:, 1]))), 1),  # the kerb stations' distance from the car
+                    )
                     return point, "kerb", heading, fit
         return tuple(exit_point_body), "route", exit_heading_body, None
 
@@ -528,6 +551,7 @@ class JunctionTurn:
         self._exit_odo = None
         self._entry = None
         self._exit_fit = None
+        self._refine_candidate = None
 
     @property
     def committed(self):
@@ -604,18 +628,34 @@ class JunctionTurn:
         exit_odo, heading_odo = self._exit_odo
         exit_point, source, heading, fit = self.exit_line(grid, pose, pose.to_body(exit_odo[None])[0], wrap(heading_odo - pose.yaw_rad))
         if source != "kerb":
+            self.refine_note = "exit kerb not read from here"
             return None
         exit_odo_new = pose.to_world(np.array([exit_point]))[0]
         heading_odo_new = pose.yaw_rad + heading
         if min_shift_m is not None:
             # Refinement, not a repair: only when the exit line has moved by more than the
-            # latch width across its own direction, on at least as much kerb evidence as the
-            # latched line had (a reading from a worse angle does not replace a better one).
+            # latch width across its own direction, read from nearer than the latched line
+            # was (the kerb estimate's bias grows with range; a reading from farther off does
+            # not replace a nearer one).
             normal = np.array([-math.sin(heading_odo_new), math.cos(heading_odo_new)])
-            if abs(float((exit_odo - exit_odo_new) @ normal)) < min_shift_m:
+            shift = float((exit_odo - exit_odo_new) @ normal)
+            if abs(shift) < min_shift_m:
+                self._refine_candidate = None
+                self.refine_note = f"exit line within {shift:+.2f} m of the latched"
                 return None
-            if self._exit_fit is not None and fit["stations"] < self._exit_fit["stations"]:
+            # ... and only once the new reading has held for refine_persist_s: the kerb
+            # estimate jumps by a metre from one tick to the next as a far station enters or
+            # leaves the fit, and the path must not follow every jump.
+            candidate = self._refine_candidate
+            if candidate is not None and abs(float((candidate[0] - exit_odo_new) @ normal)) <= c.refine_candidate_m:
+                held = self._now - candidate[1]
+            else:
+                self._refine_candidate, held = (exit_odo_new, self._now), 0.0
+            if held < c.refine_persist_s:
+                self.refine_note = f"exit line {shift:+.2f} m off for {held:.1f} s (read from {fit['range_m']} m)"
                 return None
+            self._refine_candidate = None
+            self.refine_note = f"exit line {shift:+.2f} m off, read from {fit['range_m']} m"
         built = _arc_path(y_entry, entry_pose.to_body(exit_odo_new[None])[0], wrap(heading_odo_new - entry_pose.yaw_rad), radius, c.step_m, c.after_turn_m)
         if built is None:
             return None
@@ -626,16 +666,23 @@ class JunctionTurn:
         if ahead.size < 2:
             return None
         if min_shift_m is not None:
+            self.refine_note += "; re-anchored"
             # Keeping the tangent point moves the arc's start along the entry straight: once
             # the car is in the arc the re-anchored path no longer passes under it (on the
             # synthetic left turns it jumped 0.8 m sideways and the car left the lane). Then
             # the refinement is a fresh arc from the car's own pose to the new exit line.
             nearest = int(np.argmin(np.abs(body[:, 0])))
             if abs(float(body[nearest, 1])) > c.refine_max_jump_m:
-                return self._mid_arc(grid, pose, time_s, exit_point, heading, fit)
+                self.refine_note = self.refine_note.replace("re-anchored", "fresh arc from here")
+                mid = self._mid_arc(grid, pose, time_s, exit_point, heading, fit)
+                if mid is None:
+                    self.refine_note += " (not clear)"
+                return mid
         hazards = _HazardField(grid, pose, self.barrier_age_s)
         feasible, _, _ = _swept_check(grid, pose, body[int(ahead[0]) :], self.body, c, self.barrier_age_s, hazards, margin_m=c.follow_margin_m, road_memory_s=self.road_memory_s)
         if not feasible:
+            if min_shift_m is not None:
+                self.refine_note += " (not clear)"
             return None
         arcs = np.concatenate(([0.0], np.cumsum(np.hypot(*np.diff(points_entry, axis=0).T))))
         arc_index = int(np.searchsorted(arcs, arc_end - 1e-6))

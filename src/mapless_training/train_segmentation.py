@@ -10,12 +10,16 @@ image on this machine.
 
 The checkpoint ``{"state_dict", "provenance", "input_size"}`` is what
 ``mapless.road_segmentation.TorchRoadSegmenter`` loads; the provenance names the runs
-and towns (Town07/Town10HD refused by the dataset index) so the deployed loader can
-check it. A ``.provenance.json`` sidecar goes beside it.
+and towns (Town07/Town10HD refused by the dataset index, unaccepted captures refused
+unless ``--allow-unaccepted``), the seed, and which epoch was saved. The main checkpoint
+is the epoch with the best validation mIoU (loss breaks ties); the final epoch is kept
+beside it as ``*_last.pt``. Without a validation split there is nothing to select on, so
+the file is named ``*_smoke.pt`` and its provenance says ``validated: false``. A
+``.provenance.json`` sidecar goes beside each checkpoint.
 
 Usage:
     python scripts/train_mapless_segmentation.py --run <capture run> [--run ...] \
-        --output models/mapless_road_seg.pt --epochs 8 --batch 8
+        --output models/mapless_road_seg.pt --epochs 8 --batch 8 --seed 0
 
 Status: the loop is written and exercised on a two-sample synthetic run in the unit
 tests (one epoch, CPU); the first real training run on the Town03/04/05 captures is the
@@ -24,6 +28,7 @@ G2 debug pass.
 
 import argparse
 import json
+import random
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -67,15 +72,32 @@ def boundary_agreement(pred, truth, class_index, tolerance_px=2):
     return float((t_edge & dilated).sum() / t_edge.sum())
 
 
-def evaluate(model, loader, device, torch, architecture="bisenetv2"):
+def evaluate(model, loader, device, torch, architecture="bisenetv2", warmup=2):
+    """Per-class IoU and recall, pavement boundary agreement and ms/image. CUDA kernels run
+    asynchronously, so the timing synchronises before and after each forward pass and
+    skips ``warmup`` untimed passes first (allocator and cuDNN autotuning); CPU needs neither."""
     n = len(ROAD_CLASSES)
     total = np.zeros((n, n), dtype=np.int64)
     boundary, times = [], []
+    cuda = str(device).startswith("cuda")
+
+    def sync():
+        if cuda:
+            torch.cuda.synchronize(device)
+
     model.eval()
+    warmed = not cuda
     with torch.no_grad():
         for x, y in loader:
+            x = x.to(device)
+            if not warmed:
+                for _ in range(warmup):
+                    logits(model, x, architecture)
+                warmed = True
+            sync()
             begun = time.perf_counter()
-            main, _ = logits(model, x.to(device), architecture)
+            main, _ = logits(model, x, architecture)
+            sync()
             times.append((time.perf_counter() - begun) / len(x))
             pred = main.argmax(dim=1).cpu().numpy()
             truth = y.numpy()
@@ -93,23 +115,43 @@ def evaluate(model, loader, device, torch, architecture="bisenetv2"):
         miou=float(iou.mean()),
         pavement_boundary_within_2px=float(np.mean(boundary)) if boundary else None,
         ms_per_image=float(1000 * np.mean(times)) if times else None,
+        timing=dict(device=str(device), synchronised=cuda, warmup_passes=warmup if cuda else 0, batches=len(times)),
     )
 
 
-def train(run_dirs, output, epochs=8, batch=8, size_wh=(512, 256), lr=1e-3, device=None, cameras=None, max_samples=None, workers=0, architecture="bisenetv2", pretrained=True):
+def seed_everything(seed, torch):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+
+
+def better(candidate, best):
+    """Selection by validation mIoU, loss as the tie-break (and the whole criterion when
+    there is no validation split)."""
+    if best is None:
+        return True
+    if candidate["miou"] is not None and best["miou"] is not None and candidate["miou"] != best["miou"]:
+        return candidate["miou"] > best["miou"]
+    return candidate["loss"] < best["loss"]
+
+
+def train(run_dirs, output, epochs=8, batch=8, size_wh=(512, 256), lr=1e-3, device=None, cameras=None, max_samples=None, workers=0, architecture="bisenetv2", pretrained=True, seed=0, allow_unaccepted=False):
     import cv2  # noqa: PLC0415
     import torch  # noqa: PLC0415
 
     if architecture not in ARCHITECTURES:
         raise ValueError(f"architecture must be one of {ARCHITECTURES}")
-    samples, manifests = index_runs(run_dirs, cameras)
+    seed_everything(seed, torch)
+    samples, manifests = index_runs(run_dirs, cameras, allow_unaccepted=allow_unaccepted)
     train_samples, validation_samples, other = split(samples)
     if max_samples:
         train_samples, validation_samples = train_samples[:max_samples], validation_samples[: max(1, max_samples // 4)]
     if not train_samples:
         raise ValueError("no training samples (training towns: Town01, 03, 04, 05, 06)")
     device = device or ("cuda" if torch.cuda.is_available() else "cpu")
-    weights = torch.tensor(class_weights(train_samples, size_wh, cv2), dtype=torch.float32, device=device)
+    weights = torch.tensor(class_weights(train_samples, size_wh, cv2, seed=seed), dtype=torch.float32, device=device)
     model = build_model(architecture, len(ROAD_CLASSES), pretrained=pretrained and architecture == "segformer_b0").to(device)
     if architecture == "segformer_b0":
         # The pretrained encoder learns slowly, the new head at the full rate.
@@ -119,13 +161,15 @@ def train(run_dirs, output, epochs=8, batch=8, size_wh=(512, 256), lr=1e-3, devi
     else:
         optimiser = torch.optim.Adam(model.parameters(), lr=lr)
     loss_fn = torch.nn.CrossEntropyLoss(weight=weights)
-    loader = torch.utils.data.DataLoader(TorchSegmentationDataset(train_samples, size_wh), batch_size=batch, shuffle=True, num_workers=workers)
+    shuffle_rng = torch.Generator().manual_seed(seed)
+    loader = torch.utils.data.DataLoader(TorchSegmentationDataset(train_samples, size_wh), batch_size=batch, shuffle=True, num_workers=workers, generator=shuffle_rng)
     val_loader = (
         torch.utils.data.DataLoader(TorchSegmentationDataset(validation_samples, size_wh), batch_size=batch, num_workers=workers)
         if validation_samples
         else None
     )
-    history = []
+    validated = val_loader is not None
+    history, best = [], None
     for epoch in range(epochs):
         model.train()
         losses = []
@@ -138,31 +182,52 @@ def train(run_dirs, output, epochs=8, batch=8, size_wh=(512, 256), lr=1e-3, devi
             optimiser.step()
             losses.append(float(loss.detach()))
         row = dict(epoch=epoch + 1, loss=float(np.mean(losses)))
-        if val_loader is not None:
+        if validated:
             row["validation"] = evaluate(model, val_loader, device, torch, architecture)
+        candidate = dict(epoch=epoch + 1, loss=row["loss"], miou=row["validation"]["miou"] if validated else None)
+        if better(candidate, best):
+            # A CPU copy, so the chosen epoch survives the ones after it.
+            best = dict(candidate, state_dict={k: v.detach().cpu().clone() for k, v in model.state_dict().items()})
         history.append(row)
         print(json.dumps(row), flush=True)
-    info = provenance(
-        manifests,
-        train_samples,
-        validation_samples,
-        size_wh,
-        extra=dict(
-            created=datetime.now(timezone.utc).isoformat(),
-            epochs=epochs,
-            batch=batch,
-            learning_rate=lr,
-            device=device,
-            towns_left_out=other,
-            history=history,
-            architecture=architecture,
-            pretrained_encoder=bool(pretrained and architecture == "segformer_b0"),
-        ),
-    )
     output = Path(output)
+    if not validated and "smoke" not in output.stem:
+        # Nothing was validated, so the file says so: the car should not take it for a trained model.
+        output = output.with_name(f"{output.stem}_smoke{output.suffix}")
+    selection = dict(
+        validated=validated,
+        criterion="validation mIoU, loss as tie-break" if validated else "training loss (no validation split: smoke checkpoint)",
+        best_epoch=best["epoch"],
+        best_miou=best["miou"],
+        best_loss=best["loss"],
+        last_epoch=epochs,
+    )
+    common = dict(
+        created=datetime.now(timezone.utc).isoformat(),
+        epochs=epochs,
+        batch=batch,
+        learning_rate=lr,
+        seed=seed,
+        device=device,
+        towns_left_out=other,
+        history=history,
+        architecture=architecture,
+        pretrained_encoder=bool(pretrained and architecture == "segformer_b0"),
+        allow_unaccepted=allow_unaccepted,
+        validated=validated,
+        smoke=not validated,
+    )
+    # The last epoch is kept beside the selected one (for resuming and the report) when a
+    # validation split did the selecting; a smoke checkpoint is its own last epoch.
+    last = output.with_name(f"{output.stem}_last{output.suffix}") if validated else None
+    info = provenance(manifests, train_samples, validation_samples, size_wh, extra=dict(common, selection=dict(selection, saved="best"), epoch=best["epoch"], last_checkpoint=str(last) if last else None))
     output.parent.mkdir(parents=True, exist_ok=True)
-    torch.save(dict(state_dict=model.state_dict(), provenance=info, input_size=list(size_wh)), output)
+    torch.save(dict(state_dict=best["state_dict"], provenance=info, input_size=list(size_wh)), output)
     write_provenance_sidecar(output, info)
+    if last is not None:
+        last_info = provenance(manifests, train_samples, validation_samples, size_wh, extra=dict(common, selection=dict(selection, saved="last"), epoch=epochs, last_checkpoint=None))
+        torch.save(dict(state_dict=model.state_dict(), provenance=last_info, input_size=list(size_wh)), last)
+        write_provenance_sidecar(last, last_info)
     return output, info
 
 
@@ -180,9 +245,13 @@ def main(argv=None):
     parser.add_argument("--workers", type=int, default=0)
     parser.add_argument("--device", default=None)
     parser.add_argument("--architecture", choices=ARCHITECTURES, default="bisenetv2")
+    parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--allow-unaccepted", action="store_true", help="Smoke runs only: train on captures the inspection did not accept")
     args = parser.parse_args(argv)
-    path, info = train(args.run, args.output, args.epochs, args.batch, (args.width, args.height), args.lr, args.device, args.camera, args.max_samples, args.workers, args.architecture)
-    print(json.dumps(dict(checkpoint=str(path), towns=info["training_towns"], samples=info["samples"], last=info["history"][-1] if info["history"] else None), default=str))
+    path, info = train(
+        args.run, args.output, args.epochs, args.batch, (args.width, args.height), args.lr, args.device, args.camera, args.max_samples, args.workers, args.architecture, seed=args.seed, allow_unaccepted=args.allow_unaccepted
+    )
+    print(json.dumps(dict(checkpoint=str(path), towns=info["training_towns"], samples=info["samples"], selection=info["selection"], last=info["history"][-1] if info["history"] else None), default=str))
 
 
 if __name__ == "__main__":

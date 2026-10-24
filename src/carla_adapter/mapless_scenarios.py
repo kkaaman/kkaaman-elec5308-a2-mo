@@ -24,6 +24,7 @@ calls ``spawn`` after the site is chosen and ``step`` every tick.
 
 import math
 from dataclasses import asdict, dataclass
+from types import SimpleNamespace
 
 import numpy as np
 
@@ -32,17 +33,99 @@ WALKER = "walker.pedestrian.0001"
 
 
 def _box_truth(actor, core_xy):
-    """The actor's plan-view box in the evaluator's core frame: centre, yaw, extent."""
+    """The actor's plan-view box in the evaluator's core frame: box centre, yaw, extent.
+
+    The box centre is the bounding box's local ``location`` carried by the actor
+    transform (CARLA vehicles' boxes sit ahead of the actor origin), not the origin: the
+    external review found the separation measured from the origin and the smallest half
+    extent, which hid an overlap of the ego and lead boxes.
+    """
     t = actor.get_transform()
     bb = actor.bounding_box
-    x, y = core_xy(t.location)
+    yaw = math.radians(t.rotation.yaw)
+    # CARLA frame: forward (cos, sin), right (-sin, cos); the box offset lies along the actor's axes.
+    bx, by = bb.location.x, bb.location.y
+    centre = SimpleNamespace(x=t.location.x + bx * math.cos(yaw) - by * math.sin(yaw), y=t.location.y + bx * math.sin(yaw) + by * math.cos(yaw), z=t.location.z)
     v = actor.get_velocity()
     return dict(
-        centre_xy=[x, y],
-        yaw_rad=-math.radians(t.rotation.yaw),
+        origin_xy=list(core_xy(t.location)),
+        centre_xy=list(core_xy(centre)),
+        box_offset_m=[bx, by],
+        yaw_rad=-yaw,
         extent_m=[bb.extent.x, bb.extent.y],
         speed_mps=math.hypot(v.x, v.y),
     )
+
+
+def box_vertices(centre_xy, yaw_rad, half_lengths):
+    """Corners of an oriented box: ``half_lengths`` along and across the heading."""
+    cx, cy = centre_xy
+    c, s = math.cos(yaw_rad), math.sin(yaw_rad)
+    a, b = half_lengths
+    return [(cx + c * u - s * v, cy + s * u + c * v) for u, v in ((a, b), (a, -b), (-a, -b), (-a, b))]
+
+
+def ego_vertices(truth, body):
+    """The ego body box from the logged rear-axle pose (``body`` already carries the box offset)."""
+    x, y = truth["rear_axle_xy"]
+    c, s = math.cos(truth["yaw_rad"]), math.sin(truth["yaw_rad"])
+    b = body
+    return [(x + c * u - s * v, y + s * u + c * v) for u, v in ((b.front_m, b.half_width_m), (b.front_m, -b.half_width_m), (b.rear_m, -b.half_width_m), (b.rear_m, b.half_width_m))]
+
+
+def _segment_distance(p, a, b):
+    ax, ay, bx, by = *a, *b
+    dx, dy = bx - ax, by - ay
+    length2 = dx * dx + dy * dy
+    t = 0.0 if length2 == 0 else max(0.0, min(1.0, ((p[0] - ax) * dx + (p[1] - ay) * dy) / length2))
+    return math.hypot(p[0] - (ax + t * dx), p[1] - (ay + t * dy))
+
+
+def polygon_distance(a, b):
+    """Plan-view distance between two convex polygons; 0 when they touch or overlap.
+
+    Separating-axis test on the edge normals of both, then the nearest vertex-to-edge
+    pair. Used instead of centre distance less a half extent so a long vehicle is
+    measured from its side and an overlap reads 0.
+    """
+    for poly, other in ((a, b), (b, a)):
+        for i in range(len(poly)):
+            (x0, y0), (x1, y1) = poly[i], poly[(i + 1) % len(poly)]
+            nx, ny = y1 - y0, x0 - x1
+            pa = [nx * x + ny * y for x, y in poly]
+            pb = [nx * x + ny * y for x, y in other]
+            if max(pa) < min(pb) or max(pb) < min(pa):
+                break
+        else:
+            continue
+        break
+    else:
+        return 0.0
+    best = math.inf
+    for poly, other in ((a, b), (b, a)):
+        for p in poly:
+            for i in range(len(other)):
+                best = min(best, _segment_distance(p, other[i], other[(i + 1) % len(other)]))
+    return best
+
+
+def separations(log, actor_truths, body):
+    """Per-tick ego-box to actor-box distance (``None`` where the actor was not recorded)."""
+    out = []
+    for row, actor in zip(log, actor_truths):
+        if actor is None:
+            out.append(None)
+            continue
+        out.append(polygon_distance(ego_vertices(row["truth"], body), box_vertices(actor["centre_xy"], actor["yaw_rad"], actor["extent_m"])))
+    return out
+
+
+def _ego_frame(truth, point_xy):
+    """A world point in the ego's rear-axle frame (x forward, y left)."""
+    x, y = truth["rear_axle_xy"]
+    c, s = math.cos(truth["yaw_rad"]), math.sin(truth["yaw_rad"])
+    px, py = point_xy[0] - x, point_xy[1] - y
+    return c * px + s * py, -s * px + c * py
 
 
 @dataclass
@@ -76,6 +159,11 @@ class ScriptedActor:
 
     def truth(self):
         return None if self.actor is None else _box_truth(self.actor, self.core_xy)
+
+    def hold_ends_run(self):
+        """Whether a sustained hold may end the run now (review: holding is not a result
+        for every scenario; a car that waits out a crossing must be allowed to resume)."""
+        return True
 
     def destroy(self):
         if self.actor is not None and self.actor.is_alive:
@@ -179,11 +267,15 @@ class CrossingPedestrian(ScriptedActor):
         p = self.params
         wp = waypoints[min(len(waypoints) - 1, int(round(p.brake_at_m)))]
         self.cross_wp = wp
+        self.lane_width_m = float(getattr(wp, "lane_width", 3.5))
         t = wp.transform
         yaw = math.radians(t.rotation.yaw)
         # Start 4 m right of the lane centre (on the pavement), facing left across the lane.
         # CARLA frame (y to the right, yaw clockwise from above): forward (cos, sin), right (-sin, cos).
         right = (-math.sin(yaw), math.cos(yaw))
+        self.cross_xy = self.core_xy(t.location)
+        rx, ry = self.core_xy(SimpleNamespace(x=t.location.x + right[0], y=t.location.y + right[1], z=t.location.z))
+        self.right_core = (rx - self.cross_xy[0], ry - self.cross_xy[1])
         t.location.x += 4.0 * right[0]
         t.location.y += 4.0 * right[1]
         t.location.z += 1.0
@@ -204,6 +296,19 @@ class CrossingPedestrian(ScriptedActor):
         speed = p.walk_mps if self.started else 0.0
         self.actor.apply_control(carla.WalkerControl(direction=carla.Vector3D(*self.direction), speed=speed))
 
+    def cleared(self):
+        """The walker is a metre past the lane's left edge: the car has nothing to wait for."""
+        if self.actor is None or not self.started:
+            return False
+        x, y = self.core_xy(self.actor.get_transform().location)
+        offset = (x - self.cross_xy[0]) * self.right_core[0] + (y - self.cross_xy[1]) * self.right_core[1]
+        return offset <= -(self.lane_width_m / 2 + 1.0)
+
+    def hold_ends_run(self):
+        # Holding while the walker crosses is the expected yield, not an endpoint: only a
+        # hold that outlasts the crossing ends the run (and then fails completion).
+        return self.cleared()
+
 
 SCENARIOS = {
     "crossing_pedestrian": (CrossingPedestrian, "M04"),
@@ -218,25 +323,81 @@ def make_scenario(carla, name, core_xy, **overrides):
 
 
 def score_moving(log, actor_truths, body, min_separation_m=1.0):
-    """Gates for M04–M06 from the drive log and the actor's truth per tick (framework).
+    """Separation gate for M04–M06 from the drive log and the actor's truth per tick.
 
-    - ``no_collision``: the harness's collision sensor saw nothing (checked by the caller).
-    - ``separation``: the body-to-actor plan-view distance never fell under ``min_separation_m``.
-    - ``completion``: the run finished or held, not a fault stop short of the goal.
-    Time-to-collision and false-stop statistics are reported alongside.
+    The ego-box to actor-box distance (``polygon_distance``) never fell under
+    ``min_separation_m``; an overlap reads 0 and fails. ``separation_ok`` is ``None``
+    when no actor was recorded: missing evidence is INCOMPLETE, not a pass (review).
     """
-    separations = []
-    for row, actor in zip(log, actor_truths):
-        if actor is None:
-            continue
-        x, y = row["truth"]["rear_axle_xy"]
-        yaw = row["truth"]["yaw_rad"]
-        cx, cy = actor["centre_xy"]
-        c, s = math.cos(yaw), math.sin(yaw)
-        # Distance from the actor's centre to the ego body box, less the actor's half extent.
-        dx, dy = c * (cx - x) + s * (cy - y), -s * (cx - x) + c * (cy - y)
-        along = max(body.rear_m - dx, 0.0, dx - body.front_m)
-        across = max(abs(dy) - body.half_width_m, 0.0)
-        separations.append(math.hypot(along, across) - min(actor["extent_m"]))
-    worst = min(separations) if separations else None
-    return dict(min_separation_m=worst, separation_ok=worst is None or worst >= min_separation_m, ticks=len(separations))
+    measured = [d for d in separations(log, actor_truths, body) if d is not None]
+    worst = min(measured) if measured else None
+    return dict(min_separation_m=worst, separation_ok=None if worst is None else worst >= min_separation_m, ticks=len(measured))
+
+
+COMPLETION_REQUIRED = {
+    "crossing_pedestrian": "yield while the walker is in the path, then resume and reach the goal",
+    "braking_lead": "hold behind the stopped lead for --hold-s with the gap at or above the separation threshold, or reach the goal",
+    "cut_in": "a gap at or above the separation threshold once the cut-in is complete, then reach the goal",
+}
+
+
+def _ahead_in_band(truth, actor, body, margin_m):
+    """The actor's box centre is not behind the ego and within ``margin_m`` of the body's sides."""
+    dx, dy = _ego_frame(truth, actor["centre_xy"])
+    return dx >= body.rear_m and abs(dy) <= body.half_width_m + margin_m, dx, dy
+
+
+def score_completion(name, log, actor_truths, body, end, held_s, min_separation_m=1.0, goal_tolerance_m=3.0, settle_s=2.0):
+    """Per-scenario completion (review: "held at the obstacle" was accepted for every scenario).
+
+    Returns ``required`` (what the scenario asks of the car), ``passed`` (``True``,
+    ``False``, or ``None`` when the scenario did not play out far enough to judge) and
+    the evidence behind it.
+    """
+    out = dict(required=COMPLETION_REQUIRED[name], end=end, goal_distance_m=log[-1]["truth"]["goal_distance_m"] if log else None)
+    reached = end == "finished" and out["goal_distance_m"] is not None and out["goal_distance_m"] <= goal_tolerance_m
+    gaps = separations(log, actor_truths, body)
+    rows = [(row, actor, gap) for row, actor, gap in zip(log, actor_truths, gaps) if actor is not None]
+    if not rows:
+        return out | dict(passed=None, note="no actor measurements")
+    if name == "crossing_pedestrian":
+        in_path = [i for i, (row, actor, _) in enumerate(rows) if _ahead_in_band(row["truth"], actor, body, 1.0)[0]]
+        if not in_path:
+            return out | dict(passed=None, note="the walker never entered the path")
+        first = in_path[0]
+        speeds = [rows[i][0]["truth"]["speed_mps"] for i in in_path]
+        entry_speed = speeds[0]
+        yield_speed = min(speeds)
+        yielded = yield_speed <= max(0.5, 0.5 * entry_speed)
+        # Cleared: left of the body's band after crossing, or already behind the ego.
+        cleared = None
+        for i in range(first, len(rows)):
+            inside, dx, dy = _ahead_in_band(rows[i][0]["truth"], rows[i][1], body, 1.0)
+            if not inside and (dy > body.half_width_m + 1.0 or dx < body.rear_m):
+                cleared = i
+                break
+        resumed = cleared is not None and max(r["truth"]["speed_mps"] for r, _, _ in rows[cleared:]) >= 0.5
+        out |= dict(entry_speed_mps=entry_speed, yield_speed_mps=yield_speed, yielded=yielded, walker_cleared=cleared is not None, resumed=resumed)
+        if cleared is None and not yielded:
+            return out | dict(passed=False)
+        if cleared is None:
+            return out | dict(passed=None, note="the walker had not cleared the path when the run ended")
+        return out | dict(passed=yielded and resumed and reached)
+    if name == "cut_in":
+        cut = next((i for i, (row, actor, _) in enumerate(rows) if _ahead_in_band(row["truth"], actor, body, 0.5)[0]), None)
+        if cut is None:
+            return out | dict(passed=None, note="the cut-in car never entered the ego's lane")
+        t_cut = rows[cut][0]["time_s"]
+        settled = [gap for row, _, gap in rows[cut:] if row["time_s"] >= t_cut + settle_s]
+        out |= dict(cut_in_time_s=t_cut, settled_ticks=len(settled), min_gap_after_cut_in_m=min(settled) if settled else None)
+        if not settled:
+            return out | dict(passed=None, note=f"the run ended within {settle_s:g} s of the cut-in")
+        return out | dict(passed=min(settled) >= min_separation_m and reached)
+    if name == "braking_lead":
+        _, last_actor, final_gap = rows[-1]
+        lead_stopped = last_actor["speed_mps"] < 0.05
+        out |= dict(lead_stopped=lead_stopped, final_gap_m=final_gap, held_s=held_s)
+        if end == "held at the obstacle":
+            return out | dict(passed=lead_stopped and final_gap is not None and final_gap >= min_separation_m)
+        return out | dict(passed=reached)
+    raise KeyError(name)
