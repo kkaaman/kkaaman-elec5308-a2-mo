@@ -129,6 +129,8 @@ class MaplessDriver:
         self._mouth_odo = None  # the junction mouth, odometry frame, nearest seen since the approach began
         self._lane_heading_odo = None  # the entry lane's direction, odometry frame, latched as the approach begins
         self._turn_corridor = None  # the last turn path steered along (the stop line if the latched path fails mid-arc)
+        self._moving_t = None  # when the car last moved (freshness at a standstill is measured from here)
+        self._opening_odo = None  # the kerb opening last seen, odometry frame: kept while the car waits at the mouth
         self.controller = LocalTrajectoryController(config.control)
         self._last_time = None
         self._finished = False
@@ -250,7 +252,7 @@ class MaplessDriver:
             self.planner.reset()
             self.controller.reset()
             self.turn.reset()  # a latched turn path lived in the old frame too
-            self._turning, self._mouth_odo, self._lane_heading_odo, self._turn_corridor = False, None, None, None
+            self._turning, self._mouth_odo, self._lane_heading_odo, self._turn_corridor, self._opening_odo = False, None, None, None, None
             self._rebuild = False
             d.update(frame_rebuilt=True)
             if classified is not None:
@@ -272,6 +274,9 @@ class MaplessDriver:
         junction = self._junction_context(guidance, motion, corridor)
         if junction is not None and junction[-1] == self._turn_done:
             junction = None  # this junction's turn is done: kerb following to the exit point
+        if not motion.stationary:
+            self._moving_t = t
+        self.turn.standing_s = 0.0 if self._moving_t is None or not motion.stationary else max(0.0, t - self._moving_t)
         self.turn.observe(classified, motion.odometry, t)
         if self.turn.committed:
             # In the turn: follow the latched path to its end, whatever the route says.
@@ -297,7 +302,7 @@ class MaplessDriver:
                         corridor, hold_at = resumed, None
                         self._turning = False
                         self._turn_done = None if junction is None else junction[-1]
-                        self._mouth_odo = self._lane_heading_odo = self._turn_corridor = None
+                        self._mouth_odo = self._lane_heading_odo = self._turn_corridor = self._opening_odo = None
                         self.turn.reset()
                         junction = None
                         d.update(turn="latched path blocked at the exit: handed back to the kerb corridor")
@@ -327,7 +332,7 @@ class MaplessDriver:
                         corridor, hold_at = resumed, None
                         self._turning = False
                         self._turn_done = None if junction is None else junction[-1]
-                        self._mouth_odo = self._lane_heading_odo = self._turn_corridor = None
+                        self._mouth_odo = self._lane_heading_odo = self._turn_corridor = self._opening_odo = None
                         self.turn.reset()
                         junction = None  # this junction is done this tick too: no hold at its entry
                         d.update(turn="handed back to the kerb corridor")
@@ -335,7 +340,15 @@ class MaplessDriver:
                         d.update(turn=f"kerb corridor not ready: {resumed.reason}")
         if not self.turn.committed and junction is not None:
             entry, exit_point, exit_heading, command, _ = junction
-            opening = kerb_opening(corridor, self.grid, c.junction.opening_min_m) if corridor.ok else None
+            opening = kerb_opening(corridor, self.grid, c.junction.opening_min_m, max_age_s=3.0 + self.turn.standing_s) if corridor.ok else None
+            # An opening seen once is kept in the odometry frame: at a standstill the cells
+            # that confirmed it are not refreshed and it vanished, and the hold point fell
+            # back to the route's entry, 9 m short of the real mouth (live run g1c_right).
+            if opening is not None:
+                self._opening_odo = motion.odometry.to_world(np.array([[opening, 0.0]]))[0]
+            elif self._opening_odo is not None:
+                remembered = float(motion.odometry.to_body(self._opening_odo[None])[0, 0])
+                opening = remembered if remembered > -2.0 else None
             d.update(junction_command=command.value, junction_entry_m=float(entry[0]), kerb_opening_m=opening)
             if not self._turning:
                 # Within turn_start_m of the entry, or already past it (a route point behind
@@ -390,7 +403,7 @@ class MaplessDriver:
                         hold_at = max(0.0, min(plan_turn.verified_m, mouth) - c.body.front_m)
         elif not self.turn.committed and self._turning:
             self._turning = False  # the route moved on before the turn began: kerb following again
-            self._mouth_odo = self._lane_heading_odo = self._turn_corridor = None
+            self._mouth_odo = self._lane_heading_odo = self._turn_corridor = self._opening_odo = None
             self.turn.reset()
         if not corridor.ok:
             return self._fault(f"no corridor: {corridor.reason}", d, motion, t, dt)
@@ -411,12 +424,14 @@ class MaplessDriver:
             stop_distance_m=plan.stop_distance_m if math.isfinite(plan.stop_distance_m) else None,
         )
         if (
-            plan.stop_reason in ("obstacle", "obstacle_hold")
+            plan.stop_reason in ("obstacle", "obstacle_hold", "junction")
             and plan.stop_distance_m < c.hold_within_m
             and motion.stationary
         ):
             # Stopped at the stop point: hold the brake rather than let the speed loop
-            # creep. Driving resumes once the path is seen clear for resume_clear_s.
+            # creep (or the car roll back on a slope, which the live harness refuses as
+            # reverse motion). Driving resumes once the path is seen clear for
+            # resume_clear_s, or the junction's hold point moves on.
             return self._brake(DriveMode.STOPPING, f"holding for {plan.stop_reason} ({plan.hold_state})", d)
         if motion.stationary and not self.turn.committed and corridor.evidence_age_s > c.start_evidence_max_age_s:
             # Moving off needs a kerb seen now, not a line carried from before the stop.
