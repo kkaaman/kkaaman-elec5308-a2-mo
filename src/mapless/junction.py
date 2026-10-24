@@ -74,7 +74,7 @@ class JunctionConfig:
     exit_max_heading_deg: float = 5.0  # ... and up to this far from the prior (a larger fit is two station clusters levering, not a skew)
     exit_max_distance_m: float = 7.5  # the kerb must be this close to the route's exit line (4.4 m shoulder + 3 m route error)
     exit_max_unseen_m: float = 3.0  # unseen strip allowed between the exit road and its kerb (ring spacing at 25-30 m)
-    exit_kerb_edge: str = "road"  # "road": the road's outer edge when the strip is wide; "midpoint": halfway to the first raised cell
+    exit_kerb_edge: str = "raised"  # "road": the road's outer edge when the strip is wide; "midpoint": halfway to the first raised cell
     exit_min_road_width_m: float = 0.5  # a run of road cells this wide counts as the exit road (far lanes are sampled by a ring or two)
     memory_s: float = 2.0  # exit-kerb stations remembered for the line fit
     road_memory_s: float = 10.0  # road cells count as observed for this long
@@ -332,7 +332,8 @@ class JunctionTurn:
         # and the car could not creep forward). Freshness is measured from the last motion.
         self.standing_s = 0.0
         self._committed = None  # (odometry points, arc end index, exit heading in odometry) once the turn has begun
-        self._exit_odo = None  # the route's exit point and heading in the odometry frame, kept for a mid-arc re-plan
+        self._exit_odo = None  # the exit lane point and heading the latched path was built on, in the odometry frame
+        self._probe_odo = None  # the route's exit point in the odometry frame: where the exit road is searched for
         self._entry = None  # (pose at commit, y_entry, radius): the entry frame the latched path was built in
         self._exit_fit = None  # the exit-line fit the latched path rests on; a refinement must read the kerb from nearer
         self.refine_note = None  # why the last refinement did or did not move the path (console diagnostics)
@@ -376,6 +377,13 @@ class JunctionTurn:
         stations = np.arange(c.exit_search_near_m, c.exit_search_far_m + 1e-9, 1.0)
         cc = self.estimator.config
         labels, offsets, j0, _ = self.estimator._profiles(grid, probe, stations, np.zeros_like(stations), self.barrier_age_s)
+        raised = None
+        if c.exit_kerb_edge == "raised":
+            # Raised evidence along the same profile: the kerb face returns raised points in
+            # the cell where the road's returns outvote them (the cell reads ROAD).
+            px = stations[:, None] + offsets[None, :] * 0.0
+            py = np.zeros_like(stations)[:, None] + offsets[None, :]
+            raised = grid.raised_evidence(probe.to_world(np.column_stack((px.ravel(), py.ravel()))), self.barrier_age_s).reshape(px.shape)
         merge = int(round(0.5 / cc.lateral_step_m))  # road runs split by an unseen cell or two are one road
         min_run = int(round(c.exit_min_road_width_m / cc.lateral_step_m))
         found = []  # (station, kerb y) in the probe frame, this tick
@@ -389,11 +397,16 @@ class JunctionTurn:
             if run is None:
                 continue
             right_end, _ = run
-            barrier = np.flatnonzero(labels[i, :right_end] == CellLabel.BARRIER)
-            if not len(barrier):
+            if raised is not None:
+                # The first cell with fresh raised evidence right of (or at) the run's end.
+                lookback = int(round(0.5 / cc.lateral_step_m))
+                hits = np.flatnonzero(raised[i, : min(len(offsets), right_end + lookback + 1)] >= grid.config.barrier_min_evidence)
+            else:
+                hits = np.flatnonzero(labels[i, :right_end] == CellLabel.BARRIER)
+            if not len(hits):
                 continue
-            jb = int(barrier[-1])  # the first raised cell right of the run
-            strip = (right_end - jb) * cc.lateral_step_m
+            jb = int(hits[-1])  # the first raised cell right of the run
+            strip = max(0.0, (right_end - jb) * cc.lateral_step_m)
             if strip > c.exit_max_unseen_m:
                 continue
             # The kerb lies between the road's outer edge and the first raised cell. At 20 m
@@ -405,6 +418,8 @@ class JunctionTurn:
             road_edge = float(offsets[right_end] - grid.config.cell_m / 2)
             if c.exit_kerb_edge == "road" and strip > 2 * grid.config.cell_m:
                 kerb = road_edge
+            elif c.exit_kerb_edge in ("barrier", "raised"):
+                kerb = barrier_edge
             else:
                 kerb = 0.5 * (barrier_edge + road_edge)
             if abs(kerb) <= c.exit_max_distance_m:
@@ -524,7 +539,13 @@ class JunctionTurn:
             # Near the tangent point, the exit measured and room to spare: commit the path.
             arc_index = int(np.searchsorted(np.concatenate(([0.0], np.cumsum(np.hypot(*np.diff(points, axis=0).T)))), arc_end - 1e-6))
             self._committed = (pose.to_world(points), arc_index, pose.yaw_rad + exit_heading_body)
-            self._exit_odo = (pose.to_world(np.array([exit_point_body]))[0], pose.yaw_rad + exit_heading_body)
+            # The latched exit line is the measured one the path was built on, not the route
+            # point (external review of 7b1e3c6: the refinement compared new measurements
+            # against the route point, 2.7 m from the lane, so its first verdict was a
+            # spurious "2.7 m off" and the re-anchor a no-op). The route point stays the
+            # probe the exit road is searched around.
+            self._exit_odo = (pose.to_world(np.array([exit_point]))[0], pose.yaw_rad + exit_heading_body)
+            self._probe_odo = pose.to_world(np.array([exit_point_body]))[0]
             self._entry = (pose, y_entry, radius)  # the frame the path was built in, for a same-arc re-anchor
             self._exit_fit = fit
         n = len(points)
@@ -552,6 +573,7 @@ class JunctionTurn:
         self._kerb = []
         self._committed = None
         self._exit_odo = None
+        self._probe_odo = None
         self._entry = None
         self._exit_fit = None
         self._refine_candidate = None
@@ -641,7 +663,7 @@ class JunctionTurn:
         c = self.config
         entry_pose, y_entry, radius = self._entry
         exit_odo, heading_odo = self._exit_odo
-        exit_point, source, heading, fit = self.exit_line(grid, pose, pose.to_body(exit_odo[None])[0], wrap(heading_odo - pose.yaw_rad))
+        exit_point, source, heading, fit = self.exit_line(grid, pose, pose.to_body(self._probe_odo[None])[0], wrap(heading_odo - pose.yaw_rad))
         if source != "kerb":
             self.refine_note = "exit kerb not read from here"
             return None
@@ -673,6 +695,14 @@ class JunctionTurn:
             self.refine_note = f"exit line {shift:+.2f} m off, read from {fit['range_m']} m"
         built = _arc_path(y_entry, entry_pose.to_body(exit_odo_new[None])[0], wrap(heading_odo_new - entry_pose.yaw_rad), radius, c.step_m, c.after_turn_m)
         if built is None:
+            if min_shift_m is not None:
+                # No same-radius arc reaches the moved line from the entry straight: the
+                # refinement is a fresh arc from the car (the fallback must not be skipped).
+                self.refine_note += "; fresh arc from here"
+                mid = self._mid_arc(grid, pose, time_s, exit_point, heading, fit)
+                if mid is None:
+                    self.refine_note += " (not clear)"
+                return mid
             return None
         points_entry, arc_start, arc_end = built
         points_odo = entry_pose.to_world(points_entry)
@@ -718,8 +748,8 @@ class JunctionTurn:
         """
         if self._exit_odo is None:
             return None
-        exit_odo, heading_odo = self._exit_odo
-        exit_point, source, heading, fit = self.exit_line(grid, pose, pose.to_body(exit_odo[None])[0], wrap(heading_odo - pose.yaw_rad))
+        _, heading_odo = self._exit_odo
+        exit_point, source, heading, fit = self.exit_line(grid, pose, pose.to_body(self._probe_odo[None])[0], wrap(heading_odo - pose.yaw_rad))
         if source != "kerb":
             return None
         return self._mid_arc(grid, pose, time_s, exit_point, heading, fit)

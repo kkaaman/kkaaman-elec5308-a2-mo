@@ -88,8 +88,12 @@ def iter_frames(directory):
             if row["lidar"]:
                 xyz = np.load(directory / f"t{row['tick']:05d}.npz")["xyz_cm"].astype(np.float32) / 100.0
                 lidars = (LidarSweep(meta["lidar"], np.column_stack((xyz, np.zeros(len(xyz), dtype=np.float32))), extrinsics),)
+            # Cameras and radars are not stored, so their statuses are dropped (a frame may
+            # carry OK status only for data it holds); the G1 driver reads neither.
             status = tuple(
-                SensorStatus(s["name"], s["kind"], SensorState(s["state"]), s["capture_time_s"], s.get("detail", "")) for s in row["status"]
+                SensorStatus(s["name"], s["kind"], SensorState(s["state"]), s["capture_time_s"], s.get("detail", ""))
+                for s in row["status"]
+                if s["kind"] not in ("camera", "radar")
             )
             frame = SensorFrame(
                 episode_id=meta["episode_id"],
