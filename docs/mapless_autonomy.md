@@ -787,6 +787,26 @@ instrumented synthetic runs, found:
   of sitting out `--max-s`. Also found: the synthetic side road was 40 m long and the
   exit lane's road surface ran out 2.4 m before the goal on some seeds (now 80 m).
 
+### First live turn attempt (24 Oct, PC 2, Town10HD_Opt, `6773e24`): drove to the junction
+The site search found a matching-kerb site at once; the approach was clean (offset
+≤ 0.06 m) and the junction context appeared 17 m out. Three faults, all fixed:
+- **The kerb opening was 9 m beyond the route's entry point** (CARLA's junction boundary
+  lies well before the physical corner) and, once the car stopped, the opening was no
+  longer confirmed (the cells that confirmed it are not re-hit at a standstill), so the
+  hold point fell back to the route entry and the car waited 9 m short of the real mouth,
+  where it could not see the exit road. An opening seen once is now kept in the odometry
+  frame while the car waits.
+- **Observed road expired while standing still:** the turn's verified distance shrank
+  from 35 m to 14 m in four seconds at the mouth. Freshness for the junction checks is now
+  measured from the car's last motion (`JunctionTurn.standing_s`), as nothing changes
+  while it stands.
+- **Roll-back on the brake crashed the run:** the baseline adapter refuses reverse motion
+  beyond 0.05 m/s and the car rolled back a few cm/s at the hold. The harness uses
+  `HoldingVehicleAdapter` (0.5 m/s tolerance, roll-back ticks reported) and the driver now
+  holds the brake at a junction stop as it does at an obstacle stop.
+Also seen: a phantom obstacle 1.5 cm ahead for one tick as the car braked hard (LiDAR
+pitch under braking), released by the clearance rule.
+
 ### Debug passes to come
 G1c: the turn scenario live on a Town10HD junction (site search census first). G2: train
 on the Town03/04/05 captures, benchmark the segmenter against the A1 models by boundary

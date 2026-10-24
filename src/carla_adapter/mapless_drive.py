@@ -360,6 +360,36 @@ def make_turn_route(carla_map, site, command, exit_in_m=5.0, spacing_m=25.0, nam
 
 
 # -- live helpers ------------------------------------------------------------------------
+class HoldingVehicleAdapter(FixedVehicleAdapter):
+    """The verified adapter, tolerating the roll-back of a car held on the brake.
+
+    The baseline adapter refuses reverse motion beyond 0.05 m/s; a car stopped at a junction
+    hold on Town10HD's slight slope rolled back a few cm/s and the first live turn run
+    crashed on it. Up to ``roll_back_mps`` is read as standing still; the harness counts
+    the ticks. Forward motion and everything else are the baseline's.
+    """
+
+    roll_back_mps = 0.5
+
+    def __init__(self, vehicle):
+        super().__init__(vehicle)
+        self.roll_back_ticks = 0
+
+    def state(self):
+        from carla_adapter.vehicle_geometry import forward_state  # noqa: PLC0415
+
+        if not self.vehicle.is_alive:
+            raise RuntimeError("Vehicle is no longer alive")
+        pose = self.vehicle.get_transform()
+        velocity = self.vehicle.get_velocity()
+        if abs(pose.rotation.pitch) > 5 or abs(pose.rotation.roll) > 5:
+            raise ValueError("Vehicle tilt exceeds planar adapter scope")
+        yaw = math.radians(pose.rotation.yaw)
+        if velocity.x * math.cos(yaw) + velocity.y * math.sin(yaw) < -0.05:
+            self.roll_back_ticks += 1
+        return forward_state(pose.location.x, pose.location.y, pose.rotation.yaw, velocity.x, velocity.y, self.geometry, reverse_tolerance_mps=self.roll_back_mps)
+
+
 class CollisionMonitor:
     def __init__(self, owner, vehicle):
         self.owner, self.vehicle = owner, vehicle
@@ -535,7 +565,7 @@ class MaplessDrive:
         self.ego.apply_control(carla.VehicleControl(brake=1.0))
         for _ in range(30):
             self.owner.tick()
-        self.adapter = FixedVehicleAdapter(self.ego)
+        self.adapter = HoldingVehicleAdapter(self.ego)
         self.offset = self.adapter.geometry.rear_axle_offset_m
         self.parked = None
         self.actor = None
@@ -597,7 +627,7 @@ class MaplessDrive:
         self.ego.apply_control(carla.VehicleControl(brake=1.0))
         for _ in range(30):
             self.owner.tick()
-        self.adapter = FixedVehicleAdapter(self.ego)
+        self.adapter = HoldingVehicleAdapter(self.ego)
         self.offset = self.adapter.geometry.rear_axle_offset_m
         self.parked = None
         self.actor = None
@@ -804,6 +834,7 @@ class MaplessDrive:
             if self.actor is not None:
                 self.actor.destroy()
         self.report["end"] = end
+        self.report["roll_back_ticks"] = self.adapter.roll_back_ticks
         self.report["collisions"] = collisions.events
         self.report["rig"] = rig.record()
         if args.stack:

@@ -230,7 +230,7 @@ class _HazardField:
         return out
 
 
-def _swept_check(grid, pose, points, body, c, barrier_age_s, hazard_xy=None, margin_m=None, clearance_from_m=0.0, clearance_to_m=math.inf):
+def _swept_check(grid, pose, points, body, c, barrier_age_s, hazard_xy=None, margin_m=None, clearance_from_m=0.0, clearance_to_m=math.inf, road_memory_s=None):
     """(feasible, verified_m, clearance_m): no BARRIER/OCCUPIED under the body swept
     along ``points``, how far along the path the footprint lies on observed road, and the
     body's nearest approach to a hazard cell (``hazard_xy``, odometry frame), margin excluded.
@@ -287,7 +287,7 @@ def _swept_check(grid, pose, points, body, c, barrier_age_s, hazard_xy=None, mar
         # (in a 3.5 m lane the body passes a kerb at 0.7 m; with the margin counted twice a
         # correctly placed exit lane read 0.25-0.5 m and the commit test was a knife edge).
         clearance = float(hazard_xy.query(scored).min()) + margin
-    road = grid.labels(world, max_age_s=c.road_memory_s).reshape(len(points), per_pose) == CellLabel.ROAD
+    road = grid.labels(world, max_age_s=c.road_memory_s if road_memory_s is None else road_memory_s).reshape(len(points), per_pose) == CellLabel.ROAD
     observed = road.mean(axis=1) >= c.observed_share
     observed[0] = True  # under the car: the LiDAR's blind ring
     verified = 0.0
@@ -309,9 +309,24 @@ class JunctionTurn:
         self._radius = None
         self._kerb = []  # (time, odometry xy of exit-kerb points found per tick)
         self._now = 0.0
+        # Time the car has stood still (set by the driver each tick, 0 while moving). At a
+        # standstill the LiDAR's rings hit the same cells over and over and the cells between
+        # them are never refreshed, so a freshness window measured from now would let the
+        # observed road ahead "expire" while nothing changed (live run g1c_right: the
+        # verified distance shrank from 35 m to 14 m in four seconds standing at the mouth,
+        # and the car could not creep forward). Freshness is measured from the last motion.
+        self.standing_s = 0.0
         self._committed = None  # (odometry points, arc end index, exit heading in odometry) once the turn has begun
         self._exit_odo = None  # the route's exit point and heading in the odometry frame, kept for a mid-arc re-plan
         self._entry = None  # (pose at commit, y_entry, radius): the entry frame the latched path was built in
+
+    @property
+    def barrier_age_s(self):
+        return self.estimator.config.edge_max_age_s + self.standing_s
+
+    @property
+    def road_memory_s(self):
+        return self.config.road_memory_s + self.standing_s
 
     def observe(self, sweep, pose, time_s):
         """Note the time; the exit search reads the terrain grid, which holds the sweeps."""
@@ -341,7 +356,7 @@ class JunctionTurn:
         probe = Pose2D(*pose.to_world(np.array([exit_point_body]))[0], pose.yaw_rad + exit_heading_body)
         stations = np.arange(c.exit_search_near_m, c.exit_search_far_m + 1e-9, 1.0)
         cc = self.estimator.config
-        labels, offsets, j0, _ = self.estimator._profiles(grid, probe, stations, np.zeros_like(stations), cc.edge_max_age_s)
+        labels, offsets, j0, _ = self.estimator._profiles(grid, probe, stations, np.zeros_like(stations), self.barrier_age_s)
         merge = int(round(0.5 / cc.lateral_step_m))  # road runs split by an unseen cell or two are one road
         min_run = int(round(c.exit_min_road_width_m / cc.lateral_step_m))
         found = []  # (station, kerb y) in the probe frame, this tick
@@ -437,7 +452,7 @@ class JunctionTurn:
         y_entry = corridor.lateral_offset_at(0.0) if corridor.ok else 0.0
         exit_point, source, exit_heading_body, fit = self.exit_line(grid, pose, exit_point_body, exit_heading_body)
         radii = np.arange(c.min_radius_m, c.max_radius_m + 1e-9, c.radius_step_m)
-        hazards = _HazardField(grid, pose, self.estimator.config.edge_max_age_s)
+        hazards = _HazardField(grid, pose, self.barrier_age_s)
         # The best feasible turn is the nearest to the nominal radius among those with the
         # commit clearance (the widest clearance swung 2.6 m into the exit road's opposing
         # lane: beyond what lane keeping has beside a kerb, more room buys nothing); when
@@ -453,7 +468,7 @@ class JunctionTurn:
                 continue
             points, arc_start, arc_end = built
             feasible, verified, clearance = _swept_check(
-                grid, pose, points, self.body, c, self.estimator.config.edge_max_age_s, hazards, clearance_from_m=arc_start, clearance_to_m=arc_end
+                grid, pose, points, self.body, c, self.barrier_age_s, hazards, clearance_from_m=arc_start, clearance_to_m=arc_end, road_memory_s=self.road_memory_s
             )
             if feasible:
                 candidates.append((float(radius), points, arc_start, arc_end, verified, clearance))
@@ -538,9 +553,9 @@ class JunctionTurn:
             return None
         start = int(ahead[0])
         points = body[start:]
-        hazards = _HazardField(grid, pose, self.estimator.config.edge_max_age_s)
+        hazards = _HazardField(grid, pose, self.barrier_age_s)
         feasible, verified, clearance = _swept_check(
-            grid, pose, points, self.body, c, self.estimator.config.edge_max_age_s, hazards, margin_m=c.follow_margin_m
+            grid, pose, points, self.body, c, self.barrier_age_s, hazards, margin_m=c.follow_margin_m, road_memory_s=self.road_memory_s
         )
         if not feasible:
             return None
@@ -592,8 +607,8 @@ class JunctionTurn:
         ahead = np.flatnonzero(body[:, 0] > -1.0)
         if ahead.size < 2:
             return None
-        hazards = _HazardField(grid, pose, self.estimator.config.edge_max_age_s)
-        feasible, _, _ = _swept_check(grid, pose, body[int(ahead[0]) :], self.body, c, self.estimator.config.edge_max_age_s, hazards, margin_m=c.follow_margin_m)
+        hazards = _HazardField(grid, pose, self.barrier_age_s)
+        feasible, _, _ = _swept_check(grid, pose, body[int(ahead[0]) :], self.body, c, self.barrier_age_s, hazards, margin_m=c.follow_margin_m, road_memory_s=self.road_memory_s)
         if not feasible:
             return None
         arcs = np.concatenate(([0.0], np.cumsum(np.hypot(*np.diff(points_entry, axis=0).T))))
@@ -639,9 +654,9 @@ class JunctionTurn:
         if built is None:
             return None
         points, arc_start, arc_end = built
-        hazards = _HazardField(grid, pose, self.estimator.config.edge_max_age_s)
+        hazards = _HazardField(grid, pose, self.barrier_age_s)
         feasible, verified, clearance = _swept_check(
-            grid, pose, points, self.body, c, self.estimator.config.edge_max_age_s, hazards, margin_m=c.follow_margin_m, clearance_from_m=arc_start, clearance_to_m=arc_end
+            grid, pose, points, self.body, c, self.barrier_age_s, hazards, margin_m=c.follow_margin_m, clearance_from_m=arc_start, clearance_to_m=arc_end, road_memory_s=self.road_memory_s
         )
         if not feasible:
             return None
