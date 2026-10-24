@@ -328,6 +328,7 @@ class MaplessDriver:
                 if refined is not None:
                     plan_turn = refined
                     d.update(turn="exit line refined from closer by")
+            d.update(self.turn.exit_diagnostics())
             if plan_turn is not None:
                 corridor = self._turn_corridor = plan_turn.corridor
                 hold_at = max(0.0, plan_turn.verified_m - c.body.front_m)
@@ -400,6 +401,7 @@ class MaplessDriver:
                         turn_verified_m=plan_turn.verified_m,
                         turn_exit_fit=plan_turn.exit_fit,
                         turn_clearance_m=round(plan_turn.clearance_m, 2) if math.isfinite(plan_turn.clearance_m) else None,
+                        **self.turn.exit_diagnostics(),
                     )
                     measured = plan_turn.exit_source == "kerb" and plan_turn.clearance_m >= c.junction.commit_clearance_m
                     if measured:

@@ -337,6 +337,7 @@ class JunctionTurn:
         self._exit_fit = None  # the exit-line fit the latched path rests on; a refinement must read the kerb from nearer
         self.refine_note = None  # why the last refinement did or did not move the path (console diagnostics)
         self._refine_candidate = None  # (odometry exit point, first seen) of a re-measured line that differs from the latched
+        self.last_measured_odo = None  # (exit lane point, kerb stations) in odometry from the last kerb measurement, for the drive log
 
     @property
     def barrier_age_s(self):
@@ -408,6 +409,7 @@ class JunctionTurn:
                 kerb = 0.5 * (barrier_edge + road_edge)
             if abs(kerb) <= c.exit_max_distance_m:
                 found.append((float(stations[i]), kerb))
+        self.last_measured_odo = None
         if found:
             self._kerb.append((self._now, probe.to_world(np.array(found))))
         self._kerb = [(t, k) for t, k in self._kerb if self._now - t <= c.memory_s]
@@ -459,6 +461,7 @@ class JunctionTurn:
                     ch, sh = math.cos(exit_heading_body), math.sin(exit_heading_body)
                     point = (exit_point_body[0] - sh * lateral, exit_point_body[1] + ch * lateral)
                     kept_body = pose.to_body(probe.to_world(np.column_stack((x[keep], y[keep]))))
+                    self.last_measured_odo = (pose.to_world(np.array([point]))[0], probe.to_world(np.column_stack((x[keep], y[keep]))))
                     fit = dict(
                         stations=int(keep.sum()),
                         mad=round(mad, 3),
@@ -556,6 +559,18 @@ class JunctionTurn:
     @property
     def committed(self):
         return self._committed is not None
+
+    def exit_diagnostics(self):
+        """The latched exit point and the last measured one (odometry frame) for the drive log."""
+        out = {}
+        if self._exit_odo is not None:
+            out["turn_exit_odo"] = [round(float(v), 3) for v in self._exit_odo[0]]
+            out["turn_exit_heading_odo"] = round(float(self._exit_odo[1]), 4)
+        if self.last_measured_odo is not None:
+            point, stations = self.last_measured_odo
+            out["turn_exit_measured_odo"] = [round(float(v), 3) for v in point]
+            out["turn_exit_stations_odo"] = np.round(stations, 2).tolist()
+        return out
 
     def exit_heading_body(self, pose):
         """The latched exit heading in the vehicle frame (None when not committed)."""

@@ -13,6 +13,7 @@ import sys
 from pathlib import Path
 from types import SimpleNamespace
 
+import numpy as np
 import pytest
 
 import carla_adapter.mapless_drive as drive
@@ -245,6 +246,8 @@ class FakeRig:
 
     def __init__(self, owner, vehicle, suite, *, episode_id, rear_axle_offset_m, dt_s, seed, capacity=8):
         self.world = owner.world
+        self.calibration_id, self.episode_id = "fake-calibration", episode_id
+        self.extrinsics = {s.name: self.world.road.lidar_to_ego for s in suite.lidars}
 
     def __enter__(self):
         return self
@@ -309,7 +312,7 @@ def run_drive(monkeypatch, tmp_path, *extra):
 
 
 def test_straight_drive_reaches_the_goal_and_passes(monkeypatch, tmp_path):
-    out, report = run_drive(monkeypatch, tmp_path, "--scenario", "straight", "--goal-m", "60", "--snapshot-every", "100")
+    out, report = run_drive(monkeypatch, tmp_path, "--scenario", "straight", "--goal-m", "60", "--snapshot-every", "100", "--record-frames", "all")
     by_name = {c["check"]: c for c in report["checks"]}
     failed = [c for c in report["checks"] if c["status"] not in ("PASS", "REPORT")]
     assert not failed, json.dumps(failed, indent=2)
@@ -328,6 +331,22 @@ def test_straight_drive_reaches_the_goal_and_passes(monkeypatch, tmp_path):
     assert (out / "drive_plot.png").exists() and list((out / "snapshots").glob("*.png"))
     rows = (out / "drive_log.jsonl").read_text(encoding="utf-8").splitlines()
     assert json.loads(rows[0])["mode"] == "startup"
+    # The recording replays as the frames the driver saw (LiDAR to the centimetre).
+    from carla_adapter.frame_record import iter_frames  # noqa: PLC0415
+
+    replayed = list(iter_frames(out / "frames"))
+    assert report["frames_recorded"] == len(replayed) == len(rows)
+    tick, frame = replayed[-1]
+    assert tick == json.loads(rows[-1])["tick"] and frame.lidars and frame.imu is not None
+    assert any(f.gnss is not None for _, f in replayed)  # GNSS at its own rate
+    # The offline replay reproduces the live driver tick for tick (same frames, same code).
+    from carla_adapter.mapless_replay import replay  # noqa: PLC0415
+
+    replayed_rows = replay(out, {}, out=tmp_path / "replay.jsonl", suite=None, console_every=0, until_tick=200)
+    live_rows = [json.loads(r) for r in rows[: len(replayed_rows)]]
+    assert [r["mode"] for r in replayed_rows] == [r["mode"] for r in live_rows]
+    assert np.allclose([r["driver"]["odometry"] for r in replayed_rows[50:]], [r["driver"]["odometry"] for r in live_rows[50:]], atol=1e-3)
+    assert frame.lidars[0].points.shape[1] == 4 and abs(frame.sim_time_s - json.loads(rows[-1])["driver"]["time_s"]) < 1e-3
 
 
 def test_stop_scenario_holds_short_of_the_parked_car(monkeypatch, tmp_path):
