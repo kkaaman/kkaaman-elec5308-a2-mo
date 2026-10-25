@@ -1,0 +1,100 @@
+{
+  "schema_version": 1,
+  "map_name": "Town10HD",
+  "topology_sha256": "300b5fba3c6119c4f2d606e0f7c8562560850a59878399ceb1864f074ae3e7be",
+  "poi_registry": "pois_town10hd.json",
+  "pairs": [
+    {
+      "origin": "baseline_start",
+      "destination": "baseline_goal",
+      "expected": {
+        "lane_count": 6,
+        "length_m": 175.712,
+        "maneuvers": [
+          "straight",
+          "left",
+          "arrive"
+        ],
+        "first_segment": "20:0:-1",
+        "last_segment": "0:0:-1"
+      }
+    },
+    {
+      "origin": "baseline_start",
+      "destination": "south_end",
+      "expected": {
+        "lane_count": 23,
+        "length_m": 798.701,
+        "maneuvers": [
+          "straight",
+          "left",
+          "left",
+          "left",
+          "straight",
+          "right",
+          "straight",
+          "arrive"
+        ],
+        "first_segment": "20:0:-1",
+        "last_segment": "4:0:-1"
+      }
+    },
+    {
+      "origin": "north_end",
+      "destination": "west_end",
+      "expected": {
+        "lane_count": 13,
+        "length_m": 367.428,
+        "maneuvers": [
+          "left",
+          "straight",
+          "straight",
+          "right",
+          "arrive"
+        ],
+        "first_segment": "10:0:-1",
+        "last_segment": "5:0:-1"
+      }
+    },
+    {
+      "origin": "south_end",
+      "destination": "northwest_block",
+      "expected": {
+        "lane_count": 10,
+        "length_m": 282.613,
+        "maneuvers": [
+          "straight",
+          "right",
+          "left",
+          "arrive"
+        ],
+        "first_segment": "4:0:-1",
+        "last_segment": "22:0:1"
+      }
+    },
+    {
+      "origin": "west_end",
+      "destination": "baseline_goal",
+      "expected": {
+        "lane_count": 11,
+        "length_m": 267.925,
+        "maneuvers": [
+          "right",
+          "straight",
+          "straight",
+          "left",
+          "arrive"
+        ],
+        "first_segment": "5:0:-1",
+        "last_segment": "0:0:-1"
+      }
+    }
+  ],
+  "unreachable_pairs": [
+    {
+      "origin": "outer_circuit",
+      "destination": "baseline_start",
+      "reason": "unreachable"
+    }
+  ]
+}

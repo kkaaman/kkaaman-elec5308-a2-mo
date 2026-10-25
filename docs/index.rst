@@ -30,6 +30,7 @@ demonstration for the autonomous perception and navigation library.
    geometry
    lane-topology
    baseline_route
+   wayfinder
    behaviour
    baseline_threshold_freeze
 
@@ -62,3 +63,4 @@ demonstration for the autonomous perception and navigation library.
    evidence/BL-E-02/README
    evidence/baseline-batch/README
    evidence/TEST-13/README
+   evidence/E3-wayfinder/README

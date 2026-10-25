@@ -33,3 +33,11 @@ Command-line entry points. Run them from the repository root after
 and verifies saved geometry/connectivity against a live map or local OpenDRIVE
 file. Its `audit` command checks raw OpenDRIVE links/geometry independently,
 without CARLA. See [lane-topology](../docs/lane-topology.md) for commands and limitations.
+
+## Wayfinder (E3-01..03)
+
+`wayfinder_replay.py` plans a route between two named destinations from
+`configs/wayfinder/pois_town10hd.json` and replays poses along it offline,
+writing the route document, a guidance log (remaining distance, next turn,
+ETA) and mini-map PNG frames. No simulator is used. See
+[wayfinder](../docs/wayfinder.md).
