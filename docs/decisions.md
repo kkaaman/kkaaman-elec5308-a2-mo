@@ -27,6 +27,8 @@ replacing entry).
 
 | D-008 | 2026-10-21 | Technical freeze candidate: retain 4.0 m/s only as a bounded freshness-gated stationary-vehicle candidate | Stationary-vehicle-only replacement same-frame approach has 800 road-height frames, 345 admissible observations, 22 positive shadow packets and zero invalid/cold/stale positives. Common actual first-admission operational gap 22.348600 m exceeds the 15.142001 m required by the unchanged 0.9500000052 s response / BL-E deceleration / 6 m margin. Calculated envelope cap 5.7 m/s is not a driven-speed certificate. All-track guard, thresholds and historical rejection evidence are preserved. See [current review](baseline_threshold_freeze.md). | Published technical PASS candidate; G1/team admission pending | Exact candidate source/config publication, durable evidence access and full-team G1 admission; closed-loop acceptance remains separate |
 
+| D-009 | 2026-10-25 | Prepare exact-identity G1 admission for bounded stationary-vehicle G2 work | Production loader now binds full mission config/scope and source inventory to the versioned G1 record; prior altered-config acceptance is corrected. Frozen proposed inputs are 4.0 m/s, 1.497566177392398 m/s², 0.9500000052154064 s and 6.0 m. Candidate history/evidence stays intact. Pedestrian scope deferred; no #39/#41 live acceptance. See [G1 proposal](gates/G1.md). | Prepared technical PASS; publication and final designated review pending | Publish exact config/source record and final reviewer/owner review per revised #38 process; later objections tracked separately |
+
 ## Open questions for the teaching team (PROC-03)
 
 Record each request and response with its date. Don't assume approval.
