@@ -15,8 +15,10 @@ nearest valid front-bumper gap in metres and the track identities that produced 
   namespaced by its own source, and identities cannot repeat across sources. One
   obstacle seen by two sensors yields one gap (the nearer), not two obstacles.
 * **Clearance needs every source.** ``clearance_valid`` is true only when every
-  source independently asserts it; LiDAR never does, so the RGB-D clearance rule
-  remains the binding one.
+  source independently asserts it. A LiDAR source asserts it only from clear road
+  bins seen from the bumper to at least its ``clear_start_m`` (not from the mere
+  absence of clusters), and the RGB-D clearance rule must agree, so it remains
+  binding.
 
 Nothing here imports a simulator or a controller; the autonomy layer turns the
 fused report into its ``CorridorObservation``.

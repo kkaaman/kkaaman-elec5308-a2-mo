@@ -147,7 +147,8 @@ combines one `SourceCorridorReport` per source:
   both sensors yields one gap (the nearer), not two.
 - **Clearance needs every source.** `clearance_valid` requires every report to
   assert it. LiDAR asserts it only from positive road coverage
-  (`seen_clear_m > 0` with no in-corridor cluster); an empty sweep never does.
+  (`seen_clear_m` reaching `clear_start_m`, 8 m by default, with no in-corridor
+  cluster); a single clear bin or an empty sweep never does.
 
 `autonomy.lidar_fusion.LidarCorridorSource` binds the physical LiDAR stream to
 the `lidar` namespace and answers a report per frame (stale, missing or

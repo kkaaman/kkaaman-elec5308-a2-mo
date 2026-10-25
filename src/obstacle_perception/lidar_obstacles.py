@@ -16,8 +16,10 @@ Validity rules (all conservative):
   raised counts, not obstacles, unless they stand inside the corridor.
 * A cluster is in the corridor when at least one of its points lies within the
   swept corridor; its gap is the front-bumper gap of those corridor points.
-* ``usable_for_clearance`` is always ``False``. Not seeing an obstacle is not the
-  same as seeing the road clear.
+* ``usable_for_clearance`` is always ``False`` on the batch. Not seeing an obstacle
+  is not the same as seeing the road clear; the autonomy wrapper asserts clearance
+  only from ``seen_clear_m`` reaching ``clear_start_m`` (positively observed clear
+  bins), and fusion still needs RGB-D to agree.
 """
 
 from __future__ import annotations

@@ -10,7 +10,11 @@ detector batch metadata) while receiving the conservative fused gap:
 * the nearer valid gap wins;
 * a missing, stale or invalid LiDAR sweep makes the observation invalid (HOLD),
   never clear;
-* a lost RGB-D observation is likewise invalid even if LiDAR sees open road.
+* a lost RGB-D observation is likewise invalid even if LiDAR sees open road;
+* LiDAR asserts clearance only when it has positively seen clear road bins from
+  the bumper out to at least ``policy.clear_start_m`` with no cluster in the
+  corridor; one clear bin is not clearance, and the RGB-D clearance rule must
+  still agree.
 
 No simulator import; callers deliver :class:`LidarSweep` objects from the adapter.
 """
@@ -106,12 +110,15 @@ class LidarCorridorSource:
             return SourceCorridorReport(self.source_id, False, invalid_reason=invalid)
         gap = tracks.nearest_gap_m
         seen_clear = tracks.seen_clear_m
+        # Clearance is a positive observation of clear road, not the absence of a
+        # cluster: the clear bins must run from the bumper out to clear_start_m.
+        clear = gap is None and seen_clear is not None and seen_clear >= self.policy.clear_start_m
         return SourceCorridorReport(
             self.source_id,
             True,
             gap,
             tracks.visible_distance_m,
-            bool(gap is None and seen_clear is not None and seen_clear > 0),
+            bool(clear),
             tuple(t.identity for t in tracks.tracks),
         )
 

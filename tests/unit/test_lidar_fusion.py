@@ -271,3 +271,20 @@ def test_lidar_source_rejects_wrong_episode_and_reports_frame_mismatch():
     assert all(i.source_id == "lidar" for i in report.track_identities)
     with pytest.raises(ValueError):
         LidarCorridorSource(ROUTE, max_age_s=-1)
+
+
+def test_lidar_clearance_needs_clear_bins_out_to_clear_start_not_one_bin():
+    """An open road sweep asserts clearance; a sweep whose clear bins stop short does not."""
+    source = LidarCorridorSource(ROUTE)
+    source.reset(episode_id="e")
+    for index in range(3):
+        source.observe(synthetic_sweep(Scene(), episode_id="e", frame_id=index, sim_time_s=index * 0.05))
+    report = source.report(frame(2))
+    assert report.valid and report.nearest_gap_m is None
+    tracks = source.last_tracks
+    assert tracks.seen_clear_m >= source.policy.clear_start_m and report.clearance_valid
+    # The same tracks with the clear distance clipped to one bin: no clearance.
+    object.__setattr__(tracks, "seen_clear_m", source.policy.clear_bin_m)
+    assert not source.report(frame(2)).clearance_valid
+    object.__setattr__(tracks, "seen_clear_m", 0.0)
+    assert not source.report(frame(2)).clearance_valid
