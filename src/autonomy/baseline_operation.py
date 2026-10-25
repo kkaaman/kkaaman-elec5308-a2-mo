@@ -1,19 +1,20 @@
 """Load the frozen, bounded operating profile without bypassing its gate."""
 
-import json
 import math
 from pathlib import Path
 
+from autonomy.admission import load_admitted_baseline
 from autonomy.operational import operational_stack
 from autonomy.stack import StackConfig
 from planning.speed_governor import GovernorConfig
 
 
 def frozen_governor_config(path):
-    baseline = json.loads(Path(path).read_text())
+    return _governor_config(load_admitted_baseline(path))
+
+
+def _governor_config(baseline):
     freeze = baseline["baseline_threshold_freeze"]
-    if freeze["status"] != "FROZEN_GATED_OPERATIONAL":
-        raise ValueError("Baseline is not frozen for operational governance")
     values = freeze["frozen_values"]
     composition = freeze["response_composition"]
     config = StackConfig(**freeze["operational_gate"])
@@ -38,9 +39,9 @@ def frozen_governor_config(path):
 def baseline_operational_stack(
     backend, policy, *, baseline_path, source_id, model_version, simulation_clock
 ):
-    baseline = json.loads(Path(baseline_path).read_text())
+    baseline = load_admitted_baseline(baseline_path)
     freeze = baseline["baseline_threshold_freeze"]
-    expected = frozen_governor_config(baseline_path)
+    expected = _governor_config(baseline)
     if policy.governor.config != expected:
         raise ValueError("Use the frozen governor configuration")
     if model_version != freeze["detector"]["model_sha256"]:

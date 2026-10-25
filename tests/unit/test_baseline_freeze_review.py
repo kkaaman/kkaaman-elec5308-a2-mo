@@ -52,7 +52,7 @@ def test_historical_unsupported_review_does_not_replace_fresh_gated_evidence(aud
     baseline = json.loads((ROOT / "configs/mission_baseline.json").read_text())
     freeze = baseline["baseline_threshold_freeze"]
     assert audited["status"] == "BLOCKED_RANGE_LATENCY_COMPOSITION"
-    assert freeze["status"] == "TECHNICALLY_VALIDATED_CANDIDATE"
+    assert freeze["status"] == "FROZEN_GATED_OPERATIONAL"
     assert baseline["cruise_speed_mps"] == 4.0
     assert (
         freeze["candidate_values"]["response_budget_s"]
@@ -150,8 +150,7 @@ def test_warm_freeze_covers_the_full_admitted_age_not_only_the_observed_maximum(
 
     result = review(EVIDENCE)
     baseline = json.loads((ROOT / "configs/mission_baseline.json").read_text())
-    with pytest.raises(ValueError, match="not frozen"):
-        frozen_governor_config(ROOT / "configs/mission_baseline.json")
+    assert frozen_governor_config(ROOT / "configs/mission_baseline.json").cruise_mps == 4.0
     values = baseline["baseline_threshold_freeze"]["candidate_values"]
     composition = result["response_composition"]
     assert composition["measured_perception_control_max_s"] == pytest.approx(0.06097370599854912)
@@ -180,7 +179,7 @@ def test_baseline_loader_rejects_a_budget_that_omits_admitted_age(tmp_path):
     freeze["frozen_values"] = dict(freeze["candidate_values"], response_budget_s=0.35)
     path = tmp_path / "baseline.json"
     path.write_text(json.dumps(doc))
-    with pytest.raises(ValueError, match="omits"):
+    with pytest.raises(ValueError, match="admitted config path|configuration identity"):
         frozen_governor_config(path)
 
 
@@ -202,8 +201,8 @@ def test_only_calibration_and_envelope_values_are_in_frozen_values():
         "response_budget_s",
         "stop_margin_m",
     }
-    assert freeze["frozen_values"]["cruise_speed_mps"] is None
-    assert freeze["frozen_values"]["response_budget_s"] is None
+    assert freeze["frozen_values"]["cruise_speed_mps"] == 4.0
+    assert freeze["frozen_values"]["response_budget_s"] == .9500000052154064
     assert freeze["implementation_policy"]["lateral_acceleration_mps2"] == 1.5
     assert freeze["implementation_policy"]["emergency_margin_m"] == 2.0
 

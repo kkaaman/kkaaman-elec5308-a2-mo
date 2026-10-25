@@ -1,5 +1,11 @@
 # BL-D-06 operational first-admission review — 21 October 2026
 
+**25 October G1 update:** the working tree now contains a strict-identity frozen
+stationary-vehicle admission proposal. See [G1 admission](gates/G1.md) and its
+[versioned record](gates/G1-admission.json). Publication/final designated review
+remain pending. The original technical candidate review below and all recorded
+measurements are retained unchanged as provenance, not rewritten as live acceptance.
+
 **Technical decision D-008: PASS for the bounded freshness-gated stationary-vehicle candidate.**
 The new [same-frame operational capture](evidence/BL-D-06/operational-approach/README.md)
 resolves the previous joint range/admission blocker. **4.0 m/s** is supported with
@@ -134,3 +140,20 @@ the existing frozen loader rejects it. The measured candidate inputs are retaine
 but cruise/response frozen fields remain null. Only PR #90 / issue #38 and required
 team review may publish the actual G1/G2 admission. The 5.7 m/s arithmetic ceiling
 is not an admitted or certified driving speed.
+
+## G1 production identity correction — 25 October 2026
+
+The prior status-only loader accepted altered frozen values or broadened scope.
+It now verifies the exact versioned config path, deterministic full-config
+identity and source/config/calibration inventory against the G1 admission record.
+Candidate-only, wrong binding, modified source/config, altered numeric values and
+pedestrian/general scope changes fail closed before operational construction.
+This startup-only validation changes no measured detector/control processing path.
+The PR #97 evidence review intentionally remains a technical-candidate result;
+formal admission is a separate record, preserving the original candidate history.
+
+Prepared frozen inputs remain 4.0 m/s stationary-vehicle only, 1.497566177392398
+m/s², 0.9500000052154064 s and 6.0 m. No pedestrian first-admission, general
+visibility or downstream live stop is certified. BL-C 3.2 m/s, withdrawn 4.9 m/s
+and non-admitted 5.7 m/s retain their distinct meanings. See the G1 proposal for
+current identity/source hashes and the revised designated-review process.
