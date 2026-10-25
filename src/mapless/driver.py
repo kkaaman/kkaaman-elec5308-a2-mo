@@ -82,6 +82,10 @@ class DriverConfig:
     route_max_sigma_m: float = 4.0  # route position this uncertain: the goal cannot be judged
     start_evidence_max_age_s: float = 0.5  # move off a standstill only on kerb evidence this fresh
     hold_within_m: float = 1.5  # stopped this close to an obstacle stop point: hold the brake
+    # A junction hold point only moves when the view does, and at a standstill it does not:
+    # the brake is held only at the hold point itself, so a car that stopped a metre short
+    # of a verified frontier creeps up to it instead of waiting there for ever (review).
+    junction_hold_within_m: float = 0.4
 
     def __post_init__(self):
         if not isinstance(self.body, VehicleBody) or not isinstance(self.control, LocalControlConfig):
@@ -177,6 +181,8 @@ class MaplessDriver:
         self._last_time = t
         self.health.update(frame)
         motion = self.ego.update(frame)
+        if not motion.stationary:
+            self._moving_t = t  # before any early return: a fault while moving must not stretch a later standstill's freshness
         classified = None
         if frame.status_of(self.lidar).state is SensorState.OK:
             classified = classify_sweep(frame.lidar(self.lidar).xyz, c.body, c.terrain)
@@ -274,8 +280,6 @@ class MaplessDriver:
         junction = self._junction_context(guidance, motion, corridor)
         if junction is not None and junction[-1] == self._turn_done:
             junction = None  # this junction's turn is done: kerb following to the exit point
-        if not motion.stationary:
-            self._moving_t = t
         self.turn.standing_s = 0.0 if self._moving_t is None or not motion.stationary else max(0.0, t - self._moving_t)
         self.turn.observe(classified, motion.odometry, t)
         if self.turn.committed:
@@ -309,7 +313,7 @@ class MaplessDriver:
                     else:
                         plan_turn = self.turn.replan_same_arc(self.grid, motion.odometry, t)
                         if plan_turn is not None:
-                            d.update(turn="latched path blocked: exit line re-anchored, same arc")
+                            d.update(turn="latched path blocked: re-planned on the re-measured exit line" + (" (same arc)" if plan_turn.arc_start_m > 0.0 else " (fresh arc from here)"))
                         else:
                             plan_turn = self.turn.replan_mid_arc(self.grid, motion.odometry, t)
                             if plan_turn is None:
@@ -436,7 +440,7 @@ class MaplessDriver:
         )
         if (
             plan.stop_reason in ("obstacle", "obstacle_hold", "junction")
-            and plan.stop_distance_m < c.hold_within_m
+            and plan.stop_distance_m < (c.junction_hold_within_m if plan.stop_reason == "junction" else c.hold_within_m)
             and motion.stationary
         ):
             # Stopped at the stop point: hold the brake rather than let the speed loop

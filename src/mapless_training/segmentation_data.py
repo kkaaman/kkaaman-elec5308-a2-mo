@@ -163,18 +163,19 @@ class TorchSegmentationDataset:
     """A ``torch.utils.data.Dataset`` over samples (imported lazily so numpy-only use works)."""
 
     def __init__(self, samples, size_wh):
-        import cv2  # noqa: PLC0415
-        import torch  # noqa: PLC0415
-
-        from segmentation.preprocessing import preprocess_image  # noqa: PLC0415
-
+        # Nothing but data on the instance: DataLoader workers on Windows pickle the dataset
+        # (spawn), and a module object does not pickle (fresh-eyes review of 58adaf3).
         self.samples, self.size_wh = list(samples), tuple(size_wh)
-        self._cv2, self._torch, self._pre = cv2, torch, preprocess_image
 
     def __len__(self):
         return len(self.samples)
 
     def __getitem__(self, i):
-        rgb, labels = load_pair(self.samples[i], self.size_wh, self._cv2)
-        x = self._pre(rgb, self.size_wh)[0]
-        return x, self._torch.from_numpy(labels.astype(np.int64))
+        import cv2  # noqa: PLC0415
+        import torch  # noqa: PLC0415
+
+        from segmentation.preprocessing import preprocess_image  # noqa: PLC0415
+
+        rgb, labels = load_pair(self.samples[i], self.size_wh, cv2)
+        x = preprocess_image(rgb, self.size_wh)[0]
+        return x, torch.from_numpy(labels.astype(np.int64))

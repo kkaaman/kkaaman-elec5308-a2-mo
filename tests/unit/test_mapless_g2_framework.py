@@ -241,6 +241,12 @@ def test_stack_runs_end_to_end_and_tracks_the_parked_car():
     # The car stopped short of the parked car (the driver's own obstacle stop, or following).
     assert not any(t.collision for t, _ in steps)
     assert last_truth.front_gap_m > 1.5
+    # No brake taps on the way: a fresh tentative cluster (initial velocity variance 5 m/s,
+    # inflated to a 30 m box at 3 s) capped the speed to zero for a few ticks every time
+    # one appeared 20-30 m out (fresh-eyes review of 58adaf3). Only confirmed and coasting
+    # tracks are predicted onto the path; tentative ones are the LiDAR obstacle stop's job.
+    taps = [(t.front_gap_m, s.diagnostics.get("speed_cap_next_mps")) for t, s in steps if t.front_gap_m > 15.0 and s.diagnostics.get("speed_cap_next_mps") is not None and s.diagnostics["speed_cap_next_mps"] <= 0.0]
+    assert not taps, taps[:5]
 
 
 def test_painting_refuses_another_frames_segmentation():

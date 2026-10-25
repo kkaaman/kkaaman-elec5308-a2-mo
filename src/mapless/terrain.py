@@ -330,6 +330,10 @@ class TerrainGrid:
         out = np.zeros(len(ij), dtype=np.float32)
         i, j = ij[inside, 0], ij[inside, 1]
         value = self.raised[i, j]
+        # The same veto as ``labels``: a cell that also sees a tall body (a parked car's sill
+        # under its side) is not a kerb (fresh-eyes review of 58adaf3: without it a car
+        # parked flush with the exit kerb became the kerb, 1.9 m into the road).
+        value = np.where(self.tall[i, j] >= 0.5 * value, 0.0, value)
         if max_age_s is not None and self.time_s is not None:
             value = np.where(self.seen_by_class[PointClass.RAISED][i, j] < self.time_s - max_age_s, 0.0, value)
         out[inside] = value

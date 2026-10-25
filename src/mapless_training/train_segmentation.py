@@ -137,7 +137,7 @@ def better(candidate, best):
     return candidate["loss"] < best["loss"]
 
 
-def train(run_dirs, output, epochs=8, batch=8, size_wh=(512, 256), lr=1e-3, device=None, cameras=None, max_samples=None, workers=0, architecture="bisenetv2", pretrained=True, seed=0, allow_unaccepted=False):
+def train(run_dirs, output, epochs=8, batch=8, size_wh=(512, 256), lr=1e-3, device=None, cameras=None, max_samples=None, workers=0, architecture="bisenetv2", pretrained=True, seed=0, allow_unaccepted=False, progress_every=200):
     import cv2  # noqa: PLC0415
     import torch  # noqa: PLC0415
 
@@ -162,7 +162,9 @@ def train(run_dirs, output, epochs=8, batch=8, size_wh=(512, 256), lr=1e-3, devi
         optimiser = torch.optim.Adam(model.parameters(), lr=lr)
     loss_fn = torch.nn.CrossEntropyLoss(weight=weights)
     shuffle_rng = torch.Generator().manual_seed(seed)
-    loader = torch.utils.data.DataLoader(TorchSegmentationDataset(train_samples, size_wh), batch_size=batch, shuffle=True, num_workers=workers, generator=shuffle_rng)
+    # drop_last: BiSeNetV2's context embedding batch-normalises a 1x1 map, which a final
+    # batch of one image cannot (fresh-eyes review of 58adaf3; it raises in training mode).
+    loader = torch.utils.data.DataLoader(TorchSegmentationDataset(train_samples, size_wh), batch_size=batch, shuffle=True, num_workers=workers, generator=shuffle_rng, drop_last=True)
     val_loader = (
         torch.utils.data.DataLoader(TorchSegmentationDataset(validation_samples, size_wh), batch_size=batch, num_workers=workers)
         if validation_samples
@@ -173,7 +175,8 @@ def train(run_dirs, output, epochs=8, batch=8, size_wh=(512, 256), lr=1e-3, devi
     for epoch in range(epochs):
         model.train()
         losses = []
-        for x, y in loader:
+        started = time.perf_counter()
+        for step, (x, y) in enumerate(loader, 1):
             x, y = x.to(device), y.to(device)
             main, aux = logits(model, x, architecture)
             loss = loss_fn(main, y) + 0.4 * sum(loss_fn(a, y) for a in aux)
@@ -181,7 +184,14 @@ def train(run_dirs, output, epochs=8, batch=8, size_wh=(512, 256), lr=1e-3, devi
             loss.backward()
             optimiser.step()
             losses.append(float(loss.detach()))
-        row = dict(epoch=epoch + 1, loss=float(np.mean(losses)))
+            if progress_every and step % progress_every == 0:
+                # A full epoch over 48k images is 20 minutes or more; the console says so.
+                elapsed = time.perf_counter() - started
+                print(
+                    json.dumps(dict(epoch=epoch + 1, step=step, of=len(loader), loss=round(float(np.mean(losses[-progress_every:])), 4), images_per_s=round(step * batch / elapsed, 1), eta_min=round((len(loader) - step) * elapsed / step / 60, 1))),
+                    flush=True,
+                )
+        row = dict(epoch=epoch + 1, loss=float(np.mean(losses)), seconds=round(time.perf_counter() - started, 1))
         if validated:
             row["validation"] = evaluate(model, val_loader, device, torch, architecture)
         candidate = dict(epoch=epoch + 1, loss=row["loss"], miou=row["validation"]["miou"] if validated else None)
@@ -247,9 +257,10 @@ def main(argv=None):
     parser.add_argument("--architecture", choices=ARCHITECTURES, default="bisenetv2")
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--allow-unaccepted", action="store_true", help="Smoke runs only: train on captures the inspection did not accept")
+    parser.add_argument("--progress-every", type=int, default=200, help="Print a progress line every this many steps (0: none)")
     args = parser.parse_args(argv)
     path, info = train(
-        args.run, args.output, args.epochs, args.batch, (args.width, args.height), args.lr, args.device, args.camera, args.max_samples, args.workers, args.architecture, seed=args.seed, allow_unaccepted=args.allow_unaccepted
+        args.run, args.output, args.epochs, args.batch, (args.width, args.height), args.lr, args.device, args.camera, args.max_samples, args.workers, args.architecture, seed=args.seed, allow_unaccepted=args.allow_unaccepted, progress_every=args.progress_every
     )
     print(json.dumps(dict(checkpoint=str(path), towns=info["training_towns"], samples=info["samples"], selection=info["selection"], last=info["history"][-1] if info["history"] else None), default=str))
 

@@ -6,7 +6,8 @@ read at 27 m; the console and the drive log showed the symptom, not the cause. A
 on the development machine, with the terrain grid, exit-line stations and truth to hand.
 
 What is written under ``<run>/frames``:
-- ``meta.json``: episode and calibration ids, the LiDAR's name and extrinsics, the suite.
+- ``meta.json``: episode and calibration ids, the LiDAR's name and extrinsics, the suite
+  (name, sha and the full specification, so the recording replays without the config file).
 - ``frames.jsonl``: one row per tick: frame id, times, speed, GNSS fix, IMU sample and the
   per-sensor status list (cameras and radars are not stored; the G1 driver uses neither).
 - ``t<tick>.npz``: the LiDAR sweep as int16 centimetres (x, y, z; intensity is range-only
@@ -40,6 +41,8 @@ class FrameRecorder:
                     lidar=self.lidar,
                     lidar_to_ego=np.asarray(extrinsics[self.lidar]).tolist(),
                     suite=suite.name,
+                    suite_sha256=suite.sha256,
+                    suite_spec=suite.as_dict(),
                 ),
                 indent=2,
             ),
@@ -47,6 +50,9 @@ class FrameRecorder:
         )
         self._rows = open(self.directory / "frames.jsonl", "w", encoding="utf-8")
         self.ticks = 0
+        reach = max(float(s.range_m) for s in suite.lidars) + float(np.abs(np.asarray(extrinsics[self.lidar])[:3, 3]).max())
+        if reach * 100.0 >= np.iinfo(np.int16).max:
+            raise ValueError(f"LiDAR reach {reach:.0f} m does not fit int16 centimetres (327 m)")
 
     def record(self, tick, frame):
         row = dict(
@@ -61,6 +67,7 @@ class FrameRecorder:
             lidar=any(s.name == self.lidar for s in frame.lidars),
         )
         self._rows.write(json.dumps(row) + "\n")
+        self._rows.flush()  # the recording exists to debug runs that die
         for sweep in frame.lidars:
             if sweep.name == self.lidar:
                 np.savez_compressed(self.directory / f"t{tick:05d}.npz", xyz_cm=np.round(sweep.points[:, :3] * 100.0).astype(np.int16))
@@ -85,16 +92,13 @@ def iter_frames(directory):
         for line in rows:
             row = json.loads(line)
             lidars = ()
+            status_rows = [s for s in row["status"] if s["kind"] not in ("camera", "radar") and not (s["kind"] == "lidar" and s["name"] != meta["lidar"])]
             if row["lidar"]:
                 xyz = np.load(directory / f"t{row['tick']:05d}.npz")["xyz_cm"].astype(np.float32) / 100.0
                 lidars = (LidarSweep(meta["lidar"], np.column_stack((xyz, np.zeros(len(xyz), dtype=np.float32))), extrinsics),)
             # Cameras and radars are not stored, so their statuses are dropped (a frame may
             # carry OK status only for data it holds); the G1 driver reads neither.
-            status = tuple(
-                SensorStatus(s["name"], s["kind"], SensorState(s["state"]), s["capture_time_s"], s.get("detail", ""))
-                for s in row["status"]
-                if s["kind"] not in ("camera", "radar")
-            )
+            status = tuple(SensorStatus(s["name"], s["kind"], SensorState(s["state"]), s["capture_time_s"], s.get("detail", "")) for s in status_rows)
             frame = SensorFrame(
                 episode_id=meta["episode_id"],
                 frame_id=int(row["frame_id"]),

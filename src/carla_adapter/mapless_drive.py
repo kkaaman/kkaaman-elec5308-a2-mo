@@ -371,7 +371,7 @@ class HoldingVehicleAdapter(FixedVehicleAdapter):
     the ticks. Forward motion and everything else are the baseline's.
     """
 
-    roll_back_mps = 0.5
+    roll_back_mps = 0.2  # ten times the roll-back seen live (a few cm/s); a real reverse beyond it still raises
 
     def __init__(self, vehicle):
         super().__init__(vehicle)
@@ -850,7 +850,11 @@ class MaplessDrive:
                         end = "finished"
                         break
                 held = step.mode is DriveMode.STOPPING and step.reason.startswith("holding") and truth["speed_mps"] < 0.05
-                hold_ticks = hold_ticks + 1 if held else 0
+                # Hold ticks count only while a hold may end the run: a crossing walker's yield
+                # counted towards --hold-s, so the run ended the tick the walker cleared, with
+                # no ticks left for the car to resume (fresh-eyes review of 58adaf3).
+                endable = args.scenario == "stop" or (self.actor is not None and self.actor.hold_ends_run())
+                hold_ticks = hold_ticks + 1 if held and endable else 0
                 # A turn that waits at the junction mouth (no confirmed opening, no clearing
                 # radius, exit kerb not measured) is a result, not a time-out: end it after
                 # --junction-hold-s and say why, instead of sitting out --max-s.
@@ -861,7 +865,7 @@ class MaplessDrive:
                     break
                 # A scripted actor decides whether a hold is an endpoint for its scenario
                 # (the crossing walker must be waited out, not held against; review).
-                if (args.scenario == "stop" or (self.actor is not None and self.actor.hold_ends_run())) and hold_ticks * DT_S >= args.hold_s:
+                if endable and hold_ticks * DT_S >= args.hold_s:
                     end = "held at the obstacle"
                     break
             self.adapter.stop()

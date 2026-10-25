@@ -108,7 +108,11 @@ def test_the_turn_is_latched_once_begun_and_the_radius_clears_the_corner():
     committed = [s.diagnostics for _, s in log if s.diagnostics.get("rebuilding") is False and "turn_exit" not in s.diagnostics and s.mode is DriveMode.TURNING]
     assert radii and min(radii) >= JunctionConfig().min_radius_m
     assert committed  # the latched phase: followed, not re-planned
-    assert len({round(r, 1) for r in radii[-len(committed) :]}) == 1  # one radius through the arc
+    # One radius through the arc, except where the path was deliberately re-planned (the
+    # exit line refined from closer by, or a blocked path repaired): each such event may
+    # change it once, and never tick to tick.
+    replans = sum(1 for _, s in log if s.mode is DriveMode.TURNING and (s.diagnostics.get("turn") or "").startswith(("exit line refined", "latched path blocked: re-planned")))
+    assert len({round(r, 1) for r in radii[-len(committed) :]}) <= 1 + replans
 
 
 def test_route_without_a_real_junction_holds_before_the_entry():
@@ -194,3 +198,78 @@ def test_sensor_loss_in_the_turn_stops_with_steering_held():
     assert all(s.mode is DriveMode.FAULT and s.command.throttle == 0 for s in after)
     assert after[0].command.steering_angle_rad < -0.05  # still steering into the right turn while braking
     assert world.state.speed == 0 and not any(t.collision for t, _ in log)
+
+
+def _drive_into_the_arc(side=-1, turned_deg=25.0, world=None):
+    """A driver part way round the commanded turn (the car has turned ``turned_deg``)."""
+    from mapless.geometry import wrap  # noqa: PLC0415
+
+    world = world or junction_world(side)[0]
+    route = world.route(goal_after_turn(world))
+    driver = MaplessDriver(SUITE, route, DriverConfig(body=BODY, control=control(), corridor=CorridorConfig(keep_right_m=1.75)), DT)
+    for _ in range(int(60 / DT)):
+        step = driver.step(world.frame())
+        world.apply(step.command)
+        if driver.turn.committed and driver._lane_heading_odo is not None and abs(wrap(driver.last_motion.odometry.yaw_rad - driver._lane_heading_odo)) > math.radians(turned_deg):
+            return driver, world
+    raise AssertionError("the car never got into the arc")
+
+
+def test_a_mid_arc_replan_is_followable_and_a_rejected_one_leaves_the_latch_alone():
+    # Fresh-eyes review of 58adaf3: the mid-arc re-plan put the tangent point at the car, so
+    # the path began with a zero-length segment whose arbitrary heading swung the footprint
+    # over the kerb; its own check passed, the follow after it failed, and the latch had
+    # already been replaced, so every later follow failed too and the car stopped for good.
+    driver, world = _drive_into_the_arc(-1)
+    turn, pose, grid, t = driver.turn, driver.last_motion.odometry, driver.grid, world.time_s
+    before = (turn._committed[0].copy(), turn._radius)
+    plan = turn.replan_mid_arc(grid, pose, t)
+    assert plan is not None and plan.arc_start_m == 0.0 and plan.verified_m > 10.0
+    assert turn.follow(grid, pose, t + DT) is not None, "the re-latched path must be followable on the next tick"
+    assert turn._entry[2] == turn._radius  # the entry frame moved with the new arc
+    assert turn._radius != before[1] and len(turn._committed[0]) != len(before[0]) or not np.array_equal(turn._committed[0], before[0])
+    # A re-plan whose follow fails keeps the old latch: force the follow to reject.
+    latched = (turn._committed[0].copy(), turn._radius)
+    original = turn.follow
+    turn.follow = lambda *a, **k: None
+    try:
+        assert turn._relatch(turn._committed, turn._exit_odo, turn._exit_fit, 99.0, (pose, 0.0, 99.0), grid, pose, t) is None
+    finally:
+        turn.follow = original
+    assert turn._radius == latched[1] and np.array_equal(turn._committed[0], latched[0])
+    assert turn.follow(grid, pose, t + DT) is not None
+
+
+def test_a_block_far_along_the_exit_straight_does_not_stop_the_car_at_the_mouth():
+    # Review of 58adaf3: a 1.5 m wall along the approach pavement tilted the lane heading
+    # prior by 4 degrees, the exit straight read a kerb cell 28 m out, and the car stood at
+    # the mouth for the rest of the run with 20 m of verified road ahead. A hazard beyond
+    # the stopping envelope now shortens the verified path instead of blocking it.
+    side_road = SideRoad(60.0, -1, fillet_m=10.0)
+    wall = (0.5 * (15.0 + 50.0), -1.0, 0.0, 0.5 * (50.0 - 15.0), 0.3, 1.5)
+    scene = RoadScene(KerbLine([Straight(150)]), side_roads=(side_road,), hedges=side_road_hedges(side_road) + (wall,))
+    world = MaplessRoadWorld(scene, SUITE, turn=side_road, start_s_m=15.0)
+    log = drive(world, world.route(goal_after_turn(world)), seconds=70)
+    truth, last = log[-1]
+    assert last.mode is DriveMode.FINISHED and abs(truth.s_m - goal_after_turn(world)) < 3.0
+    assert not any(t.collision for t, _ in log)
+    notes = {s.diagnostics.get("turn") for _, s in log}
+    assert "latched path no longer clears the terrain: stopping on it" not in notes
+
+
+def test_a_parked_car_flush_with_the_exit_kerb_is_not_the_kerb():
+    # Review of 58adaf3: raised evidence under a parked car's sill read as the exit kerb,
+    # placing the lane 1.9 m into the road; the tall veto that labels() applies now applies
+    # to the raised evidence the kerb rule reads.
+    from mapless.terrain import PointClass, TerrainGrid  # noqa: PLC0415
+
+    grid = TerrainGrid()
+    grid.time_s = 0.0
+    xy = np.array([[5.0, -1.8]])
+    ij, inside = grid.cells(xy)
+    i, j = ij[inside, 0], ij[inside, 1]
+    grid.raised[i, j] = 3.0
+    grid.seen_by_class[PointClass.RAISED][i, j] = 0.0
+    assert grid.raised_evidence(xy, max_age_s=5.0)[0] == 3.0
+    grid.tall[i, j] = 2.0  # a car body seen above the sill
+    assert grid.raised_evidence(xy, max_age_s=5.0)[0] == 0.0
