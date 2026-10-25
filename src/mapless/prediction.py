@@ -56,6 +56,13 @@ class PredictionConfig:
     # region at 3 s and stopped the car 26 m short of a parked car (fresh-eyes review of
     # 58adaf3). The velocity uncertainty counted here is bounded by what road users do.
     max_velocity_sigma_mps: float = 1.5
+    # Velocity uncertainty counts only once the filter has settled on a velocity (sigma
+    # below this): before that the measured velocity stands on its own — an unsettled
+    # filter is not evidence of motion, and motion shows in the estimate within a few
+    # ticks. A settled track measured stationary is predicted stationary: on the first
+    # live stack run every roadside cluster (parked cars, poles) became a region metres
+    # wide over the horizon and held the car at the start line.
+    settled_velocity_sigma_mps: float = 1.0
 
     def __post_init__(self):
         if self.step_s <= 0 or self.horizon_s < self.step_s or self.lane_change_horizon_s < self.horizon_s:
@@ -64,24 +71,27 @@ class PredictionConfig:
             raise ValueError("PredictionConfig: non-negative process_noise_m2ps3 and uncertainty_sigmas")
 
 
-def position_sigmas(covariance, times, heading_rad, process_noise_m2ps3=0.0, max_velocity_sigma_mps=None):
+def position_sigmas(covariance, times, heading_rad, process_noise_m2ps3=0.0, max_velocity_sigma_mps=None, settled_velocity_sigma_mps=None, stationary=False):
     """(sigma_longitudinal, sigma_lateral) at each of ``times`` for a 4x4 ``[x, y, vx, vy]``
     covariance, in the frame of ``heading_rad``.
 
     ``P_pos(t) = P_pp + t (P_pv + P_vp) + t^2 P_vv + (q t^3 / 3) I``, rotated by -heading.
-    With ``max_velocity_sigma_mps`` the velocity block (and its cross terms, in proportion)
-    is scaled down so that no velocity sigma exceeds the bound: an unsettled filter is not
-    evidence that a parked car may do 5 m/s.
+    The velocity block (and its cross terms, in proportion) is scaled down so that no
+    velocity sigma exceeds ``max_velocity_sigma_mps``; it is dropped altogether while the
+    filter has not settled (largest velocity sigma above ``settled_velocity_sigma_mps``)
+    or for a ``stationary`` track: an unsettled filter is not evidence that a parked car
+    may do 5 m/s, and a settled stationary one is not about to.
     """
     P = np.asarray(covariance, dtype=float)
     t = np.asarray(times, dtype=float)
     P_pp, P_pv, P_vv = P[:2, :2], P[:2, 2:], P[2:, 2:]
-    if max_velocity_sigma_mps is not None:
-        largest = math.sqrt(max(float(np.linalg.eigvalsh(P_vv).max()), 0.0))
-        if largest > max_velocity_sigma_mps:
-            scale = max_velocity_sigma_mps / largest
-            P_vv = P_vv * scale**2
-            P_pv = P_pv * scale
+    largest = math.sqrt(max(float(np.linalg.eigvalsh(P_vv).max()), 0.0))
+    if stationary or (settled_velocity_sigma_mps is not None and largest > settled_velocity_sigma_mps):
+        P_vv, P_pv = np.zeros((2, 2)), np.zeros((2, 2))
+    elif max_velocity_sigma_mps is not None and largest > max_velocity_sigma_mps:
+        scale = max_velocity_sigma_mps / largest
+        P_vv = P_vv * scale**2
+        P_pv = P_pv * scale
     cross = P_pv + P_pv.T
     c, s = math.cos(heading_rad), math.sin(heading_rad)
     R = np.array([[c, s], [-s, c]])  # odometry -> heading frame
@@ -108,7 +118,9 @@ def predict(track, config=None, lane_change=False):
     else:
         length, width = DEFAULT_SIZE[track.best_class]
         heading = math.atan2(*track.velocity[::-1]) if speed > c.stationary_mps else 0.0
-    sigma_long, sigma_lat = position_sigmas(track.covariance, times, heading, c.process_noise_m2ps3, c.max_velocity_sigma_mps)
+    sigma_long, sigma_lat = position_sigmas(
+        track.covariance, times, heading, c.process_noise_m2ps3, c.max_velocity_sigma_mps, c.settled_velocity_sigma_mps, stationary=speed <= c.stationary_mps
+    )
     inflate = c.uncertainty_sigmas
     half_length = length / 2 + c.margin_m + inflate * sigma_long
     half_width = width / 2 + c.margin_m + inflate * sigma_lat

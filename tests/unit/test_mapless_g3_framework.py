@@ -270,6 +270,17 @@ def test_prediction_uncertainty_follows_the_object_heading():
     sure = ObjectTrack(4, 0.0, [0, 0, 5, 0], np.zeros((4, 4)), {"car": 1.0}, TrackStatus.CONFIRMED, 5, 0, footprint=(4.5, 2.0, 0.0))
     grown = predict(sure, PredictionConfig()).half_extents
     assert grown[-1, 0] > grown[0, 0] + 1.0 and (np.diff(grown[:, 0]) >= 0).all()
+    # Velocity uncertainty counts only for a settled, moving track (first live stack run:
+    # every roadside cluster grew into a region metres wide and held the car at the start
+    # line). A settled stationary track and an unsettled one are predicted on their
+    # measured velocity alone; a settled moving one on its (bounded) velocity sigma.
+    settled_still = ObjectTrack(5, 0.0, [12, 3, 0.05, 0.0], np.diag([0.05, 0.05, 0.25, 0.25]), {"car": 1.0}, TrackStatus.CONFIRMED, 20, 0, footprint=(4.5, 2.0, 0.0))
+    unsettled = ObjectTrack(6, 0.0, [12, 3, 0.05, 0.0], np.diag([0.05, 0.05, 16.0, 16.0]), {"car": 1.0}, TrackStatus.CONFIRMED, 3, 0, footprint=(4.5, 2.0, 0.0))
+    moving = ObjectTrack(7, 0.0, [12, 3, 3.0, 0.0], np.diag([0.05, 0.05, 0.25, 0.25]), {"car": 1.0}, TrackStatus.CONFIRMED, 20, 0, footprint=(4.5, 2.0, 0.0))
+    still_ext, unsettled_ext, moving_ext = (predict(tr, cfg).half_extents for tr in (settled_still, unsettled, moving))
+    assert np.allclose(still_ext, unsettled_ext)
+    assert still_ext[-1, 1] == pytest.approx(2.0 / 2 + 0.3 + 2 * math.sqrt(0.05), abs=0.02)  # position sigma only, at 4 s
+    assert moving_ext[-1, 0] > still_ext[-1, 0] + 3.0  # 2 * 0.5 m/s * 4 s along the heading
 
 
 def small_obstacle(track_id, xy):
