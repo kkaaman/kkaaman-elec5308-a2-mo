@@ -78,6 +78,7 @@ class Location:
 @dataclass
 class Rotation:
     yaw: float
+    pitch: float = 0.0
 
 
 @dataclass
@@ -225,6 +226,12 @@ def test_turn_site_search_refuses_a_kerb_mismatch_and_a_bent_approach():
         wp.transform.rotation.yaw = -8.0 * (k / len(bent.approach))  # 8 degrees of bend over the approach
     sites, census = find_turn_sites(FakeCarla, bent, "RIGHT", 40.0, 30.0)
     assert sites == [] and census["approach_bent"] == 1
+    # A site on a hill (Town03's first left-turn site tilted the car past the planar
+    # adapter's 5 degrees mid-box and the run aborted): any waypoint steeper than 3 degrees.
+    sloped = FakeMap()
+    sloped.exit[5].transform.rotation.pitch = 4.0
+    sites, census = find_turn_sites(FakeCarla, sloped, "RIGHT", 40.0, 30.0)
+    assert sites == [] and census["sloped"] == 1
 
 
 def test_lane_heading_near_the_car_ignores_a_bend_far_ahead():
