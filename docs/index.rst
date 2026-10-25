@@ -46,6 +46,9 @@ demonstration for the autonomous perception and navigation library.
    lane_recovery
    stack_skeleton
    kinematic_world
+   parking
+   evidence/E5-P1/README
+   evidence/E5-P1/ai-journal
    simulator_boundary
    vehicle_adapter
    world_lifecycle
