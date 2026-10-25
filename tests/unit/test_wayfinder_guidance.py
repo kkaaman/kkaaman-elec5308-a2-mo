@@ -84,6 +84,19 @@ def test_tracker_progress_is_monotonic_and_announces_turns(baseline_route):
         tracker.update(0.0, 0.0, 0.0, 1.0)  # time runs backwards
 
 
+def test_level_with_the_goal_but_beside_the_route_is_not_arrived(baseline_route):
+    _topology, route = baseline_route
+    gx, gy = route.goal_xyz_m[:2]
+    ax, ay = route.points_xyz_m[-2][:2]
+    nx, ny = -(gy - ay), gx - ax  # unit normal to the final segment
+    norm = math.hypot(nx, ny)
+    beside = RouteTracker(route).update(0.0, gx + 2.0 * nx / norm, gy + 2.0 * ny / norm, 0.0)
+    assert beside.remaining_m < 1.0 and beside.off_route_m == pytest.approx(2.0, abs=0.05)
+    assert beside.eta_state == "paused"
+    assert RouteTracker(route).update(0.0, gx, gy, 0.0).eta_state == "arrived"
+    assert SpeedPolicy().eta_s(0.5, 0.0, lateral_m=1.5) == ("paused", None)
+
+
 def test_tracker_stopped_mid_route_reports_paused_not_zero_division(baseline_route):
     _topology, route = baseline_route
     tracker = RouteTracker(route)

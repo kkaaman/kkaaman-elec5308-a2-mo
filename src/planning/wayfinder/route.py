@@ -116,12 +116,23 @@ class WayfinderRoute:
 
 
 def _lane_sequence(topology: LaneTopology, node_ids) -> list[LaneSegment]:
+    """Collapse a node path to its lane sequence; refuse a lane visited twice.
+
+    A node path from ``X:exit`` round a block back to ``X:entry`` has distinct nodes
+    but repeats lane ``X``; ``stitch_route`` refuses repeated sections, so the loop is
+    reported here under its own reason code rather than as a route-manager refusal.
+    """
     by_id = {lane.segment_id: lane for lane in topology.lanes}
     lanes: list[LaneSegment] = []
+    seen: set[str] = set()
     for node_id in node_ids:
         lane = by_id[node_id.rsplit(":", 1)[0]]
-        if not lanes or lanes[-1].segment_id != lane.segment_id:
-            lanes.append(lane)
+        if lanes and lanes[-1].segment_id == lane.segment_id:
+            continue
+        if lane.segment_id in seen:
+            raise RoutePlanningError("lane_loop", f"route would pass through lane {lane.segment_id} twice")
+        seen.add(lane.segment_id)
+        lanes.append(lane)
     return lanes
 
 
@@ -151,6 +162,10 @@ def check_destination(topology: LaneTopology, origin_node_id: str, destination_n
     result = shortest_path(topology.graph if graph is None else graph, origin_node_id, destination_node_id)
     if not result.reachable:
         return refuse("unreachable", f"no legal lane sequence from {origin_node_id} to {destination_node_id}")
+    try:
+        _lane_sequence(topology, result.node_ids)
+    except RoutePlanningError as exc:
+        return refuse(exc.reason, exc.detail)
     return DestinationCheck(origin_node_id, destination_node_id, True, "ok", f"{result.length_m:.1f} m", result)
 
 

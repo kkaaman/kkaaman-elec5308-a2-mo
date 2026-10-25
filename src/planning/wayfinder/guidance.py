@@ -51,11 +51,17 @@ class SpeedPolicy:
         if self.reference not in ("measured", "cruise"):
             raise ValueError("reference must be 'measured' or 'cruise'")
 
-    def eta_s(self, remaining_m: float, speed_mps: float) -> tuple[str, float | None]:
-        """Return ``(state, eta_s)``; ``eta_s`` is None unless the state is moving."""
+    def eta_s(self, remaining_m: float, speed_mps: float, lateral_m: float = 0.0) -> tuple[str, float | None]:
+        """Return ``(state, eta_s)``; ``eta_s`` is None unless the state is moving.
+
+        Arrival needs both the remaining arc and the lateral offset from the route
+        inside ``arrival_radius_m``: a car level with the goal but two metres beside
+        it has not arrived.
+        """
         remaining_m = _finite("remaining_m", remaining_m, 0.0)
         speed_mps = _finite("speed_mps", speed_mps, 0.0)
-        if remaining_m <= self.arrival_radius_m:
+        lateral_m = _finite("lateral_m", lateral_m, 0.0)
+        if remaining_m <= self.arrival_radius_m and lateral_m <= self.arrival_radius_m:
             return "arrived", 0.0
         if speed_mps <= self.paused_threshold_mps:
             return "paused", None
@@ -161,7 +167,7 @@ class RouteTracker:
             self._segment, self._progress_m = segment, progress
         remaining = max(0.0, self.length_m - self._progress_m)
         maneuver = self.next_maneuver(self._progress_m)
-        state, eta = self.policy.eta_s(remaining, speed_mps)
+        state, eta = self.policy.eta_s(remaining, speed_mps, lateral)
         return GuidanceState(time_s, x_m, y_m, speed_mps, self._progress_m, remaining, lateral,
                              maneuver.kind, max(0.0, maneuver.route_s_m - self._progress_m), state, eta)
 

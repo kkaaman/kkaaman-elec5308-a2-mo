@@ -38,12 +38,14 @@ named POIs are the selection mechanism.
 
 `check_destination(topology, origin, destination)` returns a `DestinationCheck`
 with a reason code (`ok`, `unknown_node`, `junction_node`, `same_node`,
-`unreachable`) without raising. `plan_route` / `plan_named_route` then build a
+`unreachable`, `lane_loop`) without raising. `plan_route` / `plan_named_route` then build a
 `WayfinderRoute`:
 
 1. A* node path from origin to destination.
-2. Lane sequence: the lanes touched by the node path, in order. Because A*
-   visits no node twice, no lane repeats, so the sequence is an open route.
+2. Lane sequence: the lanes touched by the node path, in order. A* visits no
+   node twice, but a path from `X:exit` round a block to `X:entry` touches lane
+   `X` at both ends; that is refused as `lane_loop`, so an accepted sequence is
+   an open route with no repeated lane.
 3. `planning.route_manager.stitch_route` stitches the lane-centre points and
    checks each transition is a listed successor with a boundary heading jump of
    at most 30°. A refusal surfaces as `RoutePlanningError("route_manager_refused")`.
@@ -105,7 +107,7 @@ radius 1.0 m, reference `measured`):
 - **moving**: ETA = remaining ÷ min(speed, cruise) for `measured`, or
   remaining ÷ cruise for `cruise` (a planning ETA that ignores controller
   speed fluctuations). The divisor is never below the paused threshold.
-- **arrived**: remaining ≤ arrival radius.
+- **arrived**: remaining arc ≤ arrival radius and lateral offset from the route ≤ arrival radius (level with the goal but beside it is not arrived).
 
 Display helpers: `format_distance` gives `NNN m` below 1 km and `N.NN km`
 above; `format_eta` gives `ETA m:ss`, `ETA paused` or `arrived`. Internal

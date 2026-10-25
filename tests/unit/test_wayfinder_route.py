@@ -99,6 +99,23 @@ def test_destination_checks_report_reasons_without_raising(town):
     assert check_destination(topology, start, registry.get("outer_circuit").node_id, graph).legal
 
 
+def test_route_round_the_block_to_the_same_lane_is_refused_as_a_lane_loop(town):
+    """``X:exit`` to ``X:entry`` has distinct nodes but visits lane X twice."""
+    topology, graph, _registry, _pairs = town
+    loops = 0
+    for lane in topology.lanes:
+        if lane.junction_id is not None:
+            continue
+        check = check_destination(topology, lane.exit_node_id, lane.entry_node_id, graph)
+        assert check.reason in ("lane_loop", "unreachable"), check
+        if check.reason == "lane_loop":
+            loops += 1
+            with pytest.raises(RoutePlanningError) as error:
+                plan_route(topology, lane.exit_node_id, lane.entry_node_id, graph=graph)
+            assert error.value.reason == "lane_loop"
+    assert loops > 0, "Town10HD has lanes that reach themselves round a block"
+
+
 def assert_continuous(topology, route):
     by_id = {lane.segment_id: lane for lane in topology.lanes}
     # Node path edges chain end-to-start with no endpoint reset.
