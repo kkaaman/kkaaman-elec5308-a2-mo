@@ -2,7 +2,7 @@
 
 Owner: Abdullah (E3). Status: implemented offline with synthetic-curve tests;
 live overlay verification on recorded Town10HD curves is pending (see
-`TRIAL_PLAN.md`, RV-06 row).
+[live_trial_plan](live_trial_plan.md), RV-06 row).
 
 ## What changed
 
@@ -88,5 +88,5 @@ as a `hud_s` stage with `scripts/profile_loop_timing.py` (TEST-22).
 - No recorded curve fixture with a logged image-derived offset exists in the
   repository (TEST-01 logged the A1 controller's path distance, not a lane
   offset), so the sign check is synthetic until the live overlay run below.
-- Live acceptance for RV-06 is the recorded-curve overlay in `TRIAL_PLAN.md`;
+- Live acceptance for RV-06 is the recorded-curve overlay in [live_trial_plan](live_trial_plan.md);
   the offline tests only establish the convention and validity logic.

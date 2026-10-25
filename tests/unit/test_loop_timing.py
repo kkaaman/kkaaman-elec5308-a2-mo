@@ -153,6 +153,11 @@ def test_load_run_folder_and_timing_jsonl(tmp_path):
     warm = profile_rows(rows, label="warm")
     assert warm["end_to_end"]["source_key"] == "capture_to_decision_s"
     assert warm["end_to_end"]["p95_ms"] == pytest.approx(45.0)
+    # Decision-time latency ends before the command is applied: it cannot admit.
+    assert warm["end_to_end"]["status"] == "INSUFFICIENT_EVIDENCE"
+    assert any("capture_to_apply_ms" in issue for issue in warm["end_to_end"]["evidence_issues"])
+    assert profile_rows([{"capture_to_decision_s": 0.2}] * 30, label="slow")["end_to_end"]["status"] == "FAIL"
+    assert compare_profiles({"s0": profile, "warm": warm}, baseline="s0")["deltas"]["warm"]["end_to_end_p95_delta_ms"] is None
     assert warm["receipt_to_decision"]["p95_ms"] == pytest.approx(35.0)
     assert list(warm["stages"]) == [
         "sensor_availability", "bundle", "detector", "filter", "controller",

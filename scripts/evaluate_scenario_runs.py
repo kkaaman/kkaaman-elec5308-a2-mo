@@ -69,17 +69,27 @@ def main(argv=None):
     summaries = []
     for folder in args.runs:
         samples, events, manifest, previous = load_run(folder)
+        # Missing evidence is reported, never defaulted: an absent summary.json would
+        # otherwise read as "not completed" and an absent cleanup list as "clean".
+        missing = [
+            text for present, text in (
+                ("completed" in previous, "summary.json lacks 'completed' (run the endpoint predicate first)"),
+                ("cleanup_errors" in manifest, "manifest.json lacks 'cleanup_errors'"),
+            ) if not present
+        ]
+        if missing:
+            parser.error(f"{folder}: " + "; ".join(missing))
         summary = evaluate_scenario_run(
             args.scenario,
             samples,
             events,
-            completed=bool(previous.get("completed", False)),
+            completed=bool(previous["completed"]),
             matched_s0_samples=matched_samples,
             deceleration_mps2=deceleration,
             stop_margin_m=stop_margin,
             failure_reason=manifest.get("failure_reason"),
             route_install_count=manifest.get("route_install_count", 1),
-            cleanup_ok=not manifest.get("cleanup_errors", []),
+            cleanup_ok=not manifest["cleanup_errors"],
         )
         summary.update(
             run_id=folder.name,

@@ -257,6 +257,11 @@ def profile_rows(rows, *, label="run", budget_ms=DEFAULT_BUDGET_MS, min_samples=
         issues.append("No end-to-end latency samples were recorded")
     elif len(end_values) < min_samples:
         issues.append(f"Only {len(end_values)} end-to-end samples; {min_samples} required")
+    if end_values and end_key != END_TO_END_KEYS[0][0]:
+        # Only the capture-to-apply definition reaches the actuator; a decision-time
+        # latency ends before the command is applied and cannot admit against the
+        # apply budget (it can still fail it).
+        issues.append(f"{end_key} ends before command application; capture_to_apply_ms is required to PASS")
     if end["p95_ms"] is not None and end["p95_ms"] > budget_ms:
         gate = "FAIL"
     elif issues:
@@ -322,7 +327,8 @@ def compare_profiles(profiles: dict, *, baseline: str, final: str | None = None)
             profile["end_to_end"]["p95_ms"] - base["end_to_end"]["p95_ms"]
             if profile["end_to_end"]["p95_ms"] is not None
             and base["end_to_end"]["p95_ms"] is not None
-            else None
+            and profile["end_to_end"]["source_key"] == base["end_to_end"]["source_key"]
+            else None  # a delta across two latency definitions is not a delta
         )
         rtf_delta = (
             profile["real_time_factor"]["median"] - base["real_time_factor"]["median"]

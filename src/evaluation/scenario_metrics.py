@@ -216,6 +216,17 @@ def _resume_delay(samples, events, limits):
     issues = [] if removals else ["No obstacle_removed event was recorded"]
     delays = []
     for removed in removals:
+        # A resume needs a stop first: a car that cruised through the removal has no delay.
+        stopped = any(
+            _finite(s.get("simulation_time_s"), minimum=0)
+            and s["simulation_time_s"] <= removed
+            and _finite(s.get("speed_mps"), minimum=0)
+            and s["speed_mps"] <= 0.1
+            for s in samples
+        )
+        if not stopped:
+            issues.append(f"No stopped sample before removal at {removed:g} s")
+            continue
         moving = [
             s["simulation_time_s"]
             for s in samples

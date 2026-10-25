@@ -65,3 +65,4 @@ demonstration for the autonomous perception and navigation library.
    sensor_rig
    lane_departure_monitor
    loop_timing
+   live_trial_plan

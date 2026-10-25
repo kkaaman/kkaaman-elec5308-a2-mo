@@ -149,6 +149,10 @@ def test_s5_resume_delay_and_speed_envelope():
     assert summary["status"] == "PASS"
     without_events = evaluate_scenario_run("S5", samples, streams(), completed=True)
     assert without_events["metrics"]["resume_delay_median_s"]["status"] == "INSUFFICIENT_EVIDENCE"
+    # A car that never stopped has no resume delay, whatever the removal event says.
+    cruised = evaluate_scenario_run("S5", s0_samples(), events, completed=True)
+    assert cruised["metrics"]["resume_delay_median_s"]["status"] == "INSUFFICIENT_EVIDENCE"
+    assert cruised["metrics"]["resume_delay_median_s"]["value"] is None
     assert without_events["report_only"]["speed_envelope"]["status"] == "INSUFFICIENT_EVIDENCE"
     with pytest.raises(ValueError):
         evaluate_scenario_run("S0", samples, events, completed=True)
@@ -200,4 +204,9 @@ def test_script_recomputes_from_persisted_folders(tmp_path, capsys):
     assert code == 0 and result["status"] == "PASS"
     assert result["worst_run_metrics"]["cruise_speed_drop_mps"]["value"] == pytest.approx(0.1)
     assert result["runs"][0]["run_id"] == "run-01"
+    capsys.readouterr()
+    # Missing evidence is refused, not defaulted to "not completed" / "clean".
+    (tmp_path / "S3" / "run-01" / "summary.json").unlink()
+    with pytest.raises(SystemExit):
+        evaluate_main(["S3", *folders, "--matched-s0", str(s0), "--output", str(output)])
     capsys.readouterr()

@@ -2,7 +2,7 @@
 
 Owners: Abdullah (TEST-22), Mohammad (TEST-17). Status: offline profiler and
 tests implemented; the headless-versus-HUD and warm-model measurements are live
-trials listed in `TRIAL_PLAN.md`. Nothing here changes the frozen 100 ms budget.
+trials listed in [live_trial_plan](live_trial_plan.md). Nothing here changes the frozen 100 ms budget.
 
 ## What is measured
 
@@ -61,7 +61,10 @@ bars). The exit code is 0 only when the final configuration passes.
 - `capture_to_apply_ms` excludes render and transport before the callback;
   `capture_to_decision_s` starts earlier (before the tick request) and ends at
   the decision, before actuation. The two are not interchangeable; the profile
-  records which definition each label used.
+  records which definition each label used. Only `capture_to_apply_ms` can
+  `PASS` the apply budget (a decision-time latency can still `FAIL` it, otherwise
+  it is `INSUFFICIENT_EVIDENCE`), and `compare_profiles` reports no end-to-end
+  delta between labels measured under different definitions.
 - Real-time factor below 1 means the synchronous loop runs slower than the
   simulated clock; it is reported, not judged.
 - Headless versus HUD: the S0 runner has no in-loop HUD. The live comparison
