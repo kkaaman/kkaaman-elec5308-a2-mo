@@ -164,14 +164,36 @@ def train(run_dirs, output, epochs=8, batch=8, size_wh=(512, 256), lr=1e-3, devi
     shuffle_rng = torch.Generator().manual_seed(seed)
     # drop_last: BiSeNetV2's context embedding batch-normalises a 1x1 map, which a final
     # batch of one image cannot (fresh-eyes review of 58adaf3; it raises in training mode).
-    loader = torch.utils.data.DataLoader(TorchSegmentationDataset(train_samples, size_wh), batch_size=batch, shuffle=True, num_workers=workers, generator=shuffle_rng, drop_last=True)
+    # Persistent workers: with Windows spawn, each epoch's fresh workers re-import the main
+    # script, and a checkout of another branch in the same clone mid-run killed epoch 6 of
+    # the BiSeNetV2 run (the script was gone); workers started once stay alive.
+    persistent = dict(persistent_workers=workers > 0)
+    loader = torch.utils.data.DataLoader(TorchSegmentationDataset(train_samples, size_wh), batch_size=batch, shuffle=True, num_workers=workers, generator=shuffle_rng, drop_last=True, **persistent)
     val_loader = (
-        torch.utils.data.DataLoader(TorchSegmentationDataset(validation_samples, size_wh), batch_size=batch, num_workers=workers)
+        torch.utils.data.DataLoader(TorchSegmentationDataset(validation_samples, size_wh), batch_size=batch, num_workers=workers, **persistent)
         if validation_samples
         else None
     )
     validated = val_loader is not None
     history, best = [], None
+
+    def common(history):
+        return dict(
+            created=datetime.now(timezone.utc).isoformat(),
+            epochs=epochs,
+            batch=batch,
+            learning_rate=lr,
+            seed=seed,
+            device=device,
+            towns_left_out=other,
+            history=list(history),
+            architecture=architecture,
+            pretrained_encoder=bool(pretrained and architecture == "segformer_b0"),
+            allow_unaccepted=allow_unaccepted,
+            validated=validated,
+            smoke=not validated,
+        )
+
     for epoch in range(epochs):
         model.train()
         losses = []
@@ -195,11 +217,22 @@ def train(run_dirs, output, epochs=8, batch=8, size_wh=(512, 256), lr=1e-3, devi
         if validated:
             row["validation"] = evaluate(model, val_loader, device, torch, architecture)
         candidate = dict(epoch=epoch + 1, loss=row["loss"], miou=row["validation"]["miou"] if validated else None)
-        if better(candidate, best):
+        improved = better(candidate, best)
+        if improved:
             # A CPU copy, so the chosen epoch survives the ones after it.
             best = dict(candidate, state_dict={k: v.detach().cpu().clone() for k, v in model.state_dict().items()})
         history.append(row)
         print(json.dumps(row), flush=True)
+        if improved and epoch + 1 < epochs:
+            # The best so far is on disk after every improving epoch (marked in progress), so
+            # a run that dies keeps its best checkpoint (the BiSeNetV2 run lost an hour).
+            save_checkpoints(output, best, None, epoch + 1, epochs, validated, manifests, train_samples, validation_samples, size_wh, common(history), torch, in_progress=True)
+    output, info = save_checkpoints(output, best, model, epochs, epochs, validated, manifests, train_samples, validation_samples, size_wh, common(history), torch)
+    return output, info
+
+
+def save_checkpoints(output, best, model, epochs_done, epochs, validated, manifests, train_samples, validation_samples, size_wh, common, torch, in_progress=False):
+    """Write the selected checkpoint (and, at the end of a validated run, the last epoch's)."""
     output = Path(output)
     if not validated and "smoke" not in output.stem:
         # Nothing was validated, so the file says so: the car should not take it for a trained model.
@@ -210,26 +243,12 @@ def train(run_dirs, output, epochs=8, batch=8, size_wh=(512, 256), lr=1e-3, devi
         best_epoch=best["epoch"],
         best_miou=best["miou"],
         best_loss=best["loss"],
-        last_epoch=epochs,
-    )
-    common = dict(
-        created=datetime.now(timezone.utc).isoformat(),
-        epochs=epochs,
-        batch=batch,
-        learning_rate=lr,
-        seed=seed,
-        device=device,
-        towns_left_out=other,
-        history=history,
-        architecture=architecture,
-        pretrained_encoder=bool(pretrained and architecture == "segformer_b0"),
-        allow_unaccepted=allow_unaccepted,
-        validated=validated,
-        smoke=not validated,
+        last_epoch=epochs_done,
+        in_progress=in_progress,
     )
     # The last epoch is kept beside the selected one (for resuming and the report) when a
     # validation split did the selecting; a smoke checkpoint is its own last epoch.
-    last = output.with_name(f"{output.stem}_last{output.suffix}") if validated else None
+    last = output.with_name(f"{output.stem}_last{output.suffix}") if validated and model is not None else None
     info = provenance(manifests, train_samples, validation_samples, size_wh, extra=dict(common, selection=dict(selection, saved="best"), epoch=best["epoch"], last_checkpoint=str(last) if last else None))
     output.parent.mkdir(parents=True, exist_ok=True)
     torch.save(dict(state_dict=best["state_dict"], provenance=info, input_size=list(size_wh)), output)

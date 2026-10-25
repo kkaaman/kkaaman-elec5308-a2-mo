@@ -943,6 +943,20 @@ tolerance absorbing the bulge is not the same as right: a closer-range correctio
 far kerbs (the refinement saw the line move +0.3 m, under its 0.5 m threshold) is the
 next G1c refinement, with both recordings as the offline cases.
 
+### G2 segmenter decision (25 Oct, PC 1, RTX 4000 Ada): SegFormer-B0
+Trained on the six accepted captures (48k images, Town02's 8k held out), 8 epochs,
+512×256. SegFormer-B0 (pretrained MiT-B0 encoder) best epoch 6: mIoU 0.870, road 0.972,
+pavement 0.888, marking 0.690 (noisy, 0.44–0.69 across epochs: thin and over-painted,
+recall 0.95), road_user 0.834, pavement boundary within 2 px 0.826, 5.5 ms/image. The
+BiSeNetV2 run (from scratch, batch 16) was killed at epoch 6 by a branch checkout in the
+same clone (its loader workers re-import the script on Windows spawn), but at equal epoch
+4 it was behind on everything that matters — mIoU 0.788 vs 0.846, boundary 0.74 vs 0.82,
+marking 0.45 vs 0.64 — at 2.2 vs 5.4 ms/image. **SegFormer-B0 is the segmenter**
+(`models/road_seg_b0.pt`, epoch 6; `_last.pt` beside it). Training now keeps its loader
+workers alive across epochs and writes the best checkpoint after every improving epoch
+(provenance `selection.in_progress`), so a run that dies keeps its best. The BiSeNetV2
+rerun is only for the report's comparison table.
+
 ### Fresh-eyes review of `6773e24..58adaf3` (25 Oct, three independent reads): all taken
 Turn code (`junction.py`, `driver.py`):
 1. **A mid-arc re-plan committed a path its own follow then rejected**, and the latch had
