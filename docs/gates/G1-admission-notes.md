@@ -136,3 +136,34 @@ normal whitespace checks, old/new fingerprints, config identity, saved evidence
 reproduction and archive/member hashes pass. The isolated integration runner
 returns `ADMISSION_CHECK_PASSED` without CARLA. No old/current PR #99 checkout is
 silently granted the new binding; code, config and record must be synchronized.
+
+
+## PR98 canonical-loader inventory advancement
+
+The prepared normal merge combines canonical `ce801258ddbadf3911916c4ed32e0e0e3a8b4981`
+with PR98 `c0feb8a0431b4db4ba4ca3bd00c392632191b804`; it is stopped before commit.
+No future merge SHA is invented. Exact source identity is the complete per-file
+inventory plus its combined fingerprint in `G1-admission.json`.
+
+G1 operational values and scope are unchanged; only the reviewed source inventory
+has advanced to include the accepted #39 deterministic scenario/evaluation implementation.
+The original PR104 record is preserved byte-for-byte in
+`history/G1-admission-pr104.json`. The new `canonical_loader_only` variant covers
+117 exact inputs, including all ten PR98 additions and removal of the empty
+scenario placeholder. Old fingerprint:
+`f9d9e804b8a580d6a325afe73c0f1003aa1968cb55f9df0dde8ab2244c7c3024`.
+New fingerprint:
+`bb8f19fedc92a330b90ee090a928bd836612390019104d823a44482ff242203d`.
+
+The existing `issue41_runner` variant/fingerprint `cac8bc9c4f131b16b871191f69562d87517d3f1b956849b9950543e582ff400a`
+is unchanged and applies only to its exact historical reviewed inventory. It does
+not match this loader-only tree. A future runner containing the scenario additions
+requires its own explicit reviewed binding; no future source is automatically admitted.
+Mission semantic identity/file SHA256 and every operational value remain unchanged.
+The checker prints the configured runner fingerprint; the actual loader variant's
+fingerprint is separately reproduced in the PR98 rebind provenance.
+
+Preparation is not a claim of new human sign-off. The rebind and final bytes still
+require designated review/publication; no unanimous team approval is claimed.
+No production validator, source inclusion rule, frozen mission value, guard or
+scope is changed. Negative probes continue to reject candidate/config/scope/source drift.

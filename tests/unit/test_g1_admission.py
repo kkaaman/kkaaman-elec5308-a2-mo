@@ -155,3 +155,34 @@ def test_unregistered_config_copy_is_rejected(admitted):
     copied.write_bytes(admitted[0].read_bytes())
     with pytest.raises(ValueError, match="admitted config path"):
         frozen_governor_config(copied)
+
+
+def test_pr104_binding_rejects_post_pr98_inventory(admitted):
+    old = ROOT / "docs/gates/history/G1-admission-pr104.json"
+    admitted[1].write_bytes(old.read_bytes())
+    with pytest.raises(ValueError, match="source inventory"):
+        frozen_governor_config(admitted[0])
+
+
+@pytest.mark.parametrize("kind", ["changed", "missing", "added"])
+def test_pr98_scenario_inventory_still_rejects_drift(admitted, kind):
+    source = admitted[0].parent / "scenarios/S3.json"
+    if kind == "changed":
+        source.write_text(source.read_text().replace('"lateral_m": -3.5', '"lateral_m": 3.5'))
+    elif kind == "missing":
+        source.unlink()
+    else:
+        source.with_name("unreviewed.json").write_text("{}")
+    with pytest.raises(ValueError, match="source inventory"):
+        frozen_governor_config(admitted[0])
+
+
+def test_pr98_rebind_preserves_pr104_values_scope_and_runner():
+    current = admission.read_json(ROOT / admission.RECORD_PATH)
+    old = admission.read_json(ROOT / "docs/gates/history/G1-admission-pr104.json")
+    for field in ("frozen_values", "operational_scope", "admitted_profile", "runner_scope",
+                  "runner_scope_sha256", "runner_base_revision", "config_identity_sha256",
+                  "config_file_sha256"):
+        assert current[field] == old[field]
+    assert current["source_variants"]["issue41_runner"] == old["source_variants"]["issue41_runner"]
+    assert admission.source_inventory(ROOT) == current["source_variants"]["canonical_loader_only"]["source_hashes"]

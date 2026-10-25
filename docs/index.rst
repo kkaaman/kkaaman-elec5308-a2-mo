@@ -25,6 +25,7 @@ demonstration for the autonomous perception and navigation library.
    assets
    acceptance
    acceptance-logging
+   scenarios
    depth-association
    interfaces
    geometry
