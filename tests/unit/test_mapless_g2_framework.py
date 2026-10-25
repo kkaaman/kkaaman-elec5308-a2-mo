@@ -369,6 +369,24 @@ def test_training_loop_writes_a_loadable_checkpoint(tmp_path):
     path, info = train(runs, tmp_path / "model.pt", epochs=1, batch=2, size_wh=(64, 32), device="cpu")
     assert path.exists() and path.with_suffix(".provenance.json").exists()
     assert info["training_towns"] == ["Town03"] and info["validation_towns"] == ["Town02"]
+    assert info["selection"]["in_progress"] is False
+    # The best checkpoint is on disk after every improving epoch, marked in progress, so a
+    # run that dies keeps it; the final write clears the mark and adds the last epoch.
+    saved = []
+    import mapless_training.train_segmentation as ts
+
+    original = ts.save_checkpoints
+
+    def spy(*args, **kwargs):
+        saved.append(kwargs.get("in_progress", False))
+        return original(*args, **kwargs)
+
+    ts.save_checkpoints = spy
+    try:
+        train(runs, tmp_path / "two.pt", epochs=2, batch=2, size_wh=(64, 32), device="cpu")
+    finally:
+        ts.save_checkpoints = original
+    assert saved[0] is True and saved[-1] is False and (tmp_path / "two_last.pt").exists()
     assert "iou" in info["history"][-1]["validation"]
     segmenter = TorchRoadSegmenter(path, device="cpu")
     image = grey("front", forward_camera(), 64, 32)
