@@ -94,6 +94,7 @@ def test_tracker_confirms_estimates_velocity_coasts_and_deletes():
     assert track.status is TrackStatus.CONFIRMED and track.best_class == "car"
     assert abs(track.velocity[0] - 3.0) < 0.6 and abs(track.velocity[1]) < 0.3
     assert track.footprint is not None and "lidar" in track.support
+    assert track.travelled_m == pytest.approx(3.0 * 39 * 0.05, abs=0.3)  # net displacement since first seen
     # Three hits in five frames confirmed it; before that it was tentative.
     early = Tracker(TrackerConfig())
     early.update(0.0, ORIGIN, lidar=[LidarMeasurement(np.array([20.0, 1.0]))])
@@ -288,6 +289,13 @@ def test_prediction_uncertainty_follows_the_object_heading():
     kerb = ObjectTrack(8, 0.0, [6.3, -4.8, 0.0, 0.0], np.diag([0.05, 0.05, 0.25, 0.25]), {"unknown": 1.0}, TrackStatus.CONFIRMED, 20, 0, footprint=(1.2, 0.6, 0.0))
     kerb_ext = predict(kerb, PredictionConfig()).half_extents
     assert np.allclose(kerb_ext[-1], kerb_ext[0]) and kerb_ext[-1, 1] == pytest.approx(0.3 + 0.3 + 2 * math.sqrt(0.05), abs=0.01)
+    # A velocity read on a track that has not moved from where it was first seen is
+    # centroid jitter, not motion (third live stack run): predicted where it stands.
+    jitter = ObjectTrack(9, 0.0, [14.8, -4.5, 0.44, 0.05], np.diag([0.05, 0.05, 0.25, 0.25]), {"unknown": 1.0}, TrackStatus.CONFIRMED, 20, 0, footprint=(6.0, 0.6, 0.0), travelled_m=0.2)
+    still = predict(jitter, PredictionConfig())
+    assert np.allclose(still.centres, still.centres[0]) and np.allclose(still.half_extents[-1], still.half_extents[0])
+    gone = predict(ObjectTrack(9, 0.0, [14.8, -4.5, 0.44, 0.05], np.diag([0.05, 0.05, 0.25, 0.25]), {"unknown": 1.0}, TrackStatus.CONFIRMED, 20, 0, footprint=(6.0, 0.6, 0.0), travelled_m=1.0), PredictionConfig())
+    assert gone.centres[-1, 0] > still.centres[-1, 0] + 1.5
 
 
 def small_obstacle(track_id, xy):

@@ -89,6 +89,7 @@ class _Track:
     support: tuple = ()
     footprint: tuple | None = None
     confirmed: bool = False
+    origin: np.ndarray | None = None  # first measured position (odometry frame)
 
 
 def _normalised(probabilities):
@@ -291,7 +292,7 @@ class Tracker:
         tid = self._next_id
         self._next_id += 1
         P = np.diag([sigma_m**2, sigma_m**2, c.initial_speed_sigma_mps**2, c.initial_speed_sigma_mps**2])
-        track = _Track(tid, np.array([xy_odo[0], xy_odo[1], 0.0, 0.0]), P, time_s, time_s, _normalised(probabilities))
+        track = _Track(tid, np.array([xy_odo[0], xy_odo[1], 0.0, 0.0]), P, time_s, time_s, _normalised(probabilities), origin=np.array(xy_odo[:2], dtype=float))
         track.history = deque(maxlen=c.confirm_window)
         track.hits = 1
         track.support = (sensor,)
@@ -326,6 +327,7 @@ class Tracker:
                     misses=t.misses,
                     support=t.support,
                     footprint=t.footprint,
+                    travelled_m=None if t.origin is None else float(np.hypot(*(t.x[:2] - t.origin))),
                 )
             )
         return out

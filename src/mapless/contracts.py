@@ -59,6 +59,9 @@ class ObjectTrack:
     misses: int
     support: tuple = ()
     footprint: tuple | None = None
+    # Net displacement (m) from the track's first measurement, or None when unknown:
+    # the tracker's corroboration that an estimated velocity is motion, not jitter.
+    travelled_m: float | None = None
 
     def __post_init__(self):
         object.__setattr__(self, "state", _array(self.state, (4,), "state"))
