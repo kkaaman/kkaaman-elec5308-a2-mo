@@ -917,6 +917,22 @@ right turns). Two worlds, two answers; the live one decides. Taken:
   no-op). When no same-radius arc reaches a moved exit line from the entry straight, the
   refinement falls through to a fresh arc from the car instead of returning.
 
+### Sixth live turn (25 Oct, PC 1, `dc21548`): **right turn MEASURED_PASS, every gate**
+Lane offset through the box within ±0.17 m (was +1.1 m), corner excess at most −0.49 m,
+exit kerb read at 2.5–2.8 m from the probe at commit (was 1.5), no refinement needed:
+the replay's kerb rule confirmed live. (PC 2 and PC 3 stopped launching CARLA after the
+overnight sign-out — "Fatal error!" before any log, same driver 596.71 as PC 1, which
+was never signed out and still runs it: an IT matter, not ours.)
+
+First left-turn attempt: Town10HD has no left-turn site for the filters (the 8 left exits
+fail `no_matching_exit`); on Town03 the first site sits on a hill and the planar adapter
+aborted the run at 5° of tilt two thirds round the box, with the car 1.1 m off the lane on
+a far kerb reading (`kerb@6.3`, the exit kerb across the box). The harness now rejects
+sites with any waypoint steeper than `max_slope_deg` 3°, ends the run with a report when
+the adapter refuses the vehicle state (a result, not a traceback), and removes an empty
+output folder when setup fails so the same name can be retried. The recording of that
+attempt is the left-turn replay case.
+
 ### Fresh-eyes review of `6773e24..58adaf3` (25 Oct, three independent reads): all taken
 Turn code (`junction.py`, `driver.py`):
 1. **A mid-arc re-plan committed a path its own follow then rejected**, and the latch had

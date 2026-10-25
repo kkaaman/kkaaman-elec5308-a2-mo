@@ -248,7 +248,7 @@ def follow_junction(wp, max_m=80.0):
     return None
 
 
-def find_turn_sites(carla, carla_map, command, approach_m, exit_m, junction_clearance_m=8.0, angle_tolerance_deg=30.0, max_kerb_mismatch_m=0.3, max_approach_bend_deg=5.0):
+def find_turn_sites(carla, carla_map, command, approach_m, exit_m, junction_clearance_m=8.0, angle_tolerance_deg=30.0, max_kerb_mismatch_m=0.3, max_approach_bend_deg=5.0, max_slope_deg=3.0):
     """Sites for a commanded turn: a rightmost lane run ending at a junction whose connecting
     lane turns about 90 degrees to ``command``'s side into a rightmost exit lane.
 
@@ -264,7 +264,7 @@ def find_turn_sites(carla, carla_map, command, approach_m, exit_m, junction_clea
       skews it.
     """
     want = -math.pi / 2 if command == "RIGHT" else math.pi / 2
-    census = dict(segments=0, no_junction_end=0, not_rightmost=0, too_short=0, approach_bent=0, no_matching_exit=0, exit_too_short=0, kerb_mismatch=0, sites=0)
+    census = dict(segments=0, no_junction_end=0, not_rightmost=0, too_short=0, approach_bent=0, sloped=0, no_matching_exit=0, exit_too_short=0, kerb_mismatch=0, sites=0)
     sites, seen = [], set()
     for start, _ in carla_map.get_topology():
         census["segments"] += 1
@@ -317,6 +317,13 @@ def find_turn_sites(carla, carla_map, command, approach_m, exit_m, junction_clea
             census["no_matching_exit"] += 1
             continue
         through, exit_run, change, exit_kerb, exit_source = match
+        # The planar adapter refuses more than 5 degrees of pitch or roll, and Town03's hills
+        # and bridge gave a left-turn site that aborted the run mid-box: every waypoint of
+        # the approach, junction and exit must lie within max_slope_deg.
+        pitches = [abs(wrap(math.radians(w.transform.rotation.pitch))) for w in (*approach, *through, *exit_run)]
+        if max(pitches) > math.radians(max_slope_deg):
+            census["sloped"] += 1
+            continue
         census["sites"] += 1
         sites.append(
             dict(
@@ -786,7 +793,14 @@ class MaplessDrive:
                 begun = time.perf_counter()
                 step = driver.step(sf)
                 step_times.append(time.perf_counter() - begun)
-                self.adapter.apply(step.command)
+                try:
+                    self.adapter.apply(step.command)
+                except ValueError as error:
+                    # The planar adapter's scope (tilt, reverse motion): a result to score,
+                    # not a traceback — the gates and the recording are still written.
+                    self.adapter.stop()
+                    end = f"adapter refused the vehicle state: {error}"
+                    break
                 truth = self.truth()
                 if self.actor is not None:
                     self.actor.step(tick, truth)
@@ -1091,7 +1105,14 @@ def main(argv=None, stack=False):
             report["status"] = "MEASURED_PASS"
     except Exception as error:
         report["error"] = f"{type(error).__name__}: {error}"
+        if not report["checks"] and not any(args.output.iterdir()):
+            # Setup failed before anything was written (no site, map not loaded): leave no
+            # empty folder behind, so the same --output can be tried again.
+            args.output.rmdir()
+            print(f"status: {report['status']}")
+            raise
         raise
     finally:
-        (args.output / "drive_report.json").write_text(json.dumps(rounded(report), indent=2, default=str), encoding="utf-8")
-        print("\n".join([f"{c['status']:10}  {c['check']}" for c in report["checks"]] + [f"status: {report['status']}"]))
+        if args.output.exists():
+            (args.output / "drive_report.json").write_text(json.dumps(rounded(report), indent=2, default=str), encoding="utf-8")
+            print("\n".join([f"{c['status']:10}  {c['check']}" for c in report["checks"]] + [f"status: {report['status']}"]))
