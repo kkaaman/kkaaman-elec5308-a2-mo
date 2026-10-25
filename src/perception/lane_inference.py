@@ -25,6 +25,15 @@ def _get_default_device():
 
 
 class LaneSegmenter:
+    """ResNet18 LaneUNet lane-marking segmenter on RGB frames.
+
+    ``checkpoint_path`` must be a complete tensor-only state dict (loaded with
+    ``weights_only=True``, strict); ``image_size`` is the model's
+    ``(height, width)`` in pixels (default 360x640). Frames are resized to it
+    for inference and the mask is resized back with nearest-neighbour
+    interpolation. No pretrained download is attempted.
+    """
+
     def __init__(
         self,
         checkpoint_path,
@@ -52,6 +61,15 @@ class LaneSegmenter:
         self.model.eval()
 
     def predict(self, image):
+        """Return an ``HxW`` uint8 lane mask (1 = lane marking) at input resolution.
+
+        ``image`` must be a nonempty ``HxWx3`` uint8 RGB array (CARLA BGRA is
+        converted at the adapter boundary; the legacy BGR wrapper lives in
+        ``autodrive.perception.lane_inference``). The mask belongs to this frame
+        only; it carries no timestamp, so callers attach frame identity before
+        passing it to ``perception.lane_path.extract_ego_path`` or the RV-06
+        departure monitor. Raises ``ValueError`` / ``TypeError`` on bad input.
+        """
         if image is None:
             raise ValueError("Input image cannot be None.")
 

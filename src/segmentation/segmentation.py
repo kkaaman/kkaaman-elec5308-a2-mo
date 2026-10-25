@@ -1,7 +1,13 @@
-"""Simulator-agnostic semantic segmentation:
-        Combines the preprocessing, bisenetv2 as well as postprocessing 
-        scripts along with a path to the trained weights to produce the coloured 
-        overlay of the semantic segmenter"""
+"""Simulator-agnostic semantic segmentation (BiSeNetV2, Cityscapes 19 classes).
+
+Combines preprocessing, the BiSeNetV2 network and postprocessing with a path
+to trained weights. Input is a nonempty ``HxWx3`` uint8 RGB frame at any
+resolution; output is an ``HxW`` uint8 class-index mask at the input
+resolution. The segmenter is display/diagnostic only in the A2 baseline:
+``evaluation.masking`` keeps depth masking ``KEEP_OFF`` until measured, and the
+optional cadence/stale-mask rules live in :mod:`perception.cadence` and
+``docs/sensor_rig.md``.
+"""
 
 import os
 
@@ -20,7 +26,9 @@ DEFAULT_NUM_CLASSES = 19  # Cityscapes trainId classes
 class SemanticSegmenter:
     """Loads a trained segmentation model and exposes a simulator-agnostic API.
 
-
+    Weights are loaded with ``weights_only=True`` (tensor-only checkpoints) and
+    the model is placed in eval mode on ``device``. A missing weights file
+    raises ``FileNotFoundError``.
 
     Args:
         weights_path: Path to trained model weights.
@@ -78,8 +86,11 @@ class SemanticSegmenter:
             image: HxWx3 uint8 RGB array, any input resolution.
 
         Returns:
-            HxW uint8 array of per-pixel class indices, at the *original*
-            input resolution (not the model's internal input_size).
+            HxW uint8 array of per-pixel Cityscapes trainId class indices
+            (0-18), at the *original* input resolution (not the model's
+            internal input_size). The mask is valid only for the frame it was
+            computed from; consumers must not reuse it for later frames
+            without an explicit age limit (see :mod:`perception.cadence`).
 
         Raises:
             ValueError: If ``image`` is not an HxWx3 uint8 RGB array.

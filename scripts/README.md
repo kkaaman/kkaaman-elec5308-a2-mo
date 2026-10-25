@@ -23,7 +23,8 @@ Command-line entry points. Run them from the repository root after
 | `evaluate_depth.py` | Depth convention and range accuracy | BL-B-04 (Mohammad) |
 | `evaluate_runs.py` | Aggregate run metrics | BL-F-05 (Saviour) |
 | `benchmark_detector.py` | Detection and confirmation range offline | BL-C-05 (Ricky) |
-| `benchmark_latency.py` | Loop timing and real-time factor | TEST-03 (Abdullah), TEST-17 (Mohammad) |
+| `profile_loop_timing.py` | Loop timing profile: per-stage and capture-to-apply p50/p95, real-time factor, headless vs HUD gate | TEST-22 (Abdullah), TEST-17 (Mohammad) |
+| `evaluate_scenario_runs.py` | S3/S4/S5 reporting from persisted runs (false stops, slowdown, HOLD, resume, envelope) | TEST-05, TEST-07 |
 | `evaluate_weather.py` | Recall and range across weather | E1-03 (Ricky) |
 | `latency_speed_test.py` | Local, LAN and cloud inference latency | E4-07 (Saviour) |
 

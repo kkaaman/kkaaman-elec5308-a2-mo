@@ -64,6 +64,21 @@ contents and task owners until the code lands.
 
 .. automodule:: evaluation
 
+.. automodule:: evaluation.loop_timing
+   :members:
+
+.. automodule:: evaluation.scenario_metrics
+   :members:
+
+.. automodule:: perception.cadence
+   :members:
+
 .. automodule:: visualisation
+
+.. automodule:: visualisation.lane_departure
+   :members:
+
+.. automodule:: visualisation.hud
+   :members:
 
 .. automodule:: cloud
