@@ -42,10 +42,10 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from mapless.contracts import DecisionRecord, TrackStatus
+from mapless.contracts import DecisionRecord
 from mapless.detections import DetectionsConfig, Detector, NoDetector, cluster_obstacles, join
 from mapless.driver import DriveMode, MaplessDriver
-from mapless.following import FollowingConfig, FollowingController
+from mapless.following import LEAD_STATUSES, FollowingConfig, FollowingController
 from mapless.frame import SensorFrame, SensorState
 from mapless.obstacles import project_onto_polyline
 from mapless.painting import PaintingConfig, SegmentedFrame, paint
@@ -125,6 +125,7 @@ class MaplessStack:
         self._segmentations = None  # the last SegmentedFrame (its frame id says which sweep it may paint)
         self._model = None
         self.frame_generation = 0  # bumped on every local-frame rebuild
+        self._cap_reason = ""  # what produced the cap the driver plans the next command under
         self.records = []
 
     @staticmethod
@@ -158,7 +159,7 @@ class MaplessStack:
         self._tick += 1
         t = frame.sim_time_s
         tracks, predictions = (), ()
-        cap = None
+        cap, cap_reason = None, ""
         coverage = {s.name: s.state.value for s in frame.status}
         # -- local frame rebuild -----------------------------------------------------------
         rebuilt = bool(step.diagnostics.get("frame_rebuilt"))
@@ -195,11 +196,16 @@ class MaplessStack:
             # -- track and predict ----------------------------------------------------------
             tracks = tuple(self.tracker.update(t, pose, measurements, radar_measurements, camera_only))
             live = self.tracker.live(tracks)
-            predictions = tuple(predict_all(live, c.prediction))
+            # Only tracks the tracker vouches for are predicted onto the path: a fresh
+            # tentative track carries the filter's initial velocity variance (5 m/s), which
+            # the prediction inflates to a 30 m box at 3 s, and every new parked-car cluster
+            # tapped the brakes for a few ticks (fresh-eyes review of 58adaf3). Tentative
+            # clusters are the driver's LiDAR obstacle stop's job, the documented backstop.
+            predictions = tuple(predict_all([tr for tr in live if tr.status in LEAD_STATUSES], c.prediction))
             timing["track"] = (time.perf_counter() - begun) * 1000
             # -- follow and conflicts --------------------------------------------------------
             begun = time.perf_counter()
-            cap = self._speed_cap(motion, pose, live, predictions, t)
+            cap, cap_reason = self._speed_cap(motion, pose, live, predictions, t)
             timing["plan"] = (time.perf_counter() - begun) * 1000
             # -- road model ------------------------------------------------------------------
             if self._tick % c.road_model_every == 0:
@@ -212,7 +218,8 @@ class MaplessStack:
         # ``executed`` describes this tick's command, so only the cap that shaped it (last
         # tick's) can have vetoed it; the cap just computed is recorded as the next request.
         if cap_applied is not None and cap_applied <= 0.0 and proposed == "FOLLOW":
-            executed, veto = "STOP", "predicted conflict on the path"
+            executed, veto = "STOP", self._cap_reason or "speed cap"
+        self._cap_reason = cap_reason
         constraints = tuple(k for k in ("obstacle_m", "stop_reason", "turn") if step.diagnostics.get(k))
         record = DecisionRecord(
             t,
@@ -247,15 +254,16 @@ class MaplessStack:
         path_body = corridor.centre_body
         # The corridor line starts behind the rear axle: arc lengths are measured from the car.
         s_car = float(project_onto_polyline(np.zeros((1, 2)), path_body)[0][0])
-        cap = None
+        cap, reason = None, ""
         # Only tracks the tracker vouches for lead the car (a 3-point tentative cluster must not).
-        leads = [tr for tr in self.tracker.live(tracks) if tr.status in (TrackStatus.CONFIRMED, TrackStatus.COASTING)]
+        leads = [tr for tr in self.tracker.live(tracks) if tr.status in LEAD_STATUSES]
         lead = self.following.lead_ahead(leads, pose, path_body, s_from_m=s_car)
         if lead is not None:
             s, track = lead
             gap = s - self.driver.config.body.front_m
             along = pose.to_body(np.array([track.position + track.velocity]))[0] - pose.to_body(track.position[None])[0]
             cap = self.following.target_speed(self.driver.config.planner.cruise_mps, motion.speed_mps, gap, float(along[0]), self.driver.dt_s)
+            reason = "lead at a standstill" if cap is not None and cap <= 0.0 else "following the lead"
         else:
             self.following.reset()
         if predictions and plan is not None and plan.trajectory is not None:
@@ -273,8 +281,8 @@ class MaplessStack:
             # The car's whole oriented body along the path, not a disc about the rear axle.
             hit = first_footprint_conflict(predictions, xy, times, self.driver.config.body)
             if hit is not None and hit[0] <= c.conflict_horizon_s:
-                cap = 0.0
-        return cap
+                cap, reason = 0.0, "predicted conflict on the path"
+        return cap, reason
 
     def reset_spatial(self):
         """Drop everything kept in the odometry frame: tracks, semantic evidence, the

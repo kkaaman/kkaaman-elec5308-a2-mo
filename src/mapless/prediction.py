@@ -51,6 +51,11 @@ class PredictionConfig:
     # grows by q t^3 / 3. The tracker drives its CV model with 1.5 m/s^2 white acceleration
     # at a 0.05 s tick, which is q = 1.5^2 * 0.05 in these units (1 m sigma at 3 s).
     process_noise_m2ps3: float = 1.5**2 * 0.05
+    # A track's velocity variance starts at the filter's prior (5 m/s sigma) and settles
+    # within a second; propagated as is, a just-confirmed stationary object became a 30 m
+    # region at 3 s and stopped the car 26 m short of a parked car (fresh-eyes review of
+    # 58adaf3). The velocity uncertainty counted here is bounded by what road users do.
+    max_velocity_sigma_mps: float = 1.5
 
     def __post_init__(self):
         if self.step_s <= 0 or self.horizon_s < self.step_s or self.lane_change_horizon_s < self.horizon_s:
@@ -59,15 +64,24 @@ class PredictionConfig:
             raise ValueError("PredictionConfig: non-negative process_noise_m2ps3 and uncertainty_sigmas")
 
 
-def position_sigmas(covariance, times, heading_rad, process_noise_m2ps3=0.0):
+def position_sigmas(covariance, times, heading_rad, process_noise_m2ps3=0.0, max_velocity_sigma_mps=None):
     """(sigma_longitudinal, sigma_lateral) at each of ``times`` for a 4x4 ``[x, y, vx, vy]``
     covariance, in the frame of ``heading_rad``.
 
     ``P_pos(t) = P_pp + t (P_pv + P_vp) + t^2 P_vv + (q t^3 / 3) I``, rotated by -heading.
+    With ``max_velocity_sigma_mps`` the velocity block (and its cross terms, in proportion)
+    is scaled down so that no velocity sigma exceeds the bound: an unsettled filter is not
+    evidence that a parked car may do 5 m/s.
     """
     P = np.asarray(covariance, dtype=float)
     t = np.asarray(times, dtype=float)
     P_pp, P_pv, P_vv = P[:2, :2], P[:2, 2:], P[2:, 2:]
+    if max_velocity_sigma_mps is not None:
+        largest = math.sqrt(max(float(np.linalg.eigvalsh(P_vv).max()), 0.0))
+        if largest > max_velocity_sigma_mps:
+            scale = max_velocity_sigma_mps / largest
+            P_vv = P_vv * scale**2
+            P_pv = P_pv * scale
     cross = P_pv + P_pv.T
     c, s = math.cos(heading_rad), math.sin(heading_rad)
     R = np.array([[c, s], [-s, c]])  # odometry -> heading frame
@@ -94,7 +108,7 @@ def predict(track, config=None, lane_change=False):
     else:
         length, width = DEFAULT_SIZE[track.best_class]
         heading = math.atan2(*track.velocity[::-1]) if speed > c.stationary_mps else 0.0
-    sigma_long, sigma_lat = position_sigmas(track.covariance, times, heading, c.process_noise_m2ps3)
+    sigma_long, sigma_lat = position_sigmas(track.covariance, times, heading, c.process_noise_m2ps3, c.max_velocity_sigma_mps)
     inflate = c.uncertainty_sigmas
     half_length = length / 2 + c.margin_m + inflate * sigma_long
     half_width = width / 2 + c.margin_m + inflate * sigma_lat

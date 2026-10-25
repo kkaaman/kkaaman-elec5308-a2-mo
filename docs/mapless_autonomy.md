@@ -699,8 +699,10 @@ constraints, coverage, stage timings). Every value validates itself.
   target), worst-case cap from the lead braking at 6 m/s² with a 0.5 s response and
   4 m/s² ego braking, stopping 2.5 m + 1 m short; nearest in-lane track ahead is the lead.
 - **Scenarios M04–M06** (`crossing_pedestrian`, `braking_lead`, `cut_in`): scripted
-  actors on the harness site with a `separation` gate (body never within 1 m) and
-  completion by goal or hold. Written against the CARLA API, not yet run live.
+  actors on the harness site with a `separation` gate (oriented-polygon distance between
+  the ego box and the actor's box never below 1 m; INCOMPLETE without measurements) and
+  per-scenario `completion` (yield-resume-goal, safe gap then goal, sustained safe hold —
+  see the review of `6773e24` below). Written against the CARLA API, not yet run live.
 
 ### Review of `36ba0ca` (fresh-eyes read, 24 Oct) — all taken
 Would have broken a live run: the walker spawned on the *left* of the lane (CARLA's
@@ -802,7 +804,7 @@ The site search found a matching-kerb site at once; the approach was clean (offs
   while it stands.
 - **Roll-back on the brake crashed the run:** the baseline adapter refuses reverse motion
   beyond 0.05 m/s and the car rolled back a few cm/s at the hold. The harness uses
-  `HoldingVehicleAdapter` (0.5 m/s tolerance, roll-back ticks reported) and the driver now
+  `HoldingVehicleAdapter` (0.2 m/s tolerance, roll-back ticks reported) and the driver now
   holds the brake at a junction stop as it does at an obstacle stop.
 Also seen: a phantom obstacle 1.5 cm ahead for one tick as the car braked hard (LiDAR
 pitch under braking), released by the clearance rule.
@@ -881,6 +883,10 @@ live driver tick for tick and scores the exit-kerb stations against the site's t
 | `midpoint` | −0.57 m | −0.41 m | −0.32 m |
 | `barrier` / `raised` (the first raised cell beyond the road) | −0.16 m | +0.01 m | −0.19 m |
 
+(Scored through one global rigid fit, RMS 0.28 m; the replay now takes each tick's own
+odometry/truth pose pair instead, which reads the `raised` rule at −0.08 m kerb, +0.07 m
+lane and a latched line 0.34 m right of truth — the same picture without the drift.)
+
 The grid across the exit kerb at t=21 (`kerb_cells.py`): BARRIER cells sit within a cell
 of the true kerb line, then ~1.5 m of unseen cells on the *road* side, then the road.
 The point classes say why: the road near the kerb gets a return only where a ring lands
@@ -910,6 +916,70 @@ right turns). Two worlds, two answers; the live one decides. Taken:
   from the lane, so its first verdict was a spurious "2.7 m off" and the re-anchor a
   no-op). When no same-radius arc reaches a moved exit line from the entry straight, the
   refinement falls through to a fresh arc from the car instead of returning.
+
+### Fresh-eyes review of `6773e24..58adaf3` (25 Oct, three independent reads): all taken
+Turn code (`junction.py`, `driver.py`):
+1. **A mid-arc re-plan committed a path its own follow then rejected**, and the latch had
+   already been swapped, so every later follow failed and the car stopped for good. The
+   re-plan solves the radius so the tangent point is at the car; `_arc_path` emitted a
+   zero-length first segment whose arbitrary heading swung the footprint over the kerb
+   (rounding decided which half of the re-plans failed). No degenerate segment now, the
+   swept check takes headings from real segments, and every re-latch goes through
+   `_relatch`: if the follow rejects the new path the old latch stands.
+2. **A block far along the exit straight stopped the car dead at the mouth** (a 1.5 m wall
+   on the approach pavement tilted the lane-heading prior 4°, the exit straight read a kerb
+   cell 28 m out, all repairs failed identically, and at a standstill nothing changes, so
+   nothing released it — 71 s). `follow` tolerates a hazard beyond the stopping envelope
+   (`near_cover_m`): the path is verified to a metre short of it, the car approaches and
+   keeps measuring. A mid-arc repair tries the heading prior first and the stations'
+   fitted heading second (a prior a few degrees off is the likeliest cause of a block at
+   the exit straight; on straight kerbs the fitted slope is range bias, so second).
+3. **`raised_evidence` ignored the tall veto**: a parked car flush with the exit kerb
+   became the kerb (lane 1.9 m into the road). The veto `labels()` applies now applies.
+4. The jump guard and the fresh-arc fallback apply to the repair as well as the refinement
+   (`fresh_arc` in both modes); `_mid_arc` refreshes the entry frame so the next refinement
+   rebuilds from the new arc; a reading hovering about the refinement threshold no longer
+   resets the candidate every other tick (dropped only within 0.2 m of the latched); the
+   "read from nearer" rule the comment promised but the code did not apply is dropped from
+   the comment (`range_m` is reported only); `_moving_t` is updated before the early
+   returns (a fault while moving must not stretch a later standstill's freshness); the
+   junction brake hold applies only at the hold point itself (`junction_hold_within_m`
+   0.4 m — a car stopped a metre short of a verified frontier at a standstill never saw
+   the frontier move); the log keeps at most 60 kerb stations a tick (was 800, 11 KB).
+   Tests: a followable mid-arc re-plan with latch rollback, the wall scenario finishing,
+   the tall veto, and the latch test allows the radius to change once per re-plan.
+
+Harness, recorder, replay (`mapless_drive.py`, `frame_record.py`, `mapless_replay.py`):
+5. **A crossing walker's yield counted towards `--hold-s`**, so the run ended the tick the
+   walker cleared, with no ticks for the car to resume (completion FAIL on a correct
+   yield). Hold ticks count only while a hold may end the run.
+6. **The replay's one global rigid fit smeared odometry drift** (0.3–0.5 m, up to a degree
+   over the run) into the kerb and lane errors; each tick's own odometry/truth pose pair
+   now takes estimates to the core frame (the global fit stays as a sanity figure).
+7. The recording is self-contained (the suite's full spec and sha in `meta.json`; the
+   replay no longer needs the config file or the report's 3-digit-rounded overrides);
+   `frames.jsonl` is flushed per row; int16 centimetres are checked against the LiDAR's
+   reach; a second LiDAR's status is dropped on load; ASCII-only console (Windows
+   cp1252); `HoldingVehicleAdapter` tolerance 0.2 m/s (ten times the roll-back seen).
+
+Stack and training (`stack.py`, `prediction.py`, `train_segmentation.py`, `segmentation_data.py`):
+8. **Fresh tracks tapped the brakes**: a just-confirmed track carries the filter's initial
+   5 m/s velocity sigma, which the prediction inflated to a 30 m region at 3 s, and every
+   new parked-car cluster capped the speed to zero for a few ticks 26 m out. Only
+   confirmed/coasting tracks are predicted onto the path, and the velocity sigma counted
+   is bounded (`max_velocity_sigma_mps` 1.5). Test: no zero cap with the parked car more
+   than 15 m ahead. The veto label now names its cause (lead at a standstill, following,
+   predicted conflict) instead of always "predicted conflict".
+9. Training: `drop_last` on the training loader (BiSeNetV2's context embedding batch-norms
+   a 1×1 map and raises on a final batch of one — latent, every epoch had identical
+   batches); the dataset holds only data so Windows `--workers > 0` can pickle it; a
+   progress line every 200 steps with images/s and ETA, `seconds` per epoch.
+
+Left as noted limits: the raised rule takes the first raised cell up to 3 m behind the
+road (`exit_max_unseen_m`), so a bare pavement with furniture 2.5 m back would place the
+lane 2.6 m toward the pavement — the clearance checks refuse such a path rather than drive
+it; `braking_lead`'s hold passes with any gap ≥ 1 m; a walker that never triggers leaves
+the run to `--max-s`.
 
 ### External review of `6773e24` (ChatGPT, 24 Oct): nine findings, seven taken
 Taken, each with tests:
@@ -996,9 +1066,13 @@ python scripts/replay_mapless_frames.py --run <run folder> --junction exit_kerb_
 
 # 6. G2 road segmenter on the accepted captures (needs `pip install -e .[test,docs]` for transformers;
 #    not while CARLA is rendering on the same GPU). Compare the two by the per-epoch validation JSON.
-python scripts/train_mapless_segmentation.py --run "$HOME\Documents\Group7_runs\capture_pilot_Town03_s5308" `
-    --run "$HOME\Documents\Group7_runs\capture_Town04_s5311" --output models\road_seg_b0.pt --architecture segformer_b0 --epochs 8
-python scripts/train_mapless_segmentation.py --run ... --output models\road_seg_bisenet.pt --architecture bisenetv2 --epochs 8
+#    One --run per accepted capture (Town02 is the validation town, the rest train); --allow-unaccepted
+#    takes a run whose inspection failed only on manifest status (an interrupted wrap-up). ~48k training
+#    images at 512x256: 20-30 min an epoch on an RTX 2080 with --workers 4, longer with --workers 0; a
+#    progress line every 200 steps gives the ETA; --max-samples 20000 for a first result in an hour.
+python scripts/train_mapless_segmentation.py --run "$HOME\Documents\Group7_runs\capture_Town01_s5311" `
+    --run "$HOME\Documents\Group7_runs\capture_Town02_s5314" --run ... --output models\road_seg_b0.pt --architecture segformer_b0 --epochs 8 --workers 4
+python scripts/train_mapless_segmentation.py --run ... --output models\road_seg_bisenet.pt --architecture bisenetv2 --epochs 8 --workers 4
 
 # 7. G2/G3 stack on the drive harness (after G1c; --admission A|B|C, --segmenter <checkpoint>, --detector yolo)
 python scripts/run_mapless_stack.py --scenario straight --admission B --output "$HOME\Documents\Group7_runs\stack_straight"

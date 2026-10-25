@@ -9,10 +9,11 @@ measurements — tick for tick, with configuration changes (``--junction key=val
 tried against the same frames. Control questions need the simulator.
 
 Truth: the drive log's rear-axle pose (evaluator core frame) and ``turn_truth.json``
-(approach/junction/exit lane centrelines, kerb distances). The odometry frame is tied to
-the core frame by a rigid fit of the logged odometry to the logged truth over the ticks
-the driver trusted its odometry, so odometry-frame estimates (the exit line and its kerb
-stations) can be scored against the true exit kerb in metres.
+(approach/junction/exit lane centrelines, kerb distances). Odometry-frame estimates (the
+exit line and its kerb stations) are taken to the core frame through each tick's own
+pair of logged poses (odometry and truth), so they are scored against the true exit kerb
+as the car saw them, free of odometry drift. Replay errors are signed positive to the
+RIGHT of travel; the drive log's ``lane_offset_m`` is positive to the LEFT.
 """
 
 from __future__ import annotations
@@ -20,6 +21,7 @@ from __future__ import annotations
 import argparse
 import dataclasses
 import json
+import math
 from pathlib import Path
 
 import numpy as np
@@ -29,7 +31,7 @@ from carla_adapter.mapless_drive import driver_config
 from mapless.driver import MaplessDriver
 from mapless.junction import JunctionConfig
 from mapless.satnav import SatNavRoute
-from mapless.sensor_suite import load_sensor_suite
+from mapless.sensor_suite import load_sensor_suite, suite_from_dict
 from mapless.terrain import VehicleBody
 
 
@@ -44,9 +46,25 @@ def rigid_fit(source, target):
     return r, ct - cs @ r.T
 
 
+def tick_transform(row):
+    """(R, t) taking odometry points to the core frame at this tick, from the logged
+    odometry pose and the truth rear-axle pose: T_core<-odo = T_truth o T_odo^-1. Per tick,
+    so odometry drift (0.3-0.5 m and up to a degree over a run) does not smear into the
+    kerb and lane errors as a single global fit did (fresh-eyes review of 58adaf3); the
+    question is where the car believes the kerb is relative to itself."""
+    ox, oy, oyaw = row["driver"]["odometry"]
+    tx, ty = row["truth"]["rear_axle_xy"]
+    tyaw = row["truth"]["yaw_rad"]
+    d = tyaw - oyaw
+    r = np.array([[math.cos(d), -math.sin(d)], [math.sin(d), math.cos(d)]])
+    t = np.array([tx, ty]) - r @ np.array([ox, oy])
+    return r, t
+
+
 def odometry_to_core(log_rows):
     """Rigid transform from the driver's odometry frame to the truth (core) frame, fitted
-    over the ticks with trusted odometry; returns (R, t, rms_m)."""
+    over the ticks with trusted odometry; returns (R, t, rms_m). A sanity figure for the
+    recording (the per-tick transform does the scoring)."""
     pairs = [(r["driver"]["odometry"][:2], r["truth"]["rear_axle_xy"]) for r in log_rows if r["driver"].get("odometry_trusted") and r["driver"].get("odometry")]
     if len(pairs) < 10:
         raise ValueError("Not enough trusted-odometry ticks to tie the frames together")
@@ -65,8 +83,9 @@ def exit_kerb_truth(truth, command):
     d = exit_line[-1] - exit_line[0]
     d = d / max(np.linalg.norm(d), 1e-9)
     right = np.array([d[1], -d[0]])  # core frame is right-handed (CARLA x, -y): right of travel
-    offset = truth["exit_kerb_distance_m"] if command == "RIGHT" else truth["exit_kerb_distance_m"]
-    return exit_line[0] + right * offset, d, right
+    # The exit lane's right kerb for both commands: the site search accepts only exit lanes
+    # with a kerb on their right, and the car places the lane from that kerb either way.
+    return exit_line[0] + right * truth["exit_kerb_distance_m"], d, right
 
 
 def signed_offset(points, origin, direction, right):
@@ -77,11 +96,17 @@ def signed_offset(points, origin, direction, right):
 
 def build_driver(run, junction_overrides, suite_path=None):
     report = json.loads((run / "drive_report.json").read_text(encoding="utf-8"))
-    suite_path = Path(suite_path) if suite_path else Path("configs/sensor_suites") / f"{report['suite_name']}.json"
-    configured = load_sensor_suite(suite_path).with_overrides(report.get("overrides") or {})
-    suite = configured.without_noise() if report.get("noise") == "disabled" else configured
-    if suite.sha256 != report["suite_sha256"]:
-        raise ValueError(f"Suite {suite_path} does not match the run's (sha {report['suite_sha256'][:12]})")
+    meta = json.loads((run / "frames" / "meta.json").read_text(encoding="utf-8"))
+    if suite_path:
+        # A suite file given by hand: it must be the recorded one (the report's overrides
+        # are rounded to 3 digits, so they are not re-applied; the meta carries the sha).
+        suite = load_sensor_suite(suite_path)
+        if suite.sha256 != meta.get("suite_sha256", report["suite_sha256"]):
+            raise ValueError(f"Suite {suite_path} does not match the run's (sha {report['suite_sha256'][:12]})")
+    elif "suite_spec" in meta:
+        suite = suite_from_dict(meta["suite_spec"])  # the recording is self-contained
+    else:
+        suite = suite_from_dict(report["rig"]["suite"])  # recordings before the spec went into meta.json
     dc = report["driver_config"]
     body = VehicleBody(**dc["body"])
     ctrl = dc["control"]["controller"]
@@ -110,12 +135,12 @@ def replay(run, junction_overrides, out=None, suite=None, console_every=20, unti
     driver, report, config = build_driver(run, junction_overrides, suite)
     log_rows = [json.loads(line) for line in (run / "drive_log.jsonl").read_text(encoding="utf-8").splitlines()]
     by_tick = {r["tick"]: r for r in log_rows}
-    r_o2c, t_o2c, rms = odometry_to_core(log_rows)
+    _, _, rms = odometry_to_core(log_rows)
     truth = json.loads((run / "turn_truth.json").read_text(encoding="utf-8")) if (run / "turn_truth.json").exists() else None
     kerb_line = exit_kerb_truth(truth, truth["command"]) if truth else None
     rows = []
     out_file = open(out, "w", encoding="utf-8") if out else None
-    print(f"odometry→core rigid fit over trusted ticks: rms {rms:.2f} m")
+    print(f"odometry->core rigid fit over trusted ticks: rms {rms:.2f} m (sanity; errors below use the per-tick pose pair)")
     for tick, frame in iter_frames(run / "frames"):
         if until_tick is not None and tick > until_tick:
             break
@@ -123,8 +148,9 @@ def replay(run, junction_overrides, out=None, suite=None, console_every=20, unti
         d = step.diagnostics
         live = by_tick.get(tick, {})
         row = dict(tick=tick, time_s=live.get("time_s"), mode=step.mode.value, reason=step.reason, truth=live.get("truth"), driver=d)
-        if kerb_line is not None:
+        if kerb_line is not None and live.get("driver", {}).get("odometry") and live.get("truth"):
             origin, direction, right = kerb_line
+            r_o2c, t_o2c = tick_transform(live)
             if d.get("turn_exit_stations_odo"):
                 stations = np.asarray(d["turn_exit_stations_odo"], dtype=float) @ r_o2c.T + t_o2c
                 err = signed_offset(stations, origin, direction, right)
