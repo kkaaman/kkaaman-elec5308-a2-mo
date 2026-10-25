@@ -924,14 +924,24 @@ the replay's kerb rule confirmed live. (PC 2 and PC 3 stopped launching CARLA af
 overnight sign-out — "Fatal error!" before any log, same driver 596.71 as PC 1, which
 was never signed out and still runs it: an IT matter, not ours.)
 
-First left-turn attempt: Town10HD has no left-turn site for the filters (the 8 left exits
-fail `no_matching_exit`); on Town03 the first site sits on a hill and the planar adapter
-aborted the run at 5° of tilt two thirds round the box, with the car 1.1 m off the lane on
-a far kerb reading (`kerb@6.3`, the exit kerb across the box). The harness now rejects
-sites with any waypoint steeper than `max_slope_deg` 3°, ends the run with a report when
-the adapter refuses the vehicle state (a result, not a traceback), and removes an empty
-output folder when setup fails so the same name can be retried. The recording of that
-attempt is the left-turn replay case.
+**Left turn (Town03, `--approach-m 30 --exit-m 20`): MEASURED_PASS, every gate.** Corner
+excess at most −0.18 m, exit lane keeping p95 0.05 m; the in-box offset bulged to +1.0 m
+(left, away from the kerb). Town10HD has no left-turn site for the filters (the 8 left
+exits fail `no_matching_exit`); the first Town03 attempt sat on a hill and the planar
+adapter aborted it at 5° of tilt two thirds round the box — the harness now rejects sites
+with any waypoint steeper than `max_slope_deg` 3°, ends the run with a report when the
+adapter refuses the vehicle state, and removes an empty output folder when setup fails.
+
+Both left-turn recordings replayed: the exit kerb, read across the box from ~40 m with
+the `raised` rule, lies 1.3–1.6 m **beyond** the true kerb (the Town03 pavement there is
+wide and bare — the furniture is metres behind the kerb, the bare-pavement geometry the
+synthetic world had warned of), so the lane is placed 1.3 m right of truth and the car
+drives the bulge; the `road` and `midpoint` rules do not find that kerb at all from
+there and would have held the car at the mouth. The site's kerb distance is 6.4 m
+(parking + two shoulders), which stretches every measurement. Passing with the junction
+tolerance absorbing the bulge is not the same as right: a closer-range correction for
+far kerbs (the refinement saw the line move +0.3 m, under its 0.5 m threshold) is the
+next G1c refinement, with both recordings as the offline cases.
 
 ### Fresh-eyes review of `6773e24..58adaf3` (25 Oct, three independent reads): all taken
 Turn code (`junction.py`, `driver.py`):
