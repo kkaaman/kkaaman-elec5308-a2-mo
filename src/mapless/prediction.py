@@ -47,6 +47,13 @@ class PredictionConfig:
     pedestrian_lateral_mps: float = 1.0  # a pedestrian may step sideways this fast
     uncertainty_sigmas: float = 2.0  # position uncertainty counted at this many sigma
     stationary_mps: float = 0.3  # slower tracks keep their measured heading
+    # A velocity above stationary_mps counts as motion only once the track has moved this
+    # far from where it was first seen: the centroid of a long kerb or hedge cluster
+    # jitters as the LiDAR rings cross it differently each sweep (third live stack run,
+    # 25 Oct: such tracks read 0.4 m/s and were predicted across the lane). A road user
+    # that has yet to move this far is predicted where it stands; the driver's own LiDAR
+    # obstacle stop covers it meanwhile.
+    min_displacement_m: float = 0.75
     # Unmodelled acceleration over the horizon as continuous white noise: position variance
     # grows by q t^3 / 3. The tracker drives its CV model with 1.5 m/s^2 white acceleration
     # at a 0.05 s tick, which is q = 1.5^2 * 0.05 in these units (1 m sigma at 3 s).
@@ -118,16 +125,18 @@ def predict(track, config=None, lane_change=False):
     c = config or PredictionConfig()
     horizon = c.lane_change_horizon_s if lane_change else c.horizon_s
     times = np.arange(c.step_s, horizon + 1e-9, c.step_s)
-    centres = track.position[None, :] + times[:, None] * track.velocity[None, :]
     speed = track.speed_mps
+    moving = speed > c.stationary_mps and (track.travelled_m is None or track.travelled_m >= c.min_displacement_m)
+    velocity = track.velocity if moving else np.zeros(2)
+    centres = track.position[None, :] + times[:, None] * velocity[None, :]
     if track.footprint is not None:
         length, width, yaw = track.footprint
-        heading = math.atan2(*track.velocity[::-1]) if speed > c.stationary_mps else yaw
+        heading = math.atan2(*track.velocity[::-1]) if moving else yaw
     else:
         length, width = DEFAULT_SIZE[track.best_class]
-        heading = math.atan2(*track.velocity[::-1]) if speed > c.stationary_mps else 0.0
+        heading = math.atan2(*track.velocity[::-1]) if moving else 0.0
     sigma_long, sigma_lat = position_sigmas(
-        track.covariance, times, heading, c.process_noise_m2ps3, c.max_velocity_sigma_mps, c.settled_velocity_sigma_mps, stationary=speed <= c.stationary_mps
+        track.covariance, times, heading, c.process_noise_m2ps3, c.max_velocity_sigma_mps, c.settled_velocity_sigma_mps, stationary=not moving
     )
     inflate = c.uncertainty_sigmas
     half_length = length / 2 + c.margin_m + inflate * sigma_long
