@@ -281,6 +281,13 @@ def test_prediction_uncertainty_follows_the_object_heading():
     assert np.allclose(still_ext, unsettled_ext)
     assert still_ext[-1, 1] == pytest.approx(2.0 / 2 + 0.3 + 2 * math.sqrt(0.05), abs=0.02)  # position sigma only, at 4 s
     assert moving_ext[-1, 0] > still_ext[-1, 0] + 3.0  # 2 * 0.5 m/s * 4 s along the heading
+    # Process noise is not charged to a stationary track either (second live stack run:
+    # the kerb cluster 4.8 m to the right grew to 3.2 m half width at 3.6 s under the
+    # default noise and capped the speed at the start line). Its region stays its
+    # measured extent plus the position sigma over the whole horizon.
+    kerb = ObjectTrack(8, 0.0, [6.3, -4.8, 0.0, 0.0], np.diag([0.05, 0.05, 0.25, 0.25]), {"unknown": 1.0}, TrackStatus.CONFIRMED, 20, 0, footprint=(1.2, 0.6, 0.0))
+    kerb_ext = predict(kerb, PredictionConfig()).half_extents
+    assert np.allclose(kerb_ext[-1], kerb_ext[0]) and kerb_ext[-1, 1] == pytest.approx(0.3 + 0.3 + 2 * math.sqrt(0.05), abs=0.01)
 
 
 def small_obstacle(track_id, xy):

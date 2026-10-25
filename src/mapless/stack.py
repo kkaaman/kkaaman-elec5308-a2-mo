@@ -239,6 +239,7 @@ class MaplessStack:
             tracks=len(tracks),
             speed_cap_mps=cap_applied,
             speed_cap_next_mps=cap,
+            speed_cap_reason=cap_reason,  # logged every tick: a hold at a standstill never reaches the veto
             frame_generation=self.frame_generation,
             stack_timing_ms=record.timing_ms,
         )

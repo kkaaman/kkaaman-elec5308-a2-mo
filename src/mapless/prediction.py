@@ -61,7 +61,10 @@ class PredictionConfig:
     # filter is not evidence of motion, and motion shows in the estimate within a few
     # ticks. A settled track measured stationary is predicted stationary: on the first
     # live stack run every roadside cluster (parked cars, poles) became a region metres
-    # wide over the horizon and held the car at the start line.
+    # wide over the horizon and held the car at the start line. The process noise is not
+    # charged to a stationary track either (second live stack run, 25 Oct: the kerb
+    # cluster 4.8 m to the right grew a 6 m wide region at 3.6 s and capped the speed to
+    # zero at the start line).
     settled_velocity_sigma_mps: float = 1.0
 
     def __post_init__(self):
@@ -80,13 +83,18 @@ def position_sigmas(covariance, times, heading_rad, process_noise_m2ps3=0.0, max
     velocity sigma exceeds ``max_velocity_sigma_mps``; it is dropped altogether while the
     filter has not settled (largest velocity sigma above ``settled_velocity_sigma_mps``)
     or for a ``stationary`` track: an unsettled filter is not evidence that a parked car
-    may do 5 m/s, and a settled stationary one is not about to.
+    may do 5 m/s, and a settled stationary one is not about to. The process noise (the
+    unmodelled acceleration a moving road user may apply) is likewise not charged to a
+    stationary track: a kerb or a parked car does not drift 1.3 m in 3.6 s, and the
+    tracker shows any start within a few ticks.
     """
     P = np.asarray(covariance, dtype=float)
     t = np.asarray(times, dtype=float)
     P_pp, P_pv, P_vv = P[:2, :2], P[:2, 2:], P[2:, 2:]
     largest = math.sqrt(max(float(np.linalg.eigvalsh(P_vv).max()), 0.0))
-    if stationary or (settled_velocity_sigma_mps is not None and largest > settled_velocity_sigma_mps):
+    if stationary:
+        P_vv, P_pv, process_noise_m2ps3 = np.zeros((2, 2)), np.zeros((2, 2)), 0.0
+    elif settled_velocity_sigma_mps is not None and largest > settled_velocity_sigma_mps:
         P_vv, P_pv = np.zeros((2, 2)), np.zeros((2, 2))
     elif max_velocity_sigma_mps is not None and largest > max_velocity_sigma_mps:
         scale = max_velocity_sigma_mps / largest
