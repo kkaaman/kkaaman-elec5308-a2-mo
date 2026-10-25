@@ -201,7 +201,14 @@ class MaplessStack:
             # the prediction inflates to a 30 m box at 3 s, and every new parked-car cluster
             # tapped the brakes for a few ticks (fresh-eyes review of 58adaf3). Tentative
             # clusters are the driver's LiDAR obstacle stop's job, the documented backstop.
-            predictions = tuple(predict_all([tr for tr in live if tr.status in LEAD_STATUSES], c.prediction))
+            # Only LiDAR-supported tracks are predicted. A radar-only track has a 2 degree
+            # bearing (1 m at 30 m) and no measured extent: at a standstill with the front
+            # radar admitted (fourth live stack run, 25 Oct), returns from the pavement and
+            # the buildings spawned hundreds of such tracks whose jitter read as motion and
+            # whose default 2 x 2 m boxes were predicted across the lane. Radar-only tracks
+            # still lead the car (following) and are what the radar is for: a car beyond
+            # the LiDAR's reach, which the LiDAR takes over long before the horizon.
+            predictions = tuple(predict_all(predictable_tracks(live), c.prediction))
             timing["track"] = (time.perf_counter() - begun) * 1000
             # -- follow and conflicts --------------------------------------------------------
             begun = time.perf_counter()
@@ -297,6 +304,11 @@ class MaplessStack:
     def reset(self):
         self.reset_spatial()
         self.frame_generation = 0
+
+
+def predictable_tracks(tracks):
+    """The tracks predicted onto the path: vouched for by the tracker and seen by the LiDAR."""
+    return [tr for tr in tracks if tr.status in LEAD_STATUSES and "lidar" in tr.support]
 
 
 def record_rows(records):

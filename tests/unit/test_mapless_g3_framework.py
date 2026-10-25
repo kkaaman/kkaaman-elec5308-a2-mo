@@ -132,6 +132,21 @@ def test_radar_measurements_update_and_start_tracks():
     assert tracks[0].footprint is None  # a radar return has no extent
 
 
+def test_only_lidar_supported_vouched_tracks_are_predicted():
+    from mapless.stack import predictable_tracks
+
+    def track(tid, status, support):
+        return ObjectTrack(tid, 0.0, [20, -4, 0, 0], np.eye(4) * 0.1, {"unknown": 1.0}, status, 5, 0, support=support)
+
+    tracks = [
+        track(1, TrackStatus.CONFIRMED, ("lidar",)),
+        track(2, TrackStatus.COASTING, ("lidar", "radar")),
+        track(3, TrackStatus.CONFIRMED, ("radar",)),  # radar-only: 1 m bearing jitter at 30 m, no extent
+        track(4, TrackStatus.TENTATIVE, ("lidar",)),
+    ]
+    assert [t.track_id for t in predictable_tracks(tracks)] == [1, 2]
+
+
 def test_hazards_include_tentative_tracks_close_ahead():
     tracker = Tracker(TrackerConfig(hazard_m=12.0))
     tracker.update(0.0, ORIGIN, lidar=[LidarMeasurement(np.array([8.0, 0.0])), LidarMeasurement(np.array([40.0, 0.0]))])
