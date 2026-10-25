@@ -244,6 +244,18 @@ def test_truth_from_the_mission_start(carla, mission, scenarios):
     }
     with pytest.raises(RuntimeError):
         s1.remove(frame=8, sim_time_s=3.6, reason="again")
+    # Review of PR #98: a destroy() that returns False must leave the obstacle present
+    # (the truth keeps reporting it) and report the failure, not mark it removed.
+    s2 = obstacle_for(mission, scenarios["S2"])
+    s2.spawn()
+    s2.actor.destroy = lambda: False
+    attempt = s2.remove(frame=9, sim_time_s=4.0, reason="after_steady_hold")
+    assert attempt == {"frame": 9, "simulation_time_s": 4.0, "reason": "after_steady_hold", "destroyed": False}
+    assert s2.present and s2.removal is None and s2.removal_failures == [attempt]
+    assert ego_truth(path, state, front, TESLA[1][1], s2)["truth_obstacle_present"] is True
+    s2.actor.destroy = lambda: True
+    assert s2.remove(frame=10, sim_time_s=4.05, reason="after_steady_hold")["destroyed"] is True
+    assert not s2.present and len(s2.removal_failures) == 1
 
 
 def test_event_sensors_keep_raw_callbacks_and_build_records(carla):

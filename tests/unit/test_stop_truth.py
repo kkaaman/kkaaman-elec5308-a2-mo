@@ -107,6 +107,12 @@ def test_persistent_hold_duration_and_creep_breaks_it():
     metrics = hold_metrics(broken, dt_s=0.05)
     assert metrics["hold_max_speed_mps"] == pytest.approx(0.2)
     assert metrics["continuous_hold_s"] == pytest.approx(35.0)
+    # Review of PR #98: a 2 s interval without obstacle-in-path evidence was credited as
+    # part of a 65 s continuous HOLD. It breaks the run like motion does.
+    lapsed = rows([(0.0, 4.5)] * 700 + [(0.0, None)] * 40 + [(0.0, 4.5)] * 560)
+    metrics = hold_metrics(lapsed, dt_s=0.05)
+    assert metrics["continuous_hold_s"] == pytest.approx(35.0)
+    assert metrics["hold_max_speed_mps"] == 0.0
 
 
 def test_never_resuming_is_missing_evidence_not_zero():

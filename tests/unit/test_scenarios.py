@@ -125,13 +125,14 @@ def test_duplicate_keys_are_refused(tmp_path):
         load_scenario(path)
 
 
-def _drive(schedule, speeds, dt=0.05, start=10.0, skip=()):
+def _drive(schedule, speeds, dt=0.05, start=10.0, skip=(), in_path=None):
+    """``in_path``: obstacle-in-path evidence per tick (default: always, the obstacle ahead)."""
     removals = []
     for i, speed in enumerate(speeds):
         if i in skip:
             continue
         t = start + i * dt
-        if schedule.update(t, speed):
+        if schedule.update(t, speed, True if in_path is None else in_path[i]):
             removals.append(round(t, 6))
     return removals
 
@@ -151,6 +152,32 @@ def test_motion_or_a_dropped_tick_restarts_the_hold():
     assert _drive(RemovalSchedule(removal, 0.05), gap, skip={20, 21}) == [
         round(10.0 + 62 * 0.05, 6)
     ]
+
+
+def test_a_standstill_without_the_obstacle_in_the_path_never_removes_it():
+    # Review of PR #98: the timer counted any stationary period as the HOLD, so S1's
+    # obstacle was removed 2 s into the start-of-mission standstill, before the ego had
+    # moved; a fault stop short of the obstacle would do the same.
+    removal = load_scenario(SCENARIOS / "S1.json").removal
+    startup = [0.0] * 100  # 5 s at a standstill at mission start, obstacle 40 m ahead
+    assert _drive(RemovalSchedule(removal, 0.05), startup, in_path=[False] * 100) == []
+    fault_stop = [2.0] * 20 + [0.0] * 100 + [2.0] * 20 + [0.0] * 60
+    in_path = [False] * 140 + [True] * 60  # the stop at tick 20-120 is 30 m short of it
+    assert _drive(RemovalSchedule(removal, 0.05), fault_stop, in_path=in_path) == [round(10.0 + 180 * 0.05, 6)]
+    # Evidence that lapses mid-hold restarts the timer, like motion does.
+    lapse = [0.0] * 100
+    in_path = [True] * 30 + [False] + [True] * 69
+    assert _drive(RemovalSchedule(removal, 0.05), lapse, in_path=in_path) == [round(10.0 + 71 * 0.05, 6)]
+
+
+def test_obstacle_hold_evidence_reads_the_truth_record():
+    from evaluation.scenarios import obstacle_hold_evidence
+
+    assert obstacle_hold_evidence({"truth_in_corridor": True, "truth_front_gap_m": 4.5})
+    assert not obstacle_hold_evidence({"truth_in_corridor": False, "truth_front_gap_m": 4.5})  # beside the ego
+    assert not obstacle_hold_evidence({"truth_in_corridor": True, "truth_front_gap_m": None})
+    assert not obstacle_hold_evidence({"truth_in_corridor": True, "truth_front_gap_m": 30.0})  # far ahead
+    assert not obstacle_hold_evidence({"truth_in_corridor": True, "truth_front_gap_m": -2.0})  # behind the bumper
 
 
 def test_never_rule_keeps_the_obstacle():

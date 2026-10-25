@@ -191,16 +191,31 @@ def placement_pose(path, obstacle):
     return x, y, yaw
 
 
+HOLD_EVIDENCE_MAX_GAP_M = 15.0  # an obstacle further ahead than this is not what the ego holds for
+
+
+def obstacle_hold_evidence(truth, max_gap_m=HOLD_EVIDENCE_MAX_GAP_M):
+    """Whether a per-tick truth record (``ego_truth``) shows an obstacle the ego could be
+    holding for: present, in the ego's corridor and within ``max_gap_m`` ahead."""
+    gap = truth.get("truth_front_gap_m")
+    return bool(truth.get("truth_in_corridor")) and gap is not None and -1e-9 <= gap <= max_gap_m
+
+
 class RemovalSchedule:
-    """Decide the scripted removal tick from simulation time and true ego speed.
+    """Decide the scripted removal tick from simulation time, true ego speed and the
+    obstacle-in-path evidence.
 
     ``after_steady_hold``: remove on the first tick at which the ego has been at or
-    below ``STOPPED_SPEED_MPS`` for ``steady_hold_s`` of continuous simulation time.
-    A tick gap larger than 1.5 * dt restarts the hold, so a dropped frame cannot
-    shorten it. ``never``: the obstacle stays for the whole episode.
+    below ``STOPPED_SPEED_MPS`` for ``steady_hold_s`` of continuous simulation time
+    **while the obstacle is in its path** (``obstacle_in_path``, from
+    ``obstacle_hold_evidence`` on the evaluation truth). Any tick without that
+    evidence restarts the hold, so the standstill at mission start, or a fault stop
+    before the obstacle, never removes it (review of PR #98). A tick gap larger
+    than 1.5 * dt restarts the hold too, so a dropped frame cannot shorten it.
+    ``never``: the obstacle stays for the whole episode.
 
-    Evaluation-only: it reads the true speed and is applied by the world, never by
-    the autonomy stack.
+    Evaluation-only: it reads the true speed and truth and is applied by the world,
+    never by the autonomy stack.
     """
 
     def __init__(self, removal, dt_s):
@@ -210,16 +225,18 @@ class RemovalSchedule:
         self.previous_s = None
         self.removed_at_s = None
 
-    def update(self, sim_time_s, speed_mps):
+    def update(self, sim_time_s, speed_mps, obstacle_in_path):
         """Return True exactly once, on the removal tick."""
         _finite("sim_time_s", sim_time_s)
         _finite("speed_mps", speed_mps)
+        if not isinstance(obstacle_in_path, bool):
+            raise TypeError("obstacle_in_path must be a bool (obstacle_hold_evidence on the truth)")
         if self.removal.rule == "never" or self.removed_at_s is not None:
             return False
         if self.previous_s is not None and sim_time_s - self.previous_s > 1.5 * self.dt_s:
             self.hold_since_s = None
         self.previous_s = sim_time_s
-        if abs(speed_mps) > STOPPED_SPEED_MPS:
+        if abs(speed_mps) > STOPPED_SPEED_MPS or not obstacle_in_path:
             self.hold_since_s = None
             return False
         if self.hold_since_s is None:

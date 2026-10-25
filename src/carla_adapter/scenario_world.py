@@ -97,6 +97,7 @@ class ScenarioObstacle:
         self.corners = None
         self.placement = None
         self.removal = None
+        self.removal_failures = []  # attempts whose destroy() returned False: the obstacle stayed
 
     def spawn(self):
         import carla
@@ -167,16 +168,20 @@ class ScenarioObstacle:
         return self.placement
 
     def remove(self, *, frame, sim_time_s, reason):
-        """Destroy the obstacle (scripted removal) and record when."""
+        """Destroy the obstacle (scripted removal) and record when.
+
+        The obstacle counts as removed only once ``destroy()`` has succeeded: a failed
+        destruction leaves it present (the truth keeps reporting it) and is recorded in
+        ``removal_failures`` with the attempt's frame and time (review of PR #98).
+        """
         if self.actor is None or self.removal is not None:
             raise RuntimeError("Obstacle is not present")
+        record = {"frame": frame, "simulation_time_s": sim_time_s, "reason": reason}
         destroyed = bool(self.actor.destroy())
-        self.removal = {
-            "frame": frame,
-            "simulation_time_s": sim_time_s,
-            "reason": reason,
-            "destroyed": destroyed,
-        }
+        if not destroyed:
+            self.removal_failures.append(dict(record, destroyed=False))
+            return dict(record, destroyed=False)
+        self.removal = dict(record, destroyed=True)
         return self.removal
 
     @property

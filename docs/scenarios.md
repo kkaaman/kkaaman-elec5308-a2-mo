@@ -29,10 +29,17 @@ lateral offset `lateral_m` (positive = left of travel) on the frozen mission rou
 - The pose is a pure function of the route and the file (`placement_pose`). Each
   placement is snapped to the ground below the road. Physics is disabled, so
   contact cannot move the obstacle.
-- Removal is a pure function of simulation time and true ego speed
-  (`RemovalSchedule`). The obstacle is removed on the first tick at which the ego
-  has been at or below 0.1 m/s for 2.0 s of continuous simulation time. A dropped
-  tick (gap above 1.5 × dt) or any motion above 0.1 m/s restarts the count.
+- Removal is a pure function of simulation time, true ego speed and the
+  obstacle-in-path evidence (`RemovalSchedule`). The obstacle is removed on the
+  first tick at which the ego has been at or below 0.1 m/s for 2.0 s of continuous
+  simulation time while the obstacle is in its path (`obstacle_hold_evidence`:
+  present, in the ego's corridor, within 15 m ahead). A dropped tick (gap above
+  1.5 × dt), any motion above 0.1 m/s, or a tick without that evidence restarts the
+  count, so the standstill at mission start or a fault stop short of the obstacle
+  never removes it (review of PR #98).
+- A removal counts only once CARLA's `destroy()` has succeeded; a failed
+  destruction leaves the obstacle present (the truth keeps reporting it) and is
+  recorded in `removal_failures`.
 - Seeds 5308–5312 label repeatability runs. The scripted world draws no random
   numbers.
 - Each file's SHA-256 (line-ending independent) is recorded with every placement.
@@ -81,7 +88,8 @@ always derived from them and never stored in their place.
   and ends at the scripted removal (S4: when the obstacle leaves the path).
 - **Stopped margin:** min and max gap over the HOLD.
 - **HOLD speed:** maximum speed over the HOLD, so any creep counts.
-- **Continuous HOLD (S4):** the longest run of stopped ticks.
+- **Continuous HOLD (S4):** the longest run of stopped ticks with the obstacle in
+  the path; motion, a missing tick or a row without obstacle evidence breaks the run.
 - **Resume delay:** from removal to the first speed above 0.1 m/s.
 
 A goal stop has no obstacle in the path, so it is never mistaken for a HOLD.

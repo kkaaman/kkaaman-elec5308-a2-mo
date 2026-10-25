@@ -131,12 +131,15 @@ def hold_metrics(
         r for r in ordered if start is not None and start <= r["sim_time_s"] < (end or math.inf)
     ]
     gaps = [r["truth_front_gap_m"] for r in hold if r.get("truth_front_gap_m") is not None]
-    # Longest run of consecutive stopped ticks; each tick stands for dt of simulation.
+    # Longest run of consecutive stopped ticks with the obstacle in the path; each tick
+    # stands for dt of simulation. A row without obstacle-in-path evidence breaks the
+    # run as motion or a missing tick does (review of PR #98: S4 was credited 65 s of
+    # continuous HOLD across a 2 s interval without truth).
     longest = 0.0
     first = last = None
     for row in hold:
         t = row["sim_time_s"]
-        if abs(row["speed_mps"]) > stopped_speed_mps:
+        if abs(row["speed_mps"]) > stopped_speed_mps or row.get("truth_front_gap_m") is None:
             first = last = None
             continue
         if last is None or t - last > 1.5 * dt_s:
@@ -164,7 +167,9 @@ def hold_metrics(
         "definition": (
             f"HOLD starts once speed <= {stopped_speed_mps} m/s for {stopped_duration_s} s with an"
             " obstacle in the path and ends at the scripted removal (or when the obstacle"
-            " leaves the path); resume delay runs from removal to the first speed above"
+            " leaves the path); continuous HOLD is the longest run of stopped ticks with the"
+            " obstacle in the path (motion, a missing tick or missing obstacle evidence breaks"
+            " it); resume delay runs from removal to the first speed above"
             f" {stopped_speed_mps} m/s"
         ),
     }
