@@ -669,6 +669,18 @@ class MaplessDrive:
             | dict(map=carla_map.name, start_xy_m=approach[LANE_BACK_M].tolist(), junction_bounds_m=[b - LANE_BACK_M for b in self.turn_site.segment_bounds()])
         )
 
+    def _follow_with_spectator(self):
+        """Park the server's spectator camera behind the ego (a view only; no effect on the run)."""
+        carla = self.carla
+        t = self.ego.get_transform()
+        yaw = math.radians(t.rotation.yaw)
+        self.world.get_spectator().set_transform(
+            carla.Transform(
+                carla.Location(x=t.location.x - 8 * math.cos(yaw), y=t.location.y - 8 * math.sin(yaw), z=t.location.z + 5),
+                carla.Rotation(pitch=-22, yaw=t.rotation.yaw),
+            )
+        )
+
     def truth(self):
         t = self.ego.get_transform()
         x, y, _, yaw = rear_axle_pose(t, self.offset)
@@ -786,6 +798,8 @@ class MaplessDrive:
             for tick in range(int(args.max_s / DT_S)):
                 frame = self.owner.tick()
                 snap = self.world.get_snapshot()
+                if args.follow:
+                    self._follow_with_spectator()
                 sf = rig.read(frame, true_forward_speed(snap, self.ego.id), sim_time_s=snap.timestamp.elapsed_seconds)
                 start_time = sf.sim_time_s if start_time is None else start_time
                 if recorder is not None:
@@ -1044,6 +1058,7 @@ def main(argv=None, stack=False):
     parser.add_argument("--hold-s", type=float, default=5.0)
     parser.add_argument("--max-s", type=float, default=150.0)
     parser.add_argument("--snapshot-every", type=int, default=40, help="Ticks between terrain snapshots (0: none)")
+    parser.add_argument("--follow", action="store_true", help="Keep the CARLA spectator camera 8 m behind and 5 m above the car")
     parser.add_argument("--seed", type=int, default=5308)
     parser.add_argument(
         "--record-frames",
