@@ -1,0 +1,115 @@
+{
+  "decision": "TECHNICAL_REBIND_PASS_PENDING_DESIGNATED_REVIEW_AND_COMMIT",
+  "canonical_main_revision": "ce801258ddbadf3911916c4ed32e0e0e3a8b4981",
+  "pr98_source_revision": "c0feb8a0431b4db4ba4ca3bd00c392632191b804",
+  "source_inventory_count": 117,
+  "old_canonical_loader_fingerprint": "f9d9e804b8a580d6a325afe73c0f1003aa1968cb55f9df0dde8ab2244c7c3024",
+  "new_canonical_loader_fingerprint": "bb8f19fedc92a330b90ee090a928bd836612390019104d823a44482ff242203d",
+  "unchanged_issue41_runner_fingerprint": "cac8bc9c4f131b16b871191f69562d87517d3f1b956849b9950543e582ff400a",
+  "config_semantic_sha256": "2903124878485c8030e160f3598c381bf0197329f79d74773d84048a96c2e9ef",
+  "config_file_sha256": "a4b5e669f9426db24d42d9a1d20114981c95bb15302af006b1196044696fe187",
+  "admission_record_sha256": "f4ff536d7cb1918ac4f0db63165f5f686acd0a93d649b598bc50b7e8fc1e6a6a",
+  "previous_record_sha256": "6607811c0fd068bbcea34f49c2961469910a32b377e2b46a1a9867228a772999",
+  "live_evidence_reuse": {
+    "status": "MEASURED_PASS_14_OF_14",
+    "all_executed_source_hashes_unchanged": true,
+    "all_scenario_hashes_unchanged": true,
+    "verifier_navigation_and_mission_loader_dependencies_unchanged": true,
+    "mission_top_level_fields_changed_by_main": [
+      "baseline_threshold_freeze",
+      "speed_note",
+      "speed_status"
+    ],
+    "verifier_consumed_mission_geometry_runtime_controller_fields_equal": true,
+    "new_carla_run_required": false
+  },
+  "inventory_delta": {
+    "added": [
+      "configs/scenarios/S1.json",
+      "configs/scenarios/S2.json",
+      "configs/scenarios/S3.json",
+      "configs/scenarios/S4.json",
+      "configs/scenarios/S5.json",
+      "src/carla_adapter/scenario_verification.py",
+      "src/carla_adapter/scenario_world.py",
+      "src/evaluation/scenario_events.py",
+      "src/evaluation/scenarios.py",
+      "src/evaluation/stop_truth.py"
+    ],
+    "removed": [
+      "configs/scenarios/.gitkeep"
+    ],
+    "changed": []
+  },
+  "admitted_numeric_values_changed": false,
+  "admitted_scope_changed": false,
+  "validation": {
+    "production_checker": "IDENTITY_AND_LOADER_PASS",
+    "focused_admission_tests": "27 passed",
+    "focused_admission_and_issue39_tests": "90 passed",
+    "full_pytest": "922 passed, 1 skipped, 3 subtests passed",
+    "ruff": "PASS",
+    "simulator_boundary": "PASS; 84 core modules",
+    "strict_sphinx": "PASS",
+    "working_and_staged_diff_check": "PASS",
+    "archive_and_hash_verification": "PASS",
+    "independent_negative_probes": {
+      "candidate": {
+        "status": "REJECTED",
+        "reason": "Baseline is not frozen for operational governance"
+      },
+      "wrong_runner_fingerprint": {
+        "status": "REJECTED",
+        "reason": "Admitted configuration identity mismatch"
+      },
+      "wrong_revision": {
+        "status": "REJECTED",
+        "reason": "Admitted configuration identity mismatch"
+      },
+      "cruise_4_5": {
+        "status": "REJECTED",
+        "reason": "Admitted configuration identity mismatch"
+      },
+      "deceleration_1_6": {
+        "status": "REJECTED",
+        "reason": "Admitted configuration identity mismatch"
+      },
+      "response_1_0": {
+        "status": "REJECTED",
+        "reason": "Admitted configuration identity mismatch"
+      },
+      "margin_5_9": {
+        "status": "REJECTED",
+        "reason": "Admitted configuration identity mismatch"
+      },
+      "pedestrian_scope": {
+        "status": "REJECTED",
+        "reason": "Admitted configuration identity mismatch"
+      },
+      "general_profile": {
+        "status": "REJECTED",
+        "reason": "Admitted configuration identity mismatch"
+      },
+      "config_identity": {
+        "status": "REJECTED",
+        "reason": "Admitted configuration identity mismatch"
+      },
+      "changed_source": {
+        "status": "REJECTED",
+        "reason": "Admitted source inventory mismatch"
+      },
+      "missing_source": {
+        "status": "REJECTED",
+        "reason": "Admitted source inventory mismatch"
+      },
+      "added_source": {
+        "status": "REJECTED",
+        "reason": "Admitted source inventory mismatch"
+      },
+      "previous_record": {
+        "status": "REJECTED",
+        "reason": "Admitted source inventory mismatch"
+      }
+    }
+  }
+}

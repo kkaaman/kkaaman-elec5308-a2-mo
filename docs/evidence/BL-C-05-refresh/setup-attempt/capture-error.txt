@@ -1,0 +1,9 @@
+Traceback (most recent call last):
+  File "/tmp/blc05-refresh/scripts/capture_obstacle_tracks.py", line 675, in <module>
+    main()
+  File "/tmp/blc05-refresh/scripts/capture_obstacle_tracks.py", line 671, in main
+    collect(args)
+  File "/tmp/blc05-refresh/scripts/capture_obstacle_tracks.py", line 305, in collect
+    world = client.get_world()
+            ^^^^^^^^^^^^^^^^^^
+RuntimeError: time-out of 20000ms while waiting for the simulator, make sure the simulator is ready and connected to 172.28.176.1:2000

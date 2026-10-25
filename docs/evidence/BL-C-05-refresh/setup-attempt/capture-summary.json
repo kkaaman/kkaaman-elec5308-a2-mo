@@ -1,0 +1,61 @@
+{
+  "date": "2026-10-21",
+  "status": "BLOCKED_CARLA_UNAVAILABLE",
+  "capture_executed": true,
+  "fresh_frames": 0,
+  "fresh_sequences": 0,
+  "planned_frames": 600,
+  "planned_sequences": 3,
+  "world_mutations_attempted": false,
+  "actors_or_sensors_created": false,
+  "cleanup_required": false,
+  "connection_error": "RuntimeError: time-out of 20000ms while waiting for the simulator, make sure the simulator is ready and connected to 172.28.176.1:2000",
+  "benchmark_executed": false,
+  "per_sequence": [
+    {
+      "sequence": "approach",
+      "first_raw": null,
+      "first_confirmed": null,
+      "sensor_read_observations": 0,
+      "track_continuity_observations": 0,
+      "invalid_depth_observations": 0
+    },
+    {
+      "sequence": "short_occlusion",
+      "first_raw": null,
+      "first_confirmed": null,
+      "sensor_read_observations": 0,
+      "track_continuity_observations": 0,
+      "invalid_depth_observations": 0
+    },
+    {
+      "sequence": "continuity_risk",
+      "first_raw": null,
+      "first_confirmed": null,
+      "sensor_read_observations": 0,
+      "track_continuity_observations": 0,
+      "invalid_depth_observations": 0
+    }
+  ],
+  "conservative_usable_confirmed_range_m": null,
+  "corrected_screening_cap_mps": null,
+  "candidate_cruise_mps": 4.0,
+  "candidate_support": "UNESTABLISHED",
+  "screening_decision": "BLOCKED",
+  "screening_inputs": {
+    "deceleration_mps2": 1.497566177392398,
+    "vehicle_response_s": 0.3500000052154064,
+    "stop_margin_m": 6.0
+  },
+  "historical_bl_c_report_reused": false,
+  "bl_d_or_g1_decision_changed": false,
+  "offline_validation": {
+    "focused_bl_c": "60 passed",
+    "ruff": "passed",
+    "full_pytest": "814 passed, 1 skipped, 3 subtests passed",
+    "sphinx_strict": "passed",
+    "git_diff_check": "passed"
+  },
+  "classification": "INVALID_INFRASTRUCTURE_SETUP_ATTEMPT_NOT_BL_C_FAILURE",
+  "explanation": "User confirmed CARLA had not been started. No source observation was attempted; excluded from operational timing and speed screening."
+}

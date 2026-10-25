@@ -194,12 +194,15 @@ def review(evidence_root):
     # Depth accuracy through 25 m axial range does not establish usable bumper
     # visibility or first-confirmation range. Missing BL-C read timing cannot be
     # repaired with this parked operational timing ledger.
-    dependency_path = Path(evidence_root).resolve().parents[2] / "docs/evidence/BL-C-04-06/sensor-wait-timing-review.json"
+    dependency_path = (
+        Path(evidence_root).resolve().parents[2]
+        / "docs/evidence/BL-C-04-06/sensor-wait-timing-review.json"
+    )
     dependency = json.loads(dependency_path.read_text())
     dependency_status = dependency["status"]
     if dependency_status != "BLOCKED_INCOMPLETE_TIMING":
         raise ValueError("Fresh BL-C evidence requires explicit range/timing re-review")
-    return dict(
+    result = dict(
         date="2026-10-20",
         status="BLOCKED_PENDING_FRESH_BL_C_CAPTURE",
         dependency_review=dict(
@@ -264,6 +267,95 @@ def review(evidence_root):
             "Receipt-to-decision p95 is not a completed capture-to-actuator acceptance run.",
         ],
     )
+
+    return review_fresh_range(result, evidence_root)
+
+
+def review_fresh_range(result, evidence_root):
+    """Replace the missing-capture diagnosis only after checking fresh evidence."""
+    evidence_root = Path(evidence_root)
+    root = evidence_root.resolve().parents[2]
+    fresh = root / "docs/evidence/BL-C-05-refresh"
+    capture_path = fresh / "sequences.json"
+    audit_path = evidence_root / "operational-range-review.json"
+    if not audit_path.exists():
+        return result
+    capture = json.loads(capture_path.read_text())
+    benchmark = json.loads((fresh / "benchmark.json").read_text())
+    summary = json.loads((fresh / "capture-summary.json").read_text())
+    audit = json.loads(audit_path.read_text())
+    capture_hash = hashlib.sha256(capture_path.read_bytes()).hexdigest()
+    if audit["capture_sha256"] != capture_hash or benchmark["input_sha256"] != capture_hash:
+        raise ValueError("Fresh capture/audit hash mismatch")
+    current_hash = hashlib.sha256(
+        (root / "scripts/review_operational_range.py").read_bytes()
+    ).hexdigest()
+    retained_script = evidence_root / "history/review-operational-range-before-sameframe.py.txt"
+    if audit["audit_script_sha256"] != current_hash and (
+        not retained_script.exists()
+        or hashlib.sha256(retained_script.read_bytes()).hexdigest() != audit["audit_script_sha256"]
+    ):
+        raise ValueError("Operational audit script changed without retained source")
+    for name, record in audit["runtime_source_comparison"].items():
+        if hashlib.sha256((root / name).read_bytes()).hexdigest() != record["current_sha256"]:
+            raise ValueError("Audited operational runtime changed")
+    profile = json.loads((root / "configs/mission_baseline.json").read_text())[
+        "baseline_threshold_freeze"
+    ]
+    if any(profile[key] != value for key, value in audit["operational_profile"].items()):
+        raise ValueError("Audited operational profile changed")
+    rows = [r for sequence in capture["sequences"] for r in sequence["frames"]]
+    if (
+        capture["capture_status"] != "COMPLETE"
+        or len(rows) != 600
+        or any(r.get("sensor_read_wall_s") is None for r in rows)
+    ):
+        raise ValueError("Fresh measured-wait capture incomplete")
+    if any(r["throttle"] > 0 or r["observation_valid"] for r in audit["rows"]):
+        raise ValueError("Operational range admission requires new decision review")
+    if sum(s["counts"]["current_invalid_track_frames"] for s in audit["sequences"]) != len(rows):
+        raise ValueError("Operational unknown-track blocker changed")
+    visibility = summary["conservative_common_range_screen"]["usable_confirmed_bumper_range_m"]
+    a = result["candidate_values"]["deceleration_mps2"]
+    response = result["response_composition"]["candidate_total_response_budget_s"]
+    margin = result["candidate_values"]["stop_margin_m"]
+    result["date"] = "2026-10-21"
+    result["status"] = "BLOCKED_OPERATIONAL_RANGE_ADMISSION"
+    result["dependency_review"].update(
+        bl_c_timing_status="FRESH_MEASURED_WAIT_CAPTURE_COMPLETE",
+        fresh_capture_sha256=capture_hash,
+        fresh_frames=len(rows),
+        bl_c_05_task_status="PASS",
+        operational_range_audit_sha256=hashlib.sha256(audit_path.read_bytes()).hexdigest(),
+        target_only_sampled_bumper_range_m=visibility,
+        fresh_bl_c_conservative_screen_cap_mps=summary["conservative_common_range_screen"][
+            "speed_cap_rounded_down_mps"
+        ],
+        cold_backlog_response_s=summary["conservative_common_range_screen"][
+            "perception_response_s"
+        ],
+        cold_backlog_excluded_from_positive_decisions=True,
+        operational_range_valid_frames=0,
+        reason=audit["blocker"],
+    )
+    result["screening"].update(
+        speed_cap_mps=speed_for_distance(visibility - margin, a, response),
+        visibility_m=visibility,
+        conditional_candidate_supported_at_assumed_visibility=True,
+        visibility_status="TARGET_ONLY_RANGE_NOT_ADMITTED_ALL_TRACK_OBSERVATION",
+        speed_cap_status="CONDITIONAL_OPERATIONAL_ARITHMETIC_NOT_FROZEN",
+        candidate_supported=False,
+    )
+    result["unsatisfied_technical_criterion"] = audit["blocker"]
+    result["speed_requirement"] = dict(
+        four_mps_mandatory=False,
+        source="docs/decisions.md D-003 and configs/acceptance.json; reduce cruise when measured envelope is insufficient, do not relax criteria",
+        lower_cruise_freezable_now=False,
+        reason="Lower speed changes stopping distance, not invalid obstacle/visibility admission; 3.2 m/s remains a target-only screening recommendation.",
+    )
+    from scripts.review_current_operation import review_current_operation
+
+    return review_current_operation(result, root, evidence_root)
 
 
 def main():

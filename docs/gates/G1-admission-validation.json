@@ -1,0 +1,26 @@
+{
+  "decision": "TECHNICAL_PASS_PREPARED_PUBLICATION_AND_FINAL_REVIEW_PENDING",
+  "old_source_fingerprint": "e49901d1a096434e90b7b2dfb1ec5539df42cb0c906d1138a2f53a2d822e77f4",
+  "new_source_fingerprint": "cac8bc9c4f131b16b871191f69562d87517d3f1b956849b9950543e582ff400a",
+  "config_identity_sha256": "2903124878485c8030e160f3598c381bf0197329f79d74773d84048a96c2e9ef",
+  "config_file_sha256": "a4b5e669f9426db24d42d9a1d20114981c95bb15302af006b1196044696fe187",
+  "negative_probes": {
+    "candidate": "REJECTED",
+    "wrong_runner_fingerprint": "REJECTED",
+    "altered_cruise_4_5": "REJECTED",
+    "altered_deceleration_1_6": "REJECTED",
+    "altered_response_1_0": "REJECTED",
+    "altered_margin_5_9": "REJECTED",
+    "pedestrian_general_scope": "REJECTED",
+    "changed_missing_extra_source": "REJECTED",
+    "changed_config_identity": "REJECTED"
+  },
+  "focused_tests": "52 passed",
+  "external_probes": "8 passed",
+  "canonical_full": "854 passed, 1 skipped, 3 subtests",
+  "integration_full": "984 passed, 1 skipped, 3 subtests",
+  "lint_boundary_sphinx_whitespace": "PASS",
+  "evidence_reproduction_and_hashes": "PASS",
+  "pinned_links": 22,
+  "local_links": 23
+}

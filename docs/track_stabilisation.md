@@ -204,7 +204,9 @@ Ruff, Sphinx `-W` and `git diff --check` passed.
 
 ## Sensor-read wall timing correction (PR #93 follow-up)
 
-**Current screening: BLOCKED_INCOMPLETE_TIMING.**
+**Historical capture screening: BLOCKED_INCOMPLETE_TIMING.** The fresh schema-3
+run and conservative range/speed interpretation are recorded in
+[fresh-capture evidence](evidence/BL-C-05-refresh/README.md).
 [Versioned timing review](evidence/BL-C-04-06/sensor-wait-timing-review.json)
 retains the original report, audited replay and deterministic regression result.
 The original benchmark JSON is unchanged so the historical result remains visible.
@@ -244,7 +246,11 @@ recommendation is HOLD (0 m/s) until measured timing is available. That output
 does not change the proposed 4.0 m/s baseline or acceptance thresholds. Schema 3
 rejects missing timing, and all schemas reject negative/nonfinite/bool durations.
 
-### Historical evidence audit and recapture status
+### Historical evidence audit and original recapture status
+
+This section records the earlier timing-review state. The 21 October fresh
+capture below supersedes its recapture-unavailable status; the old dataset
+remains invalid for measured-wait screening.
 
 The retained 600-frame capture contains **zero invalid frames**, but **all 600
 lack measured read duration**. Consequently there is no measured timeout penalty
@@ -299,3 +305,46 @@ Timing-follow-up validation: **60 focused tests passed** (including RGB-D joins)
 **713 full-suite tests passed, 1 skipped, 3 subtests passed**. Ruff, Sphinx `-W`
 and `git diff --check` passed.
 [Timing regression JUnit](evidence/BL-C-04-06/sensor-wait-tests.xml).
+
+## Fresh-capture follow-up
+
+On 21 October 2026 the unchanged schema-3 collector captured **600 fresh frames**
+(200 approach, 200 short occlusion, 200 continuity risk) on verified CARLA 0.9.16 /
+Town10HD_Opt with the matching RGB-D rig. All 600 reads are valid and timed;
+457 target observations are current, confirmed and joined to valid depth.
+The earlier connection timeout was an invalid setup attempt (CARLA not started),
+not a BL-C failure, and is excluded from operational timing.
+
+Fresh first-confirmation latencies are **5.303253 / 2.587205 / 0.882718 s**;
+source-relative responses are **3.903253 / 0.237205 / 0.232718 s**. Actual read
+wait/conversion is charged once, including any failure (none occurred in this
+run). Median/max measured read duration is **0.595740 / 7.419415 ms**. Cold-start
+backlog is retained, not discarded in favour of later warmed sequences.
+
+The fresh benchmark's first-event-only cap is **5.5 m/s**, distinct from the
+withdrawn historical 4.9 m/s result. Its first-confirmation axial depths exceed
+the reviewed 25 m scope. Within that scope the common sampled confirmed bumper
+gap is **24.013027 m**, not an assumed 25 m bumper gap. Combining this range with
+the worst measured source-relative response **4.199442 s**, BL-E vehicle lag once,
+unchanged deceleration and 6 m margin gives **3.205373 m/s**, rounded down to
+**3.2 m/s**. **4.0 m/s is not supported by this conservative BL-C screen**:
+it requires **29.539768 m**. This does not certify 3.2 m/s operational stopping.
+
+The fresh measured-wait evidence satisfies BL-C-05's capture/reporting scope.
+[BL-D re-review](baseline_threshold_freeze.md) confirms cold backlog cannot
+supply a new positive operational decision, but the current all-track policy
+admits none of these 600 source rows, even granting fresh/warm status. The
+24.013027 m target-only range therefore cannot yet freeze operational visibility.
+The separate [same-frame operational capture](evidence/BL-D-06/operational-approach/README.md)
+subsequently supplies valid joint range/admission evidence and supports the bounded
+BL-D-06 technical PASS / 4.0 m/s freeze candidate. It does not change this dataset's
+3.2 m/s conservative screening result or its zero-admission finding. Final G1
+checklist publication and full-team admission remain PR #90 responsibilities.
+No G1 gate decision is published by this blocker-resolution work. Full provenance, all-sequence results,
+occlusion/ID-switch findings, equations and raw artifact hashes follow.
+
+```{toctree}
+:maxdepth: 1
+
+evidence/BL-C-05-refresh/README
+```

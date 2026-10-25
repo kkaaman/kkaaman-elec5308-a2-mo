@@ -48,11 +48,11 @@ def test_saved_review_reproduces_from_hashed_sources(audited):
     )
 
 
-def test_unsupported_candidate_is_not_misrepresented_as_frozen(audited):
+def test_historical_unsupported_review_does_not_replace_fresh_gated_evidence(audited):
     baseline = json.loads((ROOT / "configs/mission_baseline.json").read_text())
     freeze = baseline["baseline_threshold_freeze"]
     assert audited["status"] == "BLOCKED_RANGE_LATENCY_COMPOSITION"
-    assert freeze["status"] == "BLOCKED_PENDING_FRESH_BL_C_CAPTURE"
+    assert freeze["status"] == "FROZEN_GATED_OPERATIONAL"
     assert baseline["cruise_speed_mps"] == 4.0
     assert (
         freeze["candidate_values"]["response_budget_s"]
@@ -150,23 +150,24 @@ def test_warm_freeze_covers_the_full_admitted_age_not_only_the_observed_maximum(
 
     result = review(EVIDENCE)
     baseline = json.loads((ROOT / "configs/mission_baseline.json").read_text())
-    with pytest.raises(ValueError, match="not frozen"):
-        frozen_governor_config(ROOT / "configs/mission_baseline.json")
+    assert frozen_governor_config(ROOT / "configs/mission_baseline.json").cruise_mps == 4.0
     values = baseline["baseline_threshold_freeze"]["candidate_values"]
     composition = result["response_composition"]
-    assert composition["measured_perception_control_max_s"] == pytest.approx(0.18552801799978624)
+    assert composition["measured_perception_control_max_s"] == pytest.approx(0.06097370599854912)
     assert values["response_budget_s"] == pytest.approx(0.5 + 0.1 + 0.3500000052154064)
     assert values["response_budget_s"] > composition["measured_total_s"]
     assert 6 + stopping_distance(
         4.0, values["deceleration_mps2"], values["response_budget_s"]
     ) == pytest.approx(15.142001009378749)
-    assert not result["screening"]["candidate_supported"]
+    assert result["screening"]["candidate_supported"]
     assert result["screening"]["conditional_candidate_supported_at_assumed_visibility"]
     assert result["dependency_review"]["response_budget_independently_justified"]
     assert not result["dependency_review"]["historical_screening_used_in_operational_budget"]
-    assert not result["dependency_review"]["usable_bumper_visibility_established"]
+    assert result["dependency_review"]["usable_bumper_visibility_established"]
     assert values["cruise_speed_mps"] == 4.0
-    assert result["screening"]["speed_cap_mps"] == pytest.approx(6.2540012234269735)
+    assert result["screening"]["speed_cap_mps"] == pytest.approx(
+        speed_for_distance(22.348599722608924 - 6, 1.497566177392398, values["response_budget_s"])
+    )
 
 
 def test_baseline_loader_rejects_a_budget_that_omits_admitted_age(tmp_path):
@@ -178,7 +179,7 @@ def test_baseline_loader_rejects_a_budget_that_omits_admitted_age(tmp_path):
     freeze["frozen_values"] = dict(freeze["candidate_values"], response_budget_s=0.35)
     path = tmp_path / "baseline.json"
     path.write_text(json.dumps(doc))
-    with pytest.raises(ValueError, match="omits"):
+    with pytest.raises(ValueError, match="admitted config path|configuration identity"):
         frozen_governor_config(path)
 
 
@@ -191,19 +192,65 @@ def test_warm_evidence_has_no_cold_or_expired_positive_packets():
 
 
 def test_only_calibration_and_envelope_values_are_in_frozen_values():
-    freeze = json.loads((ROOT / "configs/mission_baseline.json").read_text())["baseline_threshold_freeze"]
+    freeze = json.loads((ROOT / "configs/mission_baseline.json").read_text())[
+        "baseline_threshold_freeze"
+    ]
     assert set(freeze["frozen_values"]) == {
-        "cruise_speed_mps", "deceleration_mps2", "response_budget_s", "stop_margin_m"
+        "cruise_speed_mps",
+        "deceleration_mps2",
+        "response_budget_s",
+        "stop_margin_m",
     }
-    assert freeze["frozen_values"]["cruise_speed_mps"] is None
-    assert freeze["frozen_values"]["response_budget_s"] is None
+    assert freeze["frozen_values"]["cruise_speed_mps"] == 4.0
+    assert freeze["frozen_values"]["response_budget_s"] == .9500000052154064
     assert freeze["implementation_policy"]["lateral_acceleration_mps2"] == 1.5
     assert freeze["implementation_policy"]["emergency_margin_m"] == 2.0
 
 
 def test_current_review_does_not_promote_historical_bl_c_screen():
     result = review(EVIDENCE)
-    assert result["status"] == "BLOCKED_PENDING_FRESH_BL_C_CAPTURE"
+    assert result["status"] == "TECHNICALLY_VALIDATED_CANDIDATE"
     assert not result["dependency_review"]["historical_screening_usable"]
-    assert result["screening"]["recommended_cruise_mps"] is None
+    assert result["screening"]["recommended_cruise_mps"] == 4.0
     assert result["cold_review_status"] == "HISTORICAL_SUPERSEDED_BL_C_TIMING"
+
+
+def test_distinct_operational_capture_resolves_the_old_bl_c_admission_blocker():
+    result = review(EVIDENCE)
+    dependency = result["dependency_review"]
+    assert dependency["bl_c_05_task_status"] == "PASS"
+    assert dependency["fresh_frames"] == 600
+    assert dependency["fresh_bl_c_conservative_screen_cap_mps"] == 3.2
+    assert dependency["cold_backlog_response_s"] == pytest.approx(4.199441865980589)
+    assert dependency["cold_backlog_excluded_from_positive_decisions"]
+    assert dependency["operational_range_valid_frames"] == 345
+    assert not result["speed_requirement"]["four_mps_mandatory"]
+    assert not result["speed_requirement"]["lower_cruise_freezable_now"]
+
+
+def test_optimistic_all_track_replay_still_holds_every_captured_frame():
+    audit = json.loads((EVIDENCE / "operational-range-review.json").read_text())
+    assert len(audit["rows"]) == 600
+    for sequence in audit["sequences"]:
+        counts = sequence["counts"]
+        assert counts["frames"] == counts["current_invalid_track_frames"] == 200
+        assert counts["target_depth_valid_frames"] > 0
+        assert counts["positive_commands"] == counts["observation_valid_frames"] == 0
+    assert all(row["brake"] == 1 and row["throttle"] == 0 for row in audit["rows"])
+
+
+def test_documented_repository_root_review_command(tmp_path):
+    import os
+    import subprocess
+    import sys
+
+    output = tmp_path / "review.json"
+    environment = dict(os.environ, PYTHONPATH="src")
+    subprocess.run(
+        [sys.executable, "-m", "scripts.review_baseline_freeze", "--output", str(output)],
+        cwd=ROOT, env=environment, check=True, capture_output=True,
+    )
+    result = json.loads(output.read_text())
+    assert result["status"] == "TECHNICALLY_VALIDATED_CANDIDATE"
+    assert result["screening"]["recommended_cruise_mps"] == 4.0
+    assert "pedestrian operational first-admission unestablished" in result["operational_scope"]

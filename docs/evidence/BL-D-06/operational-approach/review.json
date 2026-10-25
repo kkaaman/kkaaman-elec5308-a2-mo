@@ -1,0 +1,694 @@
+{
+  "kind": "verified_operational_same_frame_approach",
+  "review_implementation_sha256": "f8f2993331d271c2f306e8699fc8dcedd89fd967d0c267336da75872141de3a1",
+  "status": "PASS",
+  "capture_sha256": "f90e94b2a8a112d8bdbb70bb7c2941c9e8d14bb298845270e354ff37aea6b79b",
+  "capture_path": "/home/alan/26-S2-Assignment2-Group7/runs/BL-D-06/operational-approach/same-frame-04/report.json",
+  "operational_profile": {
+    "status": "BLOCKED_CAPTURE_GEOMETRY_RECHECK",
+    "required_evidence": {
+      "depth_accuracy": "BL-B-04",
+      "detector_range_and_latency": "BL-C-05",
+      "longitudinal_response": "BL-E-03"
+    },
+    "candidate_constraints": {
+      "cruise_speed_mps": 5.0,
+      "minimum_detection_range_m": 25.0,
+      "stop_margin_m": {
+        "minimum": 2.5,
+        "maximum": 6.0
+      },
+      "perception_latency_p95_s": 0.1
+    },
+    "frozen_values": {
+      "cruise_speed_mps": null,
+      "deceleration_mps2": 1.497566177392398,
+      "response_budget_s": null,
+      "stop_margin_m": 6.0
+    },
+    "freeze_rule": "Local technical candidate: use only the freshness-gated same-frame path and checked packet expiry, identical model/tracker/rig/depth/confirmation settings, all-track validity and supported perceived geometry. New controlled first-admission evidence supports 4.0 m/s with the enforced response budget. Not a team G1 admission or closed-loop stopping certificate.",
+    "review_date": "2026-10-21",
+    "review_report": "../docs/evidence/BL-D-06/review.json",
+    "decision_record": "../docs/baseline_threshold_freeze.md",
+    "candidate_constraints_note": "D-003 permits a lower supported cruise; neither 4.0 nor 3.2 m/s is mandatory. Acceptance constraints and numerical candidate/frozen values are unchanged.",
+    "implementation_policy": {
+      "acceleration_mps2": 1.0,
+      "lateral_acceleration_mps2": 1.5,
+      "emergency_margin_m": 2.0,
+      "provenance": "Existing BL-D-07 tests/unit/test_speed_governor.py config fixture; explicitly policy, not newly measured physical limits."
+    },
+    "parameter_kinds": {
+      "cruise_speed_mps": "Unchanged 4.0 m/s candidate now supported for bounded freshness-gated operation; publication/team review pending",
+      "deceleration_mps2": "BL-E-03 calibration with existing reserve",
+      "response_budget_s": "0.5 s enforced capture age + 0.1 s separate delivery reserve + measured BL-E lag once",
+      "stop_margin_m": "Unchanged acceptance upper bound",
+      "lateral_acceleration_mps2": "Existing implementation policy, not physical calibration",
+      "emergency_margin_m": "Existing emergency policy, not normal stopped acceptance margin"
+    },
+    "operational_gate": {
+      "command_ttl_s": 0.1,
+      "max_observation_age_s": 0.5,
+      "max_step_wall_s": 0.1,
+      "require_depth": true
+    },
+    "track_policy": {
+      "hits": 2,
+      "window": 3,
+      "expiry_s": 0.5,
+      "distance_samples": 5
+    },
+    "detector": {
+      "confidence": 0.25,
+      "image_size": 640,
+      "model_sha256": "9b09cc8bf347f0fc8a5f7657480587f25db09b34bf33b0652110fb03a8ad4fef",
+      "tracker": "botsort.yaml",
+      "tracker_settings": {
+        "tracker_type": "botsort",
+        "track_high_thresh": 0.25,
+        "track_low_thresh": 0.1,
+        "new_track_thresh": 0.25,
+        "track_buffer": 30,
+        "match_thresh": 0.8,
+        "fuse_score": true,
+        "gmc_method": "sparseOptFlow",
+        "proximity_thresh": 0.5,
+        "appearance_thresh": 0.8,
+        "with_reid": false,
+        "model": "auto"
+      },
+      "device": "cuda:0",
+      "versions": {
+        "ultralytics": "8.4.177",
+        "torch": "2.6.0+cu124",
+        "numpy": "2.5.2",
+        "lap": "0.5.13"
+      },
+      "allowed_classes": [
+        "person",
+        "bicycle",
+        "car",
+        "motorcycle",
+        "bus",
+        "truck",
+        "traffic light",
+        "stop sign"
+      ]
+    },
+    "fixed_delta_seconds": 0.05,
+    "response_composition": {
+      "measured_perception_control_max_s": 0.18552801799978624,
+      "measured_vehicle_response_s": 0.3500000052154064,
+      "measured_total_s": 0.5355280232151927,
+      "enforced_capture_age_budget_s": 0.5,
+      "post_decision_delivery_reserve_s": 0.1,
+      "note": "Sensor, detector, filter and control availability appear once in measured end-to-end response. Candidate covers the enforced admission bound, plus distinct command-delivery reserve and vehicle lag once.",
+      "candidate_total_response_budget_s": 0.9500000052154064
+    },
+    "depth_policy": {
+      "inner_fraction": 0.5,
+      "min_valid_fraction": 0.6,
+      "min_pixels": 9,
+      "max_depth_m": 25.0,
+      "max_spread_m": 1.0,
+      "max_relative_spread": 0.1
+    },
+    "camera_rig": {
+      "width": 640,
+      "height": 360,
+      "fov_deg": 90,
+      "x_actor_m": 1.5,
+      "z_actor_m": 2.0
+    },
+    "candidate_values": {
+      "cruise_speed_mps": 4.0,
+      "deceleration_mps2": 1.497566177392398,
+      "response_budget_s": 0.9500000052154064,
+      "stop_margin_m": 6.0
+    },
+    "publication_status": "LOCAL_CANDIDATE_NOT_COMMITTED_OR_TEAM_ADMITTED",
+    "operational_range_evidence": {
+      "report": "../docs/evidence/BL-D-06/operational-approach/review.json",
+      "usable_first_admission_range_m": 22.348599722608924,
+      "scope": "Controlled straight-scene all-track supported-surface provider; no empty-corridor clearance inference, no general full-corridor visibility certificate"
+    }
+  },
+  "capture_source_hashes": {
+    "scripts/capture_operational_approach.py": "3943bf83a78383ec8370235859c3ee21621658f65271b067e33c67f0653e1956",
+    "scripts/measure_operational_governance.py": "fd2bf74b96b7a79ab476e265a4c13fa7a277f612ecdd2b0db16dc66806f93daa",
+    "scripts/capture_obstacle_tracks.py": "ad36188e15471a028a08a0b2df6a39a430e533d005f7ff2e90514ef449698664",
+    "scripts/review_operational_range.py": "bf359e1a7e9ec5e97192f2fbdd4a28df3695b2b9fc486a2cb9cffeefac6fdd39",
+    "src/autonomy/stack.py": "73225409d124e10c60fddadb95568fd945d52834b939ffbfad02b2bb19026b95",
+    "src/autonomy/freshness.py": "fd11d2ceda67eb9675031569a90c6abc1ed3f3e1f0e9ae78fe3f48394c2977f8",
+    "src/autonomy/operational.py": "5baaa7c347aa2ca3c0b63c5055d3ed71371f72218a8043abbe60f01b24a08877",
+    "src/autonomy/obstacle_policy.py": "03de571deee9fb1a73a18e534b9f9a65b8824050c49e22e8caafd5f0f8076012",
+    "src/autonomy/interfaces.py": "bb56919b50bee998fd3b39a451c857d8f5c9d333595c7633d8e14be483a14dd3",
+    "src/perception/frame_detector.py": "acef9fa4cc86bf40d7fb90fb8df6ded6879966929dd2ad9f9804e8ee3354f65b",
+    "src/perception/object_detection.py": "130b2fef40353c2ef36b58e1015e2b9cd2fbe5340df6d008049bada79c07b889",
+    "src/obstacle_perception/tracking.py": "c0a2781e4b5fde3080c8b2d0d18e697be46cc4ea0e4b22c18d57e0a5b58cef61",
+    "src/obstacle_perception/box_depth.py": "d00ac5dcb4ca5a808f09bbed54a2bb541fffa8a030090983ae2ed3345bf3a897",
+    "src/planning/speed_governor.py": "41a1f518de445eb6c388fff8576e6d1bb4810fdf8a2c3c634717757254a258e2",
+    "src/carla_adapter/sensors.py": "71ea20ad14f736e3606acb92b9a433b85dd86631c7d9a51cd7ae133b6e6d0a6a",
+    "src/carla_adapter/vehicle.py": "1580fb5124b3bf7fa2d0e46b788e757da6566f17a551bbd24d85a29a23203493",
+    "src/carla_adapter/world.py": "2d844de3e9e8f8cd71023469094891ca4974eb72a008ffb9dc81f036e5561161",
+    "configs/mission_baseline.json": "c85a38cb1640e36b7b2617fa968b20ddfa2af78250694f193647c558164b5f61",
+    "configs/stack.yaml": "127570e0b9086b2621bb338e9d9ed7106f1e421074d6e236f4d1ea4b3a690d13",
+    "configs/acceptance.json": "9f8ba3cf712dedd6d0483eb228a6df8155e9f2e65880bd6a560ec07495c6c7d8",
+    "configs/models.yaml": "a8e1a7956ed5646593167694264235dcd106c4d4eb4cb0cf97f4527191117533"
+  },
+  "environment": {
+    "server": "0.9.16",
+    "client": "0.9.16",
+    "map": "Carla/Maps/Town10HD_Opt",
+    "opendrive_sha256": "5d883b799f634030af92be1e9d79d107845540ba04338e8c60e095be1aef7be7",
+    "rig": {
+      "width": 640,
+      "height": 360,
+      "fov_deg": 90,
+      "x_actor_m": 1.5,
+      "z_actor_m": 2.0
+    },
+    "depth_convention": "axial",
+    "weather": "WeatherParameters(cloudiness=20.000000, precipitation=0.000000, precipitation_deposits=0.000000, wind_intensity=10.000000, sun_azimuth_angle=300.000000, sun_altitude_angle=45.000000, fog_density=2.000000, fog_distance=0.750000, fog_falloff=0.100000, wetness=0.000000, scattering_intensity=1.000000, mie_scattering_scale=0.030000, rayleigh_scattering_scale=0.033100, dust_storm=0.000000)",
+    "fixed_delta_seconds": 0.05,
+    "settings": {
+      "confidence": 0.25,
+      "image_size": 640,
+      "tracker": "botsort.yaml",
+      "tracker_settings": {
+        "tracker_type": "botsort",
+        "track_high_thresh": 0.25,
+        "track_low_thresh": 0.1,
+        "new_track_thresh": 0.25,
+        "track_buffer": 30,
+        "match_thresh": 0.8,
+        "fuse_score": true,
+        "gmc_method": "sparseOptFlow",
+        "proximity_thresh": 0.5,
+        "appearance_thresh": 0.8,
+        "with_reid": false,
+        "model": "auto"
+      },
+      "tracker_sha256": "8cd88930d3be5557be0777f384eecff0a36a7011850fe613fc0a68178bfd5b01",
+      "model_sha256": "9b09cc8bf347f0fc8a5f7657480587f25db09b34bf33b0652110fb03a8ad4fef",
+      "versions": {
+        "ultralytics": "8.4.177",
+        "torch": "2.6.0+cu124",
+        "numpy": "2.5.2",
+        "opencv-python": "5.0.0.93",
+        "lap": "0.5.13"
+      },
+      "device": "cuda:0"
+    }
+  },
+  "cases": [
+    {
+      "scenario": "approach",
+      "fault_recovery": null,
+      "occlusion_indices": [],
+      "counts": {
+        "frames": 200,
+        "admitted": 106,
+        "positive_packets": 8,
+        "injected_failures": 0,
+        "source_failures": 0,
+        "occluded_frames": 0,
+        "admitted_target_frames": 77
+      },
+      "rejections": {
+        "capture_age_hold": 1,
+        "processing_budget_hold": 1,
+        "warmup_hold": 1,
+        "perception_hold": 91
+      },
+      "first_admitted_target": {
+        "index": 107,
+        "frame_id": 765232,
+        "evaluation_bumper_gap_m": 23.808214961828355,
+        "operational_bumper_gap_m": 22.35092287324369,
+        "conservative_range_m": 22.35092287324369,
+        "response_s": 0.040195359999415814
+      },
+      "admitted_timing": {
+        "source_age_at_decision_s": {
+          "samples": 106,
+          "min": 0.03545088400096574,
+          "median": 0.03956805349935166,
+          "p95": 0.04719714800012298,
+          "max": 0.06049034399984521
+        },
+        "sensor_availability_s": {
+          "samples": 106,
+          "min": 0.016004322000299,
+          "median": 0.018204489500021737,
+          "p95": 0.023614664500655635,
+          "max": 0.03070299899991369
+        },
+        "detector_s": {
+          "samples": 106,
+          "min": 0.01563259599970479,
+          "median": 0.01913884850091563,
+          "p95": 0.023656931749428622,
+          "max": 0.029366196000410127
+        },
+        "filter_s": {
+          "samples": 106,
+          "min": 0.00033083500056818593,
+          "median": 0.000550281499272387,
+          "p95": 0.000758897248942958,
+          "max": 0.0009859090005193138
+        },
+        "provider_s": {
+          "samples": 106,
+          "min": 0.00017788699915399775,
+          "median": 0.0003362395000294782,
+          "p95": 0.0005518340003618505,
+          "max": 0.0007246410004881909
+        },
+        "governor_s": {
+          "samples": 106,
+          "min": 1.1472000551293604e-05,
+          "median": 1.245400017069187e-05,
+          "p95": 1.7346749700664077e-05,
+          "max": 0.00025597800049581565
+        },
+        "controller_s": {
+          "samples": 106,
+          "min": 4.733300011139363e-05,
+          "median": 5.2085999413975514e-05,
+          "p95": 7.526899980803137e-05,
+          "max": 0.00026070700005220715
+        },
+        "stack_s": {
+          "samples": 106,
+          "min": 0.016531987001144444,
+          "median": 0.02049978750073933,
+          "p95": 0.02541106424996542,
+          "max": 0.03178559700063488
+        }
+      }
+    },
+    {
+      "scenario": "short_occlusion",
+      "fault_recovery": null,
+      "occlusion_indices": [
+        140,
+        141,
+        142
+      ],
+      "counts": {
+        "frames": 200,
+        "admitted": 71,
+        "positive_packets": 3,
+        "injected_failures": 0,
+        "source_failures": 0,
+        "occluded_frames": 3,
+        "admitted_target_frames": 63
+      },
+      "rejections": {
+        "processing_budget_hold": 1,
+        "warmup_hold": 1,
+        "perception_hold": 127
+      },
+      "first_admitted_target": {
+        "index": 106,
+        "frame_id": 765452,
+        "evaluation_bumper_gap_m": 24.008214817869483,
+        "operational_bumper_gap_m": 22.35092287324369,
+        "conservative_range_m": 22.35092287324369,
+        "response_s": 0.038465670999357826
+      },
+      "admitted_timing": {
+        "source_age_at_decision_s": {
+          "samples": 71,
+          "min": 0.036338249999971595,
+          "median": 0.03917576499952702,
+          "p95": 0.041707731999849784,
+          "max": 0.0440868279983988
+        },
+        "sensor_availability_s": {
+          "samples": 71,
+          "min": 0.016168510001079994,
+          "median": 0.017831539000326302,
+          "p95": 0.020457871999497,
+          "max": 0.022158031999424566
+        },
+        "detector_s": {
+          "samples": 71,
+          "min": 0.016972035000435426,
+          "median": 0.01911064599880774,
+          "p95": 0.020936212499691464,
+          "max": 0.022365206001268234
+        },
+        "filter_s": {
+          "samples": 71,
+          "min": 0.0003282289999333443,
+          "median": 0.0005595490001724102,
+          "p95": 0.0007714215007581515,
+          "max": 0.0008705750005901791
+        },
+        "provider_s": {
+          "samples": 71,
+          "min": 0.0001762629999575438,
+          "median": 0.00032792800084280316,
+          "p95": 0.0004819830010092119,
+          "max": 0.0006311390006885631
+        },
+        "governor_s": {
+          "samples": 71,
+          "min": 1.1382000593584962e-05,
+          "median": 1.2524000339908525e-05,
+          "p95": 1.867649916675873e-05,
+          "max": 4.927600093651563e-05
+        },
+        "controller_s": {
+          "samples": 71,
+          "min": 4.7772999096196145e-05,
+          "median": 5.117900036566425e-05,
+          "p95": 8.142350088746753e-05,
+          "max": 0.0001702720001048874
+        },
+        "stack_s": {
+          "samples": 71,
+          "min": 0.0183357400001114,
+          "median": 0.02057819699984975,
+          "p95": 0.022673305500575225,
+          "max": 0.02433578300042427
+        }
+      }
+    },
+    {
+      "scenario": "continuity_risk",
+      "fault_recovery": null,
+      "occlusion_indices": [
+        140,
+        141,
+        142,
+        143,
+        144,
+        145,
+        146,
+        147,
+        148,
+        149,
+        150,
+        151,
+        152,
+        153,
+        154,
+        155,
+        156,
+        157,
+        158,
+        159
+      ],
+      "counts": {
+        "frames": 200,
+        "admitted": 62,
+        "positive_packets": 7,
+        "injected_failures": 0,
+        "source_failures": 0,
+        "occluded_frames": 20,
+        "admitted_target_frames": 52
+      },
+      "rejections": {
+        "processing_budget_hold": 1,
+        "warmup_hold": 1,
+        "perception_hold": 136
+      },
+      "first_admitted_target": {
+        "index": 107,
+        "frame_id": 765674,
+        "evaluation_bumper_gap_m": 23.808215187595252,
+        "operational_bumper_gap_m": 22.35092287324369,
+        "conservative_range_m": 22.35092287324369,
+        "response_s": 0.04120098999919719
+      },
+      "admitted_timing": {
+        "source_age_at_decision_s": {
+          "samples": 62,
+          "min": 0.03601799799980654,
+          "median": 0.04066006900029606,
+          "p95": 0.04787115685085155,
+          "max": 0.05225620400051412
+        },
+        "sensor_availability_s": {
+          "samples": 62,
+          "min": 0.015723634000096354,
+          "median": 0.018447692499648838,
+          "p95": 0.021880576299827224,
+          "max": 0.026883022001129575
+        },
+        "detector_s": {
+          "samples": 62,
+          "min": 0.017651358000875916,
+          "median": 0.020306012001128693,
+          "p95": 0.023681330100225752,
+          "max": 0.02594565599974885
+        },
+        "filter_s": {
+          "samples": 62,
+          "min": 0.00041332500040880404,
+          "median": 0.000581632501052809,
+          "p95": 0.0008187977495254017,
+          "max": 0.0012678590010182234
+        },
+        "provider_s": {
+          "samples": 62,
+          "min": 0.0002444359997753054,
+          "median": 0.0003501764995235135,
+          "p95": 0.000543386599747464,
+          "max": 0.0007570039997517597
+        },
+        "governor_s": {
+          "samples": 62,
+          "min": 1.1513000572449528e-05,
+          "median": 1.2940000488015357e-05,
+          "p95": 2.2488800277642432e-05,
+          "max": 5.8583998907124624e-05
+        },
+        "controller_s": {
+          "samples": 62,
+          "min": 4.871500095759984e-05,
+          "median": 5.514250096894102e-05,
+          "p95": 0.00011487165011203611,
+          "max": 0.0001743299999361625
+        },
+        "stack_s": {
+          "samples": 62,
+          "min": 0.01899527599925932,
+          "median": 0.021801739000693487,
+          "p95": 0.02586863329988773,
+          "max": 0.027554328999030986
+        }
+      }
+    },
+    {
+      "scenario": "failure_recovery",
+      "fault_recovery": {
+        "failure_indices": [
+          140
+        ],
+        "explicit_reset_indices": [
+          141
+        ],
+        "first_admitted_recovery_index": 143
+      },
+      "occlusion_indices": [],
+      "counts": {
+        "frames": 200,
+        "admitted": 106,
+        "positive_packets": 4,
+        "injected_failures": 1,
+        "source_failures": 1,
+        "occluded_frames": 0,
+        "admitted_target_frames": 68
+      },
+      "rejections": {
+        "warmup_hold": 2,
+        "perception_hold": 90,
+        "invalid_step:ValueError:Required depth missing": 1,
+        "processing_budget_hold": 1
+      },
+      "first_admitted_target": {
+        "index": 110,
+        "frame_id": 765898,
+        "evaluation_bumper_gap_m": 23.20821512878924,
+        "operational_bumper_gap_m": 22.348599722608924,
+        "conservative_range_m": 22.348599722608924,
+        "response_s": 0.037425837999762734
+      },
+      "admitted_timing": {
+        "source_age_at_decision_s": {
+          "samples": 106,
+          "min": 0.03631415400013793,
+          "median": 0.03859823499988124,
+          "p95": 0.04531470499978241,
+          "max": 0.06097370599854912
+        },
+        "sensor_availability_s": {
+          "samples": 106,
+          "min": 0.016010493000067072,
+          "median": 0.01779371400061791,
+          "p95": 0.02071478025027318,
+          "max": 0.033013177000611904
+        },
+        "detector_s": {
+          "samples": 106,
+          "min": 0.016221882999161608,
+          "median": 0.018891842000812176,
+          "p95": 0.0223028820005311,
+          "max": 0.03590913500011084
+        },
+        "filter_s": {
+          "samples": 106,
+          "min": 0.00032749799902376253,
+          "median": 0.0005303775005813804,
+          "p95": 0.0007699767488702491,
+          "max": 0.0008875969997461652
+        },
+        "provider_s": {
+          "samples": 106,
+          "min": 0.00017188399942824617,
+          "median": 0.000313475499751803,
+          "p95": 0.0004426010004863201,
+          "max": 0.0008841620001476258
+        },
+        "governor_s": {
+          "samples": 106,
+          "min": 1.160200008598622e-05,
+          "median": 1.2524499652499799e-05,
+          "p95": 2.2293000256468076e-05,
+          "max": 7.275099960679654e-05
+        },
+        "controller_s": {
+          "samples": 106,
+          "min": 4.780299968842883e-05,
+          "median": 5.104400042910129e-05,
+          "p95": 7.534149972343585e-05,
+          "max": 0.00011676699978124816
+        },
+        "stack_s": {
+          "samples": 106,
+          "min": 0.017235095001524314,
+          "median": 0.0202319219997662,
+          "p95": 0.024020709000069473,
+          "max": 0.03745526600141602
+        }
+      }
+    }
+  ],
+  "total_frames": 800,
+  "admissible_frames": 345,
+  "positive_packets": 22,
+  "invalid_positive_packets": 0,
+  "timing": {
+    "source_age_at_decision_s": {
+      "samples": 345,
+      "min": 0.03545088400096574,
+      "median": 0.039271613999517285,
+      "p95": 0.04594882859964855,
+      "max": 0.06097370599854912
+    },
+    "sensor_availability_s": {
+      "samples": 345,
+      "min": 0.015723634000096354,
+      "median": 0.01796051999917836,
+      "p95": 0.02220446560095297,
+      "max": 0.033013177000611904
+    },
+    "bundle_s": {
+      "samples": 345,
+      "min": 0.0003422369991312735,
+      "median": 0.0005535679993045051,
+      "p95": 0.00107116719991609,
+      "max": 0.001763353000569623
+    },
+    "detector_s": {
+      "samples": 345,
+      "min": 0.01563259599970479,
+      "median": 0.019161666999934823,
+      "p95": 0.023050393600715324,
+      "max": 0.03590913500011084
+    },
+    "filter_s": {
+      "samples": 345,
+      "min": 0.00032749799902376253,
+      "median": 0.0005517240006156499,
+      "p95": 0.0007939983988762833,
+      "max": 0.0012678590010182234
+    },
+    "provider_s": {
+      "samples": 345,
+      "min": 0.00017188399942824617,
+      "median": 0.0003314160003355937,
+      "p95": 0.0005042491997301114,
+      "max": 0.0008841620001476258
+    },
+    "governor_s": {
+      "samples": 345,
+      "min": 1.1382000593584962e-05,
+      "median": 1.2545000572572462e-05,
+      "p95": 2.1147600273252474e-05,
+      "max": 0.00025597800049581565
+    },
+    "controller_s": {
+      "samples": 345,
+      "min": 4.733300011139363e-05,
+      "median": 5.1981000069645233e-05,
+      "p95": 9.107879959628922e-05,
+      "max": 0.00026070700005220715
+    },
+    "decision_overhead_s": {
+      "samples": 345,
+      "min": 0.00028965400269953534,
+      "median": 0.00043899399861402344,
+      "p95": 0.0008090565996099032,
+      "max": 0.0013189290002628695
+    },
+    "stack_s": {
+      "samples": 345,
+      "min": 0.016531987001144444,
+      "median": 0.020595027999661397,
+      "p95": 0.02473357840026438,
+      "max": 0.03745526600141602
+    },
+    "receipt_to_output_s": {
+      "samples": 345,
+      "min": 0.017016660000081174,
+      "median": 0.021437299001263455,
+      "p95": 0.02601634959901276,
+      "max": 0.03817509700093069
+    },
+    "decision_to_brake_ack_s": {
+      "samples": 345,
+      "min": 0.004287798999939696,
+      "median": 0.0052198839985067025,
+      "p95": 0.006617826999354292,
+      "max": 0.010137778999705915
+    },
+    "receipt_to_brake_ack_s": {
+      "samples": 345,
+      "min": 0.022916829000678263,
+      "median": 0.026702209001086885,
+      "p95": 0.031999096799336255,
+      "max": 0.04521587599992927
+    }
+  },
+  "maximum_all_frame_age_s": 3.6097653939996235,
+  "maximum_source_sim_age_s": 0.0,
+  "timing_partition_max_error_s": 0,
+  "controller_replay_mismatches": 0,
+  "response_budget_s": 0.9500000052154064,
+  "vehicle_lag_s": 0.3500000052154064,
+  "usable_operational_range_m": 22.348599722608924,
+  "exact_speed_cap_mps": 5.7180586377280065,
+  "speed_cap_rounded_down_mps": 5.7,
+  "candidate_cruise_mps": 4.0,
+  "required_gap_at_candidate_m": 15.142001009378749,
+  "limitations": [
+    "Parked-ego shadow decision and controlled straight approach; not closed-loop stopping certification or general full-corridor coverage.",
+    "No empty observation authorises clearance; all visible tracks included.",
+    "Highest calculated cap is envelope arithmetic, not evidence of driven operation at that speed."
+  ],
+  "audit_script_sha256": "bf359e1a7e9ec5e97192f2fbdd4a28df3695b2b9fc486a2cb9cffeefac6fdd39"
+}

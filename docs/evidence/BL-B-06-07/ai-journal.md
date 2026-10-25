@@ -21,3 +21,14 @@ offset from S3. Strict centre/four-corner lane checks and a negative footprint r
 were added. Fresh attempt04 generated MEASURED_PASS (14/14), retaining all prior failures.
 Exact source/config snapshots and topology are packaged separately. Canonical main was
 fetched and compared; no merge or admission bypass was performed. This does not run #41.
+
+
+PR98 admission follow-up: prepared a normal canonical-main merge stopped before commit.
+Reproduced production rejection against the old inventory. Preserved PR104's original
+record byte-for-byte, prepared an exact new loader-only inventory, and retained the
+unchanged historical runner variant. No runtime source, mission value, scope or guard
+was edited. Added old-binding and scenario-drift regressions, independently reproduced
+hashes and checked all accepted live source/scenario hashes against the merged tree.
+Only unused freeze/publication mission fields differ from capture; no recapture needed.
+This is a prepared rebind for designated review, not a claim that review/publication
+has occurred. No commit/push/PR merge or GitHub state mutation was performed.
