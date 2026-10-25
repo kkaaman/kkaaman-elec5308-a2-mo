@@ -121,11 +121,23 @@ class World:
         return SimpleNamespace(find=Blueprint)
 
     def get_map(self):
-        return SimpleNamespace(
-            get_waypoint=lambda location, project_to_road: SimpleNamespace(
-                road_id=20, lane_id=-1, is_junction=False, lane_type="Driving"
-            )
-        )
+        from evaluation.stop_truth import signed_lateral_m
+
+        mission = load_frozen_mission(ROOT / "configs/mission_baseline.json")
+        path = ReferencePath(mission.waypoints)
+
+        def waypoint(location, project_to_road):
+            lateral = signed_lateral_m(path, location.x, -location.y)
+            lane_id = -2 if lateral < -1.75 else -1
+            wp = SimpleNamespace(road_id=20, lane_id=lane_id, is_junction=False,
+                                 lane_type="Driving", lane_width=3.5)
+            wp.get_left_lane = lambda: SimpleNamespace(road_id=20, lane_id=lane_id - 1,
+                is_junction=False, lane_type="Driving", lane_width=3.5)
+            wp.get_right_lane = lambda: SimpleNamespace(road_id=20, lane_id=lane_id - 1,
+                is_junction=False, lane_type="Driving", lane_width=3.5)
+            return wp
+
+        return SimpleNamespace(get_waypoint=waypoint)
 
     def spawn_actor(self, blueprint, transform, attach_to=None, attachment_type=None):
         sensor = Sensor(blueprint.id, transform)
@@ -153,6 +165,7 @@ def carla(monkeypatch):
         Rotation=Rotation,
         Transform=Transform,
         AttachmentType=SimpleNamespace(Rigid="rigid"),
+        LaneType=SimpleNamespace(Driving="Driving"),
     )
     monkeypatch.setitem(sys.modules, "carla", fake)
     return fake
@@ -292,7 +305,7 @@ def test_known_distance_check_arithmetic(carla, mission, scenarios):
         for sid, distance, lateral in (
             ("S1", 6.0, 0.0),
             ("S1", 6.0, 0.8),
-            ("S1", 8.0, 3.5),
+            ("S1", 8.0, scenarios["S3"].obstacle.lateral_m),
             ("S2", 3.0, 0.0),
         )
     ]
@@ -316,3 +329,104 @@ def test_placement_check_passes_for_a_stationary_obstacle(carla, mission, scenar
         result = run.placement_case(sid, ego, adapter, front, box)
         assert result["status"] == "PASS", result
         assert len(result["placements"]) == 2
+
+
+def test_failed_destroy_preserves_presence_and_records_attempt(carla, mission, scenarios):
+    obstacle = obstacle_for(mission, scenarios["S1"])
+    obstacle.spawn()
+    obstacle.actor.destroy = lambda: False
+    with pytest.raises(RuntimeError, match="remains present"):
+        obstacle.remove(frame=10, sim_time_s=.5, reason="after_steady_hold")
+    assert obstacle.present and obstacle.removal is None
+    assert obstacle.removal_attempts[-1]["destroyed"] is False
+    obstacle.actor.destroy = lambda: True
+    assert obstacle.remove(frame=11, sim_time_s=.55, reason="retry")["destroyed"] is True
+    assert not obstacle.present and len(obstacle.removal_attempts) == 2
+
+
+def test_s3_rejects_projected_road_when_actual_pose_is_offroad(carla, mission, scenarios):
+    from carla_adapter.scenario_verification import Verification
+
+    owner = Owner()
+    original_map = owner.world.get_map()
+
+    def lookup(location, project_to_road):
+        wp = original_map.get_waypoint(location, project_to_road)
+        return None if not project_to_road and wp.lane_id == -2 else wp
+
+    owner.world.get_map = lambda: SimpleNamespace(get_waypoint=lookup)
+    run = Verification(owner, mission, scenarios)
+    ego, adapter = ego_at_route_start(mission)
+    box = ego.bounding_box
+    result = run.placement_case("S3", ego, adapter, 1.38641 + box.extent.x, box)
+    assert result["status"] == "FAIL"
+    assert result["placements"][0]["lane_verification"]["actual_lane"] is None
+    assert len(run.raw_placements) == 2
+
+
+def test_verifier_cleanup_ticks_before_reading_spawn_liveness():
+    from carla_adapter.scenario_verification import Verification
+
+    class PendingActor:
+        is_alive = False
+        destroyed = False
+
+        def destroy(self):
+            self.destroyed = True
+            self.is_alive = False
+
+    actor = PendingActor()
+    run = object.__new__(Verification)
+    ticks = []
+
+    def tick(count=1):
+        ticks.append(count)
+        if not actor.destroyed:
+            actor.is_alive = True
+
+    run.tick = tick
+    run.destroy(actor)
+    assert actor.destroyed
+    assert ticks == [1, 2]
+
+
+def test_s3_and_lateral_probe_share_right_driving_lane(carla, mission, scenarios):
+    from carla_adapter.scenario_verification import Verification, gap_cases
+
+    assert scenarios["S3"].obstacle.route_s_m == 40.0
+    assert scenarios["S3"].obstacle.lateral_m == -3.5
+    assert ("S1", 8.0, -3.5) in gap_cases(scenarios)
+    run = Verification(Owner(), mission, scenarios)
+    ego, adapter = ego_at_route_start(mission)
+    box = ego.bounding_box
+    result = run.placement_case("S3", ego, adapter, 1.38641 + box.extent.x, box)
+    assert result["status"] == "PASS"
+    assert not result["truth_from_mission_start"]["truth_in_corridor"]
+    for placement in result["placements"]:
+        check = placement["lane_verification"]
+        assert check["adjacent_side"] == "right"
+        assert check["actual_lane"]["lane_id"] == -2
+        assert all(wp["lane_type"] == "Driving" and wp["lane_id"] == -2
+                   for wp in check["footprint_lanes"])
+
+
+def test_s3_rejects_footprint_corner_outside_adjacent_driving_lane(carla, mission, scenarios):
+    from carla_adapter.scenario_verification import Verification
+    from evaluation.stop_truth import signed_lateral_m
+
+    owner = Owner()
+    original_map = owner.world.get_map()
+    path = ReferencePath(mission.waypoints)
+
+    def lookup(location, project_to_road):
+        if not project_to_road and signed_lateral_m(path, location.x, -location.y) < -4.0:
+            return None
+        return original_map.get_waypoint(location, project_to_road)
+
+    owner.world.get_map = lambda: SimpleNamespace(get_waypoint=lookup)
+    run = Verification(owner, mission, scenarios)
+    ego, adapter = ego_at_route_start(mission)
+    result = run.placement_case("S3", ego, adapter, 1.38641 + ego.bounding_box.extent.x,
+                                ego.bounding_box)
+    assert result["status"] == "FAIL"
+    assert result["placements"][0]["lane_verification"]["actual_lane"] is not None

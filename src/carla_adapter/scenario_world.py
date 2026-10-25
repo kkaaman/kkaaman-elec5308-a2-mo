@@ -97,6 +97,7 @@ class ScenarioObstacle:
         self.corners = None
         self.placement = None
         self.removal = None
+        self.removal_attempts = []
 
     def spawn(self):
         import carla
@@ -171,12 +172,16 @@ class ScenarioObstacle:
         if self.actor is None or self.removal is not None:
             raise RuntimeError("Obstacle is not present")
         destroyed = bool(self.actor.destroy())
-        self.removal = {
+        attempt = {
             "frame": frame,
             "simulation_time_s": sim_time_s,
             "reason": reason,
             "destroyed": destroyed,
         }
+        self.removal_attempts.append(attempt)
+        if not destroyed:
+            raise RuntimeError("Obstacle destroy failed; obstacle remains present")
+        self.removal = attempt
         return self.removal
 
     @property

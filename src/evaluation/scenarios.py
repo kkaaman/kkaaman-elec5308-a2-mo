@@ -210,8 +210,13 @@ class RemovalSchedule:
         self.previous_s = None
         self.removed_at_s = None
 
-    def update(self, sim_time_s, speed_mps):
-        """Return True exactly once, on the removal tick."""
+    def update(self, sim_time_s, speed_mps, *, obstacle_hold=False, obstacle_in_path=False,
+               observation_valid=False, fault=False):
+        """Return True once after a qualifying obstacle HOLD, never startup/fault stops.
+
+        Callers must positively identify obstacle-caused HOLD, valid observation
+        and obstacle-in-path evidence. Defaults fail closed for older callers.
+        """
         _finite("sim_time_s", sim_time_s)
         _finite("speed_mps", speed_mps)
         if self.removal.rule == "never" or self.removed_at_s is not None:
@@ -219,7 +224,9 @@ class RemovalSchedule:
         if self.previous_s is not None and sim_time_s - self.previous_s > 1.5 * self.dt_s:
             self.hold_since_s = None
         self.previous_s = sim_time_s
-        if abs(speed_mps) > STOPPED_SPEED_MPS:
+        if not (obstacle_hold and obstacle_in_path and observation_valid and not fault) or (
+            abs(speed_mps) > STOPPED_SPEED_MPS
+        ):
             self.hold_since_s = None
             return False
         if self.hold_since_s is None:

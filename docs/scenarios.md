@@ -1,8 +1,9 @@
 # Deterministic obstacle scenarios and evaluation truth — BL-B-06 / BL-B-07
 
 Issue #39. Owner: @kkaaman. Reviewer: @at0941. Status: implementation and
-offline tests in this PR; live verification evidence pending. The issue starts
-after G1 passes, so this PR stays Draft until the G1 decision.
+offline tests in this PR. Canonical G1 is published; live verification is
+MEASURED_PASS (14/14). See the [accepted live evidence](evidence/BL-B-06-07/accepted-20261025.md)
+and the [retained failed attempts](evidence/BL-B-06-07/README.md).
 
 This page defines how S1–S5 place and remove their obstacles, and how collisions,
 lane invasions and stopping margins are measured. It does not run the S1–S5
@@ -21,7 +22,7 @@ lateral offset `lateral_m` (positive = left of travel) on the frozen mission rou
 |---|---|---|---|---|---|
 | S1 | car (`vehicle.tesla.model3`) | 40.0 m (road 20, before junction 841 at 49.2 m) | 0.0 m | after a 2.0 s steady HOLD | stop, hold, resume |
 | S2 | adult pedestrian (`walker.pedestrian.0001`), facing across the road | 40.0 m | 0.0 m | after a 2.0 s steady HOLD | stop, hold, resume |
-| S3 | car | 40.0 m | +3.5 m (adjacent lane) | never | no stop |
+| S3 | car | 40.0 m | −3.5 m (right adjacent driving lane) | never | no stop |
 | S4 | car | 40.0 m | 0.0 m | never | HOLD for at least 60 s |
 | S5 | car | 158.0 m (6.4 m after the junction 532 exit at 151.6 m) | 0.0 m | after a 2.0 s steady HOLD | stop, hold, resume |
 
@@ -29,10 +30,11 @@ lateral offset `lateral_m` (positive = left of travel) on the frozen mission rou
 - The pose is a pure function of the route and the file (`placement_pose`). Each
   placement is snapped to the ground below the road. Physics is disabled, so
   contact cannot move the obstacle.
-- Removal is a pure function of simulation time and true ego speed
-  (`RemovalSchedule`). The obstacle is removed on the first tick at which the ego
-  has been at or below 0.1 m/s for 2.0 s of continuous simulation time. A dropped
-  tick (gap above 1.5 × dt) or any motion above 0.1 m/s restarts the count.
+- Removal requires explicit valid obstacle-in-path HOLD with no fault
+  (`RemovalSchedule`); defaults are fail-closed. The obstacle is removed only after
+  2.0 s at or below 0.1 m/s under those qualifications. Startup/unrelated/fault
+  stops cannot remove it. A missing tick (gap above 1.5 × dt), lost qualification
+  or movement resets the timer.
 - Seeds 5308–5312 label repeatability runs. The scripted world draws no random
   numbers.
 - Each file's SHA-256 (line-ending independent) is recorded with every placement.
@@ -42,7 +44,8 @@ lateral offset `lateral_m` (positive = left of travel) on the frozen mission rou
 - ground height, bounding box and footprint corners;
 - map road/lane and whether it is a junction.
 
-`remove` records the frame and simulation time of the scripted removal.
+`remove` records every destroy attempt. A failed destroy raises, preserves presence,
+and does not record successful removal; a later attempt may retry.
 
 ## Events (BL-B-07)
 
@@ -81,7 +84,8 @@ always derived from them and never stored in their place.
   and ends at the scripted removal (S4: when the obstacle leaves the path).
 - **Stopped margin:** min and max gap over the HOLD.
 - **HOLD speed:** maximum speed over the HOLD, so any creep counts.
-- **Continuous HOLD (S4):** the longest run of stopped ticks.
+- **Continuous HOLD (S4):** the longest run of stopped ticks with obstacle-in-path evidence;
+  missing ticks, movement or disappearing evidence reset the run.
 - **Resume delay:** from removal to the first speed above 0.1 m/s.
 
 A goal stop has no obstacle in the path, so it is never mistaken for a HOLD.
@@ -114,8 +118,8 @@ settings are restored and no actors leak.
 
 | Check | Pass condition |
 |---|---|
-| Placement S1–S5 | Two clean spawns agree within 1 cm and 0.1°. The pose after a tick equals the requested pose. In the corridor for S1, S2, S4 and S5; outside it for S3. |
-| Truth gap | Car at 3, 6 and 10 m and pedestrian at 3 and 6 m, placed face-to-face along the straight start: truth within 5 cm of the face-to-face route distance. Car 0.8 m left: still in the corridor, same tolerance. Car 3.5 m left: not in the corridor. |
+| Placement S1–S5 | Two clean spawns agree within 1 cm and 0.1°. The pose after a tick equals the requested pose. In the corridor for S1, S2, S4 and S5; outside it for S3, on an actual non-projected adjacent same-direction Driving lane, including all four footprint corners. |
+| Truth gap | Car at 3, 6 and 10 m and pedestrian at 3 and 6 m, placed face-to-face along the straight start: truth within 5 cm of the face-to-face route distance. Car 0.8 m left: still in the corridor, same tolerance. Car 3.5 m right: not in the corridor (offset read from S3 configuration). |
 | Collision deduplication | The ego touches a stationary car, backs off 1.5 m, waits 1.5 s and touches again: exactly two contacts, both against that car. |
 | Lane invasion | `PathFollower` drives a smooth lane change across a broken marking on a straight two-lane road. The crossing is reported and counted, and a declared legal manoeuvre covering it removes it from the count. |
 
@@ -130,3 +134,20 @@ These are static-scene checks of the scoring path. They are not S1–S5 acceptan
 | `tests/unit/test_stop_truth.py` | Golden gap and lateral sign, partial overlap, HOLD/resume metrics, missing evidence |
 | `tests/unit/test_scenario_world.py` | Placement, footprint and truth through a fake left-handed `carla`; raw event capture; the live check's known-distance and repeatability arithmetic |
 | `tests/unit/test_evaluation_truth_isolation.py` | Static isolation of the control path |
+
+AI-assisted changes and live-attempt disclosure: [journal](evidence/BL-B-06-07/ai-journal.md).
+
+```{toctree}
+:hidden:
+
+evidence/BL-B-06-07/README
+evidence/BL-B-06-07/accepted-20261025
+evidence/BL-B-06-07/ai-journal
+```
+
+The S3 side was corrected explicitly after live topology verification: `+3.5 m`
+at the unchanged `s=40 m` was on road 20/lane 2 (Median). `−3.5 m` is the right
+adjacent Driving lane −2 on the same road, with 3.5 m lane width. S1/S2/S4/S5,
+the ego route, expected no-stop outcome and all acceptance tolerances are unchanged.
+The outside-corridor truth probe reads S3's configured lateral offset, preventing
+scenario/verifier side drift. See accepted evidence for the measured footprint.

@@ -60,7 +60,7 @@ def test_placements_sit_where_the_scenarios_say(mission_path):
     assert projection.distance_m == pytest.approx(3.5, abs=1e-6)
     heading = route_heading(mission_path, s3.route_s_m)
     left = (-math.sin(heading), math.cos(heading))
-    assert (x - projection.point.x_m) * left[0] + (y - projection.point.y_m) * left[1] > 0
+    assert (x - projection.point.x_m) * left[0] + (y - projection.point.y_m) * left[1] < 0
     first = [placement_pose(mission_path, scenarios[s].obstacle) for s in scenarios]
     again = [
         placement_pose(mission_path, load_scenario(SCENARIOS / f"{s}.json").obstacle)
@@ -131,7 +131,7 @@ def _drive(schedule, speeds, dt=0.05, start=10.0, skip=()):
         if i in skip:
             continue
         t = start + i * dt
-        if schedule.update(t, speed):
+        if schedule.update(t, speed, obstacle_hold=True, obstacle_in_path=True, observation_valid=True):
             removals.append(round(t, 6))
     return removals
 
@@ -156,3 +156,30 @@ def test_motion_or_a_dropped_tick_restarts_the_hold():
 def test_never_rule_keeps_the_obstacle():
     removal = load_scenario(SCENARIOS / "S4.json").removal
     assert _drive(RemovalSchedule(removal, 0.05), [0.0] * 2000) == []
+
+
+@pytest.mark.parametrize("flags", [
+    {}, {"obstacle_hold": False, "obstacle_in_path": True, "observation_valid": True},
+    {"obstacle_hold": True, "obstacle_in_path": False, "observation_valid": True},
+    {"obstacle_hold": True, "obstacle_in_path": True, "observation_valid": False},
+    {"obstacle_hold": True, "obstacle_in_path": True, "observation_valid": True, "fault": True},
+])
+def test_startup_unrelated_and_fault_stops_never_remove(flags):
+    schedule = RemovalSchedule(load_scenario(SCENARIOS / "S1.json").removal, .05)
+    assert not any(schedule.update(i * .05, 0, **flags) for i in range(100))
+    assert schedule.hold_since_s is None and schedule.removed_at_s is None
+
+
+@pytest.mark.parametrize("break_flags", [
+    {"obstacle_hold": False}, {"obstacle_in_path": False},
+    {"observation_valid": False}, {"fault": True},
+])
+def test_loss_of_qualifying_hold_restarts_removal_timer(break_flags):
+    schedule = RemovalSchedule(load_scenario(SCENARIOS / "S1.json").removal, .05)
+    good = dict(obstacle_hold=True, obstacle_in_path=True, observation_valid=True, fault=False)
+    for i in range(30):
+        assert not schedule.update(i * .05, 0, **good)
+    assert not schedule.update(1.5, 0, **(good | break_flags))
+    for i in range(31, 71):
+        assert not schedule.update(i * .05, 0, **good)
+    assert schedule.update(3.55, 0, **good)

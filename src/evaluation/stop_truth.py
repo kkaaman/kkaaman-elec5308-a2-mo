@@ -136,7 +136,8 @@ def hold_metrics(
     first = last = None
     for row in hold:
         t = row["sim_time_s"]
-        if abs(row["speed_mps"]) > stopped_speed_mps:
+        if (abs(row["speed_mps"]) > stopped_speed_mps
+                or row.get("truth_front_gap_m") is None):
             first = last = None
             continue
         if last is None or t - last > 1.5 * dt_s:

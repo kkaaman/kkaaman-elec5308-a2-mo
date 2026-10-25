@@ -113,3 +113,14 @@ def test_never_resuming_is_missing_evidence_not_zero():
     data = rows([(0.0, 4.0)] * 60 + [(0.0, None)] * 60)
     metrics = hold_metrics(data, dt_s=0.05, removal_time_s=3.0)
     assert metrics["resume_delay_s"] is None
+
+
+def test_continuous_hold_resets_when_obstacle_leaves_path():
+    data = rows([(0, 4)] * 40 + [(0, None)] * 20 + [(0, 4)] * 40)
+    assert hold_metrics(data, dt_s=.05)["continuous_hold_s"] == pytest.approx(2.0)
+
+
+def test_continuous_hold_resets_on_missing_tick():
+    data = rows([(0, 4)] * 80)
+    del data[40]
+    assert hold_metrics(data, dt_s=.05)["continuous_hold_s"] == pytest.approx(2.0)

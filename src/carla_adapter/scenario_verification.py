@@ -28,6 +28,8 @@ import dataclasses
 import hashlib
 import json
 import math
+import subprocess
+import sys
 from pathlib import Path
 
 from evaluation.scenario_events import count_contacts, count_unplanned_invasions
@@ -52,15 +54,17 @@ POSE_TOLERANCE_M = 0.01
 YAW_TOLERANCE_DEG = 0.1
 GAP_TOLERANCE_M = 0.05
 EXPECT_IN_CORRIDOR = {"S1": True, "S2": True, "S3": False, "S4": True, "S5": True}
-GAP_CASES = (
-    ("S1", 3.0, 0.0),
-    ("S1", 6.0, 0.0),
-    ("S1", 10.0, 0.0),
-    ("S1", 6.0, 0.8),
-    ("S1", 8.0, 3.5),
-    ("S2", 3.0, 0.0),
-    ("S2", 6.0, 0.0),
-)
+def gap_cases(scenarios):
+    """Use the committed S3 side for the outside-corridor truth probe too."""
+    return (
+        ("S1", 3.0, 0.0),
+        ("S1", 6.0, 0.0),
+        ("S1", 10.0, 0.0),
+        ("S1", 6.0, 0.8),
+        ("S1", 8.0, scenarios["S3"].obstacle.lateral_m),
+        ("S2", 3.0, 0.0),
+        ("S2", 6.0, 0.0),
+    )
 
 
 def _local_point_core(transform, box, x):
@@ -89,6 +93,8 @@ class Verification:
         self.world = owner.world
         self.path = ReferencePath(mission.waypoints)
         self.points_xyz = [tuple(p) for p in mission.route["points_xyz_m"]]
+        self.raw_placements = []
+        self.event_sources = []
 
     def tick(self, count=1):
         for _ in range(count):
@@ -118,6 +124,9 @@ class Verification:
         return ego, adapter, front, box
 
     def destroy(self, *actors):
+        # A just-spawned actor may not be alive in the client snapshot until a tick.
+        # Synchronize before checking: otherwise geometry probes survive into later cases.
+        self.tick()
         for actor in actors:
             if actor is not None and actor.is_alive:
                 actor.destroy()
@@ -132,6 +141,7 @@ class Verification:
             obstacle = ScenarioObstacle(self.owner, definition, self.path, self.points_xyz)
             try:
                 placement = obstacle.spawn()
+                self.raw_placements.append(placement)
                 self.tick(3)
                 actual = obstacle.actor.get_transform()
                 placement["after_tick"] = {
@@ -140,6 +150,7 @@ class Verification:
                     "z": actual.location.z,
                     "yaw_deg": actual.rotation.yaw,
                 }
+                placement["lane_verification"] = self.placement_lane_check(scenario_id, actual, obstacle.corners)
                 if attempt == 1:
                     truth = ego_truth(self.path, adapter.state(), front, ego_box.extent.y, obstacle)
                 records.append(placement)
@@ -161,6 +172,7 @@ class Verification:
             and yaw_error <= YAW_TOLERANCE_DEG
             and max(settled) <= POSE_TOLERANCE_M
             and in_corridor_ok
+            and all(r["lane_verification"]["s3_adjacent_verified"] for r in records)
         )
         return {
             "check": f"placement {scenario_id}",
@@ -172,6 +184,47 @@ class Verification:
             "truth_from_mission_start": truth,
             "placements": records,
         }
+
+    def placement_lane_check(self, scenario_id, actual, corners):
+        """Use actual non-projected CARLA lane lookup, not nearest-road inference."""
+        import carla
+
+        world_map = self.world.get_map()
+        actual_lane = world_map.get_waypoint(actual.location, project_to_road=False)
+        center = self.path.point_at(self.scenarios[scenario_id].obstacle.route_s_m)
+        route_lane = world_map.get_waypoint(
+            carla.Location(x=center.x_m, y=-center.y_m, z=actual.location.z),
+            project_to_road=False,
+        )
+        side = "left" if self.scenarios[scenario_id].obstacle.lateral_m > 0 else "right"
+        adjacent = None if route_lane is None else (
+            route_lane.get_left_lane() if side == "left" else route_lane.get_right_lane()
+        )
+        footprint_lanes = [world_map.get_waypoint(
+            carla.Location(x=x, y=-y, z=actual.location.z), project_to_road=False
+        ) for x, y in corners]
+
+        def record(wp):
+            return None if wp is None else dict(road_id=wp.road_id, lane_id=wp.lane_id,
+                lane_type=str(wp.lane_type), is_junction=wp.is_junction,
+                lane_width_m=getattr(wp, "lane_width", None))
+
+        verified = scenario_id != "S3" or (
+            actual_lane is not None and route_lane is not None and adjacent is not None
+            and actual_lane.lane_type == adjacent.lane_type == carla.LaneType.Driving
+            and (actual_lane.road_id, actual_lane.lane_id) == (adjacent.road_id, adjacent.lane_id)
+            and actual_lane.road_id == route_lane.road_id
+            and actual_lane.lane_id * route_lane.lane_id > 0
+            and actual_lane.lane_id != route_lane.lane_id
+            and len(footprint_lanes) == 4
+            and all(wp is not None and wp.lane_type == carla.LaneType.Driving
+                    and (wp.road_id, wp.lane_id) == (actual_lane.road_id, actual_lane.lane_id)
+                    for wp in footprint_lanes)
+        )
+        return dict(project_to_road=False, actual_lane=record(actual_lane),
+                    route_lane=record(route_lane), adjacent_side=side, intended_adjacent=record(adjacent),
+                    footprint_lanes=[record(wp) for wp in footprint_lanes],
+                    s3_adjacent_verified=verified)
 
     # 2. Known-distance stop-margin truth -----------------------------------------
     def gap_case(self, scenario_id, distance_m, lateral_m, ego, adapter, front, ego_box):
@@ -191,7 +244,7 @@ class Verification:
             self.path,
             self.points_xyz,
         )
-        probe.spawn()
+        self.raw_placements.append(probe.spawn())
         near_offset = probe.box.location.x - probe.box.extent.x  # origin -> rear face
         self.destroy(probe.actor)
         definition = dataclasses.replace(
@@ -205,7 +258,7 @@ class Verification:
         )
         obstacle = ScenarioObstacle(self.owner, definition, self.path, self.points_xyz)
         try:
-            obstacle.spawn()
+            self.raw_placements.append(obstacle.spawn())
             self.tick(5)
             state = adapter.state()
             truth = ego_truth(self.path, state, front, ego_box.extent.y, obstacle)
@@ -265,6 +318,7 @@ class Verification:
     def collision_case(self):
         ego, _, front, ego_box = self.spawn_ego()
         sensors = ScenarioEventSensors(self.owner, ego)
+        self.event_sources.append(sensors)
         ego_front_s = self.path.project(
             *_local_point_core(ego.get_transform(), ego_box, ego_box.location.x + ego_box.extent.x)
         ).progress_m
@@ -281,7 +335,7 @@ class Verification:
             self.points_xyz,
         )
         try:
-            target.spawn()
+            self.raw_placements.append(target.spawn())
             self.tick(5)
 
             def touched(since):
@@ -387,6 +441,7 @@ class Verification:
         transform.location.z += 0.5
         ego, adapter, _, _ = self.spawn_ego(transform)
         sensors = ScenarioEventSensors(self.owner, ego)
+        self.event_sources.append(sensors)
         follower = PathFollower(
             ControllerConfig(
                 wheelbase_m=adapter.geometry.wheelbase_m,
@@ -444,6 +499,20 @@ class Verification:
             self.destroy(ego)
 
 
+def source_provenance(root):
+    """Pin committed origin and exact dirty source bytes used for verification."""
+    names = ["scripts/verify_scenarios.py", "src/carla_adapter/scenario_verification.py",
+             "src/carla_adapter/scenario_world.py", "src/carla_adapter/world.py",
+             "src/carla_adapter/vehicle.py", "src/evaluation/scenarios.py",
+             "src/evaluation/scenario_events.py", "src/evaluation/stop_truth.py"]
+    return dict(
+        source_revision=subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root, text=True).strip(),
+        dirty=bool(subprocess.check_output(["git", "status", "--porcelain"], cwd=root)),
+        source_sha256={n: hashlib.sha256((root / n).read_bytes()).hexdigest() for n in names},
+        source_diff_sha256=hashlib.sha256(subprocess.check_output(["git", "diff", "HEAD", "--binary"], cwd=root)).hexdigest(),
+    )
+
+
 def collect(client, mission_path, scenario_dir, output):
     import carla
 
@@ -473,6 +542,13 @@ def collect(client, mission_path, scenario_dir, output):
     actors_before = {a.id for a in world.get_actors()}
     weather = world.get_weather()
     checks, error = [], None
+
+    def record_case(name, callback):
+        try:
+            checks.append(callback())
+        except Exception as exc:
+            checks.append({"check": name, "status": "FAIL", "error": f"{type(exc).__name__}: {exc}"})
+    run = None
     try:
         with SynchronousWorldSession(client, WorldTiming(fixed_delta_seconds=0.05)) as owner:
             world.set_weather(carla.WeatherParameters.ClearNoon)
@@ -480,22 +556,22 @@ def collect(client, mission_path, scenario_dir, output):
             ego, adapter, front, ego_box = run.spawn_ego()
             for scenario_id in ("S1", "S2", "S3", "S4", "S5"):
                 print(f"Placement {scenario_id}", flush=True)
-                checks.append(run.placement_case(scenario_id, ego, adapter, front, ego_box))
-            for scenario_id, distance, lateral in GAP_CASES:
+                record_case(f"placement {scenario_id}",
+                            lambda: run.placement_case(scenario_id, ego, adapter, front, ego_box))
+            for scenario_id, distance, lateral in gap_cases(scenarios):
                 print(f"Truth gap {scenario_id} {distance} m lateral {lateral} m", flush=True)
-                checks.append(
-                    run.gap_case(scenario_id, distance, lateral, ego, adapter, front, ego_box)
-                )
+                record_case(f"truth gap {scenario_id} {distance} m lateral {lateral} m",
+                            lambda: run.gap_case(scenario_id, distance, lateral, ego, adapter, front, ego_box))
             run.destroy(ego)
             print("Collision deduplication", flush=True)
-            checks.append(run.collision_case())
+            record_case("collision deduplication", run.collision_case)
             print("Lane invasion", flush=True)
-            checks.append(run.lane_case())
+            record_case("lane invasion", run.lane_case)
     except Exception as exc:
         error = f"{type(exc).__name__}: {exc}"
     finally:
         world.set_weather(weather)
-    expected = 5 + len(GAP_CASES) + 2
+    expected = 5 + len(gap_cases(scenarios)) + 2
     status = (
         "INCOMPLETE"
         if error or len(checks) != expected
@@ -516,12 +592,19 @@ def collect(client, mission_path, scenario_dir, output):
         "settings_restored": _settings_record(world.get_settings()) == settings_before,
         "no_actor_leaks": {a.id for a in world.get_actors()} == actors_before,
         "checks": checks,
+        "command": list(sys.argv),
+        "mission_config_sha256": hashlib.sha256(Path(mission_path).read_bytes()).hexdigest(),
+        "raw_placements": run.raw_placements if run is not None else [],
+        "raw_event_sources": [dict(raw_callbacks=s.snapshot(), callback_errors=s.callback_errors)
+                              for s in run.event_sources] if run is not None else [],
+        "weather_before": str(weather), "weather_restored": str(world.get_weather()) == str(weather),
+        "source_provenance": source_provenance(Path(__file__).resolve().parents[2]),
         "scope": (
             "Static-scene checks of scenario placement, evaluation truth and event sensors."
             " They validate scoring and scenario setup, not driving behaviour or S1-S5 acceptance."
         ),
     }
-    if not (report["settings_restored"] and report["no_actor_leaks"]):
+    if not (report["settings_restored"] and report["no_actor_leaks"] and report["weather_restored"]):
         report["status"] = "INCOMPLETE"
     (output / "scenario_verification.json").write_text(
         json.dumps(report, indent=2, allow_nan=False) + "\n", encoding="utf-8"
