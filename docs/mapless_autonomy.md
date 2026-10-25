@@ -1068,11 +1068,11 @@ python scripts/replay_mapless_frames.py --run <run folder> --junction exit_kerb_
 #    not while CARLA is rendering on the same GPU). Compare the two by the per-epoch validation JSON.
 #    One --run per accepted capture (Town02 is the validation town, the rest train); --allow-unaccepted
 #    takes a run whose inspection failed only on manifest status (an interrupted wrap-up). ~48k training
-#    images at 512x256: 20-30 min an epoch on an RTX 2080 with --workers 4, longer with --workers 0; a
+#    images at 512x256: batch 16 and 6 loader workers by default (RTX 4000 Ada, 20 GB); a
 #    progress line every 200 steps gives the ETA; --max-samples 20000 for a first result in an hour.
 python scripts/train_mapless_segmentation.py --run "$HOME\Documents\Group7_runs\capture_Town01_s5311" `
-    --run "$HOME\Documents\Group7_runs\capture_Town02_s5314" --run ... --output models\road_seg_b0.pt --architecture segformer_b0 --epochs 8 --workers 4
-python scripts/train_mapless_segmentation.py --run ... --output models\road_seg_bisenet.pt --architecture bisenetv2 --epochs 8 --workers 4
+    --run "$HOME\Documents\Group7_runs\capture_Town02_s5314" --run ... --output models\road_seg_b0.pt --architecture segformer_b0 --epochs 8
+python scripts/train_mapless_segmentation.py --run ... --output models\road_seg_bisenet.pt --architecture bisenetv2 --epochs 8
 
 # 7. G2/G3 stack on the drive harness (after G1c; --admission A|B|C, --segmenter <checkpoint>, --detector yolo)
 python scripts/run_mapless_stack.py --scenario straight --admission B --output "$HOME\Documents\Group7_runs\stack_straight"
