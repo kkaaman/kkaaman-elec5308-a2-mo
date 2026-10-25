@@ -11,3 +11,10 @@ not a synthetic graph. Provenance is in `docs/evidence/BL-A-02-validation.json`;
 regeneration and map verification commands are in `docs/lane-topology.md`.
 The independent second audit is in `docs/evidence/BL-A-02-double-check.json`:
 raw OpenDRIVE links/geometry, dense SDK samples and all-origin reachability.
+
+`lidar/` holds ten synthetic vehicle-frame LiDAR sweeps (`sweep_*.npy`, N×4
+float32) and their manifest `sweeps.json`, generated deterministically by
+`obstacle_perception.lidar_synthetic.build_fixture` (regenerate with
+`python scripts/replay_lidar_obstacles.py --regenerate-fixture`). They are
+ray-cast through a flat road, kerbed pavements and boxes, not CARLA recordings;
+see `docs/lidar_obstacles.md`.

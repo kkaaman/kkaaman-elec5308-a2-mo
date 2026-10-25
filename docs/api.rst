@@ -51,6 +51,27 @@ contents and task owners until the code lands.
 
 .. automodule:: obstacle_perception
 
+.. automodule:: obstacle_perception.lidar
+   :members:
+
+.. automodule:: obstacle_perception.lidar_obstacles
+   :members:
+
+.. automodule:: obstacle_perception.fusion
+   :members:
+
+.. automodule:: obstacle_perception.lidar_synthetic
+   :members:
+
+.. automodule:: autonomy.lidar_fusion
+   :members:
+
+.. automodule:: autonomy.lidar_replay
+   :members:
+
+.. automodule:: carla_adapter.lidar
+   :members:
+
 .. automodule:: planning
 
 .. automodule:: planning.lane_graph

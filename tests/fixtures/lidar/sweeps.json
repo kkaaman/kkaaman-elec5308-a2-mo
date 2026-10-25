@@ -1,0 +1,562 @@
+{
+  "schema_version": 1,
+  "origin": "synthetic",
+  "generator": "obstacle_perception.lidar_synthetic.build_fixture",
+  "seed": 7,
+  "episode_id": "lidar-synthetic",
+  "fixed_delta_seconds": 0.05,
+  "front_bumper_from_rear_axle_m": 3.8,
+  "config": {
+    "channels": 32,
+    "range_m": 50.0,
+    "rotation_frequency_hz": 20.0,
+    "points_per_second": 120000,
+    "upper_fov_deg": 10.0,
+    "lower_fov_deg": -30.0,
+    "horizontal_fov_deg": 120.0
+  },
+  "sensor_to_ego": [
+    [
+      1.0,
+      -0.0,
+      0.0,
+      1.5
+    ],
+    [
+      0.0,
+      1.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      0.0,
+      1.0,
+      2.4
+    ],
+    [
+      0.0,
+      0.0,
+      0.0,
+      1.0
+    ]
+  ],
+  "route_xy_m": [
+    [
+      0.0,
+      0.0
+    ],
+    [
+      60.0,
+      0.0
+    ]
+  ],
+  "scene": {
+    "road_half_width_m": 3.5,
+    "kerb_height_m": 0.15,
+    "pavement_extent_m": 12.0
+  },
+  "notes": "Synthetic ray-cast sweeps; expected gaps and depth channel are fixture inputs for replay scoring, not sensor truth for control.",
+  "sweeps": [
+    {
+      "frame_id": 5,
+      "sim_time_s": 0.25,
+      "npy": "sweep_0005.npy",
+      "sha256": "9749ae7a1027e97bc53d9a0d27ee5734aef887406f305dc67ff9a8de044b75cd",
+      "point_count": 3954,
+      "density_fraction": 0.659,
+      "expected_gap_m": 24.0,
+      "objects": [
+        {
+          "x_m": 30.0,
+          "y_m": 0.0,
+          "size_x_m": 4.4,
+          "size_y_m": 1.9,
+          "height_m": 1.5,
+          "base_z_m": 0.0,
+          "label": "target"
+        },
+        {
+          "x_m": 14.0,
+          "y_m": 5.2,
+          "size_x_m": 4.4,
+          "size_y_m": 1.9,
+          "height_m": 1.5,
+          "base_z_m": 0.15,
+          "label": "parked_car_pavement"
+        },
+        {
+          "x_m": 9.0,
+          "y_m": -4.0,
+          "size_x_m": 0.3,
+          "size_y_m": 0.3,
+          "height_m": 3.0,
+          "base_z_m": 0.15,
+          "label": "pole"
+        },
+        {
+          "x_m": 20.0,
+          "y_m": 8.0,
+          "size_x_m": 30.0,
+          "size_y_m": 0.4,
+          "height_m": 2.0,
+          "base_z_m": 0.15,
+          "label": "wall"
+        }
+      ],
+      "depth_gap_m": null,
+      "depth_valid": false,
+      "note": "depth_dropped"
+    },
+    {
+      "frame_id": 10,
+      "sim_time_s": 0.5,
+      "npy": "sweep_0010.npy",
+      "sha256": "e88a602da3a65fdb30d91a868b692d5d0af42af4e7f18d76ed6990bf8421b443",
+      "point_count": 3954,
+      "density_fraction": 0.659,
+      "expected_gap_m": 23.0,
+      "objects": [
+        {
+          "x_m": 29.0,
+          "y_m": 0.0,
+          "size_x_m": 4.4,
+          "size_y_m": 1.9,
+          "height_m": 1.5,
+          "base_z_m": 0.0,
+          "label": "target"
+        },
+        {
+          "x_m": 14.0,
+          "y_m": 5.2,
+          "size_x_m": 4.4,
+          "size_y_m": 1.9,
+          "height_m": 1.5,
+          "base_z_m": 0.15,
+          "label": "parked_car_pavement"
+        },
+        {
+          "x_m": 9.0,
+          "y_m": -4.0,
+          "size_x_m": 0.3,
+          "size_y_m": 0.3,
+          "height_m": 3.0,
+          "base_z_m": 0.15,
+          "label": "pole"
+        },
+        {
+          "x_m": 20.0,
+          "y_m": 8.0,
+          "size_x_m": 30.0,
+          "size_y_m": 0.4,
+          "height_m": 2.0,
+          "base_z_m": 0.15,
+          "label": "wall"
+        }
+      ],
+      "depth_gap_m": 23.9,
+      "depth_valid": true,
+      "note": "agree"
+    },
+    {
+      "frame_id": 15,
+      "sim_time_s": 0.75,
+      "npy": "sweep_0015.npy",
+      "sha256": "96df5ecbcd2459a45f5895abad49dae5b47554987c5f13a11d8dee0e9ac88382",
+      "point_count": 3954,
+      "density_fraction": 0.659,
+      "expected_gap_m": 22.0,
+      "objects": [
+        {
+          "x_m": 28.0,
+          "y_m": 0.0,
+          "size_x_m": 4.4,
+          "size_y_m": 1.9,
+          "height_m": 1.5,
+          "base_z_m": 0.0,
+          "label": "target"
+        },
+        {
+          "x_m": 14.0,
+          "y_m": 5.2,
+          "size_x_m": 4.4,
+          "size_y_m": 1.9,
+          "height_m": 1.5,
+          "base_z_m": 0.15,
+          "label": "parked_car_pavement"
+        },
+        {
+          "x_m": 9.0,
+          "y_m": -4.0,
+          "size_x_m": 0.3,
+          "size_y_m": 0.3,
+          "height_m": 3.0,
+          "base_z_m": 0.15,
+          "label": "pole"
+        },
+        {
+          "x_m": 20.0,
+          "y_m": 8.0,
+          "size_x_m": 30.0,
+          "size_y_m": 0.4,
+          "height_m": 2.0,
+          "base_z_m": 0.15,
+          "label": "wall"
+        }
+      ],
+      "depth_gap_m": 26.0,
+      "depth_valid": true,
+      "note": "depth_far_disagreement"
+    },
+    {
+      "frame_id": 20,
+      "sim_time_s": 1.0,
+      "npy": "sweep_0020.npy",
+      "sha256": "05a725fd06f6531ff2526145aebce6ffc5c00ebad25672495cbf8bf2383244f5",
+      "point_count": 3954,
+      "density_fraction": 0.659,
+      "expected_gap_m": 21.0,
+      "objects": [
+        {
+          "x_m": 27.0,
+          "y_m": 0.0,
+          "size_x_m": 4.4,
+          "size_y_m": 1.9,
+          "height_m": 1.5,
+          "base_z_m": 0.0,
+          "label": "target"
+        },
+        {
+          "x_m": 14.0,
+          "y_m": 5.2,
+          "size_x_m": 4.4,
+          "size_y_m": 1.9,
+          "height_m": 1.5,
+          "base_z_m": 0.15,
+          "label": "parked_car_pavement"
+        },
+        {
+          "x_m": 9.0,
+          "y_m": -4.0,
+          "size_x_m": 0.3,
+          "size_y_m": 0.3,
+          "height_m": 3.0,
+          "base_z_m": 0.15,
+          "label": "pole"
+        },
+        {
+          "x_m": 20.0,
+          "y_m": 8.0,
+          "size_x_m": 30.0,
+          "size_y_m": 0.4,
+          "height_m": 2.0,
+          "base_z_m": 0.15,
+          "label": "wall"
+        }
+      ],
+      "depth_gap_m": 20.5,
+      "depth_valid": true,
+      "note": "depth_nearer_disagreement"
+    },
+    {
+      "frame_id": 25,
+      "sim_time_s": 1.25,
+      "npy": "sweep_0025.npy",
+      "sha256": "5f69b2ee7a5153c557ee3bd065be8f1ee4d99a4a3e534235c0f23eba3dfae2a1",
+      "point_count": 3954,
+      "density_fraction": 0.659,
+      "expected_gap_m": 20.0,
+      "objects": [
+        {
+          "x_m": 26.0,
+          "y_m": 0.0,
+          "size_x_m": 4.4,
+          "size_y_m": 1.9,
+          "height_m": 1.5,
+          "base_z_m": 0.0,
+          "label": "target"
+        },
+        {
+          "x_m": 14.0,
+          "y_m": 5.2,
+          "size_x_m": 4.4,
+          "size_y_m": 1.9,
+          "height_m": 1.5,
+          "base_z_m": 0.15,
+          "label": "parked_car_pavement"
+        },
+        {
+          "x_m": 9.0,
+          "y_m": -4.0,
+          "size_x_m": 0.3,
+          "size_y_m": 0.3,
+          "height_m": 3.0,
+          "base_z_m": 0.15,
+          "label": "pole"
+        },
+        {
+          "x_m": 20.0,
+          "y_m": 8.0,
+          "size_x_m": 30.0,
+          "size_y_m": 0.4,
+          "height_m": 2.0,
+          "base_z_m": 0.15,
+          "label": "wall"
+        }
+      ],
+      "depth_gap_m": 19.9,
+      "depth_valid": true,
+      "note": "agree"
+    },
+    {
+      "frame_id": 30,
+      "sim_time_s": 1.5,
+      "npy": "sweep_0030.npy",
+      "sha256": "d8665a4fd253754c5da38c6d8bcfe796c390405ab912a5428003f27db5d13cb2",
+      "point_count": 3954,
+      "density_fraction": 0.659,
+      "expected_gap_m": 19.0,
+      "objects": [
+        {
+          "x_m": 25.0,
+          "y_m": 0.0,
+          "size_x_m": 4.4,
+          "size_y_m": 1.9,
+          "height_m": 1.5,
+          "base_z_m": 0.0,
+          "label": "target"
+        },
+        {
+          "x_m": 14.0,
+          "y_m": 5.2,
+          "size_x_m": 4.4,
+          "size_y_m": 1.9,
+          "height_m": 1.5,
+          "base_z_m": 0.15,
+          "label": "parked_car_pavement"
+        },
+        {
+          "x_m": 9.0,
+          "y_m": -4.0,
+          "size_x_m": 0.3,
+          "size_y_m": 0.3,
+          "height_m": 3.0,
+          "base_z_m": 0.15,
+          "label": "pole"
+        },
+        {
+          "x_m": 20.0,
+          "y_m": 8.0,
+          "size_x_m": 30.0,
+          "size_y_m": 0.4,
+          "height_m": 2.0,
+          "base_z_m": 0.15,
+          "label": "wall"
+        }
+      ],
+      "depth_gap_m": 19.0,
+      "depth_valid": true,
+      "note": "agree"
+    },
+    {
+      "frame_id": 35,
+      "sim_time_s": 1.75,
+      "npy": "sweep_0035.npy",
+      "sha256": "77b413490a015751e900452381fe0f659102c0a2d3aa7c727102ddc8144545b3",
+      "point_count": 3954,
+      "density_fraction": 0.659,
+      "expected_gap_m": 18.0,
+      "objects": [
+        {
+          "x_m": 24.0,
+          "y_m": 0.0,
+          "size_x_m": 4.4,
+          "size_y_m": 1.9,
+          "height_m": 1.5,
+          "base_z_m": 0.0,
+          "label": "target"
+        },
+        {
+          "x_m": 14.0,
+          "y_m": 5.2,
+          "size_x_m": 4.4,
+          "size_y_m": 1.9,
+          "height_m": 1.5,
+          "base_z_m": 0.15,
+          "label": "parked_car_pavement"
+        },
+        {
+          "x_m": 9.0,
+          "y_m": -4.0,
+          "size_x_m": 0.3,
+          "size_y_m": 0.3,
+          "height_m": 3.0,
+          "base_z_m": 0.15,
+          "label": "pole"
+        },
+        {
+          "x_m": 20.0,
+          "y_m": 8.0,
+          "size_x_m": 30.0,
+          "size_y_m": 0.4,
+          "height_m": 2.0,
+          "base_z_m": 0.15,
+          "label": "wall"
+        }
+      ],
+      "depth_gap_m": 18.0,
+      "depth_valid": true,
+      "note": "agree"
+    },
+    {
+      "frame_id": 40,
+      "sim_time_s": 2.0,
+      "npy": "sweep_0040.npy",
+      "sha256": "88a39ac6f45a5b23f2a3f21710238ce4085a9f5f0218295822db9bf5391cbcfe",
+      "point_count": 3954,
+      "density_fraction": 0.659,
+      "expected_gap_m": 17.0,
+      "objects": [
+        {
+          "x_m": 23.0,
+          "y_m": 0.0,
+          "size_x_m": 4.4,
+          "size_y_m": 1.9,
+          "height_m": 1.5,
+          "base_z_m": 0.0,
+          "label": "target"
+        },
+        {
+          "x_m": 14.0,
+          "y_m": 5.2,
+          "size_x_m": 4.4,
+          "size_y_m": 1.9,
+          "height_m": 1.5,
+          "base_z_m": 0.15,
+          "label": "parked_car_pavement"
+        },
+        {
+          "x_m": 9.0,
+          "y_m": -4.0,
+          "size_x_m": 0.3,
+          "size_y_m": 0.3,
+          "height_m": 3.0,
+          "base_z_m": 0.15,
+          "label": "pole"
+        },
+        {
+          "x_m": 20.0,
+          "y_m": 8.0,
+          "size_x_m": 30.0,
+          "size_y_m": 0.4,
+          "height_m": 2.0,
+          "base_z_m": 0.15,
+          "label": "wall"
+        }
+      ],
+      "depth_gap_m": 17.0,
+      "depth_valid": true,
+      "note": "agree"
+    },
+    {
+      "frame_id": 45,
+      "sim_time_s": 2.25,
+      "npy": "sweep_0045.npy",
+      "sha256": "8ebf880191b091b52acd6ab361d5ec294f4e12b651b81f8867a968e421523e1b",
+      "point_count": 208,
+      "density_fraction": 0.034666666666666665,
+      "expected_gap_m": 17.0,
+      "objects": [
+        {
+          "x_m": 23.0,
+          "y_m": 0.0,
+          "size_x_m": 4.4,
+          "size_y_m": 1.9,
+          "height_m": 1.5,
+          "base_z_m": 0.0,
+          "label": "target"
+        },
+        {
+          "x_m": 14.0,
+          "y_m": 5.2,
+          "size_x_m": 4.4,
+          "size_y_m": 1.9,
+          "height_m": 1.5,
+          "base_z_m": 0.15,
+          "label": "parked_car_pavement"
+        },
+        {
+          "x_m": 9.0,
+          "y_m": -4.0,
+          "size_x_m": 0.3,
+          "size_y_m": 0.3,
+          "height_m": 3.0,
+          "base_z_m": 0.15,
+          "label": "pole"
+        },
+        {
+          "x_m": 20.0,
+          "y_m": 8.0,
+          "size_x_m": 30.0,
+          "size_y_m": 0.4,
+          "height_m": 2.0,
+          "base_z_m": 0.15,
+          "label": "wall"
+        }
+      ],
+      "depth_gap_m": 17.0,
+      "depth_valid": true,
+      "note": "sparse_dropout"
+    },
+    {
+      "frame_id": 50,
+      "sim_time_s": 2.5,
+      "npy": "sweep_0050.npy",
+      "sha256": "74c76010cb63e5e4e59ec3e34d6becc468f0038b8b742f2842fa1c2d36eb614e",
+      "point_count": 0,
+      "density_fraction": 0.0,
+      "expected_gap_m": 17.0,
+      "objects": [
+        {
+          "x_m": 23.0,
+          "y_m": 0.0,
+          "size_x_m": 4.4,
+          "size_y_m": 1.9,
+          "height_m": 1.5,
+          "base_z_m": 0.0,
+          "label": "target"
+        },
+        {
+          "x_m": 14.0,
+          "y_m": 5.2,
+          "size_x_m": 4.4,
+          "size_y_m": 1.9,
+          "height_m": 1.5,
+          "base_z_m": 0.15,
+          "label": "parked_car_pavement"
+        },
+        {
+          "x_m": 9.0,
+          "y_m": -4.0,
+          "size_x_m": 0.3,
+          "size_y_m": 0.3,
+          "height_m": 3.0,
+          "base_z_m": 0.15,
+          "label": "pole"
+        },
+        {
+          "x_m": 20.0,
+          "y_m": 8.0,
+          "size_x_m": 30.0,
+          "size_y_m": 0.4,
+          "height_m": 2.0,
+          "base_z_m": 0.15,
+          "label": "wall"
+        }
+      ],
+      "depth_gap_m": 17.0,
+      "depth_valid": true,
+      "note": "empty_sweep"
+    }
+  ]
+}
