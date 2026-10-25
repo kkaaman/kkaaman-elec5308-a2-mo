@@ -218,10 +218,16 @@ def extract_ego_path(
     mask,
     number_of_points=100,
 ):
-    """
-    Extract ego-lane boundaries and an image-space centreline.
+    """Extract ego-lane boundaries and an image-space centreline.
 
-    Returns None if a reliable lane pair cannot be found.
+    ``mask`` is a finite 2-D numeric/boolean array where nonzero marks lane
+    pixels. The result is a dict of ``left_boundary``, ``right_boundary`` and
+    ``centerline`` arrays of ``(u, v)`` pixel coordinates (u right, v down),
+    ``number_of_points`` rows ordered far-to-near. Returns ``None`` when a
+    reliable lane pair cannot be found; thresholds are fixed pixel fractions,
+    so accuracy on sharp curves, junctions or missing markings is not
+    established. Pixels are converted to metres by the consumer, for example
+    ``visualisation.lane_departure.lane_estimate_from_centerline``.
     """
 
     if mask is None:
