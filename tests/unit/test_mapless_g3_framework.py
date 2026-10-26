@@ -398,7 +398,11 @@ def test_crossing_walker_ahead_is_yielded_to_at_walking_pace():
 
     c = StackConfig()
     path = np.column_stack((np.arange(0.0, 40.0, 0.5), np.zeros(80)))
-    walker = ObjectTrack(1, 0.0, [18.0, -3.0, 0.0, 1.2], np.diag([0.05] * 4), {"unknown": 1.0}, TrackStatus.CONFIRMED, 20, 0, support=("lidar",), footprint=(0.6, 0.6, 0.0), travelled_m=1.5)
+    # No detector: uniform class probabilities (best_class breaks the tie on "car"; the
+    # second live M04 run took the walker for a car that way and never yielded).
+    uniform = {k: 0.2 for k in ("car", "truck", "bike", "pedestrian", "unknown")}
+    walker = ObjectTrack(1, 0.0, [18.0, -3.0, 0.0, 1.2], np.diag([0.05] * 4), uniform, TrackStatus.CONFIRMED, 20, 0, support=("lidar",), footprint=(0.6, 0.6, 0.0), travelled_m=1.5)
+    assert walker.best_class == "car"
     pred = predict(walker, c.prediction)
     arc = first_occupied_arc([pred], path, BODY)
     # Between the car and the walker: the front overhang reaches the walker's predicted
@@ -409,8 +413,11 @@ def test_crossing_walker_ahead_is_yielded_to_at_walking_pace():
     close = crossing_yield_cap([walker], [pred], path, arc - c.yield_margin_m, BODY, 1.0, c)
     assert close == pytest.approx(0.0)  # at the margin: stop
     # A car-sized track moving across (a cut-in) is the conflict check's, not a yield.
-    car = ObjectTrack(2, 0.0, [18.0, -3.0, 0.0, 1.2], np.diag([0.05] * 4), {"unknown": 1.0}, TrackStatus.CONFIRMED, 20, 0, support=("lidar",), footprint=(4.5, 1.9, 0.0), travelled_m=1.5)
+    car = ObjectTrack(2, 0.0, [18.0, -3.0, 0.0, 1.2], np.diag([0.05] * 4), uniform, TrackStatus.CONFIRMED, 20, 0, support=("lidar",), footprint=(4.5, 1.9, 0.0), travelled_m=1.5)
     assert crossing_yield_cap([car], [predict(car, c.prediction)], path, 0.0, BODY, 1.0, c) is None
     # A walker standing on the pavement is not yielded to until it moves.
-    still = ObjectTrack(3, 0.0, [18.0, -4.5, 0.0, 0.0], np.diag([0.05] * 4), {"unknown": 1.0}, TrackStatus.CONFIRMED, 20, 0, support=("lidar",), footprint=(0.6, 0.6, 0.0), travelled_m=0.0)
+    still = ObjectTrack(3, 0.0, [18.0, -4.5, 0.0, 0.0], np.diag([0.05] * 4), uniform, TrackStatus.CONFIRMED, 20, 0, support=("lidar",), footprint=(0.6, 0.6, 0.0), travelled_m=0.0)
+    # A detector's decided class still wins over size: a classified pedestrian is yielded to.
+    tagged = ObjectTrack(4, 0.0, [18.0, -3.0, 0.0, 1.2], np.diag([0.05] * 4), {"pedestrian": 0.9, "unknown": 0.1}, TrackStatus.CONFIRMED, 20, 0, support=("lidar",), footprint=None, travelled_m=1.5)
+    assert crossing_yield_cap([tagged], [predict(tagged, c.prediction)], path, 0.0, BODY, 1.0, c) == pytest.approx(c.yield_mps)
     assert crossing_yield_cap([still], [predict(still, c.prediction)], path, 0.0, BODY, 1.0, c) is None

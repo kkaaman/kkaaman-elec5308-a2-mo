@@ -118,6 +118,14 @@ def position_sigmas(covariance, times, heading_rad, process_noise_m2ps3=0.0, max
     return sigma_long, sigma_lat
 
 
+def decided_class(track, min_probability=0.5):
+    """The track's class when the evidence decides it, else None. Without a detector the
+    probabilities stay uniform and ``best_class`` breaks the tie on the first name,
+    "car": the second live stack M04 run (26 Oct) took the walker for a car that way."""
+    best = track.best_class
+    return best if track.class_probabilities.get(best, 0.0) >= min_probability else None
+
+
 def is_moving(track, config=None):
     """Whether a track's velocity is motion: above ``stationary_mps`` and corroborated by
     ``min_displacement_m`` of travel since it was first seen (centroid jitter is not)."""
@@ -139,7 +147,7 @@ def predict(track, config=None, lane_change=False):
         length, width, yaw = track.footprint
         heading = math.atan2(*track.velocity[::-1]) if moving else yaw
     else:
-        length, width = DEFAULT_SIZE[track.best_class]
+        length, width = DEFAULT_SIZE[decided_class(track) or "unknown"]
         heading = math.atan2(*track.velocity[::-1]) if moving else 0.0
     sigma_long, sigma_lat = position_sigmas(
         track.covariance, times, heading, c.process_noise_m2ps3, c.max_velocity_sigma_mps, c.settled_velocity_sigma_mps, stationary=not moving
@@ -147,7 +155,7 @@ def predict(track, config=None, lane_change=False):
     inflate = c.uncertainty_sigmas
     half_length = length / 2 + c.margin_m + inflate * sigma_long
     half_width = width / 2 + c.margin_m + inflate * sigma_lat
-    if track.best_class == "pedestrian":
+    if decided_class(track) == "pedestrian":
         half_width = half_width + c.pedestrian_lateral_mps * times
         half_length = np.maximum(half_length, half_width)
     return Prediction(track.track_id, times, centres, np.column_stack((half_length, half_width)), float(heading))
