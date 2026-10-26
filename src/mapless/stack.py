@@ -276,7 +276,11 @@ class MaplessStack:
         plan = self.driver.last_plan
         corridor = self.driver.corridor.previous
         if corridor is None or not corridor.ok:
-            return None
+            # No corridor to place a lead or a conflict on: no cap from the stack (the
+            # driver brakes or faults on the missing corridor itself). Was a bare None,
+            # which the caller unpacks (first Town05 run, 26 Oct).
+            self._lead = None
+            return None, ""
         path_body = corridor.centre_body
         # The corridor line starts behind the rear axle: arc lengths are measured from the car.
         s_car = float(project_onto_polyline(np.zeros((1, 2)), path_body)[0][0])

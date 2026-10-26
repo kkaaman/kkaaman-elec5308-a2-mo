@@ -505,3 +505,14 @@ def test_vectorised_clustering_matches_pairwise_single_linkage():
             truth += 1
         same = labels[:, None] == labels[None, :]
         assert np.array_equal(same, seen[:, None] == seen[None, :])
+
+
+def test_speed_cap_without_a_corridor_is_no_cap_not_none():
+    """First Town05 run (26 Oct): the stack's first tick had no corridor yet and the speed
+    cap returned a bare None, which the caller unpacks; it crashed the run."""
+    scene = RoadScene(KerbLine([Straight(150)]))
+    world = MaplessRoadWorld(scene, SUITE, start_s_m=15.0)
+    config = DriverConfig(body=BODY, control=control(), corridor=CorridorConfig(keep_right_m=1.75))
+    stack = MaplessStack(SUITE, world.route(70.0), config, StackConfig(admission=Admission.preset("B")), DT)
+    stack.driver.corridor.previous = None
+    assert stack._speed_cap(None, None, (), (), 0.0) == (None, "")
