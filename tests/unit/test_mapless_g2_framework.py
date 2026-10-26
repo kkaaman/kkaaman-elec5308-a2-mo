@@ -223,7 +223,7 @@ def test_stack_runs_end_to_end_and_tracks_the_parked_car():
     config = DriverConfig(body=BODY, control=control(), corridor=CorridorConfig(keep_right_m=1.75))
     stack = MaplessStack(SUITE, world.route(70.0), config, StackConfig(admission=Admission.preset("C")), DT)
     steps = []
-    for _ in range(int(14 / DT)):
+    for _ in range(int(30 / DT)):
         step = stack.step(with_camera_and_radar(world.frame(), world, car_world))
         steps.append((world.truth(), step))
         world.apply(step.command)
@@ -238,9 +238,13 @@ def test_stack_runs_end_to_end_and_tracks_the_parked_car():
     assert last.road_model is not None and last.road_model.visibility_m > 10.0
     assert last.decision.executed in ("FOLLOW", "WAIT", "STOP") and "drive" in last.decision.timing_ms
     assert len(stack.records) == len(steps)
-    # The car stopped short of the parked car (the driver's own obstacle stop, or following).
+    # The car stopped short of the parked car on the driver's own obstacle stop and holds
+    # there, inside the live gate's 1.5-5 m (first live stack stop run: the predicted
+    # conflict with the parked lead stopped it 6.3 m short, before the driver's stop point,
+    # so it never held).
     assert not any(t.collision for t, _ in steps)
-    assert last_truth.front_gap_m > 1.5
+    assert 1.5 <= last_truth.front_gap_m <= 5.0, last_truth.front_gap_m
+    assert last.mode is DriveMode.STOPPING and last.reason.startswith("holding for obstacle"), last.reason
     # No brake taps on the way: a fresh tentative cluster (initial velocity variance 5 m/s,
     # inflated to a 30 m box at 3 s) capped the speed to zero for a few ticks every time
     # one appeared 20-30 m out (fresh-eyes review of 58adaf3). Only confirmed and coasting
