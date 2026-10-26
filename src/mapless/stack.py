@@ -311,6 +311,7 @@ class MaplessStack:
             tracks=len(tracks),
             # (x, y, length, width, points) of the largest clusters too big for a road user.
             structures=self._structures[:3],
+            radar_stats=self.tracker.radar_stats if perceived else {},
             speed_cap_mps=cap_applied,
             speed_cap_next_mps=cap,
             speed_cap_reason=cap_reason,  # logged every tick: a hold at a standstill never reaches the veto
@@ -355,7 +356,7 @@ class MaplessStack:
             gap = s - self.driver.config.body.front_m - _rear_extent(track, pose.yaw_rad + tangent)
             self._lead = dict(
                 track_id=track.track_id, gap_m=round(float(gap), 2), speed_mps=round(along, 2), across_mps=round(across, 2),
-                state=state, support=list(track.support), status=track.status.name,
+                state=state, support=list(track.support), status=track.status.name, doppler_rejects=track.doppler_rejects,
             )
             role = lead_role(track, along, across, c)
             if role == "crossing":
@@ -591,7 +592,7 @@ def _track_note(tracks, track_id, pose):
         track_id=track_id, x_m=r(body[0]), y_m=r(body[1]), vx_mps=r(v[0]), vy_mps=r(v[1]),
         footprint=None if track.footprint is None else [r(track.footprint[0]), r(track.footprint[1])],
         travelled_m=r(track.travelled_m), recent_speed_mps=r(track.recent_speed_mps),
-        support=list(track.support), status=track.status.name,
+        support=list(track.support), status=track.status.name, doppler_rejects=track.doppler_rejects,
     )
 
 

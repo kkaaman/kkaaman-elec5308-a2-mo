@@ -64,6 +64,10 @@ class ObjectTrack:
     travelled_m: float | None = None
     # Mean speed from net displacement over the last second, or None (too little history).
     recent_speed_mps: float | None = None
+    # Consecutive radar updates whose radial speed the track's velocity could not explain
+    # (position used, speed rejected): an isolated outlier is 1, a persistent disagreement
+    # between the radar and the track's (LiDAR-built) motion keeps counting.
+    doppler_rejects: int = 0
 
     def __post_init__(self):
         object.__setattr__(self, "state", _array(self.state, (4,), "state"))

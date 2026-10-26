@@ -76,6 +76,13 @@ class TrackerConfig:
     # A sensor supports a track while it has updated it within this time; one LiDAR hit
     # long ago no longer makes a radar-held track "LiDAR-supported" (review of 405b056).
     support_max_age_s: float = 0.5
+    # A radar object no track claims starts a radar-only track only where the radar adds
+    # something: beyond the range the LiDAR forms objects at (a car first clustered at
+    # 30.5 m on Town05), or moving (ego-compensated radial speed). Inside that range a
+    # static unclaimed return is pavement, kerb or building clutter: 155 tracks with the
+    # front radar against 61 without, 45 ms of tracking a tick (Town05, 26 Oct).
+    radar_spawn_min_range_m: float = 30.0
+    radar_spawn_min_speed_mps: float = 0.5
 
     def __post_init__(self):
         if self.confirm_hits > self.confirm_window or self.coast_s >= self.delete_s:
@@ -99,6 +106,7 @@ class _Track:
     origin: np.ndarray | None = None  # first measured position (odometry frame)
     trail: deque = field(default_factory=lambda: deque(maxlen=64))  # (time, x, y) after each update
     seen: dict = field(default_factory=dict)  # sensor -> last time it updated the track
+    doppler_rejects: int = 0  # consecutive radar updates with the radial speed rejected
 
 
 def _recent_speed(trail, min_span_s):
@@ -141,6 +149,9 @@ class Tracker:
         self.tracks = {}
         self._next_id = 1
         self._time = None
+        # This tick's radar bookkeeping, for the log: objects, those associated, radial
+        # speeds rejected (with the innovations), radar-only tracks started, clutter skipped.
+        self.radar_stats = {}
 
     # -- model ---------------------------------------------------------------------------
     def _predict(self, track, dt):
@@ -252,24 +263,41 @@ class Tracker:
                     cost[i, j] = d2_pos
                     models[(i, j)] = (z, h, H, R, y, S, sensor_odo)
             assigned = _assign(cost, CHI2_2D)
+            rejected = []
             for i, j in assigned:
                 t = self.tracks[ids[i]]
                 z, h, H, R, y, S, sensor_odo = models[(i, j)]
                 d2_rate = float(y[2] ** 2 / S[2, 2])
                 if d2_rate <= CHI2_1D:
                     self._kalman(t, y, H, R)
+                    t.doppler_rejects = 0
                 else:
-                    # Radial speed inconsistent with the track: use range and bearing only.
+                    # Radial speed inconsistent with the track: use range and bearing only,
+                    # and count it. The radar measures motion along its line of sight only,
+                    # so agreement says nothing about motion across it (a walker crossing
+                    # square on reads ~0); a persistent disagreement is logged, not
+                    # resolved for either sensor (external review, 26 Oct).
                     self._kalman(t, y[:2], H[:2], R[:2, :2])
+                    t.doppler_rejects += 1
+                    rejected.append((t.track_id, round(float(y[2]), 2), t.doppler_rejects))
                 self._absorb(t, None, "radar", time_s)
                 hit.add(ids[i])
-            # Unassigned radar objects start tracks too (a car beyond the LiDAR's range).
+            # Unassigned radar objects start tracks where the radar adds something: beyond
+            # the LiDAR's object range, or moving. Static near returns no track claims are clutter.
             assigned_cols = {j for _, j in assigned}
+            spawned = skipped = 0
             for j, m in enumerate(radar):
                 if j not in assigned_cols:
+                    if m.range_m < c.radar_spawn_min_range_m and abs(m.radial_speed_mps) < c.radar_spawn_min_speed_mps:
+                        skipped += 1
+                        continue
                     obj_odo = pose.to_world(m.xy[None])[0]
                     tid = self._spawn(obj_odo, 1.0, None, time_s, "radar")
                     hit.add(tid)
+                    spawned += 1
+            self.radar_stats = dict(objects=len(radar), associated=len(assigned), doppler_rejected=rejected[:5], spawned=spawned, clutter_skipped=skipped)
+        else:
+            self.radar_stats = {}
         # Camera-only class evidence -------------------------------------------------------
         for xy, probabilities in camera_classes:
             odo = pose.to_world(np.asarray(xy, dtype=float)[None])[0]
@@ -355,6 +383,7 @@ class Tracker:
                     footprint=t.footprint,
                     travelled_m=None if t.origin is None else float(np.hypot(*(t.x[:2] - t.origin))),
                     recent_speed_mps=_recent_speed(t.trail, c.motion_min_span_s),
+                    doppler_rejects=t.doppler_rejects,
                 )
             )
         return out

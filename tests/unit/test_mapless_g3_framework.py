@@ -150,6 +150,35 @@ def test_radar_measurements_update_and_start_tracks():
     assert tracks[0].footprint is None  # a radar return has no extent
 
 
+def test_radar_only_tracks_start_beyond_lidar_range_or_moving_and_rejections_are_counted():
+    """Town05, 26 Oct: the front radar's unclaimed static returns from pavement, kerbs and
+    buildings close to the car made 155 tracks against 61 without it (45 ms a tick). A
+    radar-only track now starts beyond the LiDAR's object range or for a moving return.
+    A radial speed the track cannot explain is counted, consecutively, and logged."""
+    from mapless.radar import RadarMeasurement
+
+    sensor_xy = np.array([2.5, 0.0])
+
+    def ret(xy, radial):
+        rel = np.asarray(xy, dtype=float) - sensor_xy
+        return RadarMeasurement("radar_front", np.asarray(xy, dtype=float), float(np.hypot(*rel)), float(math.atan2(rel[1], rel[0])), radial, 3, sensor_xy)
+
+    tracker = Tracker(TrackerConfig())
+    tracks = tracker.update(0.0, ORIGIN, radar=[ret((15.0, -6.0), 0.0), ret((45.0, 0.0), 0.0), ret((15.0, 3.0), -2.0)])
+    assert len(tracks) == 2  # the far static one and the near moving one
+    assert tracker.radar_stats["clutter_skipped"] == 1 and tracker.radar_stats["spawned"] == 2
+    # A LiDAR track held static while the radar keeps reading 3 m/s away from the sensor.
+    tracker = Tracker(TrackerConfig())
+    for k in range(20):
+        tracks = tracker.update(k * 0.05, ORIGIN, lidar=[LidarMeasurement(np.array([20.0, 0.0]), (4.5, 2.0, 0.0))])
+    for k in range(20, 24):
+        tracks = tracker.update(k * 0.05, ORIGIN, lidar=[LidarMeasurement(np.array([20.0, 0.0]), (4.5, 2.0, 0.0))], radar=[ret((20.0, 0.0), 3.0)])
+    assert tracks[0].doppler_rejects == 4
+    assert tracker.radar_stats["doppler_rejected"][0][2] == 4
+    tracks = tracker.update(1.2, ORIGIN, lidar=[LidarMeasurement(np.array([20.0, 0.0]), (4.5, 2.0, 0.0))], radar=[ret((20.0, 0.0), 0.0)])
+    assert tracks[0].doppler_rejects == 0  # an agreeing update ends the run
+
+
 def test_only_lidar_supported_vouched_tracks_are_predicted():
     from mapless.stack import predictable_tracks
 
@@ -230,7 +259,7 @@ def test_radar_bearing_innovation_wraps_across_pi():
     # read a 2*pi bearing error (the first version jumped the track 60 m in one update).
     sensor_to_ego = np.eye(4)
     sensor_to_ego[0, 3], sensor_to_ego[2, 3] = -2.45, 0.7
-    tracker = Tracker(TrackerConfig())
+    tracker = Tracker(TrackerConfig(radar_spawn_min_range_m=0.0))  # a static radar-only track, on purpose
     pose = Pose2D(0.0, 0.0, math.pi)  # the car faces -x in the odometry frame
     for k in range(20):
         t = k * 0.05
