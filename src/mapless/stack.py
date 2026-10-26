@@ -56,6 +56,7 @@ from mapless.prediction import (
     first_footprint_conflict,
     first_occupied_arc,
     is_moving,
+    path_headings,
     predict_all,
 )
 from mapless.radar import RadarConfig, measure
@@ -102,6 +103,14 @@ class StackConfig:
     yield_mps: float = 0.8
     yield_margin_m: float = 2.0
     vulnerable_max_m: float = 2.0
+    # A pedestrian-sized moving track is a crossing candidate only within reach of the
+    # road (the kerb, keep_right_m, plus vru_reach_m) and either in the path band or
+    # heading for it at approach_min_mps or more. Long walls and fences beside the road
+    # slide past as the car moves (the visible stretch's centre travels with it): 1.5-3.5
+    # m/s "walkers" 7-15 m to the right in the fourth live M04 run (26 Oct).
+    vru_reach_m: float = 2.0
+    approach_min_mps: float = 0.3
+    vehicle_min_m: float = 3.0  # a footprint this long (or a decided car/truck) is a vehicle
     road_model_every: int = 4  # build the road model every this many ticks (5 Hz at 0.05 s; it is a slow product)
     segment_every: int = 2
 
@@ -333,6 +342,9 @@ class MaplessStack:
             times = (arcs - s_now) / speed
             # The car's whole oriented body along the path, not a disc about the rear axle.
             others = conflict_candidates(tracks, predictions, lead_id, c.prediction)
+            keep_right = self.driver.corridor.keep_right_m
+            if keep_right is not None:
+                others = plausible_crossers(tracks, others, xy, keep_right, c)
             hit = first_footprint_conflict(others, xy, times, self.driver.config.body)
             if hit is not None and hit[0] <= c.conflict_horizon_s:
                 cap, reason = 0.0, "predicted conflict on the path"
@@ -386,6 +398,36 @@ def conflict_candidates(tracks, predictions, lead_id, config):
     return out
 
 
+def plausible_crossers(tracks, candidates, path_xy, keep_right_m, config):
+    """Drop candidates that are not clearly vehicles and cannot be crossing: beyond the
+    kerb plus ``vru_reach_m`` from the path, or outside the path band and not heading for
+    it. Vehicles (a decided car/truck class, or a footprint ``vehicle_min_m`` or longer)
+    are kept: the timed conflict check handles them. A clipped wall segment can be any
+    length under that (2.19 m in the fourth live M04 run)."""
+    by_id = {t.track_id: t for t in tracks}
+    path = np.asarray(path_xy, dtype=float)
+    if len(path) < 2:
+        return list(candidates)
+    heads = path_headings(path)
+    out = []
+    for p in candidates:
+        track = by_id.get(p.track_id)
+        if track is None or is_vehicle(track, config):
+            out.append(p)
+            continue
+        s, lateral, _ = project_onto_polyline(track.position[None], path)
+        lat = float(lateral[0])
+        if abs(lat) > keep_right_m + config.vru_reach_m:
+            continue
+        seg = int(np.clip(np.searchsorted(np.concatenate(([0.0], np.cumsum(np.hypot(*np.diff(path, axis=0).T)))), float(s[0]), side="right") - 1, 0, len(path) - 1))
+        normal = np.array([-math.sin(heads[seg]), math.cos(heads[seg])])  # +left
+        towards = -math.copysign(1.0, lat) * float(track.velocity @ normal)  # speed towards the path line
+        in_band = abs(lat) <= config.following.lane_half_width_m + 0.5
+        if in_band or towards >= config.approach_min_mps:
+            out.append(p)
+    return out
+
+
 def _track_note(tracks, track_id, pose):
     """The log's account of the track behind a conflict or yield (vehicle frame)."""
     track = next((t for t in tracks if t.track_id == track_id), None)
@@ -400,6 +442,14 @@ def _track_note(tracks, track_id, pose):
         travelled_m=r(track.travelled_m), recent_speed_mps=r(track.recent_speed_mps),
         support=list(track.support), status=track.status.name,
     )
+
+
+def is_vehicle(track, config):
+    """A car or truck by a decided class, or a LiDAR footprint ``vehicle_min_m`` or longer."""
+    cls = decided_class(track)
+    if cls is not None:
+        return cls in ("car", "truck")
+    return track.footprint is not None and max(track.footprint[0], track.footprint[1]) >= config.vehicle_min_m
 
 
 def is_vulnerable(track, config):

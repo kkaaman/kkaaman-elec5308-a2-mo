@@ -439,3 +439,34 @@ def test_moving_needs_sustained_recent_motion_not_a_one_off_centroid_shift():
     (p,), (w,) = pole.snapshot(), walker.snapshot()
     assert p.travelled_m > 0.75 and p.recent_speed_mps < 0.5 and not is_moving(p, cfg)
     assert w.recent_speed_mps == pytest.approx(1.2, abs=0.15) and is_moving(w, cfg)
+
+
+def test_only_plausible_crossers_count_the_tracks_from_the_fourth_live_m04_run():
+    """Fourth live stack M04 (26 Oct): the cap_track log named the false triggers: thin
+    tracks 4.7-15 m right of the path (walls and fences whose visible stretch slides
+    past at about the car's speed), or ones heading away. Track 529 was the walker."""
+    from mapless.prediction import predict
+    from mapless.stack import StackConfig, plausible_crossers
+
+    c = StackConfig()
+    path = np.column_stack((np.arange(-2.0, 40.0, 0.5), np.zeros(84)))
+    logged = {  # track id: (x, y, vx, vy, footprint length, width), vehicle frame
+        271: (6.33, -7.18, 1.42, 0.95, 0.73, 0.3),
+        334: (2.08, -15.0, 1.6, 2.03, 2.19, 0.31),
+        360: (2.5, -7.89, 3.56, 0.19, 0.67, 0.56),
+        715: (-2.45, -15.37, -0.18, 3.48, 1.04, 0.32),
+        771: (14.2, -4.66, -0.11, -0.35, 1.51, 0.49),
+        842: (11.93, -6.55, 2.9, 1.26, 0.3, 0.3),
+        529: (14.99, -5.07, 1.42, 2.73, 1.17, 0.3),
+    }
+    uniform = {k: 0.2 for k in ("car", "truck", "bike", "pedestrian", "unknown")}
+    tracks = [
+        ObjectTrack(tid, 0.0, [x, y, vx, vy], np.diag([0.05] * 4), uniform, TrackStatus.CONFIRMED, 20, 0, support=("lidar",), footprint=(fl, fw, 0.0), travelled_m=2.0, recent_speed_mps=math.hypot(vx, vy))
+        for tid, (x, y, vx, vy, fl, fw) in logged.items()
+    ]
+    preds = [predict(t, c.prediction) for t in tracks]
+    kept = plausible_crossers(tracks, preds, path, keep_right_m=4.197, config=c)
+    assert [p.track_id for p in kept] == [529]
+    # A car-sized mover is left to the timed conflict check, wherever it is.
+    car = ObjectTrack(9, 0.0, [20.0, -12.0, 0.0, 3.0], np.diag([0.05] * 4), uniform, TrackStatus.CONFIRMED, 20, 0, support=("lidar",), footprint=(4.5, 1.9, 0.0), travelled_m=5.0)
+    assert [p.track_id for p in plausible_crossers([car], [predict(car, c.prediction)], path, 4.197, c)] == [9]
