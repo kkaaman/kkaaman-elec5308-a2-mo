@@ -160,14 +160,14 @@ def shape_ok(scenario, points):
     return math.radians(30) <= total <= math.radians(120) and max_rate <= 1 / 12, total, max_rate
 
 
-def find_sites(carla, carla_map, scenario, length_m, junction_clearance_m=8.0, slide_m=10.0):
+def find_sites(carla, carla_map, scenario, length_m, junction_clearance_m=8.0, slide_m=10.0, max_slope_deg=3.0, max_grade_change_deg=2.0):
     """Sites on junction-free lane runs from the map topology, and a census of why others failed.
 
     Each topology segment between junctions is walked from ``junction_clearance_m`` past its
     start (away from the kerb corners of the junction mouth). A window of ``length_m`` is
     slid along the run in ``slide_m`` steps until one has the scenario's shape.
     """
-    census = dict(segments=0, not_driving_or_junction=0, not_rightmost=0, too_short=0, wrong_shape=0, kerb_gaps=0, sites=0)
+    census = dict(segments=0, not_driving_or_junction=0, not_rightmost=0, too_short=0, wrong_shape=0, sloped=0, kerb_gaps=0, sites=0)
     longest = []  # (run length, road, lane) of rightmost runs, for the message when nothing fits
     seen = set()
     sites = []
@@ -190,15 +190,23 @@ def find_sites(carla, carla_map, scenario, length_m, junction_clearance_m=8.0, s
         if len(usable) - 1 < length_m:
             census["too_short"] += 1
             continue
-        found = None
+        found, shaped = None, False
         for offset in range(0, len(usable) - int(length_m), int(slide_m)):
             window = usable[offset : offset + int(length_m) + 1]
             ok, total, max_rate = shape_ok(scenario, window)
-            if ok:
-                found = (offset, window, total, max_rate)
-                break
+            if not ok:
+                continue
+            shaped = True
+            # Flat enough for the planar adapter (it refuses 5 degrees of tilt) and for the
+            # terrain model: on Town05's first site the rising road a few metres ahead read
+            # as an obstacle moving with the car, and the run ended on a tilt refusal.
+            pitches = [math.degrees(wrap(math.radians(w.transform.rotation.pitch))) for w in window]
+            if max(abs(p) for p in pitches) > max_slope_deg or max(pitches) - min(pitches) > max_grade_change_deg:
+                continue
+            found = (offset, window, total, max_rate)
+            break
         if found is None:
-            census["wrong_shape"] += 1
+            census["sloped" if shaped else "wrong_shape"] += 1
             continue
         offset, window, total, max_rate = found
         kerbs = [right_kerb(carla, p)[0] for p in window[::10]]

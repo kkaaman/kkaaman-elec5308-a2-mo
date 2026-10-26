@@ -112,6 +112,12 @@ class StackConfig:
     vru_reach_m: float = 2.0
     approach_min_mps: float = 0.3
     vehicle_min_m: float = 3.0  # a footprint this long (or a decided car/truck) is a vehicle
+    # The yield is for road users crossing the path: moving across it at approach_min_mps
+    # or more (a car driving ahead in the lane, its rear face under 2 m across, is a lead),
+    # no faster than a pedestrian or cyclist (vru_max_speed_mps), and qualifying for
+    # yield_persist_s first (single-tick fragments braked the car hard; live cut-in B3).
+    vru_max_speed_mps: float = 2.5
+    yield_persist_s: float = 0.3
     road_model_every: int = 4  # build the road model every this many ticks (5 Hz at 0.05 s; it is a slow product)
     segment_every: int = 2
 
@@ -153,6 +159,7 @@ class MaplessStack:
         self._cap_reason = ""  # what produced the cap the driver plans the next command under
         self._lead = None  # the lead behind the last cap, for the log
         self._cause = None  # the track behind a conflict or yield cap, for the log
+        self._yield_since = {}  # track id -> first time it qualified for a yield
         self.records = []
 
     @staticmethod
@@ -377,7 +384,7 @@ class MaplessStack:
                 cap, reason = 0.0, "predicted conflict on the path"
                 self._cause = _track_note(tracks, hit[1], pose)
             else:
-                yield_cap, yield_id = crossing_yield(tracks, others, xy, s_now, self.driver.config.body, self.driver.config.planner.decel_mps2, c)
+                yield_cap, yield_id = crossing_yield(tracks, others, xy, s_now, self.driver.config.body, self.driver.config.planner.decel_mps2, c, self._yield_since, t)
                 if yield_cap is not None and (cap is None or yield_cap < cap):
                     cap, reason = yield_cap, "yielding to a road user crossing the path"
                     self._cause = _track_note(tracks, yield_id, pose)
@@ -389,6 +396,7 @@ class MaplessStack:
         self.tracker.reset()
         self.road_model.reset()
         self.following.reset()
+        self._yield_since = {}
         self._segmentations, self._model = None, None
         self.driver.speed_cap_mps = None
 
@@ -551,15 +559,44 @@ def crossing_yield_cap(tracks, candidates, path_xy, s_now, body, decel_mps2, con
     return crossing_yield(tracks, candidates, path_xy, s_now, body, decel_mps2, config)[0]
 
 
-def crossing_yield(tracks, candidates, path_xy, s_now, body, decel_mps2, config):
-    """``crossing_yield_cap`` with the track yielded to: (cap, track_id), or (None, None)."""
+def crossing_yield(tracks, candidates, path_xy, s_now, body, decel_mps2, config, eligible_since=None, now_s=None):
+    """``crossing_yield_cap`` with the track yielded to: (cap, track_id), or (None, None).
+
+    ``eligible_since`` (track id -> first time it qualified, kept by the caller) and
+    ``now_s`` apply ``yield_persist_s``; without them every qualifying track counts.
+    """
     by_id = {t.track_id: t for t in tracks}
-    vulnerable = [p for p in candidates if (t := by_id.get(p.track_id)) is not None and is_moving(t, config.prediction) and is_vulnerable(t, config)]
-    arc, track_id = first_occupied_arc(vulnerable, path_xy, body, from_arc_m=s_now, with_track=True)
+    path = np.asarray(path_xy, dtype=float)
+    qualifying = []
+    for p in candidates:
+        t = by_id.get(p.track_id)
+        if t is None or not is_moving(t, config.prediction) or not is_vulnerable(t, config):
+            continue
+        if max(t.speed_mps, t.recent_speed_mps or 0.0) > config.vru_max_speed_mps:
+            continue
+        if len(path) >= 2 and abs(_across_path(t, path)) < config.approach_min_mps:
+            continue  # moving along the path: a lead, not a crosser
+        qualifying.append(p)
+    if eligible_since is not None and now_s is not None:
+        ids = {p.track_id for p in qualifying}
+        for tid in list(eligible_since):
+            if tid not in ids:
+                del eligible_since[tid]
+        for tid in ids:
+            eligible_since.setdefault(tid, now_s)
+        qualifying = [p for p in qualifying if now_s - eligible_since[p.track_id] >= config.yield_persist_s - 1e-9]
+    arc, track_id = first_occupied_arc(qualifying, path_xy, body, from_arc_m=s_now, with_track=True)
     if arc is None:
         return None, None
     room = max(0.0, arc - s_now - config.yield_margin_m)
     return min(config.yield_mps, math.sqrt(2.0 * decel_mps2 * room)), track_id
+
+
+def _across_path(track, path):
+    """The track's speed across ``path`` (odometry frame) at its nearest point, +left."""
+    s, _, _ = project_onto_polyline(track.position[None], path)
+    heading = _path_heading_at(path, float(s[0]))
+    return float(-track.velocity[0] * math.sin(heading) + track.velocity[1] * math.cos(heading))
 
 
 def record_rows(records):

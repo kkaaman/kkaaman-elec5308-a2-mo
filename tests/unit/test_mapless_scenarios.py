@@ -242,3 +242,12 @@ def test_harness_reports_incomplete_gates_without_actor_evidence():
     assert by_name["completion"]["status"] == "INCOMPLETE"
     assert by_name["completion"]["required"] == sc.COMPLETION_REQUIRED["cut_in"]
     assert "passed" not in by_name["completion"]
+
+
+def test_crossing_pedestrian_yield_measured_against_the_speed_before_the_walker_entered():
+    """Live M04 B6 (26 Oct): the car slowed from 2 m/s to 0.78 m/s before the walker entered
+    the path; the gate took 0.78 as the entry speed and wanted half of it again. The
+    reference is now the fastest speed in the 3 s before the walker entered."""
+    log, truths, end = crossing_run(1.5)  # slows from 4 m/s to 1.5 m/s as the walker steps off
+    done = sc.score_completion("crossing_pedestrian", log, truths, BODY, end, 0.0)
+    assert done["entry_speed_mps"] == pytest.approx(4.0) and done["yielded"] and done["passed"] is True

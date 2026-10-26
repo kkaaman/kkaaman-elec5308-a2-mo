@@ -17,7 +17,7 @@ more than one site or run without retuning.
 | G1b | Straight, curve, obstacle stop at 2 m/s, sensor-only | yes | yes | MEASURED_PASS (Town10HD) | straight at 4 m/s; stack runs | railing-kerb calibration (Town05) fixed offline, not yet live |
 | G1c | Commanded 90° turn | yes | yes | right (Town10HD) and left (Town03) MEASURED_PASS | no | far exit-kerb bias on bare pavement; furnished and bare synthetic cases to keep separate; exit-line uncertainty not reported |
 | G2 | Segmenter, painting, road model, stack | yes | yes | stack straight and stop MEASURED_PASS (Town10HD site 1) | no | segmentation does not yet place the lane; S0–S5 × 5 not run |
-| G3 | Tracker, radar, prediction, following, M04–M06 | yes | yes | braking lead, cut-in, crossing pedestrian MEASURED_PASS (Town10HD site 1) | no | A/B/C ablation at 4 m/s (radar showed no benefit at 2 m/s inside LiDAR range); false yields to roadside structure under repair |
+| G3 | Tracker, radar, prediction, following, M04–M06 | yes | yes | braking lead, cut-in, crossing pedestrian MEASURED_PASS (Town10HD site 1) | no | A/B/C ablation at 4 m/s on a flat long site (radar showed no benefit at 2 m/s inside LiDAR range); grades are outside the terrain model's scope; split LiDAR clusters and a separate radar track per parked car |
 | G4–G6 | Urban behaviours, learning, final report | no | — | — | — | — |
 
 Stack compute on the lab PCs: ~90–140 ms per 50 ms tick (p50) after the clustering
@@ -1097,6 +1097,8 @@ were saved.
 | cut-in B1 | held at s = 17 m | a car parked at the kerb tracked as a conflict; the cut-in car never cut in | `4d38a03` (static world left to the corridor check; scripted approach) |
 | pedestrian B1–B3 | no yield, then false yields | a crossing walker read as a stopped lead; no yield rule; uniform classes broke ties on "car"; walls sliding past the car read as walkers | `7998276`, `e8ef4a1`, `405b056`, `c5f0b74` |
 | braking lead, Town05 | crash on the first tick; then "kerb not seen" | no-corridor cap returned None; a railing on the kerb vetoed every calibration station | `2d85cd5`, `066d85b` |
+| braking lead, Town05 (railing calibration live: 5.70 m) | stop-and-go, then a tilt refusal | the site is on a grade: the rising road ahead read as an obstacle moving with the car | straight and actor sites now reject grades (3° max, 2° change) |
+| pedestrian B6 / cut-in B3 | proactive yield scored as none; false yields to the cut-in car and to a one-tick fragment | M04 gate took the already-slowed speed as reference; the yield took a car's rear face (under 2 m) for a walker and acted on single ticks | gate reference = fastest speed in the 3 s before entry; yield only to crossers (across the path at 0.3 m/s or more) at pedestrian speed (2.5 m/s max) after 0.3 s |
 
 ### External review of `405b056` (ChatGPT, 26 Oct): all five high-priority findings taken
 
