@@ -15,7 +15,6 @@
   boxes with no cluster are passed on as camera-only class evidence (no range).
 """
 
-import math
 from dataclasses import dataclass
 
 import numpy as np
@@ -96,55 +95,75 @@ def class_probabilities(class_name, confidence, floor=0.1):
     return {k: v / total for k, v in probs.items()}
 
 
+def _components(n, i, j):
+    """Connected-component labels of ``n`` nodes joined by edges ``(i, j)``.
+
+    Hook and compress: each edge hooks the larger of its two roots onto the smaller,
+    then every node jumps to its root; repeated until no edge joins two roots. All in
+    numpy (the per-pair union-find in Python took 200 ms a sweep live, 26 Oct).
+    """
+    labels = np.arange(n)
+    if len(i) == 0:
+        return labels
+    while True:
+        li, lj = labels[i], labels[j]
+        m = np.minimum(li, lj)
+        new = labels.copy()
+        np.minimum.at(new, li, m)
+        np.minimum.at(new, lj, m)
+        while True:
+            nxt = new[new]
+            if np.array_equal(nxt, new):
+                break
+            new = nxt
+        if np.array_equal(new, labels):
+            return labels
+        labels = new
+
+
+def _link_pairs(xy, link, block=256):
+    """Index pairs ``i < j`` closer than the larger of their two link distances.
+
+    Points are sorted by x and compared a block at a time with every point within the
+    largest link distance in x, so the cost follows the points' spread, not n squared.
+    """
+    n = len(xy)
+    order = np.argsort(xy[:, 0], kind="stable")
+    xs = xy[order, 0]
+    reach = float(link.max())
+    out_i, out_j = [], []
+    for start in range(0, n, block):
+        stop = min(start + block, n)
+        a = order[start:stop]
+        lo = int(np.searchsorted(xs, xs[start] - reach, "left"))
+        hi = int(np.searchsorted(xs, xs[stop - 1] + reach, "right"))
+        b = order[lo:hi]
+        d = np.hypot(xy[a, 0][:, None] - xy[b, 0][None, :], xy[a, 1][:, None] - xy[b, 1][None, :])
+        ii, jj = np.nonzero(d <= np.maximum(link[a][:, None], link[b][None, :]))
+        ai, bj = a[ii], b[jj]
+        keep = ai < bj
+        out_i.append(ai[keep])
+        out_j.append(bj[keep])
+    return np.concatenate(out_i), np.concatenate(out_j)
+
+
 def cluster_obstacles(sweep, config=None):
     """Range-tuned single-linkage clustering of the sweep's OBSTACLE points (vehicle frame).
 
     Returns a list of index arrays into ``sweep.xyz``. Points are linked when within each
-    other's link distance (``link_m + link_per_m * range``, the larger of the pair), found
-    on a coarse grid of the smallest link distance so the cost stays near linear. One
+    other's link distance (``link_m + link_per_m * range``, the larger of the pair). One
     pass over all points: a car straddling a range boundary stays one cluster.
     """
     c = config or DetectionsConfig()
     idx = np.flatnonzero(sweep.cls == PointClass.OBSTACLE)
     if idx.size == 0:
         return []
-    xy = sweep.xyz[idx, :2]
-    r = np.hypot(xy[:, 0], xy[:, 1])
-    link = c.link_m + c.link_per_m * r
-    cell = float(link.min())
-    keys = np.floor(xy / cell).astype(int)
-    lookup = {}
-    for k, key in enumerate(map(tuple, keys)):
-        lookup.setdefault(key, []).append(k)
-    parent = np.arange(len(idx))
-
-    def find(i):
-        while parent[i] != i:
-            parent[i] = parent[parent[i]]
-            i = parent[i]
-        return i
-
-    # Points in a cell and its neighbours within the pair's link distance are linked; the
-    # neighbourhood radius in cells follows the larger link of the cell's points.
-    for key, members in lookup.items():
-        reach = int(math.ceil(link[members].max() / cell))
-        for di in range(-reach, reach + 1):
-            for dj in range(-reach, reach + 1):
-                others = lookup.get((key[0] + di, key[1] + dj))
-                if not others:
-                    continue
-                a, b = np.array(members), np.array(others)
-                d = np.hypot(xy[a][:, None, 0] - xy[b][None, :, 0], xy[a][:, None, 1] - xy[b][None, :, 1])
-                allowed = np.maximum(link[a][:, None], link[b][None, :])
-                for i, j in zip(*np.nonzero(d <= allowed)):
-                    parent[find(a[i])] = find(b[j])
-    roots = np.array([find(i) for i in range(len(idx))])
-    out = []
-    for root in np.unique(roots):
-        members = np.flatnonzero(roots == root)
-        if len(members) >= c.min_points:
-            out.append(idx[members])
-    return out
+    xy = sweep.xyz[idx, :2].astype(float)
+    link = c.link_m + c.link_per_m * np.hypot(xy[:, 0], xy[:, 1])
+    labels = _components(len(idx), *_link_pairs(xy, link))
+    order = np.argsort(labels, kind="stable")
+    groups = np.split(order, np.flatnonzero(np.diff(labels[order])) + 1)
+    return [idx[np.sort(g)] for g in groups if len(g) >= c.min_points]
 
 
 def cluster_measurement(sweep, members, class_probs=None, config=None):
