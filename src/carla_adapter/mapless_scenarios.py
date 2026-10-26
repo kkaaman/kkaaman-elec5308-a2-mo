@@ -379,7 +379,12 @@ def score_completion(name, log, actor_truths, body, end, held_s, min_separation_
             return out | dict(passed=None, note="the walker never entered the path")
         first = in_path[0]
         speeds = [rows[i][0]["truth"]["speed_mps"] for i in in_path]
-        entry_speed = speeds[0]
+        # The speed the car was making before it had to react: the fastest in the 3 s
+        # before the walker entered the path (live M04 B6, 26 Oct: the car had yielded to
+        # 0.78 m/s before the walker entered, and the entry speed read as the reference).
+        t_entry = rows[first][0]["time_s"]
+        before = [row["truth"]["speed_mps"] for row, _, _ in rows[:first + 1] if row["time_s"] >= t_entry - 3.0]
+        entry_speed = max(before)
         yield_speed = min(speeds)
         yielded = yield_speed <= max(0.5, 0.5 * entry_speed)
         # Cleared: left of the body's band after crossing, or already behind the ego.

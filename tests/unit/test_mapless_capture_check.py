@@ -133,3 +133,19 @@ def test_repair_moves_schema1_boxes_onto_their_bounding_box_centres(tmp_path):
     offsets.write_text("{}", encoding="utf-8")
     with pytest.raises(SystemExit):
         repair(["--run", str(run), "--offsets", str(offsets), "--no-carla"])  # unknown type, no CARLA
+
+
+def test_commit_is_read_from_the_git_directory_without_the_git_command(tmp_path):
+    """Lab PC run reports had source_commit None (git not reachable from the run)."""
+    from carla_adapter.mapless_capture import _commit_from_git_dir
+
+    git = tmp_path / ".git"
+    (git / "refs" / "heads").mkdir(parents=True)
+    (git / "HEAD").write_text("ref: refs/heads/feature/x\n", encoding="utf-8")
+    (git / "refs" / "heads" / "feature").mkdir()
+    (git / "refs" / "heads" / "feature" / "x").write_text("a" * 40 + "\n", encoding="utf-8")
+    assert _commit_from_git_dir(git) == "a" * 40
+    (git / "refs" / "heads" / "feature" / "x").unlink()
+    (git / "packed-refs").write_text("# pack-refs\n" + "b" * 40 + " refs/heads/feature/x\n", encoding="utf-8")
+    assert _commit_from_git_dir(git) == "b" * 40
+    assert _commit_from_git_dir(tmp_path / "missing") is None

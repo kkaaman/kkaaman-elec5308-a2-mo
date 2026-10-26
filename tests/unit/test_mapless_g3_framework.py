@@ -542,3 +542,27 @@ def test_sensor_support_expires_when_a_sensor_stops_updating_the_track():
         radar = RadarMeasurement("radar_front", xy, float(np.hypot(*rel)), float(math.atan2(rel[1], rel[0])), 0.0, 3, sensor_xy)
         tracks = tracker.update(t, ORIGIN, radar=[radar])
     assert tracks[0].support == ("radar",)
+
+
+def test_yield_only_to_pedestrian_speed_crossers_that_persist():
+    """Live cut-in B3 (26 Oct): the cut-in car driving ahead in the lane (its rear face
+    under 2 m across) and a one-tick 4.8 m/s fragment were yielded to, braking the car
+    to 0.1 m/s. Only road users crossing the path at pedestrian speed, for 0.3 s, count."""
+    from mapless.stack import StackConfig, crossing_yield
+
+    c = StackConfig()
+    u = {k: 0.2 for k in ("car", "truck", "bike", "pedestrian", "unknown")}
+    path = np.column_stack((np.arange(0.0, 40.0, 0.5), np.zeros(80)))
+    rear_face = ObjectTrack(1, 0.0, [18.0, 0.0, 2.9, 0.0], np.diag([0.05] * 4), u, TrackStatus.CONFIRMED, 20, 0, footprint=(1.83, 1.62, 0.0), travelled_m=5.0, recent_speed_mps=2.9)
+    fragment = ObjectTrack(2, 0.0, [14.5, -5.5, 1.5, 2.45], np.diag([0.05] * 4), u, TrackStatus.CONFIRMED, 20, 0, footprint=(0.49, 0.3, 0.0), travelled_m=2.0, recent_speed_mps=4.78)
+    walker = ObjectTrack(3, 0.0, [18.0, -3.0, 0.0, 1.2], np.diag([0.05] * 4), u, TrackStatus.CONFIRMED, 20, 0, footprint=(0.6, 0.6, 0.0), travelled_m=1.5, recent_speed_mps=1.2)
+    for tr in (rear_face, fragment):
+        assert crossing_yield([tr], [predict(tr, c.prediction)], path, 0.0, BODY, 1.0, c) == (None, None)
+    since = {}
+    pred = [predict(walker, c.prediction)]
+    assert crossing_yield([walker], pred, path, 0.0, BODY, 1.0, c, since, 10.0) == (None, None)  # just seen
+    assert crossing_yield([walker], pred, path, 0.0, BODY, 1.0, c, since, 10.2) == (None, None)
+    cap, tid = crossing_yield([walker], pred, path, 0.0, BODY, 1.0, c, since, 10.3)
+    assert tid == 3 and cap == pytest.approx(c.yield_mps)
+    crossing_yield([], [], path, 0.0, BODY, 1.0, c, since, 10.35)  # gone for a tick: restarts
+    assert since == {}

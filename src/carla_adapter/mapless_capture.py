@@ -228,16 +228,48 @@ def truth_record(vehicle, carla_map, actors, rear_axle_offset_m, radius_m=80.0):
 
 
 def source_commit():
-    """The repository commit this capture ran from, or None outside a checkout."""
+    """The repository commit this run came from, or None outside a checkout.
+
+    ``git`` first (with "-dirty" for uncommitted changes); if the command is not reachable
+    from the run's environment (the lab PCs' reports said None), the commit is read from
+    ``.git`` directly, without the dirty flag.
+    """
     import subprocess
 
+    root = Path(__file__).resolve().parents[2]
     try:
-        root = Path(__file__).resolve().parents[2]
         out = subprocess.run(["git", "rev-parse", "HEAD"], cwd=root, capture_output=True, text=True, timeout=10)
-        dirty = subprocess.run(["git", "status", "--porcelain", "--untracked-files=no"], cwd=root, capture_output=True, text=True, timeout=10)
-        if out.returncode != 0:
-            return None
-        return out.stdout.strip() + ("-dirty" if dirty.stdout.strip() else "")
+        if out.returncode == 0 and out.stdout.strip():
+            dirty = subprocess.run(["git", "status", "--porcelain", "--untracked-files=no"], cwd=root, capture_output=True, text=True, timeout=10)
+            return out.stdout.strip() + ("-dirty" if dirty.stdout.strip() else "")
+    except Exception:
+        pass
+    return _commit_from_git_dir(root / ".git")
+
+
+def _commit_from_git_dir(git_dir):
+    """HEAD's commit read from a .git directory (loose or packed ref), or None."""
+    try:
+        git_dir = Path(git_dir)
+        if git_dir.is_file():  # a worktree: "gitdir: <path>"
+            git_dir = Path(git_dir.read_text(encoding="utf-8").split(":", 1)[1].strip())
+        head = (git_dir / "HEAD").read_text(encoding="utf-8").strip()
+        if not head.startswith("ref:"):
+            return head or None
+        ref = head.split(":", 1)[1].strip()
+        common = git_dir
+        if (git_dir / "commondir").is_file():
+            common = (git_dir / (git_dir / "commondir").read_text(encoding="utf-8").strip()).resolve()
+        for base in (git_dir, common):
+            loose = base / ref
+            if loose.is_file():
+                return loose.read_text(encoding="utf-8").strip()
+            packed = base / "packed-refs"
+            if packed.is_file():
+                for line in packed.read_text(encoding="utf-8").splitlines():
+                    if line.endswith(" " + ref):
+                        return line.split(" ", 1)[0]
+        return None
     except Exception:
         return None
 
