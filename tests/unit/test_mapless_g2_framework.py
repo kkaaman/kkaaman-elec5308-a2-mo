@@ -546,6 +546,19 @@ def test_a_car_beside_a_railing_is_split_out_of_it():
     assert np.allclose(cluster_measurement(sweep, objects[0]).xy, (9.5, -1.95), atol=0.6)
 
 
+def test_one_pass_cluster_and_split_matches_the_two_passes():
+    from autonomy.paths import FIXTURES_DIR
+    from mapless.detections import cluster_and_split
+
+    xyz = np.load(FIXTURES_DIR / "town05_grade_obstacles.npz")["obstacle_cm"].astype(float) / 100.0
+    rng = np.random.default_rng(8)
+    for sweep in (_obstacle_sweep(xyz), _obstacle_sweep(np.column_stack((rng.uniform(-30, 40, 900), rng.uniform(-12, 12, 900), rng.uniform(0.3, 2, 900))))):
+        objects, structures = split_oversized(sweep, cluster_obstacles(sweep))
+        one_objects, one_structures = cluster_and_split(sweep)
+        key = lambda groups: sorted(tuple(int(v) for v in g) for g in groups)  # noqa: E731
+        assert key(one_objects) == key(objects) and key(one_structures) == key(structures)
+
+
 def test_object_sized_clusters_are_untouched_by_the_split():
     rng = np.random.default_rng(6)
     car = np.column_stack((rng.uniform(18.0, 22.5, 200), rng.uniform(-0.9, 0.9, 200), rng.uniform(0.3, 1.4, 200)))

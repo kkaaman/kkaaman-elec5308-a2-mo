@@ -83,6 +83,17 @@ class TrackerConfig:
     # front radar against 61 without, 45 ms of tracking a tick (Town05, 26 Oct).
     radar_spawn_min_range_m: float = 30.0
     radar_spawn_min_speed_mps: float = 0.5
+    # One object, two tracks: the radar picks a car up beyond the LiDAR's reach; when the
+    # LiDAR clusters it, the cluster fits its own new track better and the radar keeps
+    # updating the old one (braking lead B8, 26 Oct: the lead followed as radar-only track
+    # 166 to 12 m while its LiDAR twin, 1.7 x 1.0 m with sideways jitter, read as a
+    # crossing walker and stopped the car). A radar-only track inside a LiDAR track's
+    # footprint grown by ``merge_margin_m`` is merged into it, the older id kept.
+    merge_margin_m: float = 1.0
+    # A static radar-only track the LiDAR has not confirmed this close is clutter it has
+    # carried in from beyond 30 m (B8: 148 tracks, 45 ms), once it is this old.
+    radar_clutter_range_m: float = 25.0
+    radar_clutter_age_s: float = 0.5
 
     def __post_init__(self):
         if self.confirm_hits > self.confirm_window or self.coast_s >= self.delete_s:
@@ -107,6 +118,7 @@ class _Track:
     trail: deque = field(default_factory=lambda: deque(maxlen=64))  # (time, x, y) after each update
     seen: dict = field(default_factory=dict)  # sensor -> last time it updated the track
     doppler_rejects: int = 0  # consecutive radar updates with the radial speed rejected
+    origin_time_s: float = 0.0  # when the track started
 
 
 def _recent_speed(trail, min_span_s):
@@ -181,15 +193,19 @@ class Tracker:
         u = p / r
         return np.array([r, math.atan2(p[1], p[0]), float(x[2:] @ u)])
 
-    def _radar_jacobian(self, x, sensor_odo, eps=1e-4):
-        base = self._radar_model(x, sensor_odo)
+    def _radar_jacobian(self, x, sensor_odo):
+        """The radar model and its exact Jacobian (range, bearing, radial speed over
+        ``[x, y, vx, vy]``); was by finite differences, four model calls per pair."""
+        p = x[:2] - sensor_odo
+        r = max(float(np.hypot(*p)), 1e-6)
+        u = p / r
+        rate = float(x[2:] @ u)
+        base = np.array([r, math.atan2(p[1], p[0]), rate])
         H = np.zeros((3, 4))
-        for k in range(4):
-            dx = np.zeros(4)
-            dx[k] = eps
-            d = self._radar_model(x + dx, sensor_odo) - base
-            d[1] = (d[1] + math.pi) % (2 * math.pi) - math.pi
-            H[:, k] = d / eps
+        H[0, :2] = u
+        H[1, :2] = (-p[1] / r**2, p[0] / r**2)
+        H[2, :2] = (x[2:] - rate * u) / r
+        H[2, 2:] = u
         return base, H
 
     # -- update --------------------------------------------------------------------------
@@ -214,14 +230,15 @@ class Tracker:
             z_odo = pose.to_world(np.array([m.xy for m in lidar]))
             ids = list(self.tracks)
             cost = np.full((len(ids), len(lidar)), np.inf)
-            for i, tid in enumerate(ids):
-                t = self.tracks[tid]
-                for j, m in enumerate(lidar):
-                    if np.hypot(*(t.x[:2] - z_odo[j])) > c.lidar_gate_m or self._class_veto(t, m.class_probabilities):
-                        continue
-                    S = t.P[:2, :2] + np.eye(2) * m.sigma_m**2
-                    y = z_odo[j] - t.x[:2]
-                    cost[i, j] = float(y @ np.linalg.solve(S, y))
+            pos = np.array([self.tracks[tid].x[:2] for tid in ids]).reshape(-1, 2)
+            near = np.hypot(pos[:, None, 0] - z_odo[None, :, 0], pos[:, None, 1] - z_odo[None, :, 1]) <= c.lidar_gate_m
+            for i, j in zip(*np.nonzero(near)):
+                t, m = self.tracks[ids[i]], lidar[j]
+                if self._class_veto(t, m.class_probabilities):
+                    continue
+                S = t.P[:2, :2] + np.eye(2) * m.sigma_m**2
+                y = z_odo[j] - t.x[:2]
+                cost[i, j] = float(y @ np.linalg.solve(S, y))
             assigned = _assign(cost, CHI2_2D)
             for i, j in assigned:
                 t, m = self.tracks[ids[i]], lidar[j]
@@ -246,14 +263,13 @@ class Tracker:
             ids = list(self.tracks)
             cost = np.full((len(ids), len(radar)), np.inf)
             models = {}
+            pos = np.array([self.tracks[tid].x[:2] for tid in ids]).reshape(-1, 2)
             for j, m in enumerate(radar):
                 sensor_odo = pose.to_world(m.sensor_xy[None])[0]
                 z = np.array([m.range_m, m.bearing_rad + pose.yaw_rad, m.radial_speed_mps])
-                for i, tid in enumerate(ids):
-                    t = self.tracks[tid]
-                    obj_odo = pose.to_world(m.xy[None])[0]
-                    if np.hypot(*(t.x[:2] - obj_odo)) > c.radar_gate_m:
-                        continue
+                obj_odo = pose.to_world(m.xy[None])[0]
+                for i in np.flatnonzero(np.hypot(pos[:, 0] - obj_odo[0], pos[:, 1] - obj_odo[1]) <= c.radar_gate_m):
+                    t = self.tracks[ids[i]]
                     h, H = self._radar_jacobian(t.x, sensor_odo)
                     R = np.diag([c.radar_range_sigma_m**2, c.radar_bearing_sigma_rad**2, c.radar_rate_sigma_mps**2])
                     y = z - h
@@ -298,6 +314,8 @@ class Tracker:
             self.radar_stats = dict(objects=len(radar), associated=len(assigned), doppler_rejected=rejected[:5], spawned=spawned, clutter_skipped=skipped)
         else:
             self.radar_stats = {}
+        self._merge_radar_twins(time_s)
+        self._drop_near_radar_clutter(pose, time_s)
         # Camera-only class evidence -------------------------------------------------------
         for xy, probabilities in camera_classes:
             odo = pose.to_world(np.asarray(xy, dtype=float)[None])[0]
@@ -323,6 +341,79 @@ class Tracker:
                 track.trail.popleft()
         return self.snapshot()
 
+    def _fresh(self, track, sensor, now):
+        return now - track.seen.get(sensor, -math.inf) <= self.config.support_max_age_s + 1e-9
+
+    def _merge_radar_twins(self, now):
+        """Fold each radar-only track lying inside a LiDAR-updated track's footprint (grown
+        by ``merge_margin_m``; a disc of that radius without one) into it. The older id is
+        kept, so a lead keeps its history; the merged track takes the LiDAR position and
+        footprint, the velocity of whichever had the smaller velocity variance, and both
+        tracks' support and hit counts."""
+        c = self.config
+        lidar_now = [t for t in self.tracks.values() if t.seen.get("lidar") == now]
+        if not lidar_now:
+            return
+        twins = [t for t in self.tracks.values() if not self._fresh(t, "lidar", now) and self._fresh(t, "radar", now)]
+        merges = 0
+        for r in twins:
+            best = None
+            for cand in lidar_now:
+                if cand.track_id not in self.tracks:
+                    continue
+                rel = r.x[:2] - cand.x[:2]
+                if cand.footprint is not None:
+                    length, width, yaw = cand.footprint
+                    along = abs(rel[0] * math.cos(yaw) + rel[1] * math.sin(yaw)) - length / 2
+                    across = abs(-rel[0] * math.sin(yaw) + rel[1] * math.cos(yaw)) - width / 2
+                    inside = along <= c.merge_margin_m and across <= c.merge_margin_m
+                else:
+                    inside = float(np.hypot(*rel)) <= c.merge_margin_m
+                d = float(np.hypot(*rel))
+                if inside and (best is None or d < best[0]):
+                    best = (d, cand)
+            if best is None:
+                continue
+            lt = best[1]
+            keep, gone = (r, lt) if r.track_id < lt.track_id else (lt, r)
+            vel_from = r if np.trace(r.P[2:, 2:]) < np.trace(lt.P[2:, 2:]) else lt
+            x = np.concatenate((lt.x[:2], vel_from.x[2:]))
+            P = np.zeros((4, 4))
+            P[:2, :2], P[2:, 2:] = lt.P[:2, :2], vel_from.P[2:, 2:]
+            keep.x, keep.P = x, P
+            keep.footprint = lt.footprint
+            if np.ptp(lt.classes) > np.ptp(keep.classes):
+                keep.classes = lt.classes.copy()
+            for sensor, when in gone.seen.items():
+                keep.seen[sensor] = max(keep.seen.get(sensor, -math.inf), when)
+            keep.support = tuple(sorted(set(keep.support) | set(gone.support)))
+            keep.hits += gone.hits
+            keep.last_hit_s = max(keep.last_hit_s, gone.last_hit_s)
+            keep.confirmed = keep.confirmed or gone.confirmed
+            keep.doppler_rejects = min(keep.doppler_rejects, gone.doppler_rejects)
+            del self.tracks[gone.track_id]
+            merges += 1
+        if merges and self.radar_stats is not None:
+            self.radar_stats = dict(self.radar_stats, merged=merges)
+
+    def _drop_near_radar_clutter(self, pose, now):
+        """Delete static radar-only tracks within ``radar_clutter_range_m`` of the car that
+        the LiDAR has not confirmed after ``radar_clutter_age_s``: what the radar adds is
+        range and moving objects, and the LiDAR forms the objects this close."""
+        c = self.config
+        dropped = 0
+        for tid in list(self.tracks):
+            t = self.tracks[tid]
+            if self._fresh(t, "lidar", now) or "lidar" in t.seen or not self._fresh(t, "radar", now):
+                continue
+            if now - t.origin_time_s < c.radar_clutter_age_s or float(np.hypot(*t.x[2:])) >= c.radar_spawn_min_speed_mps:
+                continue
+            if float(np.hypot(*pose.to_body(t.x[None, :2])[0])) < c.radar_clutter_range_m:
+                del self.tracks[tid]
+                dropped += 1
+        if dropped and self.radar_stats is not None:
+            self.radar_stats = dict(self.radar_stats, clutter_dropped=dropped)
+
     def _class_veto(self, track, probabilities):
         if not probabilities:
             return False
@@ -345,7 +436,7 @@ class Tracker:
         tid = self._next_id
         self._next_id += 1
         P = np.diag([sigma_m**2, sigma_m**2, c.initial_speed_sigma_mps**2, c.initial_speed_sigma_mps**2])
-        track = _Track(tid, np.array([xy_odo[0], xy_odo[1], 0.0, 0.0]), P, time_s, time_s, _normalised(probabilities), origin=np.array(xy_odo[:2], dtype=float))
+        track = _Track(tid, np.array([xy_odo[0], xy_odo[1], 0.0, 0.0]), P, time_s, time_s, _normalised(probabilities), origin=np.array(xy_odo[:2], dtype=float), origin_time_s=time_s)
         track.history = deque(maxlen=c.confirm_window)
         track.hits = 1
         track.support = (sensor,)

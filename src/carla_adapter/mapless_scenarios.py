@@ -335,6 +335,68 @@ def make_scenario(carla, name, core_xy, **overrides):
     return cls(carla, ScenarioParams(name, **overrides), core_xy)
 
 
+def score_lead_tracking(log, actor_truths, body, dt_s=0.05):
+    """What the stack knew about the lead, against the evaluator's truth (G3: radar must
+    earn its place). Reported, not gated:
+
+    - ``first_lead_s`` / ``first_lead_truth_gap_m``: when a lead was first selected and the
+      true bumper gap then;
+    - ``speed_error_rmse_mps`` / ``speed_error_p95_mps``: the lead's speed along the path,
+      as the stack had it, against the actor's, over ticks with a lead;
+    - ``gap_error_median_m``: the stack's gap minus the true one (negative: conservative);
+    - ``brake_s``: when the actor began to brake (the first tick below its cruise, of a
+      drop past 0.3 m/s);
+      ``brake_seen_s``: the first tick after it with the stack's lead speed 0.5 m/s below
+      the actor's cruise, and ``brake_delay_s`` between them;
+    - ``stopped_before_lead_s``: time the ego stood still while the lead still moved
+      (false stops), and ``support``: ticks of each sensor set behind the lead.
+    """
+    gaps = separations(log, actor_truths, body)
+    errors, gap_errors, support = [], [], {}
+    first = None
+    speeds = [a["speed_mps"] if a else None for a in actor_truths]
+    cruise = max((v for v in speeds if v is not None), default=None)
+    brake_tick = seen_tick = at_cruise = None
+    stopped_ticks = 0
+    for k, (row, actor) in enumerate(zip(log, actor_truths)):
+        if actor is None:
+            continue
+        lead = (row.get("driver") or {}).get("lead")
+        if cruise is not None and brake_tick is None:
+            if actor["speed_mps"] >= cruise - 0.1:
+                at_cruise = k
+            elif at_cruise is not None and actor["speed_mps"] < cruise - 0.3:
+                brake_tick = at_cruise + 1  # the first tick below cruise
+        if row["truth"]["speed_mps"] < 0.05 and actor["speed_mps"] > 0.5 and row["mode"] != "startup":
+            stopped_ticks += 1
+        if not lead or lead.get("crossing"):
+            continue
+        if first is None:
+            first = (row["time_s"], gaps[k])
+        errors.append(lead["speed_mps"] - actor["speed_mps"])
+        if gaps[k] is not None and lead.get("gap_m") is not None:
+            gap_errors.append(lead["gap_m"] - gaps[k])
+        key = "+".join(lead.get("support") or ()) or "none"
+        support[key] = support.get(key, 0) + 1
+        if brake_tick is not None and seen_tick is None and k >= brake_tick and lead["speed_mps"] < cruise - 0.5:
+            seen_tick = k
+    e = np.abs(np.array(errors)) if errors else None
+    t = lambda k: None if k is None else round(log[k]["time_s"], 2)  # noqa: E731
+    return dict(
+        first_lead_s=None if first is None else round(first[0], 2),
+        first_lead_truth_gap_m=None if first is None or first[1] is None else round(first[1], 2),
+        speed_error_rmse_mps=None if e is None else round(float(np.sqrt(np.mean(e**2))), 3),
+        speed_error_p95_mps=None if e is None else round(float(np.percentile(e, 95)), 3),
+        gap_error_median_m=round(float(np.median(gap_errors)), 2) if gap_errors else None,
+        brake_s=t(brake_tick),
+        brake_seen_s=t(seen_tick),
+        brake_delay_s=None if brake_tick is None or seen_tick is None else round((seen_tick - brake_tick) * dt_s, 2),
+        stopped_before_lead_s=round(stopped_ticks * dt_s, 2),
+        support=support,
+        ticks=len(errors),
+    )
+
+
 def score_moving(log, actor_truths, body, min_separation_m=1.0):
     """Separation gate for M04–M06 from the drive log and the actor's truth per tick.
 

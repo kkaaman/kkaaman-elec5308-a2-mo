@@ -179,6 +179,47 @@ def test_radar_only_tracks_start_beyond_lidar_range_or_moving_and_rejections_are
     assert tracks[0].doppler_rejects == 0  # an agreeing update ends the run
 
 
+def test_radar_twin_of_a_lidar_track_is_merged_and_near_static_radar_clutter_dropped():
+    """Braking lead B8 (26 Oct): the radar picked the lead up at 32 m (track 166); when
+    the LiDAR clustered it, the cluster started its own track and both lived on, the
+    radar one followed to 12 m, the LiDAR one (1.7 x 1.0 m, sideways jitter) read as a
+    crossing walker. Static radar-only tracks carried in from beyond 30 m made 148 tracks."""
+    from mapless.radar import RadarMeasurement
+
+    sensor_xy = np.array([2.5, 0.0])
+
+    def ret(xy, radial):
+        rel = np.asarray(xy, dtype=float) - sensor_xy
+        return RadarMeasurement("radar_front", np.asarray(xy, dtype=float), float(np.hypot(*rel)), float(math.atan2(rel[1], rel[0])), radial, 3, sensor_xy)
+
+    tracker = Tracker(TrackerConfig())
+    t = 0.0
+    for k in range(40):  # a lead 36 m out at 2 m/s, the car standing: radar only
+        t = k * 0.05
+        tracks = tracker.update(t, ORIGIN, radar=[ret((36.0 + 2.0 * t, 0.0), 2.0)])
+    assert len(tracks) == 1 and tracks[0].support == ("radar",)
+    radar_id = tracks[0].track_id
+    merged = 0
+    for k in range(40, 60):  # the LiDAR clusters the car 2.5 m nearer than the radar's point: outside the gate
+        t = k * 0.05
+        x = 36.0 + 2.0 * t
+        tracks = tracker.update(t, ORIGIN, lidar=[LidarMeasurement(np.array([x - 2.5, 0.0]), (4.5, 1.8, 0.0))], radar=[ret((x, 0.0), 2.0)])
+        merged += tracker.radar_stats.get("merged", 0)
+    assert merged >= 1
+    assert [tr.track_id for tr in tracks] == [radar_id]  # one track, the older id
+    assert set(tracks[0].support) == {"lidar", "radar"} and tracks[0].footprint is not None
+    assert tracks[0].velocity[0] == pytest.approx(2.0, abs=0.3)
+    # A static return carried in from 40 m by the car driving at 4 m/s: dropped inside 25 m.
+    tracker = Tracker(TrackerConfig())
+    for k in range(120):
+        t = k * 0.05
+        pose = Pose2D(4.0 * t, 0.0, 0.0)
+        tracks = tracker.update(t, pose, radar=[ret((40.0 - 4.0 * t, 5.0), 0.0)])
+        if 40.0 - 4.0 * t > 30.0:
+            assert len(tracks) == 1
+    assert tracks == [] and tracker.radar_stats["clutter_skipped"] == 1  # dropped, and no new one near
+
+
 def test_only_lidar_supported_vouched_tracks_are_predicted():
     from mapless.stack import predictable_tracks
 

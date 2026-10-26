@@ -48,10 +48,9 @@ from mapless.detections import (
     DetectionsConfig,
     Detector,
     NoDetector,
-    cluster_obstacles,
+    cluster_and_split,
     join,
     plan_extent,
-    split_oversized,
 )
 from mapless.driver import DriveMode, MaplessDriver
 from mapless.following import LEAD_STATUSES, FollowingConfig, FollowingController
@@ -244,7 +243,7 @@ class MaplessStack:
             begun = time.perf_counter()
             # Scenery chained into one cluster is structure, not a road user: never tracked
             # (it stays OBSTACLE points for the driver's LiDAR stop and the corridor).
-            clusters, structures = split_oversized(sweep, cluster_obstacles(sweep, c.detections), c.detections)
+            clusters, structures = cluster_and_split(sweep, c.detections)
             self._structures = sorted(
                 (tuple(round(float(v), 1) for v in (*sweep.xyz[m, :2].mean(axis=0), *plan_extent(sweep.xyz[m, :2]))) + (len(m),) for m in structures),
                 key=lambda item: -item[-1],

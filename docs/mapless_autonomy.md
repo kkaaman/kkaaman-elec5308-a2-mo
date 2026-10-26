@@ -1100,6 +1100,7 @@ were saved.
 | braking lead B3 and 4 m/s A5, Town05 (railing calibration live: 5.70 m) | stop-and-go behind a lead under 3 m away (negative for 100–145 ticks); both ended with a tilt refusal at the same spot | on a grade the road rising ahead and behind read as OBSTACLE and single linkage chained it with both kerb railings into one 63 x 26 m cluster; its mean sat 2.8 m ahead in the lane and it was tracked as a 12 x 12 m vehicle (external review, confirmed by replaying the saved sweeps) | straight and actor sites reject grades (3° max, 2° change); clusters larger than a road user (12 x 4 m) are re-split at a tight link and the rest is structure, never a track; the tilt refusal logs pitch, roll, position and speed |
 | pedestrian B6 / cut-in B3 (on `c5f0b74` or earlier: started the minute `081cd04` was pushed) | proactive yield scored as none; false yields to the cut-in car and to a one-tick fragment | M04 gate took the already-slowed speed as reference; the yield took a car's rear face (under 2 m) for a walker and acted on single ticks | gate reference = fastest speed in the 3 s before entry; yield only to crossers (across the path at 0.3 m/s or more) at pedestrian speed (2.5 m/s max) after 0.3 s |
 | braking lead B4 (Town10HD), 4 m/s A6/B6 (Town05), cut-in B4, pedestrian B7, all on `6b1f705` | all MEASURED_PASS (yield 1.99 to 0.14 m/s and resume; no yield during the cut-in); at 4 m/s, stop-and-go for the first 10 s; stop-and-go in the last 10 m behind the stopped lead | an 80 x 7 m kerb railing tracked as a 12 x 7 m object moving with the car (71 conflict ticks in both runs); 0.3 m pieces of the lead's roof and wheels 1.5–4 m beyond its rear face jittering sideways, and once the lead duplicated as a fresh LiDAR-only track | the split above (thin pieces of a structure are structure too); tracks inside the lead's body are not conflict candidates |
+| braking lead B8 (Town05, 4 m/s, lead at 2 m/s braking at 90 m), on `b8c3a46` | MEASURED_PASS; clean start (the railing fix); a stop at 11 s and a slowdown at 23 s | far-right scenery (13–23 m off the path, out of the radar's view) with centroid motion of 4–6 m/s read as vehicles heading for the path; the lead tracked twice, radar-only (followed) and LiDAR (a 'crossing walker'); 148 tracks, 45 ms tracking, 81 ms clustering | radar twins merged into LiDAR tracks; near static radar-only clutter dropped; one linking pass for the split (two passes cost ~18 ms); exact radar Jacobian and vectorised gates. Open: LiDAR-only motion of extended scenery (needs shape/point registration, not a centroid) |
 
 ### External review of `405b056` (ChatGPT, 26 Oct): all five high-priority findings taken
 
@@ -1132,8 +1133,12 @@ were saved.
 - **Front radar** gives range, bearing and radial speed, lever-arm compensated. It
   updates the tracks the LiDAR forms, and starts radar-only tracks only where it adds
   something: beyond 30 m (where the LiDAR first clustered a car on Town05) or for a
-  moving return. A static return near the car that no track claims is clutter (it made
-  two in three tracks on Town05, and 45 ms of tracking a tick).
+  moving return. A static return near the car that no track claims is clutter, and so
+  is a static radar-only track carried in from beyond 30 m that the LiDAR has not
+  confirmed by 25 m (B8 still carried 148 tracks after the spawn rule alone). A
+  radar-only track inside a LiDAR track's footprint (grown by 1 m) is the same object:
+  merged into it, the older id kept (B8: the lead was followed as radar-only track 166
+  from 32 m to 12 m while its LiDAR twin read as a crossing walker and stopped the car).
 - **Disagreement is logged, not resolved.** A radial speed the track's velocity cannot
   explain still updates its position and is counted (`doppler_rejects`, consecutive, in
   the lead and `cap_track` notes; the tick's `radar_stats` lists the innovations). The
@@ -1144,9 +1149,13 @@ were saved.
   been run live yet, so classes come from footprint and motion alone.
 - **Rear radars** (admission C) feed the tracker but have no consumer until lane
   changes; their tests (approaching, alongside, leaving the blind spot) belong to G4.
-- **Next measurement:** braking lead at 4 m/s, the lead held at 2 m/s until it brakes
-  at 90 m, admission A against B on the same site: lead-velocity error, time to react
-  to the braking, false stops, minimum clearance, track fragmentation, compute.
+- **First evidence for the radar (B8, lead at 2 m/s):** a lead selected at 32 m, beyond
+  the LiDAR's object range, its speed read 1.8–1.9 m/s (true 2.0) and followed.
+- **Measurement:** every stack braking-lead and cut-in run now reports `lead_tracking`
+  (first lead and the true gap then, lead-speed error RMSE/p95, gap error, brake
+  detection delay, stops while the lead still moved, sensor support), and the log
+  carries the actor's truth per tick. Next: admission A against B on the same site and
+  actor parameters, with compute.
 
 ## Running Phase 0 live
 

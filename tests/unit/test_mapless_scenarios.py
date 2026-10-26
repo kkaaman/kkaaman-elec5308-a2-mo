@@ -251,3 +251,31 @@ def test_crossing_pedestrian_yield_measured_against_the_speed_before_the_walker_
     log, truths, end = crossing_run(1.5)  # slows from 4 m/s to 1.5 m/s as the walker steps off
     done = sc.score_completion("crossing_pedestrian", log, truths, BODY, end, 0.0)
     assert done["entry_speed_mps"] == pytest.approx(4.0) and done["yielded"] and done["passed"] is True
+
+
+def test_lead_tracking_reports_speed_error_brake_delay_and_false_stops():
+    """G3's radar comparison needs, from every braking-lead run: the lead's speed error,
+    how long the stack took to see it brake, and stops while the lead still moved."""
+    log, truths = [], []
+    ego_s, lead_s, lead_v = 0.0, 40.0, 2.0
+    for tick in range(300):
+        t = tick * 0.05
+        if t >= 10.0:
+            lead_v = max(0.0, lead_v - 3.0 * 0.05)  # brakes at 10 s
+        lead_s += lead_v * 0.05
+        ego_v = 0.0 if 3.0 <= t < 4.0 else 3.0  # a one-second false stop at 3 s
+        ego_s += ego_v * 0.05
+        row = ego_row(tick, ego_s, ego_v)
+        row["mode"] = "driving"
+        truths.append(actor(lead_s + 2.4, 0.0, speed=lead_v))
+        seen_v = truths[max(0, tick - 6)]["speed_mps"] + 0.1  # 0.3 s late, 0.1 m/s high
+        gap = lead_s - ego_s - BODY.front_m
+        row["driver"] = dict(lead=dict(track_id=1, gap_m=round(gap - 0.5, 2), speed_mps=seen_v, support=["lidar", "radar"]) if tick >= 20 else None)
+        log.append(row)
+    out = sc.score_lead_tracking(log, truths, BODY)
+    assert out["first_lead_s"] == pytest.approx(1.0)
+    assert out["brake_s"] == pytest.approx(10.0, abs=0.01)
+    assert out["brake_delay_s"] == pytest.approx(0.5, abs=0.01)  # 0.3 s late, then 0.5 m/s below cruise
+    assert out["stopped_before_lead_s"] == pytest.approx(1.0, abs=0.06)
+    assert out["gap_error_median_m"] == pytest.approx(-0.5, abs=0.05)
+    assert out["support"] == {"lidar+radar": 280} and out["speed_error_rmse_mps"] < 0.5
