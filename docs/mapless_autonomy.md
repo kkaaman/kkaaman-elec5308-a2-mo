@@ -1102,6 +1102,8 @@ were saved.
 | braking lead B4 (Town10HD), 4 m/s A6/B6 (Town05), cut-in B4, pedestrian B7, all on `6b1f705` | all MEASURED_PASS (yield 1.99 to 0.14 m/s and resume; no yield during the cut-in); at 4 m/s, stop-and-go for the first 10 s; stop-and-go in the last 10 m behind the stopped lead | an 80 x 7 m kerb railing tracked as a 12 x 7 m object moving with the car (71 conflict ticks in both runs); 0.3 m pieces of the lead's roof and wheels 1.5–4 m beyond its rear face jittering sideways, and once the lead duplicated as a fresh LiDAR-only track | the split above (thin pieces of a structure are structure too); tracks inside the lead's body are not conflict candidates |
 | braking lead B8 (Town05, 4 m/s, lead at 2 m/s braking at 90 m), on `b8c3a46` | MEASURED_PASS; clean start (the railing fix); a stop at 11 s and a slowdown at 23 s | far-right scenery (13–23 m off the path, out of the radar's view) with centroid motion of 4–6 m/s read as vehicles heading for the path; the lead tracked twice, radar-only (followed) and LiDAR (a 'crossing walker'); 148 tracks, 45 ms tracking, 81 ms clustering | radar twins merged into LiDAR tracks; near static radar-only clutter dropped; one linking pass for the split (two passes cost ~18 ms); exact radar Jacobian and vectorised gates. Open: LiDAR-only motion of extended scenery (needs shape/point registration, not a centroid) |
 | braking lead A9/B9 (Town05, 4 m/s, lead 2 m/s braking at 90 m), on `44e4f96` | both MEASURED_PASS, 3.48 m clearance; first A/B table above; both stopped once at ~10 s and stopped short twice as the lead came to rest | walls 13–23 m right read as cars heading for the path (radar blind there); the radar's reading of the lead braking rejected nine ticks running; the stopping lead's rear face 'uncertain', so its own envelope was a conflict | vehicles cannot reach the path through a kerb, railing or object (`road_reachable`, terrain grid); persistent one-sided radial speed is a manoeuvre; a known or car-wide lead at rest is the obstacle stop's; far static radar spawns only within 8 m of the line ahead |
+| braking lead A10/B10 (Town10HD site 1, 2 m/s), on `44e4f96` | both MEASURED_PASS (3.46/3.49 m); A braked from 2 m/s to rest at 19.6 s, B stopped at 6 s and 17 s | a 0.3 m piece of the lead 1.5 m to its side for three ticks (zero cap); a 3.3 x 2.2 m roadside object at 6.5 m right, its position pulled between the radar's corner return and the LiDAR centroid (0.4-0.5 m/s) | graded conflict cap (`conflict_speed_cap`, 2 m/s^2, 2 m short); radar radial speed only for LiDAR-placed tracks; lead body margin 0.8 m; `stopped_before_lead_s` counts only after the car first moved |
+| braking lead 4 m/s A10/B10 (Town05), on `cabfd4e` | both MEASURED_PASS; radar A/B table above (braking seen 0.15 s against 0.60 s); the walls no longer stop the car (`unreachable` on 211–239 ticks) | A: a railing piece within kerb + 2 m approaching at the car's speed (7 ticks); B: a piece 2.7 m beyond the followed lead's rear face, its footprint narrower than a car's rear | a followed lead is a body whatever its measured footprint; the graded conflict cap |
 
 ### External review of `405b056` (ChatGPT, 26 Oct): all five high-priority findings taken
 
@@ -1170,6 +1172,33 @@ were saved.
   The radar did not see the lead earlier (the LiDAR clustered it at 32.5 m as well) and
   its one clear gain so far is the speed error's tail. The braking delay is the
   measurement it should win, now that a persistent radial speed is used.
+- **Third A/B, the one that shows the radar's value (A10 against B10, Town05, 4 m/s,
+  lead at 2 m/s braking at 90 m, `cabfd4e`, manoeuvre rule in):**
+
+  | | A (LiDAR) | B (+ front radar) | change |
+  |---|---|---|---|
+  | braking seen after | 0.60 s | 0.15 s | 75% sooner |
+  | lead-speed error RMSE / p95 | 0.49 / 0.99 m/s | 0.10 / 0.08 m/s | 80% / 92% lower |
+  | first lead (time, true gap) | 9.0 s, 32.5 m | 8.85 s, 32.8 m | none |
+  | stopped while the lead moved | 0.45 s | 0.75 s | one false stop each (fixed below) |
+  | minimum clearance | 3.48 m | 3.51 m | none |
+  | step p50 / p95 | 127 / 269 ms | 129 / 252 ms | +2 ms p50, p95 lower |
+  | tracking p50 (tracks) | 4 ms (58) | 11 ms (86) | +7 ms |
+
+  Against plan section 10's admission (at least 20% lower velocity error or braking
+  delay, no extra adverse events, at most 5 ms of added p95 compute): the error and the
+  delay pass by a wide margin, the step's p95 did not grow, and the one extra stop was a
+  piece of the followed lead (now inside its body). One pair on one site: to repeat.
+- **Second A/B (A10 against B10, Town10HD site 1, 2 m/s, lead at 3 m/s braking at 45 m,
+  `44e4f96`):** first lead the same (2.05 s, 18.5 m: inside LiDAR range); lead-speed
+  error RMSE/p95 0.40/0.19 against 0.37/0.11 m/s; braking seen after 0.45 s against
+  0.35 s (22% sooner, before the manoeuvre rule); tracking 7 ms (81 tracks) against
+  20 ms (133); step p50 46 against 68 ms. Both stopped once before the lead did: A on a
+  three-tick piece of the lead 9 m ahead (a zero cap braked it from 2 m/s to rest), B on
+  a roadside object whose position the radar and the LiDAR pulled between them. Fixed:
+  a conflict caps to a speed that stops short of it (zero only up close); a track the
+  LiDAR placed this tick takes only the radar's radial speed, the LiDAR giving position
+  and extent; the lead's body margin is 0.8 m.
 - **Measurement:** every stack braking-lead and cut-in run now reports `lead_tracking`
   (first lead and the true gap then, lead-speed error RMSE/p95, gap error, brake
   detection delay, stops while the lead still moved, sensor support), and the log
