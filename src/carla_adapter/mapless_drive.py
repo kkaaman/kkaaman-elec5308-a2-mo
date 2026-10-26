@@ -1076,6 +1076,8 @@ def main(argv=None, stack=False):
         args.actor_params[name] = float(value)
     if args.output.exists():
         parser.error("Output folder exists; choose a new one")
+    if args.segmenter not in (None, "constant") and not Path(args.segmenter).is_file():
+        parser.error(f"--segmenter {args.segmenter} not found (checkpoints are not in git; copy it from the PC that trained it, or omit --segmenter)")
     if args.scenario == "stop" and not 15 <= args.obstacle_m <= args.goal_m - 10:
         parser.error("--obstacle-m must be at least 15 m and 10 m short of the goal")
     configured = load_sensor_suite(args.suite).with_overrides(parse_overrides(args.set))
