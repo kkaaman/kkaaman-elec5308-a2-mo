@@ -475,3 +475,33 @@ def test_segformer_b0_trains_and_loads_offline(tmp_path):
     assert segmenter.architecture == "segformer_b0"
     seg = segmenter.segment(grey("front", forward_camera(), 64, 32))
     assert seg.probabilities.shape == (32, 64, len(ROAD_CLASSES)) and np.allclose(seg.probabilities.sum(axis=2), 1.0, atol=1e-4)
+
+
+def test_vectorised_clustering_matches_pairwise_single_linkage():
+    """The numpy clustering (26 Oct, 7x faster live) gives the same partition as a
+    brute-force pairwise single-linkage on random scenes with range-scaled links."""
+    from mapless.detections import _components, _link_pairs
+
+    rng = np.random.default_rng(3)
+    for _ in range(20):
+        n = int(rng.integers(1, 400))
+        xy = np.column_stack((rng.uniform(-40, 40, n), rng.uniform(-15, 15, n)))
+        link = 0.6 + 0.03 * np.hypot(xy[:, 0], xy[:, 1])
+        labels = _components(n, *_link_pairs(xy, link, block=37))
+        # Brute force: flood fill over the full pairwise adjacency.
+        d = np.hypot(xy[:, None, 0] - xy[None, :, 0], xy[:, None, 1] - xy[None, :, 1])
+        adj = d <= np.maximum(link[:, None], link[None, :])
+        seen, truth = np.full(n, -1), 0
+        for s in range(n):
+            if seen[s] >= 0:
+                continue
+            stack = [s]
+            seen[s] = truth
+            while stack:
+                k = stack.pop()
+                for m in np.flatnonzero(adj[k] & (seen < 0)):
+                    seen[m] = truth
+                    stack.append(m)
+            truth += 1
+        same = labels[:, None] == labels[None, :]
+        assert np.array_equal(same, seen[:, None] == seen[None, :])
