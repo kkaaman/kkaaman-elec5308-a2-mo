@@ -1124,6 +1124,30 @@ were saved.
   the turn diagnostics, separate furnished and bare-pavement synthetic cases, lane
   markings in lane placement, and coverage that scales with speed.
 
+### LiDAR and radar roles (26 Oct, after the external review of the sensor dynamic)
+
+- **LiDAR** gives the geometry: the corridor, the obstacle stop (from its points, never
+  from tracks) and object candidates. A cluster larger than a road user is split, and
+  what stays larger is structure: never a track, still an obstacle where its points lie.
+- **Front radar** gives range, bearing and radial speed, lever-arm compensated. It
+  updates the tracks the LiDAR forms, and starts radar-only tracks only where it adds
+  something: beyond 30 m (where the LiDAR first clustered a car on Town05) or for a
+  moving return. A static return near the car that no track claims is clutter (it made
+  two in three tracks on Town05, and 45 ms of tracking a tick).
+- **Disagreement is logged, not resolved.** A radial speed the track's velocity cannot
+  explain still updates its position and is counted (`doppler_rejects`, consecutive, in
+  the lead and `cap_track` notes; the tick's `radar_stats` lists the innovations). The
+  radar sees motion along its line of sight only, so "radar reads zero" never means
+  "static" (a walker crossing square on reads zero). What to do with a persistent
+  disagreement is decided from logged runs.
+- **Cameras** run the road segmenter; the object detector (`--detector yolo`) has not
+  been run live yet, so classes come from footprint and motion alone.
+- **Rear radars** (admission C) feed the tracker but have no consumer until lane
+  changes; their tests (approaching, alongside, leaving the blind spot) belong to G4.
+- **Next measurement:** braking lead at 4 m/s, the lead held at 2 m/s until it brakes
+  at 90 m, admission A against B on the same site: lead-velocity error, time to react
+  to the braking, false stops, minimum clearance, track fragmentation, compute.
+
 ## Running Phase 0 live
 
 Run with CARLA 0.9.16 and no other clients:
