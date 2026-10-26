@@ -231,7 +231,7 @@ def source_commit():
     """The repository commit this run came from, or None outside a checkout.
 
     ``git`` first (with "-dirty" for uncommitted changes); if the command is not reachable
-    from the run's environment (the lab PCs' reports said None), the commit is read from
+    from the run's environment (git not on the PATH of a lab PC's shell), the commit is read from
     ``.git`` directly, without the dirty flag.
     """
     import subprocess

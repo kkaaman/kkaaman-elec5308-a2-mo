@@ -521,6 +521,43 @@ def test_lead_role_keeps_a_diagonal_walker_crossing_and_gap_is_to_the_rear():
     assert _rear_extent(ObjectTrack(5, 0.0, [0, 0, 0, 0], np.eye(4), u, TrackStatus.CONFIRMED, 5, 0), 0.0) == pytest.approx(1.0)
 
 
+def test_pieces_of_the_lead_are_not_conflicts_but_a_walker_before_it_is():
+    """Braking-lead runs on 6b1f705 (26 Oct): 0.3 m tracks 1.5-4 m beyond the lead's rear
+    face (its roof and wheels, split from its cluster) jittered sideways and stopped the
+    car on every approach; once the lead itself came back as a fresh LiDAR-only track.
+    Positions from the logs (vehicle frame); the lead's rear face is 2.13 m ahead of the
+    bumper (B6 at 29.8 s)."""
+    from mapless.prediction import predict
+    from mapless.stack import StackConfig, outside_lead_body
+
+    c = StackConfig()
+    u = {k: 0.2 for k in ("car", "truck", "bike", "pedestrian", "unknown")}
+
+    def track(tid, x, y, vx, vy, fl, fw):
+        return ObjectTrack(tid, 0.0, [x, y, vx, vy], np.diag([0.05] * 4), u, TrackStatus.CONFIRMED, 20, 0, support=("lidar",), footprint=(fl, fw, 0.0), travelled_m=1.0, recent_speed_mps=1.0)
+
+    path = np.column_stack((np.arange(-2.0, 40.0, 0.5), np.zeros(84)))
+    s_car = 2.0  # the corridor line starts 2 m behind the rear axle
+    lead = track(365, BODY.front_m + 2.13 + 0.15, 0.0, 0.0, 0.0, 0.3, 1.8)  # its rear face, across the lane
+    pieces = [track(1147, 9.83, 0.48, 0.17, 2.09, 0.46, 0.3), track(1197, 9.74, -0.59, -0.2, -2.59, 0.3, 0.3), track(1223, 9.73, -0.89, 0.05, -0.01, 0.3, 0.3), track(584, 7.2, -0.1, -2.42, -1.05, 2.59, 2.2)]
+    keep = [
+        track(1, 4.6, 0.5, 0.0, 1.2, 0.5, 0.5),  # a walker between the bumper and the lead
+        track(2, 8.0, 3.5, 3.0, 0.0, 4.5, 1.9),  # a car in the next lane
+        track(3, 9.0, -2.6, 0.0, 1.2, 0.5, 0.5),  # a walker beside the lead
+        track(4, 18.0, 0.0, 0.0, 0.0, 0.5, 0.5),  # beyond the lead's body
+    ]
+    tracks = [lead, *pieces, *keep]
+    preds = [predict(t, c.prediction) for t in tracks[1:]]
+    ahead = lead.position[0] - 0.0  # lead_ahead's distance is from the rear axle
+    kept = outside_lead_body(tracks, preds, lead, ahead, ORIGIN, path, s_car, c)
+    assert sorted(p.track_id for p in kept) == [1, 2, 3, 4]
+    # A narrow lead (a walker ahead) shadows only its own depth.
+    walker_lead = track(9, 10.0, 0.0, 1.0, 0.0, 0.5, 0.5)
+    behind = track(10, 12.0, 0.2, 0.0, 1.0, 0.5, 0.5)
+    kept = outside_lead_body([walker_lead, behind], [predict(behind, c.prediction)], walker_lead, 10.0, ORIGIN, path, s_car, c)
+    assert [p.track_id for p in kept] == [10]
+
+
 def test_sensor_support_expires_when_a_sensor_stops_updating_the_track():
     """External review of 405b056: one LiDAR hit long ago kept a radar-held track
     "LiDAR-supported" for good. Support now lists sensors seen within 0.5 s."""

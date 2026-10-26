@@ -11,7 +11,15 @@ import pytest
 
 from autonomy.interfaces import CameraCalibration
 from mapless.corridor import CorridorConfig
-from mapless.detections import DetectionsConfig, ImageBox, cluster_obstacles, join
+from mapless.detections import (
+    DetectionsConfig,
+    ImageBox,
+    cluster_measurement,
+    cluster_obstacles,
+    join,
+    plan_extent,
+    split_oversized,
+)
 from mapless.driver import DriveMode, DriverConfig, DriverStep
 from mapless.ego_motion import Pose2D
 from mapless.frame import CameraImage, RadarReturns, SensorFrame, SensorState, SensorStatus
@@ -478,6 +486,74 @@ def test_segformer_b0_trains_and_loads_offline(tmp_path):
     assert segmenter.architecture == "segformer_b0"
     seg = segmenter.segment(grey("front", forward_camera(), 64, 32))
     assert seg.probabilities.shape == (32, 64, len(ROAD_CLASSES)) and np.allclose(seg.probabilities.sum(axis=2), 1.0, atol=1e-4)
+
+
+def _obstacle_sweep(xyz):
+    xyz = np.asarray(xyz, dtype=float)
+    return ClassifiedSweep(xyz, xyz[:, 2], np.full(len(xyz), PointClass.OBSTACLE), np.zeros(1), np.zeros(1))
+
+
+def _in_lane_ahead(sweep, groups, x_max=15.0, half_lane=1.75):
+    centres = [cluster_measurement(sweep, m).xy for m in groups]
+    return [tuple(np.round(c, 2)) for c in centres if 0.0 < c[0] < x_max and abs(c[1]) < half_lane]
+
+
+def test_scenery_chained_into_one_cluster_is_never_a_lead():
+    """PC 2 braking-lead runs on a Town05 grade (26 Oct): both kerb railings and the road
+    rising ahead and behind chained into one 63 x 26 m cluster whose mean sat 2.8 m ahead
+    in the lane; tracked as a 12 x 12 m vehicle, it was followed at a negative gap for
+    most of both runs. The saved startup sweep's OBSTACLE points, replayed."""
+    from autonomy.paths import FIXTURES_DIR
+
+    xyz = np.load(FIXTURES_DIR / "town05_grade_obstacles.npz")["obstacle_cm"].astype(float) / 100.0
+    sweep = _obstacle_sweep(xyz)
+    config = DetectionsConfig()
+    clusters = cluster_obstacles(sweep, config)
+    giant = max(clusters, key=len)
+    length, width = plan_extent(sweep.xyz[giant, :2])
+    assert length > 60 and width > 20  # the chaining itself (single linkage)
+    assert _in_lane_ahead(sweep, clusters)  # ... whose centre lands in the lane ahead
+    objects, structures = split_oversized(sweep, clusters, config)
+    def road_user_sized(m):
+        length, width = plan_extent(sweep.xyz[m, :2])
+        return length <= config.max_object_length_m and width <= config.max_object_width_m
+
+    # Structure: too big, or a thin line split off it (a railing's stretch).
+    assert structures and all(not road_user_sized(m) or plan_extent(sweep.xyz[m, :2])[1] < config.split_min_width_m for m in structures)
+    assert all(road_user_sized(m) for m in objects)
+    assert _in_lane_ahead(sweep, objects) == []
+    # Every OBSTACLE point is still somewhere (objects, structures or a dropped speck):
+    # the driver's LiDAR stop reads the classified points, not the clusters.
+    kept = sum(len(m) for m in objects) + sum(len(m) for m in structures)
+    assert kept >= 0.95 * sum(len(m) for m in clusters)
+
+
+def test_a_car_beside_a_railing_is_split_out_of_it():
+    """A car 0.6 m off a 30 m kerb railing at 10 m range links into the railing's cluster;
+    the split measures the car on its own and leaves the railing as structure."""
+    rng = np.random.default_rng(5)
+    railing = np.column_stack((np.arange(0.0, 30.0, 0.05), np.full(600, -3.0), np.full(600, 0.9)))
+    # The car's near face and rear (an L), 1.8 m wide, its right side 0.6 m from the railing.
+    side = np.column_stack((rng.uniform(8.0, 12.5, 150), np.full(150, -2.4), rng.uniform(0.3, 1.4, 150)))
+    rear = np.column_stack((np.full(80, 8.0), rng.uniform(-2.4, -0.6, 80), rng.uniform(0.3, 1.4, 80)))
+    sweep = _obstacle_sweep(np.vstack((railing, side, rear)))
+    config = DetectionsConfig()
+    clusters = cluster_obstacles(sweep, config)
+    assert len(clusters) == 1  # merged at the range-tuned link
+    objects, structures = split_oversized(sweep, clusters, config)
+    assert len(structures) == 1 and len(structures[0]) == 600
+    assert len(objects) == 1 and len(objects[0]) == 230
+    assert np.allclose(cluster_measurement(sweep, objects[0]).xy, (9.5, -1.95), atol=0.6)
+
+
+def test_object_sized_clusters_are_untouched_by_the_split():
+    rng = np.random.default_rng(6)
+    car = np.column_stack((rng.uniform(18.0, 22.5, 200), rng.uniform(-0.9, 0.9, 200), rng.uniform(0.3, 1.4, 200)))
+    walker = np.column_stack((rng.normal(12.0, 0.15, 40), rng.normal(3.0, 0.15, 40), rng.uniform(0.3, 1.7, 40)))
+    sweep = _obstacle_sweep(np.vstack((car, walker)))
+    clusters = cluster_obstacles(sweep)
+    objects, structures = split_oversized(sweep, clusters)
+    assert structures == [] and [list(m) for m in objects] == [list(m) for m in clusters]
 
 
 def test_vectorised_clustering_matches_pairwise_single_linkage():
