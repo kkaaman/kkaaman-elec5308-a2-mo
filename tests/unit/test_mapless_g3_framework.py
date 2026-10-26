@@ -421,3 +421,21 @@ def test_crossing_walker_ahead_is_yielded_to_at_walking_pace():
     tagged = ObjectTrack(4, 0.0, [18.0, -3.0, 0.0, 1.2], np.diag([0.05] * 4), {"pedestrian": 0.9, "unknown": 0.1}, TrackStatus.CONFIRMED, 20, 0, support=("lidar",), footprint=None, travelled_m=1.5)
     assert crossing_yield_cap([tagged], [predict(tagged, c.prediction)], path, 0.0, BODY, 1.0, c) == pytest.approx(c.yield_mps)
     assert crossing_yield_cap([still], [predict(still, c.prediction)], path, 0.0, BODY, 1.0, c) is None
+
+
+def test_moving_needs_sustained_recent_motion_not_a_one_off_centroid_shift():
+    """Third live stack M04 (26 Oct): small static things beside the road made the car yield
+    when their centroids shifted ~0.8 m as other faces came into view. Motion now also
+    needs a mean speed of 0.5 m/s over the last second; a walker does 1.2 m/s."""
+    from mapless.prediction import is_moving
+
+    cfg = PredictionConfig()
+    pole, walker = Tracker(TrackerConfig()), Tracker(TrackerConfig())
+    for k in range(60):
+        t = k * 0.05
+        shift = 0.8 if k >= 20 else 0.0  # one shift at 1 s, then still
+        pole.update(t, ORIGIN, lidar=[LidarMeasurement(np.array([20.0 + shift, -4.0]), (0.4, 0.4, 0.0))])
+        walker.update(t, ORIGIN, lidar=[LidarMeasurement(np.array([20.0, -4.0 + 1.2 * t]), (0.5, 0.5, 0.0))])
+    (p,), (w,) = pole.snapshot(), walker.snapshot()
+    assert p.travelled_m > 0.75 and p.recent_speed_mps < 0.5 and not is_moving(p, cfg)
+    assert w.recent_speed_mps == pytest.approx(1.2, abs=0.15) and is_moving(w, cfg)

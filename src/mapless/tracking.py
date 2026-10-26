@@ -69,6 +69,10 @@ class TrackerConfig:
     radar_range_sigma_m: float = 0.25
     radar_bearing_sigma_rad: float = math.radians(2.0)
     radar_rate_sigma_mps: float = 0.3
+    # Recent motion: net displacement over the last motion_window_s, reported as a mean
+    # speed once at least motion_min_span_s of history exists (ObjectTrack.recent_speed_mps).
+    motion_window_s: float = 1.0
+    motion_min_span_s: float = 0.5
 
     def __post_init__(self):
         if self.confirm_hits > self.confirm_window or self.coast_s >= self.delete_s:
@@ -90,6 +94,18 @@ class _Track:
     footprint: tuple | None = None
     confirmed: bool = False
     origin: np.ndarray | None = None  # first measured position (odometry frame)
+    trail: deque = field(default_factory=lambda: deque(maxlen=64))  # (time, x, y) after each update
+
+
+def _recent_speed(trail, min_span_s):
+    """Net displacement over the trail's span divided by the span, or None if shorter
+    than ``min_span_s``: sustained motion, which a static object's centroid drifting as
+    the car passes it (a pole, a short hedge) does not show (third live stack M04)."""
+    if len(trail) < 2:
+        return None
+    (t0, x0, y0), (t1, x1, y1) = trail[0], trail[-1]
+    span = t1 - t0
+    return None if span < min_span_s else float(math.hypot(x1 - x0, y1 - y0) / span)
 
 
 def _normalised(probabilities):
@@ -269,6 +285,10 @@ class Tracker:
                 t.confirmed = True
             if time_s - t.last_hit_s > c.delete_s:
                 del self.tracks[tid]
+        for track in self.tracks.values():
+            track.trail.append((time_s, float(track.x[0]), float(track.x[1])))
+            while track.trail and time_s - track.trail[0][0] > c.motion_window_s + 1e-9:
+                track.trail.popleft()
         return self.snapshot()
 
     def _class_veto(self, track, probabilities):
@@ -328,6 +348,7 @@ class Tracker:
                     support=t.support,
                     footprint=t.footprint,
                     travelled_m=None if t.origin is None else float(np.hypot(*(t.x[:2] - t.origin))),
+                    recent_speed_mps=_recent_speed(t.trail, c.motion_min_span_s),
                 )
             )
         return out
