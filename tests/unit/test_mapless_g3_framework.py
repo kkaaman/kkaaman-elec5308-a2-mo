@@ -57,7 +57,7 @@ def test_static_world_shows_the_ego_speed_as_approach():
 
 def test_radar_clusters_split_two_cars_and_remove_ego_motion():
     sensor_to_ego = np.eye(4)
-    sensor_to_ego[0, 3] = 2.5
+    sensor_to_ego[0, 3], sensor_to_ego[2, 3] = 2.5, 0.7
     # Two static cars side by side 3.5 m apart at 20 m, three returns each, seen at 4 m/s.
     returns = []
     for y in (0.0, 3.5):
@@ -72,6 +72,24 @@ def test_radar_clusters_split_two_cars_and_remove_ego_motion():
     assert all(abs(o.radial_speed_mps) < 0.2 for o in objects)  # static once the ego's speed is removed
     assert sorted(round(o.xy[1], 1) for o in objects) == [0.0, 3.5]
     assert measure(RadarReturns("radar_front", np.zeros((0, 4), dtype=np.float32), sensor_to_ego), 4.0, 0.0) == []
+
+
+def test_radar_drops_road_surface_and_overhead_returns():
+    """A bumper radar's 15 degree vertical field hits the tarmac from 5 m out (first full
+    live run: those returns became a lead 5 m ahead); overhead structure is no road user."""
+    sensor_to_ego = np.eye(4)
+    sensor_to_ego[:3, 3] = (2.5, 0.0, 0.7)
+    returns = []
+    for x in (5.0, 8.0, 12.0):  # road surface ahead: z = 0 from a sensor at 0.7 m
+        r = math.hypot(x - 2.5, 0.7)
+        returns.append([r, 0.0, -math.asin(0.7 / r), 0.0])
+    returns.append([20.0, 0.0, 0.0, 0.0])  # a car face at the sensor's height
+    returns.append([15.0, 0.0, math.asin(4.0 / 15.0), 0.0])  # a gantry 4.7 m up
+    radar = RadarReturns("radar_front", np.array(returns, dtype=np.float32), sensor_to_ego)
+    objects = measure(radar, 0.0, 0.0)
+    assert len(objects) == 1 and objects[0].xy[0] == pytest.approx(22.5)
+    # Flat-mounted test fixtures keep working: a return level with a sensor at z = 0.7 is kept.
+    assert len(measure(radar, 0.0, 0.0, RadarConfig(min_height_m=-1.0))) == 4  # gantry still out
 
 
 def test_wide_radar_clusters_are_split():
@@ -119,7 +137,7 @@ def test_tracker_gates_by_class_and_by_distance():
 
 def test_radar_measurements_update_and_start_tracks():
     sensor_to_ego = np.eye(4)
-    sensor_to_ego[0, 3] = 2.5
+    sensor_to_ego[0, 3], sensor_to_ego[2, 3] = 2.5, 0.7
     tracker = Tracker(TrackerConfig())
     for k in range(30):
         t = k * 0.05
@@ -211,7 +229,7 @@ def test_radar_bearing_innovation_wraps_across_pi():
     # A track behind the car in the odometry frame (bearing near +-pi): the update must not
     # read a 2*pi bearing error (the first version jumped the track 60 m in one update).
     sensor_to_ego = np.eye(4)
-    sensor_to_ego[0, 3] = -2.45
+    sensor_to_ego[0, 3], sensor_to_ego[2, 3] = -2.45, 0.7
     tracker = Tracker(TrackerConfig())
     pose = Pose2D(0.0, 0.0, math.pi)  # the car faces -x in the odometry frame
     for k in range(20):

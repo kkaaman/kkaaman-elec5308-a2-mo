@@ -189,3 +189,25 @@ def test_no_trajectory_brakes_and_external_limit_is_respected():
         out = controller.update(car.state(), now, DT, speed_limit_mps=2.0)
         car.step(out.command)
     assert car.speed == pytest.approx(2.0, abs=0.15) and out.status is LocalStatus.LIMITED
+
+
+def test_a_small_speed_excess_is_shed_by_coasting_not_a_trace_of_brake():
+    """The simulator stops a slowly moving car dead on any brake (the tyres stick below
+    walking pace); the first full live stack run sawtoothed on brake commands of 0.006."""
+    controller = LocalTrajectoryController(LOCAL)
+    car = Car()
+    car.speed = 0.75
+    controller.set_local_trajectory(window(car, 0.0), car.state(), 0.0)
+    brakes = []
+    for k in range(40):
+        now = k * DT
+        if k % 2 == 0:
+            controller.set_local_trajectory(window(car, now), car.state(), now)
+        out = controller.update(car.state(), now, DT, speed_limit_mps=0.6)  # cap just below the speed
+        brakes.append(out.command.brake)
+        car.step(out.command)
+    assert all(b == 0.0 or b >= LOCAL.brake_deadband for b in brakes)
+    assert brakes[0] == 0.0  # a 0.15 m/s excess is coasted off
+    # A commanded stop still brakes, whatever the effort.
+    out = controller.update(car.state(), 2.0, DT, speed_limit_mps=0.0)
+    assert out.command.brake > 0.0

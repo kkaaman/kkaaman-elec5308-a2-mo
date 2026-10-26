@@ -126,6 +126,7 @@ class MaplessStack:
         self._model = None
         self.frame_generation = 0  # bumped on every local-frame rebuild
         self._cap_reason = ""  # what produced the cap the driver plans the next command under
+        self._lead = None  # the lead behind the last cap, for the log
         self.records = []
 
     @staticmethod
@@ -160,6 +161,7 @@ class MaplessStack:
         t = frame.sim_time_s
         tracks, predictions = (), ()
         cap, cap_reason = None, ""
+        self._lead = None
         coverage = {s.name: s.state.value for s in frame.status}
         # -- local frame rebuild -----------------------------------------------------------
         rebuilt = bool(step.diagnostics.get("frame_rebuilt"))
@@ -247,6 +249,7 @@ class MaplessStack:
             speed_cap_mps=cap_applied,
             speed_cap_next_mps=cap,
             speed_cap_reason=cap_reason,  # logged every tick: a hold at a standstill never reaches the veto
+            lead=self._lead,
             frame_generation=self.frame_generation,
             stack_timing_ms=record.timing_ms,
         )
@@ -263,6 +266,7 @@ class MaplessStack:
         # The corridor line starts behind the rear axle: arc lengths are measured from the car.
         s_car = float(project_onto_polyline(np.zeros((1, 2)), path_body)[0][0])
         cap, reason = None, ""
+        self._lead = None
         # Only tracks the tracker vouches for lead the car (a 3-point tentative cluster must not).
         leads = [tr for tr in self.tracker.live(tracks) if tr.status in LEAD_STATUSES]
         lead = self.following.lead_ahead(leads, pose, path_body, s_from_m=s_car)
@@ -272,6 +276,7 @@ class MaplessStack:
             along = pose.to_body(np.array([track.position + track.velocity]))[0] - pose.to_body(track.position[None])[0]
             cap = self.following.target_speed(self.driver.config.planner.cruise_mps, motion.speed_mps, gap, float(along[0]), self.driver.dt_s)
             reason = "lead at a standstill" if cap is not None and cap <= 0.0 else "following the lead"
+            self._lead = dict(track_id=track.track_id, gap_m=round(float(gap), 2), speed_mps=round(float(along[0]), 2), support=list(track.support), status=track.status.name)
         else:
             self.following.reset()
         if predictions and plan is not None and plan.trajectory is not None:
