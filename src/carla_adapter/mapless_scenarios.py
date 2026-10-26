@@ -357,7 +357,7 @@ def score_lead_tracking(log, actor_truths, body, dt_s=0.05):
     speeds = [a["speed_mps"] if a else None for a in actor_truths]
     cruise = max((v for v in speeds if v is not None), default=None)
     brake_tick = seen_tick = at_cruise = None
-    stopped_ticks = 0
+    stopped_ticks, moved = 0, False
     for k, (row, actor) in enumerate(zip(log, actor_truths)):
         if actor is None:
             continue
@@ -367,8 +367,9 @@ def score_lead_tracking(log, actor_truths, body, dt_s=0.05):
                 at_cruise = k
             elif at_cruise is not None and actor["speed_mps"] < cruise - 0.3:
                 brake_tick = at_cruise + 1  # the first tick below cruise
-        if row["truth"]["speed_mps"] < 0.05 and actor["speed_mps"] > 0.5 and row["mode"] != "startup":
-            stopped_ticks += 1
+        moved = moved or row["truth"]["speed_mps"] >= 0.5
+        if moved and row["truth"]["speed_mps"] < 0.05 and actor["speed_mps"] > 0.5:
+            stopped_ticks += 1  # after the car first moved: the start-up wait is not a false stop
         if not lead or lead.get("crossing"):
             continue
         if first is None:

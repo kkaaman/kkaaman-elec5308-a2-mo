@@ -18,7 +18,8 @@ Per tick, in order:
 5. **Predict and follow** — predictions over the horizon (``prediction``); the nearest
    confirmed track in the lane sets a following speed (``following``), and a predicted
    conflict with the car's own oriented footprint along its planned path within
-   ``conflict_horizon_s`` caps the speed to zero. Both reach the driver as
+   ``conflict_horizon_s`` caps the speed to one it can stop from short of where that road
+   user may be (zero once that is close). Both reach the driver as
    ``speed_cap_mps`` for the next tick, and the record says so: ``cap_applied_mps`` is
    what this tick's command was planned under, ``speed_cap_next_mps`` what was just
    computed. The driver's own obstacle stop remains the backstop.
@@ -105,6 +106,11 @@ class StackConfig:
     prediction: PredictionConfig = field(default_factory=PredictionConfig)
     following: FollowingConfig = field(default_factory=FollowingConfig)
     conflict_horizon_s: float = 3.0
+    # A predicted conflict caps the speed to one the car can stop from, at
+    # conflict_decel_mps2, conflict_margin_m short of the first place the path is
+    # predicted occupied by that road user (zero when that place is that close already).
+    conflict_decel_mps2: float = 2.0
+    conflict_margin_m: float = 2.0
     # Yield to a vulnerable road user crossing the path ahead (M04): while one is predicted
     # on the path, at walking pace at most, and stopping yield_margin_m short of where it
     # is predicted. "Vulnerable" is the pedestrian/bike class, or, without a detector, a
@@ -124,7 +130,7 @@ class StackConfig:
     # LiDAR returns split into several clusters), not road users that can conflict.
     lead_body_m: float = 5.0  # for a lead as wide as a car's rear (or a vehicle)
     lead_body_min_width_m: float = 1.2
-    lead_body_margin_m: float = 0.5  # beyond its half-width (at least that of a car, 0.9 m)
+    lead_body_margin_m: float = 0.8  # beyond its half-width (at least that of a car, 0.9 m); A10: a piece at 1.5 m
     # A lead seen this many times is known, not new: once it is no longer moving along or
     # across the path it is a stopped obstacle, not an "uncertain" small object (B9: the
     # lead's rear face, 1.7 m wide, read "uncertain" while it came to rest and its own
@@ -370,6 +376,7 @@ class MaplessStack:
             self._lead = dict(
                 track_id=track.track_id, gap_m=round(float(gap), 2), speed_mps=round(along, 2), across_mps=round(across, 2),
                 state=state, support=list(track.support), status=track.status.name, doppler_rejects=track.doppler_rejects,
+                footprint=None if track.footprint is None else [round(float(track.footprint[0]), 2), round(float(track.footprint[1]), 2)],
             )
             role = lead_role(track, along, across, c, wide=_across_width(track, pose.yaw_rad + tangent) >= c.lead_body_min_width_m)
             if role == "crossing":
@@ -419,16 +426,22 @@ class MaplessStack:
             if keep_right is not None:
                 others, self._unreachable = road_reachable(tracks, others, xy, self.driver.grid, keep_right, c)
             if lead_id is not None:
-                others = outside_lead_body(tracks, others, lead[1], lead[0], pose, path_body, s_car, c)
+                others = outside_lead_body(tracks, others, lead[1], lead[0], pose, path_body, s_car, c, followed=role == "follow")
             hit = first_footprint_conflict(others, xy, times, self.driver.config.body)
             if hit is not None and hit[0] <= c.conflict_horizon_s:
-                cap, reason = 0.0, "predicted conflict on the path"
-                self._cause = _track_note(tracks, hit[1], pose)
-            else:
-                yield_cap, yield_id = crossing_yield(tracks, others, xy, s_now, self.driver.config.body, self.driver.config.planner.decel_mps2, c, self._yield_since, t)
-                if yield_cap is not None and (cap is None or yield_cap < cap):
-                    cap, reason = yield_cap, "yielding to a road user crossing the path"
-                    self._cause = _track_note(tracks, yield_id, pose)
+                # Stop short of where the road user may be, not at once: a speed from which
+                # the car stops conflict_margin_m before the first place the path is
+                # predicted occupied by it. A conflict up close is still a zero cap; one
+                # 3-tick fragment 9 m ahead no longer brakes the car from 2 m/s to rest
+                # (A10, 26 Oct). The cap is recomputed every tick as the car closes.
+                conflict_cap = conflict_speed_cap([p for p in others if p.track_id == hit[1]], xy, s_now, self.driver.config.body, c)
+                if cap is None or conflict_cap < cap:
+                    cap, reason = conflict_cap, "predicted conflict on the path"
+                    self._cause = _track_note(tracks, hit[1], pose)
+            yield_cap, yield_id = crossing_yield(tracks, others, xy, s_now, self.driver.config.body, self.driver.config.planner.decel_mps2, c, self._yield_since, t)
+            if yield_cap is not None and (cap is None or yield_cap < cap):
+                cap, reason = yield_cap, "yielding to a road user crossing the path"
+                self._cause = _track_note(tracks, yield_id, pose)
         return cap, reason
 
     def reset_spatial(self):
@@ -552,7 +565,7 @@ def road_reachable(tracks, candidates, path_xy, grid, keep_right_m, config):
     return kept, dropped
 
 
-def outside_lead_body(tracks, candidates, lead, lead_ahead_m, pose, path_body, s_car, config):
+def outside_lead_body(tracks, candidates, lead, lead_ahead_m, pose, path_body, s_car, config, followed=False):
     """Drop candidates inside the lead's body: from its rear face (less 0.3 m) to
     ``lead_body_m`` beyond it when the lead is a vehicle or as wide as a car's rear, else to
     its own far edge plus 0.5 m, and within its half-width (at least a car's) plus
@@ -571,7 +584,10 @@ def outside_lead_body(tracks, candidates, lead, lead_ahead_m, pose, path_body, s
     tangent = pose.yaw_rad + _path_heading_at(line, ahead_l + s_car)
     rear_ext = _rear_extent(lead, tangent)
     across = _across_width(lead, tangent)
-    body_like = is_vehicle(lead, config) or across >= config.lead_body_min_width_m
+    # A lead followed along the lane is a body (a car, a cyclist) however little of it the
+    # LiDAR has measured (B10 on Town05: a piece 2.7 m beyond a followed lead's rear face,
+    # its footprint narrower than a car's rear, stopped the car).
+    body_like = followed or is_vehicle(lead, config) or across >= config.lead_body_min_width_m
     rear = ahead_l - rear_ext
     far = rear + (config.lead_body_m if body_like else 2.0 * rear_ext + 0.5)
     half = max(0.5 * across, 0.9) + config.lead_body_margin_m
@@ -675,6 +691,15 @@ def is_vulnerable(track, config):
     if cls in ("car", "truck"):
         return False
     return track.footprint is not None and max(track.footprint[0], track.footprint[1]) <= config.vulnerable_max_m
+
+
+def conflict_speed_cap(predictions, path_xy, s_now, body, config):
+    """The speed from which the car stops, at ``conflict_decel_mps2``, ``conflict_margin_m``
+    short of the first arc where its footprint meets any of ``predictions`` (the road user
+    of a predicted conflict); 0 when that is already that close, or not found."""
+    arc = first_occupied_arc(predictions, path_xy, body, from_arc_m=s_now)
+    room = 0.0 if arc is None else max(0.0, arc - s_now - config.conflict_margin_m)
+    return math.sqrt(2.0 * config.conflict_decel_mps2 * room)
 
 
 def crossing_yield_cap(tracks, candidates, path_xy, s_now, body, decel_mps2, config):

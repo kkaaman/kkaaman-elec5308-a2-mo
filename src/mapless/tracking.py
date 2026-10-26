@@ -296,8 +296,14 @@ class Tracker:
                 z, h, H, R, y, S, sensor_odo = models[(i, j)]
                 d2_rate = float(y[2] ** 2 / S[2, 2])
                 sign = math.copysign(1.0, y[2])
+                # A track the LiDAR placed this tick takes the radar's radial speed only: a
+                # radar return comes off one part of an object (a wheel arch, a corner), not
+                # its centre, and pulling a 3 x 2 m object's position between that and the
+                # LiDAR's centroid every tick read as 0.4-0.5 m/s of motion and a conflict
+                # (B10, 26 Oct). The LiDAR gives position and extent; the radar, closing speed.
+                rows = slice(2, 3) if t.seen.get("lidar") == time_s else slice(0, 3)
                 if d2_rate <= CHI2_1D:
-                    self._kalman(t, y, H, R)
+                    self._kalman(t, y[rows], H[rows], R[rows, rows])
                     t.doppler_rejects = 0
                 elif t.doppler_rejects + 1 >= c.doppler_accept_after and t.doppler_sign == sign:
                     # Persistent, one-sided: the object's motion changed. Open the velocity
@@ -305,7 +311,7 @@ class Tracker:
                     # line-of-sight vector over vx, vy) and take the full update.
                     u = H[2, 2:]
                     t.P[2:, 2:] += float(y[2] ** 2) * np.outer(u, u)
-                    self._kalman(t, y, H, R)
+                    self._kalman(t, y[rows], H[rows], R[rows, rows])
                     manoeuvres.append((t.track_id, round(float(y[2]), 2)))
                     t.doppler_rejects = 0
                 else:
@@ -313,7 +319,8 @@ class Tracker:
                     # and count it (an isolated outlier). The radar measures motion along
                     # its line of sight only, so agreement says nothing about motion across
                     # it (a walker crossing square on reads ~0).
-                    self._kalman(t, y[:2], H[:2], R[:2, :2])
+                    if rows.start == 0:
+                        self._kalman(t, y[:2], H[:2], R[:2, :2])
                     t.doppler_rejects = t.doppler_rejects + 1 if t.doppler_sign == sign else 1
                     t.doppler_sign = sign
                     rejected.append((t.track_id, round(float(y[2]), 2), t.doppler_rejects))

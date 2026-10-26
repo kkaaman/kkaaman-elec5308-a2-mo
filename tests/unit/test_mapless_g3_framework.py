@@ -665,6 +665,9 @@ def test_pieces_of_the_lead_are_not_conflicts_but_a_walker_before_it_is():
     behind = track(10, 12.0, 0.2, 0.0, 1.0, 0.5, 0.5)
     kept = outside_lead_body([walker_lead, behind], [predict(behind, c.prediction)], walker_lead, 10.0, ORIGIN, path, s_car, c)
     assert [p.track_id for p in kept] == [10]
+    # A lead followed along the lane is a body however narrow its measured footprint (B10).
+    kept = outside_lead_body([walker_lead, behind], [predict(behind, c.prediction)], walker_lead, 10.0, ORIGIN, path, s_car, c, followed=True)
+    assert kept == []
 
 
 def test_vehicles_beyond_a_kerb_or_railing_cannot_reach_the_path():
@@ -723,6 +726,47 @@ def test_a_known_lead_coming_to_rest_is_a_stopped_obstacle_not_uncertain():
     # A walker crossing is still crossing, however long it has been seen.
     walker = ObjectTrack(59, 0.0, [15, 0, 0.1, 1.2], np.diag([0.05] * 4), u, TrackStatus.CONFIRMED, 200, 0, footprint=(0.5, 0.5, 0.0), travelled_m=3.0, recent_speed_mps=1.2)
     assert lead_role(walker, 0.1, 1.2, c) == "crossing"
+
+
+def test_a_predicted_conflict_caps_to_a_stop_short_of_it_not_to_rest_at_once():
+    """A10 (26 Oct): a 0.3 m piece of the stopped lead, 9 m ahead, was a predicted conflict
+    for three ticks and its zero cap braked the car from 2 m/s to rest. The cap is now the
+    speed the car can stop from 2 m short of where that road user may be: zero up close."""
+    from mapless.prediction import predict
+    from mapless.stack import StackConfig, conflict_speed_cap
+
+    c = StackConfig()
+    path = np.column_stack((np.arange(-2.0, 40.0, 0.5), np.zeros(84)))
+    far = predict(small_obstacle(1, (16.0, 0.0)), c.prediction)
+    near = predict(small_obstacle(2, (6.0, 0.0)), c.prediction)
+    s_now = 2.0  # the rear axle, on a line starting 2 m behind it
+    far_cap = conflict_speed_cap([far], path, s_now, BODY, c)
+    # The whole predicted envelope counts (timing ignored, as for yielding), so the stop
+    # point is short of its widest step; still enough to carry on at 2 m/s for now.
+    assert 2.0 < far_cap < math.sqrt(2 * c.conflict_decel_mps2 * (16.0 - BODY.front_m))
+    assert conflict_speed_cap([near], path, s_now, BODY, c) == 0.0
+    assert conflict_speed_cap([], path, s_now, BODY, c) == 0.0  # nothing found: stop
+
+
+def test_radar_updates_only_the_speed_of_a_track_the_lidar_placed():
+    """B10 (26 Oct): the radar return off one corner of a 3.3 x 2.2 m roadside object and
+    the LiDAR's centroid pulled its position back and forth every tick; it read 0.4-0.5 m/s
+    of motion and became a conflict. With the LiDAR this tick, the radar gives speed only."""
+    from mapless.radar import RadarMeasurement
+
+    sensor_xy = np.array([2.5, 0.0])
+
+    def ret(xy, radial):
+        rel = np.asarray(xy, dtype=float) - sensor_xy
+        return RadarMeasurement("radar_front", np.asarray(xy, dtype=float), float(np.hypot(*rel)), float(math.atan2(rel[1], rel[0])), radial, 3, sensor_xy)
+
+    tracker = Tracker(TrackerConfig())
+    centre = np.array([10.5, -6.5])
+    for k in range(60):
+        corner = centre + (np.array([-1.2, 0.9]) if k % 2 else np.array([-1.0, -0.6]))
+        tracks = tracker.update(k * 0.05, ORIGIN, lidar=[LidarMeasurement(centre, (3.3, 2.2, 0.0))], radar=[ret(corner, 0.0)])
+    assert np.hypot(*(tracks[0].position - centre)) < 0.1
+    assert tracks[0].speed_mps < 0.15
 
 
 def test_sensor_support_expires_when_a_sensor_stops_updating_the_track():
