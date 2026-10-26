@@ -371,3 +371,19 @@ def test_footprint_conflicts_cover_the_overhangs_not_a_disc():
     # the car throughout, no conflict (the check is not merely a wider disc).
     inside = axle + rot @ np.array([0.0, BODY.half_width_m + 1.15])
     assert first_footprint_conflict([predict(small_obstacle(4, inside), cfg)], arc, arc_times, BODY) is None
+
+
+def test_conflict_check_tests_moving_road_users_and_pedestrians_only():
+    """First live stack cut-in run (26 Oct): a car parked at the kerb beside the lane, which
+    the driver's corridor check cleared, held the car through its predicted box."""
+    from mapless.prediction import predict
+    from mapless.stack import conflict_candidates
+
+    cfg = PredictionConfig()
+    parked = ObjectTrack(1, 0.0, [12, -2.6, 0.0, 0.0], np.diag([0.05] * 4), {"car": 1.0}, TrackStatus.CONFIRMED, 20, 0, support=("lidar",), footprint=(4.5, 2.0, 0.0), travelled_m=0.0)
+    crossing = ObjectTrack(2, 0.0, [15, 4, 0.0, -1.2], np.diag([0.05] * 4), {"pedestrian": 1.0}, TrackStatus.CONFIRMED, 20, 0, support=("lidar",), travelled_m=2.0)
+    standing = ObjectTrack(3, 0.0, [15, 3, 0.0, 0.0], np.diag([0.05] * 4), {"pedestrian": 1.0}, TrackStatus.CONFIRMED, 20, 0, support=("lidar",), travelled_m=0.0)
+    lead = ObjectTrack(4, 0.0, [20, 0, 2.0, 0.0], np.diag([0.05] * 4), {"car": 1.0}, TrackStatus.CONFIRMED, 20, 0, support=("lidar",), travelled_m=5.0)
+    tracks = [parked, crossing, standing, lead]
+    preds = [predict(t, cfg) for t in tracks]
+    assert [p.track_id for p in conflict_candidates(tracks, preds, lead_id=4, config=cfg)] == [2, 3]

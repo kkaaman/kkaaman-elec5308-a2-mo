@@ -10,8 +10,10 @@ its sensors. The evaluator reads the actor's true box for the gates.
   tagged variant with a smaller trigger distance).
 - **M05 braking lead car** (``BrakingLeadCar``): a car ahead holds ``lead_mps`` and
   brakes at ``brake_mps2`` to a stop ``brake_at_m`` along the lane.
-- **M06 cut-in** (``CutInCar``): a car in the left lane, level with the ego, moves into
-  the ego's lane over ``cut_in_s`` and then holds ``lead_mps``.
+- **M06 cut-in** (``CutInCar``): a car in the left lane ahead holds ``approach_mps``
+  (slower than the ego) until the ego has closed to ``cut_gap_m`` behind it (actor
+  centre to ego rear axle, along the lane), then moves into the ego's lane over
+  ``cut_in_s`` while speeding up to ``lead_mps``.
 
 The actors are kept physically plausible: speeds and decelerations are what the
 vehicle blueprint can do, and a walker moves at a walking pace. Scenario parameters are
@@ -138,6 +140,11 @@ class ScenarioParams:
     brake_at_m: float = 45.0
     lead_start_m: float = 20.0
     cut_in_s: float = 4.0
+    # Cut-in: the first live run's car held lead_mps (faster than the ego) and waited for
+    # the ego to draw level, so it never cut in. It now approaches slower than the ego and
+    # cuts in once the ego has closed to cut_gap_m (about 8 m bumper to bumper).
+    approach_mps: float = 1.0
+    cut_gap_m: float = 14.0
 
     def record(self):
         return asdict(self)
@@ -233,11 +240,15 @@ class CutInCar(BrakingLeadCar):
 
     def step(self, tick, ego_truth):
         p = self.params
-        # Follow the left lane until the ego is level, then blend the target line into the ego lane.
+        # Hold the left lane at approach_mps until the ego has closed to cut_gap_m behind,
+        # then blend the target line into the ego lane and speed up to lead_mps.
         if self.cut_start is None and ego_truth is not None:
+            lane = np.array([self.core_xy(w.transform.location) for w in self.waypoints])
             x, y = self.core_xy(self.actor.get_transform().location)
             ex, ey = ego_truth["rear_axle_xy"]
-            if math.dist((x, y), (ex, ey)) <= 8.0:
+            s_actor = int(np.argmin(np.hypot(lane[:, 0] - x, lane[:, 1] - y)))
+            s_ego = int(np.argmin(np.hypot(lane[:, 0] - ex, lane[:, 1] - ey)))
+            if s_actor - s_ego <= p.cut_gap_m:
                 self.cut_start = tick
         blend = 1.0 if self.cut_start is None else min(1.0, (tick - self.cut_start) * 0.05 / p.cut_in_s)
         if self.cut_start is None:
@@ -256,8 +267,10 @@ class CutInCar(BrakingLeadCar):
         yaw = -math.radians(t.rotation.yaw)
         bearing = (math.atan2(ay - y, ax - x) - yaw + math.pi) % (2 * math.pi) - math.pi
         v = self.actor.get_velocity()
-        throttle = float(np.clip(0.35 + 0.3 * (p.lead_mps - math.hypot(v.x, v.y)), 0.0, 0.7))
-        self.actor.apply_control(carla.VehicleControl(throttle=throttle, steer=float(np.clip(-bearing / math.radians(35), -1, 1))))
+        speed, target = math.hypot(v.x, v.y), (p.approach_mps if self.cut_start is None else p.lead_mps)
+        throttle = float(np.clip(0.35 + 0.3 * (target - speed), 0.0, 0.7)) if speed < target + 0.3 else 0.0
+        brake = 0.0 if speed < target + 0.5 else 0.3
+        self.actor.apply_control(carla.VehicleControl(throttle=throttle, brake=brake, steer=float(np.clip(-bearing / math.radians(35), -1, 1))))
 
 
 class CrossingPedestrian(ScriptedActor):

@@ -118,6 +118,13 @@ def position_sigmas(covariance, times, heading_rad, process_noise_m2ps3=0.0, max
     return sigma_long, sigma_lat
 
 
+def is_moving(track, config=None):
+    """Whether a track's velocity is motion: above ``stationary_mps`` and corroborated by
+    ``min_displacement_m`` of travel since it was first seen (centroid jitter is not)."""
+    c = config or PredictionConfig()
+    return track.speed_mps > c.stationary_mps and (track.travelled_m is None or track.travelled_m >= c.min_displacement_m)
+
+
 def predict(track, config=None, lane_change=False):
     """A Prediction for one ObjectTrack."""
     if not isinstance(track, ObjectTrack):
@@ -125,8 +132,7 @@ def predict(track, config=None, lane_change=False):
     c = config or PredictionConfig()
     horizon = c.lane_change_horizon_s if lane_change else c.horizon_s
     times = np.arange(c.step_s, horizon + 1e-9, c.step_s)
-    speed = track.speed_mps
-    moving = speed > c.stationary_mps and (track.travelled_m is None or track.travelled_m >= c.min_displacement_m)
+    moving = is_moving(track, c)
     velocity = track.velocity if moving else np.zeros(2)
     centres = track.position[None, :] + times[:, None] * velocity[None, :]
     if track.footprint is not None:

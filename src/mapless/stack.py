@@ -49,7 +49,7 @@ from mapless.following import LEAD_STATUSES, FollowingConfig, FollowingControlle
 from mapless.frame import SensorFrame, SensorState
 from mapless.obstacles import project_onto_polyline
 from mapless.painting import PaintingConfig, SegmentedFrame, paint
-from mapless.prediction import PredictionConfig, first_footprint_conflict, predict_all
+from mapless.prediction import PredictionConfig, first_footprint_conflict, is_moving, predict_all
 from mapless.radar import RadarConfig, measure
 from mapless.road_model import RoadModelBuilder, RoadModelConfig
 from mapless.road_segmentation import RoadSegmenter, load_segmenter
@@ -304,10 +304,7 @@ class MaplessStack:
             s_now = float(project_onto_polyline(np.array([[pose.x_m, pose.y_m]]), xy)[0][0])
             times = (arcs - s_now) / speed
             # The car's whole oriented body along the path, not a disc about the rear axle.
-            # The lead is the following rule's (moving) or the obstacle stop's (stopped): a
-            # stationary car in the lane is always a "conflict" within the horizon, and the
-            # timing at cruise speed put that 6 m in front of the bumper.
-            others = [p for p in predictions if p.track_id != lead_id]
+            others = conflict_candidates(tracks, predictions, lead_id, c.prediction)
             hit = first_footprint_conflict(others, xy, times, self.driver.config.body)
             if hit is not None and hit[0] <= c.conflict_horizon_s:
                 cap, reason = 0.0, "predicted conflict on the path"
@@ -330,6 +327,29 @@ class MaplessStack:
 def predictable_tracks(tracks):
     """The tracks predicted onto the path: vouched for by the tracker and seen by the LiDAR."""
     return [tr for tr in tracks if tr.status in LEAD_STATUSES and "lidar" in tr.support]
+
+
+def conflict_candidates(tracks, predictions, lead_id, config):
+    """The predictions the conflict check tests: road users that may move into the path.
+
+    - The lead is the following rule's (moving) or the driver's obstacle stop's (stopped):
+      a stationary car in the lane is always a "conflict", and timing the path at cruise
+      speed put it 6 m in front of the bumper (first live stack stop run, 26 Oct).
+    - A stationary vehicle or object beside the lane is the static world, which the
+      driver's LiDAR corridor check clears with its own margins; its predicted box (extent,
+      0.3 m margin and 2 sigma) clipped the swept path past a car parked at the kerb and
+      held the car at a standstill (first live stack cut-in run, 26 Oct).
+    - A pedestrian is tested even when standing: a walker can step out from a standstill.
+    """
+    by_id = {t.track_id: t for t in tracks}
+    out = []
+    for p in predictions:
+        track = by_id.get(p.track_id)
+        if p.track_id == lead_id or track is None:
+            continue
+        if is_moving(track, config) or track.best_class == "pedestrian":
+            out.append(p)
+    return out
 
 
 def record_rows(records):
