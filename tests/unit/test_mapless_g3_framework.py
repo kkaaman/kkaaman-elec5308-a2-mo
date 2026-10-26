@@ -387,3 +387,30 @@ def test_conflict_check_tests_moving_road_users_and_pedestrians_only():
     tracks = [parked, crossing, standing, lead]
     preds = [predict(t, cfg) for t in tracks]
     assert [p.track_id for p in conflict_candidates(tracks, preds, lead_id=4, config=cfg)] == [2, 3]
+
+
+def test_crossing_walker_ahead_is_yielded_to_at_walking_pace():
+    """First live stack M04 (26 Oct): a walker crossing 12-16 m ahead cleared before the car
+    would have reached it, so the timed conflict check never fired and the car did not slow.
+    A vulnerable road user predicted anywhere on the path ahead is now yielded to."""
+    from mapless.prediction import first_occupied_arc, predict
+    from mapless.stack import StackConfig, crossing_yield_cap
+
+    c = StackConfig()
+    path = np.column_stack((np.arange(0.0, 40.0, 0.5), np.zeros(80)))
+    walker = ObjectTrack(1, 0.0, [18.0, -3.0, 0.0, 1.2], np.diag([0.05] * 4), {"unknown": 1.0}, TrackStatus.CONFIRMED, 20, 0, support=("lidar",), footprint=(0.6, 0.6, 0.0), travelled_m=1.5)
+    pred = predict(walker, c.prediction)
+    arc = first_occupied_arc([pred], path, BODY)
+    # Between the car and the walker: the front overhang reaches the walker's predicted
+    # region (which grows with its uncertainty over the 4 s horizon) before the walker.
+    assert arc is not None and 0.0 < arc < 18.0 - BODY.front_m
+    cap = crossing_yield_cap([walker], [pred], path, 0.0, BODY, 1.0, c)
+    assert cap == pytest.approx(c.yield_mps)  # far away: walking pace, not a stop
+    close = crossing_yield_cap([walker], [pred], path, arc - c.yield_margin_m, BODY, 1.0, c)
+    assert close == pytest.approx(0.0)  # at the margin: stop
+    # A car-sized track moving across (a cut-in) is the conflict check's, not a yield.
+    car = ObjectTrack(2, 0.0, [18.0, -3.0, 0.0, 1.2], np.diag([0.05] * 4), {"unknown": 1.0}, TrackStatus.CONFIRMED, 20, 0, support=("lidar",), footprint=(4.5, 1.9, 0.0), travelled_m=1.5)
+    assert crossing_yield_cap([car], [predict(car, c.prediction)], path, 0.0, BODY, 1.0, c) is None
+    # A walker standing on the pavement is not yielded to until it moves.
+    still = ObjectTrack(3, 0.0, [18.0, -4.5, 0.0, 0.0], np.diag([0.05] * 4), {"unknown": 1.0}, TrackStatus.CONFIRMED, 20, 0, support=("lidar",), footprint=(0.6, 0.6, 0.0), travelled_m=0.0)
+    assert crossing_yield_cap([still], [predict(still, c.prediction)], path, 0.0, BODY, 1.0, c) is None
