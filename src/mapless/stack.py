@@ -270,13 +270,25 @@ class MaplessStack:
         # Only tracks the tracker vouches for lead the car (a 3-point tentative cluster must not).
         leads = [tr for tr in self.tracker.live(tracks) if tr.status in LEAD_STATUSES]
         lead = self.following.lead_ahead(leads, pose, path_body, s_from_m=s_car)
+        lead_id = None
         if lead is not None:
             s, track = lead
+            lead_id = track.track_id
             gap = s - self.driver.config.body.front_m
             along = pose.to_body(np.array([track.position + track.velocity]))[0] - pose.to_body(track.position[None])[0]
-            cap = self.following.target_speed(self.driver.config.planner.cruise_mps, motion.speed_mps, gap, float(along[0]), self.driver.dt_s)
-            reason = "lead at a standstill" if cap is not None and cap <= 0.0 else "following the lead"
-            self._lead = dict(track_id=track.track_id, gap_m=round(float(gap), 2), speed_mps=round(float(along[0]), 2), support=list(track.support), status=track.status.name)
+            lead_speed = float(along[0])
+            self._lead = dict(track_id=track.track_id, gap_m=round(float(gap), 2), speed_mps=round(lead_speed, 2), support=list(track.support), status=track.status.name)
+            if lead_speed > c.prediction.stationary_mps:
+                cap = self.following.target_speed(self.driver.config.planner.cruise_mps, motion.speed_mps, gap, lead_speed, self.driver.dt_s)
+                reason = "lead at a standstill" if cap is not None and cap <= 0.0 else "following the lead"
+            else:
+                # A lead at a standstill is an obstacle in the lane: the driver's own LiDAR
+                # obstacle stop (stop point 2.5 m short, then a held brake released only on
+                # observed clearance) is the measured behaviour for it. A second stop rule
+                # here stopped the car 4 m earlier, short of the driver's stop point, so the
+                # driver never reached its hold (first live stack stop run, 26 Oct).
+                self.following.reset()
+                reason = "stationary lead: the obstacle stop's"
         else:
             self.following.reset()
         if predictions and plan is not None and plan.trajectory is not None:
@@ -292,7 +304,11 @@ class MaplessStack:
             s_now = float(project_onto_polyline(np.array([[pose.x_m, pose.y_m]]), xy)[0][0])
             times = (arcs - s_now) / speed
             # The car's whole oriented body along the path, not a disc about the rear axle.
-            hit = first_footprint_conflict(predictions, xy, times, self.driver.config.body)
+            # The lead is the following rule's (moving) or the obstacle stop's (stopped): a
+            # stationary car in the lane is always a "conflict" within the horizon, and the
+            # timing at cruise speed put that 6 m in front of the bumper.
+            others = [p for p in predictions if p.track_id != lead_id]
+            hit = first_footprint_conflict(others, xy, times, self.driver.config.body)
             if hit is not None and hit[0] <= c.conflict_horizon_s:
                 cap, reason = 0.0, "predicted conflict on the path"
         return cap, reason
