@@ -37,6 +37,7 @@ detector are swapped in by configuration once trained/benchmarked (G2), and the 
 admission is an experiment (G3).
 """
 
+import math
 import time
 from dataclasses import dataclass, field
 
@@ -49,7 +50,13 @@ from mapless.following import LEAD_STATUSES, FollowingConfig, FollowingControlle
 from mapless.frame import SensorFrame, SensorState
 from mapless.obstacles import project_onto_polyline
 from mapless.painting import PaintingConfig, SegmentedFrame, paint
-from mapless.prediction import PredictionConfig, first_footprint_conflict, is_moving, predict_all
+from mapless.prediction import (
+    PredictionConfig,
+    first_footprint_conflict,
+    first_occupied_arc,
+    is_moving,
+    predict_all,
+)
 from mapless.radar import RadarConfig, measure
 from mapless.road_model import RoadModelBuilder, RoadModelConfig
 from mapless.road_segmentation import RoadSegmenter, load_segmenter
@@ -87,6 +94,13 @@ class StackConfig:
     prediction: PredictionConfig = field(default_factory=PredictionConfig)
     following: FollowingConfig = field(default_factory=FollowingConfig)
     conflict_horizon_s: float = 3.0
+    # Yield to a vulnerable road user crossing the path ahead (M04): while one is predicted
+    # on the path, at walking pace at most, and stopping yield_margin_m short of where it
+    # is predicted. "Vulnerable" is the pedestrian/bike class, or, without a detector, a
+    # LiDAR footprint no larger than vulnerable_max_m.
+    yield_mps: float = 0.8
+    yield_margin_m: float = 2.0
+    vulnerable_max_m: float = 2.0
     road_model_every: int = 4  # build the road model every this many ticks (5 Hz at 0.05 s; it is a slow product)
     segment_every: int = 2
 
@@ -281,6 +295,13 @@ class MaplessStack:
             if lead_speed > c.prediction.stationary_mps:
                 cap = self.following.target_speed(self.driver.config.planner.cruise_mps, motion.speed_mps, gap, lead_speed, self.driver.dt_s)
                 reason = "lead at a standstill" if cap is not None and cap <= 0.0 else "following the lead"
+            elif is_moving(track, c.prediction):
+                # In the lane but moving across it (a crossing walker reads ~0 m/s along the
+                # path): not a lead to follow or to leave to the obstacle stop; the
+                # conflict and yield checks below handle it (first live stack M04, 26 Oct).
+                self.following.reset()
+                lead_id = None
+                self._lead["crossing"] = True
             else:
                 # A lead at a standstill is an obstacle in the lane: the driver's own LiDAR
                 # obstacle stop (stop point 2.5 m short, then a held brake released only on
@@ -308,6 +329,10 @@ class MaplessStack:
             hit = first_footprint_conflict(others, xy, times, self.driver.config.body)
             if hit is not None and hit[0] <= c.conflict_horizon_s:
                 cap, reason = 0.0, "predicted conflict on the path"
+            else:
+                yield_cap = crossing_yield_cap(tracks, others, xy, s_now, self.driver.config.body, self.driver.config.planner.decel_mps2, c)
+                if yield_cap is not None and (cap is None or yield_cap < cap):
+                    cap, reason = yield_cap, "yielding to a road user crossing the path"
         return cap, reason
 
     def reset_spatial(self):
@@ -350,6 +375,35 @@ def conflict_candidates(tracks, predictions, lead_id, config):
         if is_moving(track, config) or track.best_class == "pedestrian":
             out.append(p)
     return out
+
+
+def is_vulnerable(track, config):
+    """A pedestrian or bike by class, or, without a class, a LiDAR footprint no larger
+    than ``vulnerable_max_m`` (the walker's cluster is well under a metre)."""
+    if track.best_class in ("pedestrian", "bike"):
+        return True
+    if track.best_class in ("car", "truck"):
+        return False
+    return track.footprint is not None and max(track.footprint[0], track.footprint[1]) <= config.vulnerable_max_m
+
+
+def crossing_yield_cap(tracks, candidates, path_xy, s_now, body, decel_mps2, config):
+    """The speed cap for yielding to vulnerable road users predicted on the path ahead:
+    walking pace, and a stop ``yield_margin_m`` short of the first place the path is
+    predicted occupied; None when nothing is to be yielded to.
+
+    The conflict check asks whether the car meets a road user within its horizon; at
+    2 m/s a walker crossing 15 m ahead has cleared before the car arrives, so the car
+    never slowed (first live stack M04, 26 Oct). A crossing pedestrian ahead in the
+    path is yielded to wherever it is, as a driver would.
+    """
+    by_id = {t.track_id: t for t in tracks}
+    vulnerable = [p for p in candidates if (t := by_id.get(p.track_id)) is not None and is_moving(t, config.prediction) and is_vulnerable(t, config)]
+    arc = first_occupied_arc(vulnerable, path_xy, body, from_arc_m=s_now)
+    if arc is None:
+        return None
+    room = max(0.0, arc - s_now - config.yield_margin_m)
+    return min(config.yield_mps, math.sqrt(2.0 * decel_mps2 * room))
 
 
 def record_rows(records):

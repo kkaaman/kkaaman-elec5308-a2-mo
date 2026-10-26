@@ -220,6 +220,33 @@ def path_headings(path_xy):
     return np.append(headings, headings[-1])
 
 
+def first_occupied_arc(predictions, path_xy, body, from_arc_m=0.0, step_m=0.5):
+    """The smallest arc length along ``path_xy`` (from its first sample, at or beyond
+    ``from_arc_m``) at which the car's oriented footprint, its rear axle on the path,
+    overlaps any step of any prediction, whenever that step falls; or None.
+
+    Timing is ignored on purpose: this answers "where does the path stop being free while
+    this road user is predicted on it", for yielding, not "when would the car meet it".
+    """
+    path = np.asarray(path_xy, dtype=float).reshape(-1, 2)
+    if len(path) < 2 or not predictions:
+        return None
+    seg = np.hypot(*np.diff(path, axis=0).T)
+    arcs = np.concatenate(([0.0], np.cumsum(seg)))
+    stations = np.arange(max(0.0, from_arc_m), arcs[-1] + 1e-9, step_m)
+    if not len(stations):
+        return None
+    xs, ys = np.interp(stations, arcs, path[:, 0]), np.interp(stations, arcs, path[:, 1])
+    heads = path_headings(path)
+    idx = np.clip(np.searchsorted(arcs, stations, side="right") - 1, 0, len(path) - 1)
+    boxes = [box_corners(o, h, body.rear_m, body.front_m, body.half_width_m) for o, h in zip(zip(xs, ys), heads[idx])]
+    regions = [box_corners(p.centres[k], p.heading_rad, -p.half_extents[k][0], p.half_extents[k][0], p.half_extents[k][1]) for p in predictions for k in range(len(p.times_s))]
+    for station, car in zip(stations, boxes):
+        if any(boxes_overlap(car, r) for r in regions):
+            return float(station)
+    return None
+
+
 def pose_at(path, times, headings, t):
     """(x, y, yaw) on the path at time ``t`` (clamped to the path's span)."""
     if t <= times[0]:
