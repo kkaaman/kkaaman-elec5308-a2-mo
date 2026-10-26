@@ -56,8 +56,11 @@ in ``sweeps/`` (``npz``: xyz, cls), so a calibration can be replayed offline.
 """
 
 import argparse
+import dataclasses
+import hashlib
 import json
 import math
+import sys
 import time
 import uuid
 from pathlib import Path
@@ -65,6 +68,7 @@ from pathlib import Path
 import numpy as np
 
 from carla_adapter.frame_record import FrameRecorder
+from carla_adapter.mapless_capture import source_commit
 from carla_adapter.mapless_scenarios import SCENARIOS as ACTOR_SCENARIOS
 from carla_adapter.mapless_scenarios import make_scenario, score_completion, score_moving
 from carla_adapter.sensor_rig import SensorRig, true_forward_speed
@@ -222,6 +226,14 @@ def find_sites(carla, carla_map, scenario, length_m, junction_clearance_m=8.0, s
     longest.sort(reverse=True)
     census["longest_rightmost_runs_m"] = [dict(length_m=n, road_id=r, lane_id=lane) for n, r, lane in longest[:5]]
     return sites, census
+
+
+def _file_sha256(path):
+    digest = hashlib.sha256()
+    with open(path, "rb") as handle:
+        for chunk in iter(lambda: handle.read(1 << 20), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def make_route(carla_map, waypoints, goal_m, spacing_m=25.0, name="g1b"):
@@ -790,7 +802,13 @@ class MaplessDrive:
             if args.stack:
                 stack_config = StackConfig(admission=Admission.preset(args.admission), segmenter=args.segmenter, detector=args.detector)
                 driver = MaplessStack(self.suite, self.route, config, stack_config, DT_S)
-                self.report["stack"] = dict(admission=args.admission, segmenter=args.segmenter or "constant", detector=args.detector or "none")
+                self.report["stack"] = dict(
+                    admission=args.admission,
+                    segmenter=args.segmenter or "constant",
+                    segmenter_sha256=_file_sha256(args.segmenter) if args.segmenter not in (None, "constant") else None,
+                    detector=args.detector or "none",
+                    stack_config_sha256=hashlib.sha256(json.dumps(dataclasses.asdict(stack_config), sort_keys=True, default=str).encode()).hexdigest(),
+                )
             else:
                 driver = MaplessDriver(self.suite, self.route, config, DT_S)
             start_time = None
@@ -1104,6 +1122,10 @@ def main(argv=None, stack=False):
         map=world.get_map().name,
         suite_name=configured.name,
         suite_sha256=suite.sha256,
+        # The code and the args that produced this result (review of 405b056: record the
+        # commit, configuration and checkpoint with every run).
+        source_commit=source_commit(),
+        argv=list(argv) if argv is not None else sys.argv[1:],
         overrides=parse_overrides(args.set),
         noise="disabled" if args.no_noise else "as configured",
         status="INCOMPLETE",

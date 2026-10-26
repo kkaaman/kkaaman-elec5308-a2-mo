@@ -73,6 +73,9 @@ class TrackerConfig:
     # speed once at least motion_min_span_s of history exists (ObjectTrack.recent_speed_mps).
     motion_window_s: float = 1.0
     motion_min_span_s: float = 0.5
+    # A sensor supports a track while it has updated it within this time; one LiDAR hit
+    # long ago no longer makes a radar-held track "LiDAR-supported" (review of 405b056).
+    support_max_age_s: float = 0.5
 
     def __post_init__(self):
         if self.confirm_hits > self.confirm_window or self.coast_s >= self.delete_s:
@@ -95,6 +98,7 @@ class _Track:
     confirmed: bool = False
     origin: np.ndarray | None = None  # first measured position (odometry frame)
     trail: deque = field(default_factory=lambda: deque(maxlen=64))  # (time, x, y) after each update
+    seen: dict = field(default_factory=dict)  # sensor -> last time it updated the track
 
 
 def _recent_speed(trail, min_span_s):
@@ -306,6 +310,7 @@ class Tracker:
             track.hits += 1
             track.last_hit_s = time_s
         track.support = tuple(sorted(set(track.support) | {sensor}))
+        track.seen[sensor] = time_s
 
     def _spawn(self, xy_odo, sigma_m, probabilities, time_s, sensor):
         c = self.config
@@ -316,6 +321,7 @@ class Tracker:
         track.history = deque(maxlen=c.confirm_window)
         track.hits = 1
         track.support = (sensor,)
+        track.seen = {sensor: time_s}
         self.tracks[tid] = track
         return tid
 
@@ -345,7 +351,7 @@ class Tracker:
                     status=status,
                     hits=t.hits,
                     misses=t.misses,
-                    support=t.support,
+                    support=tuple(sorted(k for k, when in t.seen.items() if (self._time or t.time_s) - when <= c.support_max_age_s + 1e-9)) if t.seen else t.support,
                     footprint=t.footprint,
                     travelled_m=None if t.origin is None else float(np.hypot(*(t.x[:2] - t.origin))),
                     recent_speed_mps=_recent_speed(t.trail, c.motion_min_span_s),

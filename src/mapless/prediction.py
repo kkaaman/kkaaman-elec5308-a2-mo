@@ -67,16 +67,18 @@ class PredictionConfig:
     # region at 3 s and stopped the car 26 m short of a parked car (fresh-eyes review of
     # 58adaf3). The velocity uncertainty counted here is bounded by what road users do.
     max_velocity_sigma_mps: float = 1.5
-    # Velocity uncertainty counts only once the filter has settled on a velocity (sigma
-    # below this): before that the measured velocity stands on its own — an unsettled
-    # filter is not evidence of motion, and motion shows in the estimate within a few
-    # ticks. A settled track measured stationary is predicted stationary: on the first
-    # live stack run every roadside cluster (parked cars, poles) became a region metres
-    # wide over the horizon and held the car at the start line. The process noise is not
-    # charged to a stationary track either (second live stack run, 25 Oct: the kerb
-    # cluster 4.8 m to the right grew a 6 m wide region at 3.6 s and capped the speed to
-    # zero at the start line).
-    settled_velocity_sigma_mps: float = 1.0
+    # Motion states (external review of 405b056: too little evidence of motion is not
+    # evidence of standing still). STATIC: a recent mean speed (net displacement over the
+    # last second, once half a second exists) below static_max_speed_mps; predicted where
+    # it stands, with no velocity or process noise (a kerb or parked car does not drift;
+    # first and second live stack runs, 25 Oct). MOVING: corroborated motion (is_moving);
+    # predicted along its velocity with velocity uncertainty capped at
+    # max_velocity_sigma_mps. UNCERTAIN: everything else (newly seen, slow, turning back);
+    # predicted where it stands, with velocity uncertainty capped at
+    # uncertain_velocity_sigma_mps (walking pace) and the process noise. Capping, never
+    # dropping, keeps the envelope from shrinking as the filter grows less certain.
+    static_max_speed_mps: float = 0.3
+    uncertain_velocity_sigma_mps: float = 1.0
 
     def __post_init__(self):
         if self.step_s <= 0 or self.horizon_s < self.step_s or self.lane_change_horizon_s < self.horizon_s:
@@ -85,19 +87,15 @@ class PredictionConfig:
             raise ValueError("PredictionConfig: non-negative process_noise_m2ps3 and uncertainty_sigmas")
 
 
-def position_sigmas(covariance, times, heading_rad, process_noise_m2ps3=0.0, max_velocity_sigma_mps=None, settled_velocity_sigma_mps=None, stationary=False):
+def position_sigmas(covariance, times, heading_rad, process_noise_m2ps3=0.0, max_velocity_sigma_mps=None, stationary=False):
     """(sigma_longitudinal, sigma_lateral) at each of ``times`` for a 4x4 ``[x, y, vx, vy]``
     covariance, in the frame of ``heading_rad``.
 
     ``P_pos(t) = P_pp + t (P_pv + P_vp) + t^2 P_vv + (q t^3 / 3) I``, rotated by -heading.
     The velocity block (and its cross terms, in proportion) is scaled down so that no
-    velocity sigma exceeds ``max_velocity_sigma_mps``; it is dropped altogether while the
-    filter has not settled (largest velocity sigma above ``settled_velocity_sigma_mps``)
-    or for a ``stationary`` track: an unsettled filter is not evidence that a parked car
-    may do 5 m/s, and a settled stationary one is not about to. The process noise (the
-    unmodelled acceleration a moving road user may apply) is likewise not charged to a
-    stationary track: a kerb or a parked car does not drift 1.3 m in 3.6 s, and the
-    tracker shows any start within a few ticks.
+    velocity sigma exceeds ``max_velocity_sigma_mps``: capped, never dropped, so a less
+    certain estimate never gives a smaller envelope. A ``stationary`` track carries no
+    velocity uncertainty and no process noise.
     """
     P = np.asarray(covariance, dtype=float)
     t = np.asarray(times, dtype=float)
@@ -105,8 +103,6 @@ def position_sigmas(covariance, times, heading_rad, process_noise_m2ps3=0.0, max
     largest = math.sqrt(max(float(np.linalg.eigvalsh(P_vv).max()), 0.0))
     if stationary:
         P_vv, P_pv, process_noise_m2ps3 = np.zeros((2, 2)), np.zeros((2, 2)), 0.0
-    elif settled_velocity_sigma_mps is not None and largest > settled_velocity_sigma_mps:
-        P_vv, P_pv = np.zeros((2, 2)), np.zeros((2, 2))
     elif max_velocity_sigma_mps is not None and largest > max_velocity_sigma_mps:
         scale = max_velocity_sigma_mps / largest
         P_vv = P_vv * scale**2
@@ -130,10 +126,21 @@ def decided_class(track, min_probability=0.5):
     return best if track.class_probabilities.get(best, 0.0) >= min_probability else None
 
 
+def motion_state(track, config=None):
+    """"static", "moving" or "uncertain" (see PredictionConfig)."""
+    c = config or PredictionConfig()
+    if is_moving(track, c):
+        return "moving"
+    if track.recent_speed_mps is not None and track.recent_speed_mps < c.static_max_speed_mps:
+        return "static"
+    return "uncertain"
+
+
 def is_moving(track, config=None):
     """Whether a track's velocity is motion: above ``stationary_mps`` and corroborated by
-    ``min_displacement_m`` of travel since it was first seen and, once a second of history
-    exists, ``min_recent_speed_mps`` of sustained recent motion (centroid drift is not)."""
+    ``min_displacement_m`` of net displacement since it was first seen and, once half a
+    second of history exists, ``min_recent_speed_mps`` of sustained recent motion
+    (centroid drift is not)."""
     c = config or PredictionConfig()
     return (
         track.speed_mps > c.stationary_mps
@@ -149,7 +156,8 @@ def predict(track, config=None, lane_change=False):
     c = config or PredictionConfig()
     horizon = c.lane_change_horizon_s if lane_change else c.horizon_s
     times = np.arange(c.step_s, horizon + 1e-9, c.step_s)
-    moving = is_moving(track, c)
+    state = motion_state(track, c)
+    moving = state == "moving"
     velocity = track.velocity if moving else np.zeros(2)
     centres = track.position[None, :] + times[:, None] * velocity[None, :]
     if track.footprint is not None:
@@ -158,9 +166,8 @@ def predict(track, config=None, lane_change=False):
     else:
         length, width = DEFAULT_SIZE[decided_class(track) or "unknown"]
         heading = math.atan2(*track.velocity[::-1]) if moving else 0.0
-    sigma_long, sigma_lat = position_sigmas(
-        track.covariance, times, heading, c.process_noise_m2ps3, c.max_velocity_sigma_mps, c.settled_velocity_sigma_mps, stationary=not moving
-    )
+    cap = c.max_velocity_sigma_mps if moving else c.uncertain_velocity_sigma_mps
+    sigma_long, sigma_lat = position_sigmas(track.covariance, times, heading, c.process_noise_m2ps3, cap, stationary=state == "static")
     inflate = c.uncertainty_sigmas
     half_length = length / 2 + c.margin_m + inflate * sigma_long
     half_width = width / 2 + c.margin_m + inflate * sigma_lat

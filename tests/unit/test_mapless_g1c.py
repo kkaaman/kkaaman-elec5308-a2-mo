@@ -128,7 +128,11 @@ def test_route_without_a_real_junction_holds_before_the_entry():
     route = SatNavRoute("fake", (point(15.0, 1.75, Command.LANEFOLLOW), point(56.5, 1.75, Command.RIGHT), point(60.0, -5.0, Command.LANEFOLLOW), point(60.0, -30.0, Command.LANEFOLLOW)))
     log = drive(world, route, seconds=45)
     truth, last = log[-1]
-    assert truth.speed_mps == 0 and truth.s_m < 56.5 - BODY.front_m
+    # Held before the entry: stopped to within numerical noise, and no creep over the last
+    # 10 s (external review of 405b056: exact zero failed at 1.2e-5 m/s on another machine).
+    assert truth.speed_mps < 1e-3 and truth.s_m < 56.5 - BODY.front_m
+    held = [t.s_m for t, _ in log if t.time_s >= log[-1][0].time_s - 10.0]
+    assert max(held) - min(held) < 0.05
     assert any(s.diagnostics.get("turn") == "junction not confirmed by the kerb" for _, s in log)
     assert not any(s.mode is DriveMode.TURNING for _, s in log)
 

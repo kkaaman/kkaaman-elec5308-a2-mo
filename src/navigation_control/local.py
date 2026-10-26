@@ -94,6 +94,7 @@ class LocalControlConfig:
     # are coasting, not braking (see tracking).
     brake_deadband: float = 0.3
     coast_below_mps: float = 1.5
+    coast_max_excess_mps: float = 0.3  # a larger excess over the target is braked off
 
     def __post_init__(self):
         if not isinstance(self.controller, ControllerConfig):
@@ -103,6 +104,7 @@ class LocalControlConfig:
         nonnegative("speed_lookahead_m", self.speed_lookahead_m)
         nonnegative("brake_deadband", self.brake_deadband)
         nonnegative("coast_below_mps", self.coast_below_mps)
+        nonnegative("coast_max_excess_mps", self.coast_max_excess_mps)
         if self.brake_deadband >= 1:
             raise ValueError("brake_deadband must be below 1")
 
@@ -237,11 +239,13 @@ class LocalTrajectoryController:
             effort = self._speed.update(state.speed_mps, target_speed, dt_s)
             brake = max(0.0, -effort)
             if (c.stopped_speed_mps < state.speed_mps < self.config.coast_below_mps
-                    and target_speed > c.stopped_speed_mps and brake < self.config.brake_deadband):
+                    and target_speed > c.stopped_speed_mps and brake < self.config.brake_deadband
+                    and state.speed_mps - target_speed <= self.config.coast_max_excess_mps):
                 # A trace of brake on a slowly moving car stops it dead in the simulator
                 # (the tyres stick below walking pace): a speed excess at walking pace is
                 # shed by coasting, not by the pads, unless the target is a stop or the
-                # excess is large. The first full live stack run sawtoothed between 0 and
+                # excess is more than coast_max_excess_mps (a yield from 1.4 to 0.8 m/s is
+                # braked; external review of 405b056). The first full live stack run sawtoothed between 0 and
                 # 1 m/s on brake commands of 0.006.
                 brake = 0.0
             command = ControlCommand(angle, max(0.0, effort), brake)

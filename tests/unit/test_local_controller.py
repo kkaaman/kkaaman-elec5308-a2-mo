@@ -211,3 +211,14 @@ def test_a_small_speed_excess_is_shed_by_coasting_not_a_trace_of_brake():
     # A commanded stop still brakes, whatever the effort.
     out = controller.update(car.state(), 2.0, DT, speed_limit_mps=0.0)
     assert out.command.brake > 0.0
+
+
+def test_a_large_excess_at_low_speed_is_braked_not_coasted():
+    """External review of 405b056: the coasting rule also covered a yield from 1.4 to
+    0.8 m/s. Only an excess up to coast_max_excess_mps is coasted; more is braked."""
+    controller = LocalTrajectoryController(LOCAL)
+    car = Car()
+    car.speed = 1.4
+    controller.set_local_trajectory(window(car, 0.0), car.state(), 0.0)
+    out = controller.update(car.state(), 0.0, DT, speed_limit_mps=0.8)
+    assert out.command.brake > 0.0 and out.command.throttle == 0.0
