@@ -6,6 +6,14 @@
   is not dropped. Each cluster is a ``LidarMeasurement`` (centre, extent, point count)
   for the tracker, class unknown: this is the unclassified-obstacle channel, which
   works without any detector.
+- **Objects, not scenery.** Single linkage chains: on a Town05 grade (26 Oct) both kerb
+  railings and the road rising ahead and behind joined into one 63 x 26 m cluster whose
+  mean sat 2.8 m ahead of the bumper, tracked as a 12 x 12 m "vehicle" the car followed
+  at a negative gap. A cluster larger than any road user (``max_object_length_m`` by
+  ``max_object_width_m`` in plan) is re-clustered at a tight link; the object-sized
+  pieces (a car beside a railing) are measured as usual, and what is still too big, or
+  a thin line of it, is *structure*: never a track, still OBSTACLE points, so the driver's LiDAR obstacle stop
+  and the corridor still see it.
 - **Boxes.** A ``Detector`` returns image boxes with a class and confidence per camera
   (``YoloDetector`` wraps the A1 ``perception.object_detection.ObjectDetector``;
   ``NoDetector`` returns nothing). Each box is given its *foreground* cluster: of the
@@ -40,6 +48,16 @@ class DetectionsConfig:
     link_per_m: float = 0.03  # ... growing this much per metre of range
     min_points: int = 3
     max_cluster_m: float = 12.0  # the reported extent is clamped to this (a wall, a row of cars)
+    # Plan-view size of the largest road user (a bus is 12 m; an L-shaped view of a car or
+    # bus at an angle stays under 4 m across its long axis). Larger clusters are split.
+    max_object_length_m: float = 12.0
+    max_object_width_m: float = 4.0
+    split_link_m: float = 0.3  # the tight link an oversized cluster is re-clustered with
+    split_link_per_m: float = 0.01
+    # A piece of a split cluster narrower than this is a stretch of the structure (a
+    # railing, a wall's scan line), not a road user beside it: 4.9 m x 0.3 m pieces of the
+    # Town05 railings slid along at up to 11 m/s and were predicted into the path.
+    split_min_width_m: float = 0.5
     box_cover: float = 0.3  # a cluster must cover this share of the box's width to be its foreground
     class_confidence_floor: float = 0.1  # mass kept on the other classes
 
@@ -164,6 +182,47 @@ def cluster_obstacles(sweep, config=None):
     order = np.argsort(labels, kind="stable")
     groups = np.split(order, np.flatnonzero(np.diff(labels[order])) + 1)
     return [idx[np.sort(g)] for g in groups if len(g) >= c.min_points]
+
+
+def plan_extent(xy):
+    """(length, width) of points in plan, along and across their principal axis."""
+    if len(xy) < 2:
+        return 0.0, 0.0
+    centred = xy - xy.mean(axis=0)
+    _, _, vt = np.linalg.svd(centred, full_matrices=False)
+    return float(np.ptp(centred @ vt[0])), float(np.ptp(centred @ vt[1]))
+
+
+def oversized(xy, config):
+    length, width = plan_extent(xy)
+    return length > config.max_object_length_m or width > config.max_object_width_m
+
+
+def split_oversized(sweep, clusters, config=None):
+    """``(objects, structures)``: clusters no larger than a road user, and the rest.
+
+    An oversized cluster is re-clustered at the tight link; its object-sized pieces join
+    ``objects`` and what is still oversized, or a line narrower than
+    ``split_min_width_m``, goes to ``structures`` (index arrays both). Pieces under
+    ``min_points`` are dropped, as in ``cluster_obstacles``.
+    """
+    c = config or DetectionsConfig()
+    objects, structures = [], []
+    for members in clusters:
+        xy = sweep.xyz[members, :2].astype(float)
+        if not oversized(xy, c):
+            objects.append(members)
+            continue
+        link = c.split_link_m + c.split_link_per_m * np.hypot(xy[:, 0], xy[:, 1])
+        labels = _components(len(members), *_link_pairs(xy, link))
+        order = np.argsort(labels, kind="stable")
+        for g in np.split(order, np.flatnonzero(np.diff(labels[order])) + 1):
+            if len(g) < c.min_points:
+                continue
+            piece_xy = xy[np.sort(g)]
+            line = plan_extent(piece_xy)[1] < c.split_min_width_m
+            (structures if line or oversized(piece_xy, c) else objects).append(members[np.sort(g)])
+    return objects, structures
 
 
 def cluster_measurement(sweep, members, class_probs=None, config=None):

@@ -412,7 +412,14 @@ class HoldingVehicleAdapter(FixedVehicleAdapter):
         pose = self.vehicle.get_transform()
         velocity = self.vehicle.get_velocity()
         if abs(pose.rotation.pitch) > 5 or abs(pose.rotation.roll) > 5:
-            raise ValueError("Vehicle tilt exceeds planar adapter scope")
+            # Where and how much (external review, 26 Oct: two runs ended at the same spot
+            # and the report could not say whether it was pitch or roll).
+            loc = pose.location
+            raise ValueError(
+                "Vehicle tilt exceeds planar adapter scope: "
+                f"pitch {pose.rotation.pitch:+.1f} deg, roll {pose.rotation.roll:+.1f} deg "
+                f"at ({loc.x:.2f}, {loc.y:.2f}, {loc.z:.2f}), {math.hypot(velocity.x, velocity.y):.2f} m/s"
+            )
         yaw = math.radians(pose.rotation.yaw)
         if velocity.x * math.cos(yaw) + velocity.y * math.sin(yaw) < -0.05:
             self.roll_back_ticks += 1
@@ -1134,11 +1141,16 @@ def main(argv=None, stack=False):
         # commit, configuration and checkpoint with every run).
         source_commit=source_commit(),
         argv=list(argv) if argv is not None else sys.argv[1:],
+        source_root=str(Path(__file__).resolve().parents[2]),  # the checkout actually imported
         overrides=parse_overrides(args.set),
         noise="disabled" if args.no_noise else "as configured",
         status="INCOMPLETE",
         checks=[],
     )
+    # On the console before anything else: which map the server is on (it keeps the last
+    # one loaded) and which code is running (26 Oct: PC 2's runs were on Town05, and runs
+    # started the minute a fix was pushed could not show whether they had it).
+    print(f"map {report['map']}  code {report['source_commit'] or 'unknown commit'} at {report['source_root']}", flush=True)
     try:
         with SynchronousWorldSession(client, WorldTiming(fixed_delta_seconds=DT_S)) as owner:
             MaplessDrive(carla, owner, suite, args, report).run()

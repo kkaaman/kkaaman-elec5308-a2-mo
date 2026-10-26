@@ -44,7 +44,15 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from mapless.contracts import DecisionRecord
-from mapless.detections import DetectionsConfig, Detector, NoDetector, cluster_obstacles, join
+from mapless.detections import (
+    DetectionsConfig,
+    Detector,
+    NoDetector,
+    cluster_obstacles,
+    join,
+    plan_extent,
+    split_oversized,
+)
 from mapless.driver import DriveMode, MaplessDriver
 from mapless.following import LEAD_STATUSES, FollowingConfig, FollowingController
 from mapless.frame import SensorFrame, SensorState
@@ -112,6 +120,11 @@ class StackConfig:
     vru_reach_m: float = 2.0
     approach_min_mps: float = 0.3
     vehicle_min_m: float = 3.0  # a footprint this long (or a decided car/truck) is a vehicle
+    # The lead's body beyond its rear face: other tracks there are pieces of it (a car's
+    # LiDAR returns split into several clusters), not road users that can conflict.
+    lead_body_m: float = 5.0  # for a lead as wide as a car's rear (or a vehicle)
+    lead_body_min_width_m: float = 1.2
+    lead_body_margin_m: float = 0.5  # beyond its half-width (at least that of a car, 0.9 m)
     # The yield is for road users crossing the path: moving across it at approach_min_mps
     # or more (a car driving ahead in the lane, its rear face under 2 m across, is a lead),
     # no faster than a pedestrian or cyclist (vru_max_speed_mps), and qualifying for
@@ -159,6 +172,7 @@ class MaplessStack:
         self._cap_reason = ""  # what produced the cap the driver plans the next command under
         self._lead = None  # the lead behind the last cap, for the log
         self._cause = None  # the track behind a conflict or yield cap, for the log
+        self._structures = []  # clusters too big for a road user, this tick, for the log
         self._yield_since = {}  # track id -> first time it qualified for a yield
         self.records = []
 
@@ -195,6 +209,7 @@ class MaplessStack:
         tracks, predictions = (), ()
         cap, cap_reason = None, ""
         self._lead = self._cause = None
+        self._structures = []
         coverage = {s.name: s.state.value for s in frame.status}
         # -- local frame rebuild -----------------------------------------------------------
         rebuilt = bool(step.diagnostics.get("frame_rebuilt"))
@@ -227,7 +242,13 @@ class MaplessStack:
             timing["paint"] = (time.perf_counter() - begun) * 1000
             # -- detect, cluster, join -------------------------------------------------------
             begun = time.perf_counter()
-            clusters = cluster_obstacles(sweep, c.detections)
+            # Scenery chained into one cluster is structure, not a road user: never tracked
+            # (it stays OBSTACLE points for the driver's LiDAR stop and the corridor).
+            clusters, structures = split_oversized(sweep, cluster_obstacles(sweep, c.detections), c.detections)
+            self._structures = sorted(
+                (tuple(round(float(v), 1) for v in (*sweep.xyz[m, :2].mean(axis=0), *plan_extent(sweep.xyz[m, :2]))) + (len(m),) for m in structures),
+                key=lambda item: -item[-1],
+            )
             boxes = {im.name: self.detector.detect(im) for im in cameras} if cameras else {}
             measurements, camera_only = join(sweep, clusters, cameras, boxes, c.detections, c.painting)
             timing["detect"] = (time.perf_counter() - begun) * 1000
@@ -288,6 +309,8 @@ class MaplessStack:
         diagnostics = dict(
             step.diagnostics,
             tracks=len(tracks),
+            # (x, y, length, width, points) of the largest clusters too big for a road user.
+            structures=self._structures[:3],
             speed_cap_mps=cap_applied,
             speed_cap_next_mps=cap,
             speed_cap_reason=cap_reason,  # logged every tick: a hold at a standstill never reaches the veto
@@ -325,7 +348,7 @@ class MaplessStack:
             vehicle = is_vehicle(track, c)
             # Motion along and across the path at the lead, not the car's own axis (review
             # of 405b056), and the gap to the lead's rear, not its centre.
-            tangent = _path_heading_at(path_body, s)
+            tangent = _path_heading_at(path_body, s + s_car)  # ``s`` is from the car; the line starts behind it
             v_body = pose.to_body(np.array([track.position + track.velocity]))[0] - pose.to_body(track.position[None])[0]
             along = float(v_body[0] * math.cos(tangent) + v_body[1] * math.sin(tangent))
             across = float(-v_body[0] * math.sin(tangent) + v_body[1] * math.cos(tangent))
@@ -379,6 +402,8 @@ class MaplessStack:
             keep_right = self.driver.corridor.keep_right_m
             if keep_right is not None:
                 others = plausible_crossers(tracks, others, xy, keep_right, c)
+            if lead_id is not None:
+                others = outside_lead_body(tracks, others, lead[1], lead[0], pose, path_body, s_car, c)
             hit = first_footprint_conflict(others, xy, times, self.driver.config.body)
             if hit is not None and hit[0] <= c.conflict_horizon_s:
                 cap, reason = 0.0, "predicted conflict on the path"
@@ -468,6 +493,49 @@ def plausible_crossers(tracks, candidates, path_xy, keep_right_m, config):
         in_band = abs(lat) <= config.following.lane_half_width_m + 0.5
         if in_band or towards >= config.approach_min_mps:
             out.append(p)
+    return out
+
+
+def outside_lead_body(tracks, candidates, lead, lead_ahead_m, pose, path_body, s_car, config):
+    """Drop candidates inside the lead's body: from its rear face (less 0.3 m) to
+    ``lead_body_m`` beyond it when the lead is a vehicle or as wide as a car's rear, else to
+    its own far edge plus 0.5 m, and within its half-width (at least a car's) plus
+    ``lead_body_margin_m`` of its line.
+
+    Braking-lead runs on 6b1f705 (26 Oct): 0.3 m pieces of the lead's roof and wheels,
+    1.5 to 4 m beyond its rear face, jittered sideways at 0.5 to 2.6 m/s and stopped the
+    car for "predicted conflicts" on every approach, once with the lead itself duplicated
+    as a fresh LiDAR-only track (a 2.4 m/s initial velocity). Nothing can cross the path
+    there without first leaving the lead's body, where the check still sees it.
+    """
+    line = np.asarray(path_body, dtype=float)
+    ahead_l = float(lead_ahead_m)
+    _, lat_l, _ = project_onto_polyline(pose.to_body(lead.position[None]), line)
+    lat_l = float(lat_l[0])
+    tangent = pose.yaw_rad + _path_heading_at(line, ahead_l + s_car)
+    rear_ext = _rear_extent(lead, tangent)
+    if lead.footprint is None:
+        across = 0.0
+    else:
+        length, width, yaw = lead.footprint
+        rel = yaw - tangent
+        across = length * abs(math.sin(rel)) + width * abs(math.cos(rel))
+    body_like = is_vehicle(lead, config) or across >= config.lead_body_min_width_m
+    rear = ahead_l - rear_ext
+    far = rear + (config.lead_body_m if body_like else 2.0 * rear_ext + 0.5)
+    half = max(0.5 * across, 0.9) + config.lead_body_margin_m
+    by_id = {t.track_id: t for t in tracks}
+    out = []
+    for p in candidates:
+        track = by_id.get(p.track_id)
+        if track is None:
+            out.append(p)
+            continue
+        s, lat, _ = project_onto_polyline(pose.to_body(track.position[None]), line)
+        ahead = float(s[0]) - s_car
+        if rear - 0.3 <= ahead <= far and abs(float(lat[0]) - lat_l) <= half:
+            continue
+        out.append(p)
     return out
 
 

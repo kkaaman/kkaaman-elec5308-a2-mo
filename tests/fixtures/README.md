@@ -11,3 +11,9 @@ not a synthetic graph. Provenance is in `docs/evidence/BL-A-02-validation.json`;
 regeneration and map verification commands are in `docs/lane-topology.md`.
 The independent second audit is in `docs/evidence/BL-A-02-double-check.json`:
 raw OpenDRIVE links/geometry, dense SDK samples and all-origin reachability.
+
+`town05_grade_obstacles.npz` (`obstacle_cm`, int16 centimetres, vehicle frame) holds the
+OBSTACLE-class LiDAR points of the last startup sweep of PC 2's `stack_braking_B3` run
+(Town05, 26 Oct): on a grade, both kerb railings and the rising road chain into one
+63 x 26 m cluster. Used by the scenery-splitting regression in
+`tests/unit/test_mapless_g2_framework.py`.
