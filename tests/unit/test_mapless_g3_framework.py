@@ -304,31 +304,58 @@ def test_prediction_uncertainty_follows_the_object_heading():
     sure = ObjectTrack(4, 0.0, [0, 0, 5, 0], np.zeros((4, 4)), {"car": 1.0}, TrackStatus.CONFIRMED, 5, 0, footprint=(4.5, 2.0, 0.0))
     grown = predict(sure, PredictionConfig()).half_extents
     assert grown[-1, 0] > grown[0, 0] + 1.0 and (np.diff(grown[:, 0]) >= 0).all()
-    # Velocity uncertainty counts only for a settled, moving track (first live stack run:
-    # every roadside cluster grew into a region metres wide and held the car at the start
-    # line). A settled stationary track and an unsettled one are predicted on their
-    # measured velocity alone; a settled moving one on its (bounded) velocity sigma.
-    settled_still = ObjectTrack(5, 0.0, [12, 3, 0.05, 0.0], np.diag([0.05, 0.05, 0.25, 0.25]), {"car": 1.0}, TrackStatus.CONFIRMED, 20, 0, footprint=(4.5, 2.0, 0.0))
-    unsettled = ObjectTrack(6, 0.0, [12, 3, 0.05, 0.0], np.diag([0.05, 0.05, 16.0, 16.0]), {"car": 1.0}, TrackStatus.CONFIRMED, 3, 0, footprint=(4.5, 2.0, 0.0))
+    # Motion states (external review of 405b056). STATIC (recent mean speed under 0.3 m/s):
+    # predicted where it stands with no velocity or process noise (first and second live
+    # stack runs: roadside clusters grew metres wide and held the car at the start line).
+    still = ObjectTrack(5, 0.0, [12, 3, 0.05, 0.0], np.diag([0.05, 0.05, 0.25, 0.25]), {"car": 1.0}, TrackStatus.CONFIRMED, 20, 0, footprint=(4.5, 2.0, 0.0), recent_speed_mps=0.05)
+    still_ext = predict(still, cfg).half_extents
+    assert np.allclose(still_ext[-1], still_ext[0])
+    assert still_ext[-1, 1] == pytest.approx(2.0 / 2 + 0.3 + 2 * math.sqrt(0.05), abs=0.02)
+    # MOVING: along its velocity, with velocity sigma capped at 1.5 m/s.
     moving = ObjectTrack(7, 0.0, [12, 3, 3.0, 0.0], np.diag([0.05, 0.05, 0.25, 0.25]), {"car": 1.0}, TrackStatus.CONFIRMED, 20, 0, footprint=(4.5, 2.0, 0.0))
-    still_ext, unsettled_ext, moving_ext = (predict(tr, cfg).half_extents for tr in (settled_still, unsettled, moving))
-    assert np.allclose(still_ext, unsettled_ext)
-    assert still_ext[-1, 1] == pytest.approx(2.0 / 2 + 0.3 + 2 * math.sqrt(0.05), abs=0.02)  # position sigma only, at 4 s
-    assert moving_ext[-1, 0] > still_ext[-1, 0] + 3.0  # 2 * 0.5 m/s * 4 s along the heading
-    # Process noise is not charged to a stationary track either (second live stack run:
-    # the kerb cluster 4.8 m to the right grew to 3.2 m half width at 3.6 s under the
-    # default noise and capped the speed at the start line). Its region stays its
-    # measured extent plus the position sigma over the whole horizon.
-    kerb = ObjectTrack(8, 0.0, [6.3, -4.8, 0.0, 0.0], np.diag([0.05, 0.05, 0.25, 0.25]), {"unknown": 1.0}, TrackStatus.CONFIRMED, 20, 0, footprint=(1.2, 0.6, 0.0))
+    moving_ext = predict(moving, cfg).half_extents
+    assert moving_ext[-1, 0] > still_ext[-1, 0] + 3.0
+    # UNCERTAIN (no history yet, or slow): where it stands, but growing at up to walking
+    # pace; a less certain filter never gives a smaller envelope (no cliff at a threshold).
+    sizes = []
+    for sigma in (0.5, 0.99, 1.01, 2.0, 4.0):
+        young = ObjectTrack(6, 0.0, [12, 3, 0.05, 0.0], np.diag([0.05, 0.05, sigma**2, sigma**2]), {"car": 1.0}, TrackStatus.CONFIRMED, 3, 0, footprint=(4.5, 2.0, 0.0))
+        pred = predict(young, PredictionConfig())
+        assert np.allclose(pred.centres, pred.centres[0])
+        sizes.append(pred.half_extents[14, 1])  # at 3 s
+    assert all(b >= a - 1e-9 for a, b in zip(sizes, sizes[1:])), sizes
+    assert sizes[2] - sizes[1] < 0.1  # 0.99 -> 1.01 m/s: continuous (the old rule dropped 2.75 m here)
+    assert sizes[-1] < 2.0 / 2 + 0.3 + 2 * math.sqrt(0.05 + (1.0 * 3) ** 2 + PredictionConfig().process_noise_m2ps3 * 27 / 3) + 0.01  # capped at walking pace
+    # A static kerb cluster: no process noise either (second live stack run, 25 Oct).
+    kerb = ObjectTrack(8, 0.0, [6.3, -4.8, 0.0, 0.0], np.diag([0.05, 0.05, 0.25, 0.25]), {"unknown": 1.0}, TrackStatus.CONFIRMED, 20, 0, footprint=(1.2, 0.6, 0.0), recent_speed_mps=0.0)
     kerb_ext = predict(kerb, PredictionConfig()).half_extents
     assert np.allclose(kerb_ext[-1], kerb_ext[0]) and kerb_ext[-1, 1] == pytest.approx(0.3 + 0.3 + 2 * math.sqrt(0.05), abs=0.01)
-    # A velocity read on a track that has not moved from where it was first seen is
-    # centroid jitter, not motion (third live stack run): predicted where it stands.
+    # Centroid jitter on a track that has hardly moved is not motion: not carried along.
     jitter = ObjectTrack(9, 0.0, [14.8, -4.5, 0.44, 0.05], np.diag([0.05, 0.05, 0.25, 0.25]), {"unknown": 1.0}, TrackStatus.CONFIRMED, 20, 0, footprint=(6.0, 0.6, 0.0), travelled_m=0.2)
-    still = predict(jitter, PredictionConfig())
-    assert np.allclose(still.centres, still.centres[0]) and np.allclose(still.half_extents[-1], still.half_extents[0])
+    held = predict(jitter, PredictionConfig())
+    assert np.allclose(held.centres, held.centres[0])
     gone = predict(ObjectTrack(9, 0.0, [14.8, -4.5, 0.44, 0.05], np.diag([0.05, 0.05, 0.25, 0.25]), {"unknown": 1.0}, TrackStatus.CONFIRMED, 20, 0, footprint=(6.0, 0.6, 0.0), travelled_m=1.0), PredictionConfig())
-    assert gone.centres[-1, 0] > still.centres[-1, 0] + 1.5
+    assert gone.centres[-1, 0] > held.centres[-1, 0] + 1.5
+
+
+def test_too_little_motion_evidence_is_uncertain_not_static():
+    """External review of 405b056: a 0.4 m/s walker, one seen after only 0.5 m of travel,
+    and one that has turned back near its start were all predicted stationary and left
+    out of the conflict check. They are now uncertain: tested, with a bounded envelope."""
+    from mapless.prediction import motion_state
+    from mapless.stack import StackConfig, conflict_candidates
+
+    c = StackConfig()
+    small = (0.5, 0.5, 0.0)
+    u = {k: 0.2 for k in ("car", "truck", "bike", "pedestrian", "unknown")}
+    slow = ObjectTrack(1, 0.0, [12, -3, 0.0, 0.4], np.diag([0.05] * 4), u, TrackStatus.CONFIRMED, 20, 0, footprint=small, travelled_m=1.0, recent_speed_mps=0.4)
+    new = ObjectTrack(2, 0.0, [12, -3, 0.0, 1.2], np.diag([0.05] * 4), u, TrackStatus.CONFIRMED, 4, 0, footprint=small, travelled_m=0.5)
+    back = ObjectTrack(3, 0.0, [12, -3, 0.0, -1.2], np.diag([0.05] * 4), u, TrackStatus.CONFIRMED, 40, 0, footprint=small, travelled_m=0.2, recent_speed_mps=0.35)
+    pole = ObjectTrack(4, 0.0, [12, -3, 0.0, 0.0], np.diag([0.05] * 4), u, TrackStatus.CONFIRMED, 40, 0, footprint=small, travelled_m=0.1, recent_speed_mps=0.05)
+    assert [motion_state(t, c.prediction) for t in (slow, new, back, pole)] == ["uncertain", "uncertain", "uncertain", "static"]
+    tracks = [slow, new, back, pole]
+    preds = [predict(t, c.prediction) for t in tracks]
+    assert [p.track_id for p in conflict_candidates(tracks, preds, None, c.prediction)] == [1, 2, 3]
 
 
 def small_obstacle(track_id, xy):
@@ -380,7 +407,7 @@ def test_conflict_check_tests_moving_road_users_and_pedestrians_only():
     from mapless.stack import conflict_candidates
 
     cfg = PredictionConfig()
-    parked = ObjectTrack(1, 0.0, [12, -2.6, 0.0, 0.0], np.diag([0.05] * 4), {"car": 1.0}, TrackStatus.CONFIRMED, 20, 0, support=("lidar",), footprint=(4.5, 2.0, 0.0), travelled_m=0.0)
+    parked = ObjectTrack(1, 0.0, [12, -2.6, 0.0, 0.0], np.diag([0.05] * 4), {"car": 1.0}, TrackStatus.CONFIRMED, 20, 0, support=("lidar",), footprint=(4.5, 2.0, 0.0), travelled_m=0.0, recent_speed_mps=0.0)
     crossing = ObjectTrack(2, 0.0, [15, 4, 0.0, -1.2], np.diag([0.05] * 4), {"pedestrian": 1.0}, TrackStatus.CONFIRMED, 20, 0, support=("lidar",), travelled_m=2.0)
     standing = ObjectTrack(3, 0.0, [15, 3, 0.0, 0.0], np.diag([0.05] * 4), {"pedestrian": 1.0}, TrackStatus.CONFIRMED, 20, 0, support=("lidar",), travelled_m=0.0)
     lead = ObjectTrack(4, 0.0, [20, 0, 2.0, 0.0], np.diag([0.05] * 4), {"car": 1.0}, TrackStatus.CONFIRMED, 20, 0, support=("lidar",), travelled_m=5.0)
@@ -450,19 +477,19 @@ def test_only_plausible_crossers_count_the_tracks_from_the_fourth_live_m04_run()
 
     c = StackConfig()
     path = np.column_stack((np.arange(-2.0, 40.0, 0.5), np.zeros(84)))
-    logged = {  # track id: (x, y, vx, vy, footprint length, width), vehicle frame
-        271: (6.33, -7.18, 1.42, 0.95, 0.73, 0.3),
-        334: (2.08, -15.0, 1.6, 2.03, 2.19, 0.31),
-        360: (2.5, -7.89, 3.56, 0.19, 0.67, 0.56),
-        715: (-2.45, -15.37, -0.18, 3.48, 1.04, 0.32),
-        771: (14.2, -4.66, -0.11, -0.35, 1.51, 0.49),
-        842: (11.93, -6.55, 2.9, 1.26, 0.3, 0.3),
-        529: (14.99, -5.07, 1.42, 2.73, 1.17, 0.3),
+    logged = {  # track id: (x, y, vx, vy, footprint length, width, travelled, recent speed), vehicle frame
+        271: (6.33, -7.18, 1.42, 0.95, 0.73, 0.3, 1.53, 1.61),
+        334: (2.08, -15.0, 1.6, 2.03, 2.19, 0.31, 1.88, 2.68),
+        360: (2.5, -7.89, 3.56, 0.19, 0.67, 0.56, 1.55, 2.82),
+        715: (-2.45, -15.37, -0.18, 3.48, 1.04, 0.32, 0.87, None),
+        771: (14.2, -4.66, -0.11, -0.35, 1.51, 0.49, 0.9, 1.38),
+        842: (11.93, -6.55, 2.9, 1.26, 0.3, 0.3, 2.41, 2.84),
+        529: (14.99, -5.07, 1.42, 2.73, 1.17, 0.3, 1.94, None),
     }
     uniform = {k: 0.2 for k in ("car", "truck", "bike", "pedestrian", "unknown")}
     tracks = [
-        ObjectTrack(tid, 0.0, [x, y, vx, vy], np.diag([0.05] * 4), uniform, TrackStatus.CONFIRMED, 20, 0, support=("lidar",), footprint=(fl, fw, 0.0), travelled_m=2.0, recent_speed_mps=math.hypot(vx, vy))
-        for tid, (x, y, vx, vy, fl, fw) in logged.items()
+        ObjectTrack(tid, 0.0, [x, y, vx, vy], np.diag([0.05] * 4), uniform, TrackStatus.CONFIRMED, 20, 0, support=("lidar",), footprint=(fl, fw, 0.0), travelled_m=tr, recent_speed_mps=rs)
+        for tid, (x, y, vx, vy, fl, fw, tr, rs) in logged.items()
     ]
     preds = [predict(t, c.prediction) for t in tracks]
     kept = plausible_crossers(tracks, preds, path, keep_right_m=4.197, config=c)
@@ -470,3 +497,48 @@ def test_only_plausible_crossers_count_the_tracks_from_the_fourth_live_m04_run()
     # A car-sized mover is left to the timed conflict check, wherever it is.
     car = ObjectTrack(9, 0.0, [20.0, -12.0, 0.0, 3.0], np.diag([0.05] * 4), uniform, TrackStatus.CONFIRMED, 20, 0, support=("lidar",), footprint=(4.5, 1.9, 0.0), travelled_m=5.0)
     assert [p.track_id for p in plausible_crossers([car], [predict(car, c.prediction)], path, 4.197, c)] == [9]
+
+
+def test_lead_role_keeps_a_diagonal_walker_crossing_and_gap_is_to_the_rear():
+    """External review of 405b056: a walker ahead moving 0.4 m/s along and 1.2 m/s across
+    was followed and dropped from the crossing checks; the following gap ran to the lead's
+    centre (2.25 m generous for a car) and its speed along the car's own axis."""
+    from mapless.stack import StackConfig, _rear_extent, lead_role
+
+    c = StackConfig()
+    u = {k: 0.2 for k in ("car", "truck", "bike", "pedestrian", "unknown")}
+    walker = ObjectTrack(1, 0.0, [15, 0, 0.4, 1.2], np.diag([0.05] * 4), u, TrackStatus.CONFIRMED, 20, 0, footprint=(0.6, 0.5, 0.0), travelled_m=2.0, recent_speed_mps=1.25)
+    assert lead_role(walker, 0.4, 1.2, c) == "crossing"
+    car = ObjectTrack(2, 0.0, [15, 0, 3.0, 0.0], np.diag([0.05] * 4), u, TrackStatus.CONFIRMED, 20, 0, footprint=(4.5, 1.9, 0.0), travelled_m=9.0, recent_speed_mps=3.0)
+    assert lead_role(car, 3.0, 0.0, c) == "follow"
+    parked = ObjectTrack(3, 0.0, [15, 0, 0.0, 0.0], np.diag([0.05] * 4), u, TrackStatus.CONFIRMED, 20, 0, footprint=(4.5, 1.9, 0.0), travelled_m=0.0, recent_speed_mps=0.0)
+    assert lead_role(parked, 0.0, 0.0, c) == "obstacle_stop"
+    newcomer = ObjectTrack(4, 0.0, [15, 0, 0.1, 0.1], np.diag([0.05] * 4), u, TrackStatus.CONFIRMED, 4, 0, footprint=(0.5, 0.5, 0.0))
+    assert lead_role(newcomer, 0.1, 0.1, c) == "uncertain"
+    # Rear extent along the path: half the length for an aligned car, half the width across.
+    assert _rear_extent(car, 0.0) == pytest.approx(2.25)
+    assert _rear_extent(car, math.pi / 2) == pytest.approx(0.95)
+    assert _rear_extent(ObjectTrack(5, 0.0, [0, 0, 0, 0], np.eye(4), u, TrackStatus.CONFIRMED, 5, 0), 0.0) == pytest.approx(1.0)
+
+
+def test_sensor_support_expires_when_a_sensor_stops_updating_the_track():
+    """External review of 405b056: one LiDAR hit long ago kept a radar-held track
+    "LiDAR-supported" for good. Support now lists sensors seen within 0.5 s."""
+    from mapless.radar import RadarMeasurement
+
+    tracker = Tracker(TrackerConfig())
+    sensor_xy = np.array([2.5, 0.0])
+    for k in range(10):  # LiDAR and radar together
+        t = k * 0.05
+        xy = np.array([20.0, 0.0])
+        rel = xy - sensor_xy
+        radar = RadarMeasurement("radar_front", xy, float(np.hypot(*rel)), float(math.atan2(rel[1], rel[0])), 0.0, 3, sensor_xy)
+        tracks = tracker.update(t, ORIGIN, lidar=[LidarMeasurement(xy, (4.5, 2.0, 0.0))], radar=[radar])
+    assert set(tracks[0].support) == {"lidar", "radar"}
+    for k in range(10, 30):  # radar only for a second
+        t = k * 0.05
+        xy = np.array([20.0, 0.0])
+        rel = xy - sensor_xy
+        radar = RadarMeasurement("radar_front", xy, float(np.hypot(*rel)), float(math.atan2(rel[1], rel[0])), 0.0, 3, sensor_xy)
+        tracks = tracker.update(t, ORIGIN, radar=[radar])
+    assert tracks[0].support == ("radar",)

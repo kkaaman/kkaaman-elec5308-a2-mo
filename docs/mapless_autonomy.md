@@ -1,7 +1,27 @@
-# Mapless autonomy: Phase 0, P0.1 and G1b (contract, rig, health, calibration gate, local controller, first mapless drive)
+# Mapless autonomy: rig, mapless driver, turns and the G2/G3 stack
 
 Branch `feature/mapless-autonomy`, built from `feature/shadow-localisation`. This is an
-extension: the frozen baseline is unchanged.
+extension: the frozen baseline is unchanged. The sections below the status table are
+the working record, oldest first; the table is the current state.
+
+## Current status (26 Oct)
+
+"Implemented" means the code exists; "offline" that it passes the harness and replay
+tests; "live" that it has passed on CARLA at least once; "repeated" that it has passed on
+more than one site or run without retuning.
+
+| Gate | Scope | Implemented | Offline | Live | Repeated | Open |
+|---|---|---|---|---|---|---|
+| G0 | Rig v2, health, calibration gate | yes | yes | MEASURED_PASS, both PCs | yes | — |
+| G1a | Local trajectory controller | yes | yes | yes (inside G1b) | yes | — |
+| G1b | Straight, curve, obstacle stop at 2 m/s, sensor-only | yes | yes | MEASURED_PASS (Town10HD) | straight at 4 m/s; stack runs | railing-kerb calibration (Town05) fixed offline, not yet live |
+| G1c | Commanded 90° turn | yes | yes | right (Town10HD) and left (Town03) MEASURED_PASS | no | far exit-kerb bias on bare pavement; furnished and bare synthetic cases to keep separate; exit-line uncertainty not reported |
+| G2 | Segmenter, painting, road model, stack | yes | yes | stack straight and stop MEASURED_PASS (Town10HD site 1) | no | segmentation does not yet place the lane; S0–S5 × 5 not run |
+| G3 | Tracker, radar, prediction, following, M04–M06 | yes | yes | braking lead, cut-in, crossing pedestrian MEASURED_PASS (Town10HD site 1) | no | A/B/C ablation at 4 m/s (radar showed no benefit at 2 m/s inside LiDAR range); false yields to roadside structure under repair |
+| G4–G6 | Urban behaviours, learning, final report | no | — | — | — | — |
+
+Stack compute on the lab PCs: ~90–140 ms per 50 ms tick (p50) after the clustering
+rewrite, from ~550 ms.
 
 ## Goal and label
 
@@ -1063,11 +1083,43 @@ those transitions are unsupported until the G2 lane-position milestone. The near
 rule is coverage, not visibility reasoning: an occluded exit still reads as unknown and
 holds the car at the verified distance, which is the intended conservative behaviour.
 
-### Debug passes to come
-G1c: the turn scenario live on a Town10HD junction (site search census first). G2: train
-on the Town03/04/05 captures, benchmark the segmenter against the A1 models by boundary
-quality and runtime, swap `--detector yolo` in and measure the join on the captures'
-truth boxes, then S0–S5 on the baseline route. G3: the A/B/C ablation on M04–M06.
+### First live stack runs (25–26 Oct, PC 1 and PC 2, Town10HD and Town05)
+
+Each failure below was found from the run's log (and, from `405b056`, the `cap_track`
+field naming the track behind a conflict or yield) and replayed offline where the sweeps
+were saved.
+
+| Run | Symptom | Cause | Fix |
+|---|---|---|---|
+| straight B, site 0 | held at the start | a parked object 28 m ahead; stationary tracks charged a moving road user's process noise; centroid jitter read as motion; ~390 radar-only tracks from pavement returns | `--site 1`; `b7b50bf`, `8140f4c`, `abf5e3a` |
+| straight B6 | 0.3–1 m/s sawtooth | radar returns from the tarmac clustered as a lead 5 m ahead; a 0.006 brake stopped the car dead | `278e4f9` (radar height window, coasting deadband) |
+| stop B1 | stopped 6.3 m short, never held | the parked lead was a "predicted conflict" before the driver's stop point | `47e693c` (a stopped lead is the obstacle stop's) |
+| cut-in B1 | held at s = 17 m | a car parked at the kerb tracked as a conflict; the cut-in car never cut in | `4d38a03` (static world left to the corridor check; scripted approach) |
+| pedestrian B1–B3 | no yield, then false yields | a crossing walker read as a stopped lead; no yield rule; uniform classes broke ties on "car"; walls sliding past the car read as walkers | `7998276`, `e8ef4a1`, `405b056`, `c5f0b74` |
+| braking lead, Town05 | crash on the first tick; then "kerb not seen" | no-corridor cap returned None; a railing on the kerb vetoed every calibration station | `2d85cd5`, `066d85b` |
+
+### External review of `405b056` (ChatGPT, 26 Oct): all five high-priority findings taken
+
+- A tick without perception kept no cap: the restriction now holds until perception
+  re-evaluates it.
+- Too little evidence of motion was treated as standing still: tracks are static,
+  moving or uncertain; uncertain ones are predicted where they stand with velocity
+  uncertainty capped at walking pace and are tested in the timed conflict check (not the
+  yield), and static ones are left to the corridor check.
+- Velocity uncertainty was dropped when the filter was unsettled, so more uncertainty
+  gave a smaller envelope: it is now capped, never dropped.
+- A diagonal walker selected as the lead was followed and dropped from the crossing
+  checks: `lead_role` decides on motion along and across the path at the lead, and a
+  non-vehicle lead stays in the crossing checks.
+- The following gap ran to the lead's centre and its speed along the car's axis: the
+  gap is to the footprint's rear along the path and the speed is along the path tangent.
+- Smaller items taken: coasting only for an excess up to 0.3 m/s; a sensor supports a
+  track for 0.5 s after its last update; run reports carry the commit, argv, segmenter
+  checkpoint hash and stack configuration hash; the junction-hold test allows numerical
+  noise but bounds creep.
+- Deferred to the next G1c/G2 work: exit-line uncertainty and road/raised disagreement in
+  the turn diagnostics, separate furnished and bare-pavement synthetic cases, lane
+  markings in lane placement, and coverage that scales with speed.
 
 ## Running Phase 0 live
 

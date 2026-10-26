@@ -233,8 +233,11 @@ def test_stack_runs_end_to_end_and_tracks_the_parked_car():
     assert last.tracks, "the parked car should be tracked"
     confirmed = [t for t in last.tracks if t.status.value == "confirmed"]
     assert confirmed
-    track = min(confirmed, key=lambda t: abs(t.position[0] - (car_world[0] - 15.22)))
-    assert "lidar" in track.support
+    # The parked car is tracked from the LiDAR now (support expires 0.5 s after a sensor's
+    # last update). In this world its side splits into short clusters, each a track, and
+    # the radar keeps a separate track on its bumper return: a known tracking limitation.
+    near = [t for t in confirmed if abs(t.position[0] - (car_world[0] - 15.22)) < 3.0]
+    assert any("lidar" in t.support for t in near)
     assert last.road_model is not None and last.road_model.visibility_m > 10.0
     assert last.decision.executed in ("FOLLOW", "WAIT", "STOP") and "drive" in last.decision.timing_ms
     assert len(stack.records) == len(steps)
@@ -516,3 +519,36 @@ def test_speed_cap_without_a_corridor_is_no_cap_not_none():
     stack = MaplessStack(SUITE, world.route(70.0), config, StackConfig(admission=Admission.preset("B")), DT)
     stack.driver.corridor.previous = None
     assert stack._speed_cap(None, None, (), (), 0.0) == (None, "")
+
+
+def test_a_missed_lidar_sweep_keeps_the_cap_in_force():
+    """External review of 405b056: a tick without a sweep left the cap at None, so a stop
+    request lapsed for the tick after. The restriction is now held until perception runs
+    again and re-evaluates it (one- and two-tick dropouts)."""
+    import dataclasses
+
+    from mapless.frame import SensorState, SensorStatus
+
+    scene = RoadScene(KerbLine([Straight(150)]))
+    world = MaplessRoadWorld(scene, SUITE, start_s_m=15.0)
+    config = DriverConfig(body=BODY, control=control(), corridor=CorridorConfig(keep_right_m=1.75))
+    stack = MaplessStack(SUITE, world.route(70.0), config, StackConfig(admission=Admission.preset("A")), DT)
+    for _ in range(int(4 / DT)):  # start up and drive
+        world.apply(stack.step(world.frame()).command)
+
+    def without_lidar(frame):
+        status = [SensorStatus(s.name, s.kind, SensorState.MISSING, None) if s.kind == "lidar" else s for s in frame.status]
+        return dataclasses.replace(frame, lidars=(), status=tuple(status))
+
+    for gap in (1, 2):
+        stack.driver.speed_cap_mps, stack._cap_reason = 0.0, "predicted conflict on the path"
+        for _ in range(gap):
+            step = stack.step(without_lidar(world.frame()))
+            world.apply(step.command)
+            assert stack.driver.speed_cap_mps == 0.0
+            assert step.diagnostics["speed_cap_reason"].startswith("predicted conflict on the path")
+            assert step.diagnostics["speed_cap_reason"].endswith("(held: no fresh LiDAR)")
+        # A fresh sweep re-evaluates: the empty road lifts the cap.
+        step = stack.step(world.frame())
+        world.apply(step.command)
+        assert stack.driver.speed_cap_mps is None

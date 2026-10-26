@@ -56,6 +56,7 @@ from mapless.prediction import (
     first_footprint_conflict,
     first_occupied_arc,
     is_moving,
+    motion_state,
     path_headings,
     predict_all,
 )
@@ -195,7 +196,16 @@ class MaplessStack:
             self.frame_generation += 1
         # While the driver stops to rebuild, the odometry frame lags the car: nothing is placed in it.
         frame_usable = rebuilt or not step.diagnostics.get("rebuilding")
-        if motion is not None and motion.route is not None and motion.odometry_trusted and frame_usable and sweep is not None and c.admission.lidar:
+        perceived = motion is not None and motion.route is not None and motion.odometry_trusted and frame_usable and sweep is not None and c.admission.lidar
+        if not perceived and not rebuilt and self.driver.speed_cap_mps is not None:
+            # No perception this tick (a missed or stale sweep, untrusted odometry): keep
+            # the restriction already in force rather than clear it; only a fresh
+            # evaluation may lift it. The driver's own stale-LiDAR fault is the backstop
+            # for a longer outage (external review of 405b056: one missed tick cleared a
+            # stop cap for the tick after).
+            cap = self.driver.speed_cap_mps
+            cap_reason = (self._cap_reason or "speed cap").removesuffix(" (held: no fresh LiDAR)") + " (held: no fresh LiDAR)"
+        if perceived:
             pose = motion.odometry
             # -- segment and paint ---------------------------------------------------------
             begun = time.perf_counter()
@@ -304,21 +314,33 @@ class MaplessStack:
         if lead is not None:
             s, track = lead
             lead_id = track.track_id
-            gap = s - self.driver.config.body.front_m
-            along = pose.to_body(np.array([track.position + track.velocity]))[0] - pose.to_body(track.position[None])[0]
-            lead_speed = float(along[0])
-            self._lead = dict(track_id=track.track_id, gap_m=round(float(gap), 2), speed_mps=round(lead_speed, 2), support=list(track.support), status=track.status.name)
-            if lead_speed > c.prediction.stationary_mps:
-                cap = self.following.target_speed(self.driver.config.planner.cruise_mps, motion.speed_mps, gap, lead_speed, self.driver.dt_s)
-                reason = "lead at a standstill" if cap is not None and cap <= 0.0 else "following the lead"
-            elif is_moving(track, c.prediction):
+            state = motion_state(track, c.prediction)
+            vehicle = is_vehicle(track, c)
+            # Motion along and across the path at the lead, not the car's own axis (review
+            # of 405b056), and the gap to the lead's rear, not its centre.
+            tangent = _path_heading_at(path_body, s)
+            v_body = pose.to_body(np.array([track.position + track.velocity]))[0] - pose.to_body(track.position[None])[0]
+            along = float(v_body[0] * math.cos(tangent) + v_body[1] * math.sin(tangent))
+            across = float(-v_body[0] * math.sin(tangent) + v_body[1] * math.cos(tangent))
+            gap = s - self.driver.config.body.front_m - _rear_extent(track, pose.yaw_rad + tangent)
+            self._lead = dict(
+                track_id=track.track_id, gap_m=round(float(gap), 2), speed_mps=round(along, 2), across_mps=round(across, 2),
+                state=state, support=list(track.support), status=track.status.name,
+            )
+            role = lead_role(track, along, across, c)
+            if role == "crossing":
                 # In the lane but moving across it (a crossing walker reads ~0 m/s along the
-                # path): not a lead to follow or to leave to the obstacle stop; the
-                # conflict and yield checks below handle it (first live stack M04, 26 Oct).
+                # path, a diagonal one more): not a lead to follow or to hand to the
+                # obstacle stop; the conflict and yield checks keep it (first live M04).
                 self.following.reset()
                 lead_id = None
                 self._lead["crossing"] = True
-            else:
+            elif role == "follow":
+                cap = self.following.target_speed(self.driver.config.planner.cruise_mps, motion.speed_mps, gap, along, self.driver.dt_s)
+                reason = "lead at a standstill" if cap is not None and cap <= 0.0 else "following the lead"
+                if not vehicle:
+                    lead_id = None  # a walker or cyclist ahead is followed and still checked for crossing
+            elif role == "obstacle_stop":
                 # A lead at a standstill is an obstacle in the lane: the driver's own LiDAR
                 # obstacle stop (stop point 2.5 m short, then a held brake released only on
                 # observed clearance) is the measured behaviour for it. A second stop rule
@@ -326,6 +348,11 @@ class MaplessStack:
                 # driver never reached its hold (first live stack stop run, 26 Oct).
                 self.following.reset()
                 reason = "stationary lead: the obstacle stop's"
+            else:
+                # A small object in the lane whose motion is not yet known: neither followed
+                # nor delegated; the conflict check gives it an uncertain envelope.
+                self.following.reset()
+                lead_id = None
         else:
             self.following.reset()
         if predictions and plan is not None and plan.trajectory is not None:
@@ -381,11 +408,14 @@ def conflict_candidates(tracks, predictions, lead_id, config):
     - The lead is the following rule's (moving) or the driver's obstacle stop's (stopped):
       a stationary car in the lane is always a "conflict", and timing the path at cruise
       speed put it 6 m in front of the bumper (first live stack stop run, 26 Oct).
-    - A stationary vehicle or object beside the lane is the static world, which the
-      driver's LiDAR corridor check clears with its own margins; its predicted box (extent,
-      0.3 m margin and 2 sigma) clipped the swept path past a car parked at the kerb and
-      held the car at a standstill (first live stack cut-in run, 26 Oct).
-    - A pedestrian is tested even when standing: a walker can step out from a standstill.
+    - A static vehicle or object beside the lane is the static world, which the driver's
+      LiDAR corridor check clears with its own margins; its predicted box clipped the swept
+      path past a car parked at the kerb and held the car at a standstill (first live
+      stack cut-in run, 26 Oct).
+    - Moving and uncertain tracks are tested: too little evidence of motion is not
+      evidence of standing still (external review of 405b056); an uncertain track is
+      predicted where it stands with a walking-pace envelope.
+    - A decided pedestrian is tested even when standing: a walker can step out.
     """
     by_id = {t.track_id: t for t in tracks}
     out = []
@@ -393,15 +423,17 @@ def conflict_candidates(tracks, predictions, lead_id, config):
         track = by_id.get(p.track_id)
         if p.track_id == lead_id or track is None:
             continue
-        if is_moving(track, config) or decided_class(track) == "pedestrian":
+        # Static things are the driver's corridor check's; moving and uncertain ones (their
+        # envelope is bounded at walking pace) may enter the path (review of 405b056).
+        if motion_state(track, config) != "static" or decided_class(track) == "pedestrian":
             out.append(p)
     return out
 
 
 def plausible_crossers(tracks, candidates, path_xy, keep_right_m, config):
     """Drop candidates that are not clearly vehicles and cannot be crossing: beyond the
-    kerb plus ``vru_reach_m`` from the path, or outside the path band and not heading for
-    it. Vehicles (a decided car/truck class, or a footprint ``vehicle_min_m`` or longer)
+    kerb plus ``vru_reach_m`` from the path, or moving, outside the path band and not
+    heading for it (an uncertain one within reach is kept). Vehicles (a decided car/truck class, or a footprint ``vehicle_min_m`` or longer)
     are kept: the timed conflict check handles them. A clipped wall segment can be any
     length under that (2.19 m in the fourth live M04 run)."""
     by_id = {t.track_id: t for t in tracks}
@@ -419,6 +451,9 @@ def plausible_crossers(tracks, candidates, path_xy, keep_right_m, config):
         lat = float(lateral[0])
         if abs(lat) > keep_right_m + config.vru_reach_m:
             continue
+        if motion_state(track, config.prediction) == "uncertain":
+            out.append(p)  # within reach, motion unknown: its envelope is bounded, keep it
+            continue
         seg = int(np.clip(np.searchsorted(np.concatenate(([0.0], np.cumsum(np.hypot(*np.diff(path, axis=0).T)))), float(s[0]), side="right") - 1, 0, len(path) - 1))
         normal = np.array([-math.sin(heads[seg]), math.cos(heads[seg])])  # +left
         towards = -math.copysign(1.0, lat) * float(track.velocity @ normal)  # speed towards the path line
@@ -426,6 +461,46 @@ def plausible_crossers(tracks, candidates, path_xy, keep_right_m, config):
         if in_band or towards >= config.approach_min_mps:
             out.append(p)
     return out
+
+
+def lead_role(track, along_mps, across_mps, config):
+    """What the lead in the lane is to the stack: "crossing" (a non-vehicle moving across
+    the path at approach_min_mps or more, kept for the conflict and yield checks),
+    "follow" (moving along the path), "obstacle_stop" (static, or a vehicle not moving
+    along: the driver's LiDAR stop), or "uncertain" (a small object whose motion is not
+    known: the conflict check's). ``along_mps``/``across_mps``: its velocity along and
+    across the path at the lead (external review of 405b056: the car's own axis let a
+    diagonal walker be followed and dropped from the crossing checks)."""
+    state = motion_state(track, config.prediction)
+    vehicle = is_vehicle(track, config)
+    if not vehicle and state != "static" and abs(across_mps) >= config.approach_min_mps:
+        return "crossing"
+    if along_mps > config.prediction.stationary_mps and state == "moving":
+        return "follow"
+    if state == "static" or vehicle:
+        return "obstacle_stop"
+    return "uncertain"
+
+
+def _path_heading_at(path, s):
+    """The heading of the polyline ``path`` (N x 2) at arc length ``s``."""
+    path = np.asarray(path, dtype=float)
+    seg = np.hypot(*np.diff(path, axis=0).T)
+    arcs = np.concatenate(([0.0], np.cumsum(seg)))
+    i = int(np.clip(np.searchsorted(arcs, s, side="right") - 1, 0, len(path) - 2))
+    d = path[i + 1] - path[i]
+    return math.atan2(d[1], d[0])
+
+
+def _rear_extent(track, along_heading_rad):
+    """Half the track's footprint measured along ``along_heading_rad`` (odometry frame):
+    the distance from its centre back to its rear along the path. Without a measured
+    footprint, the "unknown" default (2 x 2 m)."""
+    if track.footprint is None:
+        return 1.0
+    length, width, yaw = track.footprint
+    rel = yaw - along_heading_rad
+    return 0.5 * (length * abs(math.cos(rel)) + width * abs(math.sin(rel)))
 
 
 def _track_note(tracks, track_id, pose):
