@@ -70,7 +70,12 @@ import numpy as np
 from carla_adapter.frame_record import FrameRecorder
 from carla_adapter.mapless_capture import source_commit
 from carla_adapter.mapless_scenarios import SCENARIOS as ACTOR_SCENARIOS
-from carla_adapter.mapless_scenarios import make_scenario, score_completion, score_moving
+from carla_adapter.mapless_scenarios import (
+    make_scenario,
+    score_completion,
+    score_lead_tracking,
+    score_moving,
+)
 from carla_adapter.sensor_rig import SensorRig, true_forward_speed
 from carla_adapter.sensor_rig_check import rear_axle_pose
 from carla_adapter.vehicle import FixedVehicleAdapter
@@ -862,6 +867,7 @@ class MaplessDrive:
                     truth=truth,
                     driver=step.diagnostics,
                     degraded=[s.name for s in sf.degraded()],
+                    actor=actor_truths[-1] if self.actor is not None else None,  # evaluator truth, log only
                 )
                 out.write(json.dumps(rounded(row)) + "\n")
                 log.append(row)
@@ -989,6 +995,8 @@ class MaplessDrive:
             moving = score_moving(log, actor_truths, self.body)
             ok = moving["separation_ok"]
             checks.append(check("separation", INCOMPLETE if ok is None else (PASS if ok else FAIL), **moving))
+            if getattr(args, "stack", False) and self.actor_scenario in ("braking_lead", "cut_in"):
+                checks.append(check("lead_tracking", REPORT, **score_lead_tracking(log, actor_truths, self.body, DT_S)))
         last = log[-1]
         summary = last["driver"].get("calibration")
         source = last["driver"].get("keep_right_source") or ""

@@ -225,6 +225,41 @@ def split_oversized(sweep, clusters, config=None):
     return objects, structures
 
 
+def cluster_and_split(sweep, config=None):
+    """``split_oversized(sweep, cluster_obstacles(sweep))`` with one pass over the point
+    pairs: the tight link is never longer than the range-tuned one, so the tight pieces
+    are components of the same pairs, filtered by distance (the second linking pass cost
+    ~18 ms a tick on Town05's railings)."""
+    c = config or DetectionsConfig()
+    idx = np.flatnonzero(sweep.cls == PointClass.OBSTACLE)
+    if idx.size == 0:
+        return [], []
+    xy = sweep.xyz[idx, :2].astype(float)
+    rng = np.hypot(xy[:, 0], xy[:, 1])
+    i, j = _link_pairs(xy, c.link_m + c.link_per_m * rng)
+    labels = _components(len(idx), i, j)
+    order = np.argsort(labels, kind="stable")
+    groups = [np.sort(g) for g in np.split(order, np.flatnonzero(np.diff(labels[order])) + 1) if len(g) >= c.min_points]
+    objects, structures, tight = [], [], None
+    for g in groups:
+        if not oversized(xy[g], c):
+            objects.append(idx[g])
+            continue
+        if tight is None:
+            near = c.split_link_m + c.split_link_per_m * rng
+            keep = np.hypot(xy[i, 0] - xy[j, 0], xy[i, 1] - xy[j, 1]) <= np.maximum(near[i], near[j])
+            tight = _components(len(idx), i[keep], j[keep])
+        sub = tight[g]
+        o = np.argsort(sub, kind="stable")
+        for piece in np.split(o, np.flatnonzero(np.diff(sub[o])) + 1):
+            if len(piece) < c.min_points:
+                continue
+            members = g[np.sort(piece)]
+            line = plan_extent(xy[members])[1] < c.split_min_width_m
+            (structures if line or oversized(xy[members], c) else objects).append(idx[members])
+    return objects, structures
+
+
 def cluster_measurement(sweep, members, class_probs=None, config=None):
     """A LidarMeasurement from one cluster: centre, plan-view extent along its long axis."""
     c = config or DetectionsConfig()
