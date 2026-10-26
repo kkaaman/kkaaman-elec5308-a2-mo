@@ -210,6 +210,55 @@ def test_cut_in_refuses_an_opposing_left_lane():
         scenario.spawn(Owner(), Library(), lane)
 
 
+def test_cut_in_starts_once_the_ego_closes_to_the_cut_gap():
+    """First live stack cut-in run (26 Oct): the car held 3 m/s, faster than the ego, and
+    waited for the ego to draw level, so it never cut in. It now approaches at
+    approach_mps and cuts in when the ego is cut_gap_m behind it, then speeds up."""
+    from types import SimpleNamespace
+
+    from carla_adapter.mapless_scenarios import CutInCar, ScenarioParams
+
+    class Actor:
+        def __init__(self, t):
+            self.t, self.controls = t, []
+
+        def get_transform(self):
+            return self.t
+
+        def get_velocity(self):
+            return SimpleNamespace(x=1.0, y=0.0)
+
+        def apply_control(self, control):
+            self.controls.append(control)
+
+    class Owner:
+        def try_spawn(self, bp, t):
+            return Actor(t)
+
+    class Library:
+        def find(self, name):
+            return name
+
+    carla = SimpleNamespace(LaneType=FakeLaneType, VehicleControl=lambda **kw: SimpleNamespace(**kw))
+    lane = chain([(x, 0.0) for x in range(0, 80)], yaw_deg=0.0, lane_id=-1)
+    left = chain([(x, 3.5) for x in range(0, 80)], yaw_deg=0.0, lane_id=-2)
+    for w, o in zip(lane, left):
+        w._left = o
+    FakeWaypoint.get_left_lane = lambda self: getattr(self, "_left", None)
+    try:
+        params = ScenarioParams("cut_in")
+        scenario = CutInCar(carla, params, lambda loc: (loc.x, loc.y))
+        actor = scenario.spawn(Owner(), Library(), lane)  # at 20 m in the left lane
+        scenario.step(0, dict(rear_axle_xy=(0.0, 0.0)))
+        assert scenario.cut_start is None  # 20 m ahead: approaching at approach_mps
+        assert actor.controls[-1].throttle > 0.0  # 1 m/s measured, approach target 1 m/s
+        scenario.step(1, dict(rear_axle_xy=(20.0 - params.cut_gap_m, 0.0)))
+        assert scenario.cut_start == 1
+        assert actor.controls[-1].throttle > 0.5  # speeding up towards lead_mps
+    finally:
+        FakeWaypoint.get_left_lane = lambda self: None
+
+
 def test_turn_site_search_refuses_a_kerb_mismatch_and_a_bent_approach():
     # Review of 1931070: the car places the exit lane keep_right (measured on the approach)
     # left of the exit kerb, so a shoulder lane turning into a plain lane would put it in the
