@@ -62,6 +62,8 @@ class ObjectTrack:
     # Net displacement (m) from the track's first measurement, or None when unknown:
     # the tracker's corroboration that an estimated velocity is motion, not jitter.
     travelled_m: float | None = None
+    # Mean speed from net displacement over the last second, or None (too little history).
+    recent_speed_mps: float | None = None
 
     def __post_init__(self):
         object.__setattr__(self, "state", _array(self.state, (4,), "state"))

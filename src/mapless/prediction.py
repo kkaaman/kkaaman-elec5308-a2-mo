@@ -54,6 +54,10 @@ class PredictionConfig:
     # that has yet to move this far is predicted where it stands; the driver's own LiDAR
     # obstacle stop covers it meanwhile.
     min_displacement_m: float = 0.75
+    # ... and that motion must be recent and sustained: at least this mean speed over the
+    # last second (a walker does 1.2 m/s). The third live M04 run yielded to small static
+    # things beside the road whose centroids had drifted 0.75 m as the car went by.
+    min_recent_speed_mps: float = 0.5
     # Unmodelled acceleration over the horizon as continuous white noise: position variance
     # grows by q t^3 / 3. The tracker drives its CV model with 1.5 m/s^2 white acceleration
     # at a 0.05 s tick, which is q = 1.5^2 * 0.05 in these units (1 m sigma at 3 s).
@@ -128,9 +132,14 @@ def decided_class(track, min_probability=0.5):
 
 def is_moving(track, config=None):
     """Whether a track's velocity is motion: above ``stationary_mps`` and corroborated by
-    ``min_displacement_m`` of travel since it was first seen (centroid jitter is not)."""
+    ``min_displacement_m`` of travel since it was first seen and, once a second of history
+    exists, ``min_recent_speed_mps`` of sustained recent motion (centroid drift is not)."""
     c = config or PredictionConfig()
-    return track.speed_mps > c.stationary_mps and (track.travelled_m is None or track.travelled_m >= c.min_displacement_m)
+    return (
+        track.speed_mps > c.stationary_mps
+        and (track.travelled_m is None or track.travelled_m >= c.min_displacement_m)
+        and (track.recent_speed_mps is None or track.recent_speed_mps >= c.min_recent_speed_mps)
+    )
 
 
 def predict(track, config=None, lane_change=False):
@@ -228,7 +237,7 @@ def path_headings(path_xy):
     return np.append(headings, headings[-1])
 
 
-def first_occupied_arc(predictions, path_xy, body, from_arc_m=0.0, step_m=0.5):
+def first_occupied_arc(predictions, path_xy, body, from_arc_m=0.0, step_m=0.5, with_track=False):
     """The smallest arc length along ``path_xy`` (from its first sample, at or beyond
     ``from_arc_m``) at which the car's oriented footprint, its rear axle on the path,
     overlaps any step of any prediction, whenever that step falls; or None.
@@ -236,23 +245,25 @@ def first_occupied_arc(predictions, path_xy, body, from_arc_m=0.0, step_m=0.5):
     Timing is ignored on purpose: this answers "where does the path stop being free while
     this road user is predicted on it", for yielding, not "when would the car meet it".
     """
+    none = (None, None) if with_track else None
     path = np.asarray(path_xy, dtype=float).reshape(-1, 2)
     if len(path) < 2 or not predictions:
-        return None
+        return none
     seg = np.hypot(*np.diff(path, axis=0).T)
     arcs = np.concatenate(([0.0], np.cumsum(seg)))
     stations = np.arange(max(0.0, from_arc_m), arcs[-1] + 1e-9, step_m)
     if not len(stations):
-        return None
+        return none
     xs, ys = np.interp(stations, arcs, path[:, 0]), np.interp(stations, arcs, path[:, 1])
     heads = path_headings(path)
     idx = np.clip(np.searchsorted(arcs, stations, side="right") - 1, 0, len(path) - 1)
     boxes = [box_corners(o, h, body.rear_m, body.front_m, body.half_width_m) for o, h in zip(zip(xs, ys), heads[idx])]
-    regions = [box_corners(p.centres[k], p.heading_rad, -p.half_extents[k][0], p.half_extents[k][0], p.half_extents[k][1]) for p in predictions for k in range(len(p.times_s))]
+    regions = [(p.track_id, box_corners(p.centres[k], p.heading_rad, -p.half_extents[k][0], p.half_extents[k][0], p.half_extents[k][1])) for p in predictions for k in range(len(p.times_s))]
     for station, car in zip(stations, boxes):
-        if any(boxes_overlap(car, r) for r in regions):
-            return float(station)
-    return None
+        for track_id, region in regions:
+            if boxes_overlap(car, region):
+                return (float(station), track_id) if with_track else float(station)
+    return none
 
 
 def pose_at(path, times, headings, t):

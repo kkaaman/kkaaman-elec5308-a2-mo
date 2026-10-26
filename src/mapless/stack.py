@@ -142,6 +142,7 @@ class MaplessStack:
         self.frame_generation = 0  # bumped on every local-frame rebuild
         self._cap_reason = ""  # what produced the cap the driver plans the next command under
         self._lead = None  # the lead behind the last cap, for the log
+        self._cause = None  # the track behind a conflict or yield cap, for the log
         self.records = []
 
     @staticmethod
@@ -176,7 +177,7 @@ class MaplessStack:
         t = frame.sim_time_s
         tracks, predictions = (), ()
         cap, cap_reason = None, ""
-        self._lead = None
+        self._lead = self._cause = None
         coverage = {s.name: s.state.value for s in frame.status}
         # -- local frame rebuild -----------------------------------------------------------
         rebuilt = bool(step.diagnostics.get("frame_rebuilt"))
@@ -265,6 +266,7 @@ class MaplessStack:
             speed_cap_next_mps=cap,
             speed_cap_reason=cap_reason,  # logged every tick: a hold at a standstill never reaches the veto
             lead=self._lead,
+            cap_track=self._cause,
             frame_generation=self.frame_generation,
             stack_timing_ms=record.timing_ms,
         )
@@ -279,13 +281,13 @@ class MaplessStack:
             # No corridor to place a lead or a conflict on: no cap from the stack (the
             # driver brakes or faults on the missing corridor itself). Was a bare None,
             # which the caller unpacks (first Town05 run, 26 Oct).
-            self._lead = None
+            self._lead = self._cause = None
             return None, ""
         path_body = corridor.centre_body
         # The corridor line starts behind the rear axle: arc lengths are measured from the car.
         s_car = float(project_onto_polyline(np.zeros((1, 2)), path_body)[0][0])
         cap, reason = None, ""
-        self._lead = None
+        self._lead = self._cause = None
         # Only tracks the tracker vouches for lead the car (a 3-point tentative cluster must not).
         leads = [tr for tr in self.tracker.live(tracks) if tr.status in LEAD_STATUSES]
         lead = self.following.lead_ahead(leads, pose, path_body, s_from_m=s_car)
@@ -334,10 +336,12 @@ class MaplessStack:
             hit = first_footprint_conflict(others, xy, times, self.driver.config.body)
             if hit is not None and hit[0] <= c.conflict_horizon_s:
                 cap, reason = 0.0, "predicted conflict on the path"
+                self._cause = _track_note(tracks, hit[1], pose)
             else:
-                yield_cap = crossing_yield_cap(tracks, others, xy, s_now, self.driver.config.body, self.driver.config.planner.decel_mps2, c)
+                yield_cap, yield_id = crossing_yield(tracks, others, xy, s_now, self.driver.config.body, self.driver.config.planner.decel_mps2, c)
                 if yield_cap is not None and (cap is None or yield_cap < cap):
                     cap, reason = yield_cap, "yielding to a road user crossing the path"
+                    self._cause = _track_note(tracks, yield_id, pose)
         return cap, reason
 
     def reset_spatial(self):
@@ -382,6 +386,22 @@ def conflict_candidates(tracks, predictions, lead_id, config):
     return out
 
 
+def _track_note(tracks, track_id, pose):
+    """The log's account of the track behind a conflict or yield (vehicle frame)."""
+    track = next((t for t in tracks if t.track_id == track_id), None)
+    if track is None:
+        return dict(track_id=track_id)
+    body = pose.to_body(track.position[None])[0]
+    v = pose.to_body(np.array([track.position + track.velocity]))[0] - body
+    r = lambda x: None if x is None else round(float(x), 2)  # noqa: E731
+    return dict(
+        track_id=track_id, x_m=r(body[0]), y_m=r(body[1]), vx_mps=r(v[0]), vy_mps=r(v[1]),
+        footprint=None if track.footprint is None else [r(track.footprint[0]), r(track.footprint[1])],
+        travelled_m=r(track.travelled_m), recent_speed_mps=r(track.recent_speed_mps),
+        support=list(track.support), status=track.status.name,
+    )
+
+
 def is_vulnerable(track, config):
     """A pedestrian or bike by a decided class, or, without one, a LiDAR footprint no
     larger than ``vulnerable_max_m`` (the walker's cluster is well under a metre)."""
@@ -403,13 +423,18 @@ def crossing_yield_cap(tracks, candidates, path_xy, s_now, body, decel_mps2, con
     never slowed (first live stack M04, 26 Oct). A crossing pedestrian ahead in the
     path is yielded to wherever it is, as a driver would.
     """
+    return crossing_yield(tracks, candidates, path_xy, s_now, body, decel_mps2, config)[0]
+
+
+def crossing_yield(tracks, candidates, path_xy, s_now, body, decel_mps2, config):
+    """``crossing_yield_cap`` with the track yielded to: (cap, track_id), or (None, None)."""
     by_id = {t.track_id: t for t in tracks}
     vulnerable = [p for p in candidates if (t := by_id.get(p.track_id)) is not None and is_moving(t, config.prediction) and is_vulnerable(t, config)]
-    arc = first_occupied_arc(vulnerable, path_xy, body, from_arc_m=s_now)
+    arc, track_id = first_occupied_arc(vulnerable, path_xy, body, from_arc_m=s_now, with_track=True)
     if arc is None:
-        return None
+        return None, None
     room = max(0.0, arc - s_now - config.yield_margin_m)
-    return min(config.yield_mps, math.sqrt(2.0 * decel_mps2 * room))
+    return min(config.yield_mps, math.sqrt(2.0 * decel_mps2 * room)), track_id
 
 
 def record_rows(records):
