@@ -388,3 +388,31 @@ def test_corridor_config_rejects_nonsense():
         TerrainConfig(raised_min_m=0.5, obstacle_min_m=0.3)
     with pytest.raises(ValueError):
         DriverConfig(body=BODY, control=control(), planner=PlannerConfig(decel_mps2=3.0))
+
+
+def test_calibration_kerb_with_a_railing_is_kept_a_parked_car_is_not():
+    """Town05 (26 Oct): a 1.5 m railing stands on the kerb for the whole window and the
+    tall-beside veto (meant for a parked car's kerb-high sills) dropped every station:
+    "kerb not seen". A continuous, thin tall face beside the kerb is a railing."""
+    from mapless.corridor import CorridorConfig, CorridorEstimator
+    from mapless.terrain import ClassifiedSweep, PointClass
+
+    def sweep(tall_y, tall_x):
+        pts, cls = [], []
+        for x in np.arange(-8.0, 12.0, 0.1):
+            rows = [(y, 0.0, PointClass.ROAD) for y in np.arange(-5.6, -1.0, 0.2)]
+            rows += [(y, 0.15, PointClass.RAISED) for y in (-5.75, -5.85, -5.95)]
+            if tall_x[0] <= x <= tall_x[1]:
+                rows += [(y, 1.0, PointClass.OBSTACLE) for y in tall_y]
+            pts += [(x, y, z) for y, z, _ in rows]
+            cls += [k for _, _, k in rows]
+        xyz = np.array(pts, dtype=float)
+        return ClassifiedSweep(xyz, xyz[:, 2], np.array(cls), np.zeros(0), np.zeros(0))
+
+    est = CorridorEstimator(CorridorConfig())
+    _, railing = est._kerb_contour(sweep(tall_y=(-5.9, -6.0), tall_x=(-8.0, 12.0)))
+    assert np.isfinite(railing).sum() > 30 and np.nanmedian(railing) == pytest.approx(-5.75)
+    # A parked car beside the kerb from x = 0 to 4.5 m: wide (its roof is seen), short.
+    _, car = est._kerb_contour(sweep(tall_y=(-4.2, -5.0, -5.8), tall_x=(0.0, 4.5)))
+    assert np.all(np.isnan(car[(np.arange(-10.0, 15.01, 0.5) >= 0.0) & (np.arange(-10.0, 15.01, 0.5) <= 4.5)]))
+    assert np.isfinite(car).sum() > 20  # the rest of the kerb is still read

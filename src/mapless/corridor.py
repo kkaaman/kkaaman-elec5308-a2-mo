@@ -393,13 +393,23 @@ class CorridorEstimator:
         return "calibrating"
 
     def _kerb_contour(self, sweep):
-        """Per station, y of the innermost raised point on the right (NaN where no kerb)."""
+        """Per station, y of the innermost raised point on the right (NaN where no kerb).
+
+        A station is dropped when something tall stands within 1 m of its raised point (a
+        parked car's sills are kerb-high), unless the tall points run beside the kerb at
+        nearly every station seen, over 12 m or more, and are thin across: that is a
+        railing or barrier on the kerb, not a car
+        (Town05, 26 Oct: a 1.5 m railing along the whole kerb vetoed every station and
+        the calibration failed with "kerb not seen").
+        """
         c = self.config
         xyz, cls = sweep.xyz, sweep.cls
         step = c.calibration_station_m
         right = (xyz[:, 1] < -1.0) & (xyz[:, 1] > -c.lateral_search_m)
         stations = np.arange(-c.calibration_behind_m, c.calibration_far_m + 1e-9, step)
-        contour = np.full(len(stations), np.nan)
+        candidate = np.full(len(stations), np.nan)
+        tall_beside = np.zeros(len(stations), dtype=bool)
+        tall_spread = np.full(len(stations), np.nan)
         for i, s in enumerate(stations):
             in_slice = right & (xyz[:, 0] >= s - step / 2) & (xyz[:, 0] < s + step / 2)
             raised = xyz[in_slice & (cls == PointClass.RAISED), 1]
@@ -407,12 +417,26 @@ class CorridorEstimator:
                 continue
             y = float(raised.max())
             road = xyz[in_slice & (cls == PointClass.ROAD), 1]
-            tall = xyz[in_slice & (cls == PointClass.OBSTACLE), 1]
-            # Road must be seen just inside it (a pavement's far side is not the kerb) and
-            # nothing tall within 1 m (a parked car's sills are kerb-high).
-            if not np.any((road > y) & (road < y + 2 * c.max_unseen_m)) or np.any(np.abs(tall - y) < 1.0):
+            # Road must be seen just inside it (a pavement's far side is not the kerb).
+            if not np.any((road > y) & (road < y + 2 * c.max_unseen_m)):
                 continue
-            contour[i] = y
+            tall = xyz[in_slice & (cls == PointClass.OBSTACLE), 1]
+            near = tall[np.abs(tall - y) < 1.0]
+            candidate[i] = y
+            tall_beside[i] = bool(near.size)
+            if near.size:
+                tall_spread[i] = float(np.ptp(near))
+        seen = np.isfinite(candidate)
+        # A railing: tall beside the kerb at nearly every station seen, over more than two
+        # car lengths, and thin across (a rail or wall face; a parked car seen from the roof
+        # LiDAR shows its roof, 1.5-2 m across). The Town05 railing: 18.5 m, under 0.4 m.
+        railing = (
+            seen.sum() >= c.calibration_min_stations
+            and tall_beside[seen].mean() >= 0.8
+            and np.ptp(stations[seen]) >= 12.0
+            and np.nanmedian(np.where(tall_beside, tall_spread, np.nan)) <= 0.5
+        )
+        contour = candidate if railing else np.where(tall_beside, np.nan, candidate)
         return stations, contour
 
     def _fit_kerb(self, stations, right):
