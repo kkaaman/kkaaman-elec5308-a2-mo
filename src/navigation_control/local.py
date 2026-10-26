@@ -90,6 +90,10 @@ class LocalControlConfig:
     max_start_offset_m: float = 2.0
     stop_margin_m: float = 1.0
     speed_lookahead_m: float = 1.0
+    # Below ``coast_below_mps`` and short of a stop, brake efforts under ``brake_deadband``
+    # are coasting, not braking (see tracking).
+    brake_deadband: float = 0.3
+    coast_below_mps: float = 1.5
 
     def __post_init__(self):
         if not isinstance(self.controller, ControllerConfig):
@@ -97,6 +101,10 @@ class LocalControlConfig:
         positive("max_start_offset_m", self.max_start_offset_m)
         nonnegative("stop_margin_m", self.stop_margin_m)
         nonnegative("speed_lookahead_m", self.speed_lookahead_m)
+        nonnegative("brake_deadband", self.brake_deadband)
+        nonnegative("coast_below_mps", self.coast_below_mps)
+        if self.brake_deadband >= 1:
+            raise ValueError("brake_deadband must be below 1")
 
     def minimum_horizon_m(self, speed_mps):
         """Shortest non-final horizon that does not cap ``speed_mps`` (plus the lookahead)."""
@@ -227,7 +235,16 @@ class LocalTrajectoryController:
             command = ControlCommand(angle if state.speed_mps > c.stopped_speed_mps else 0.0, 0.0, command.brake)
         else:
             effort = self._speed.update(state.speed_mps, target_speed, dt_s)
-            command = ControlCommand(angle, max(0.0, effort), max(0.0, -effort))
+            brake = max(0.0, -effort)
+            if (c.stopped_speed_mps < state.speed_mps < self.config.coast_below_mps
+                    and target_speed > c.stopped_speed_mps and brake < self.config.brake_deadband):
+                # A trace of brake on a slowly moving car stops it dead in the simulator
+                # (the tyres stick below walking pace): a speed excess at walking pace is
+                # shed by coasting, not by the pads, unless the target is a stop or the
+                # excess is large. The first full live stack run sawtoothed between 0 and
+                # 1 m/s on brake commands of 0.006.
+                brake = 0.0
+            command = ControlCommand(angle, max(0.0, effort), brake)
         self._progress_m = progress
         if self._finished:
             status = LocalStatus.FINISHED

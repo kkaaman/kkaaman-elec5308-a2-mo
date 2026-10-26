@@ -33,10 +33,18 @@ class RadarConfig:
     range_sigma_m: float = 0.25  # measurement noise handed to the tracker
     bearing_sigma_rad: float = math.radians(2.0)
     rate_sigma_mps: float = 0.3
+    # Returns below this height in the vehicle frame (z up from the actor origin, at the
+    # road) are the road itself: a bumper radar with a 15 degree vertical field hits the
+    # tarmac from 5 m out, and on the first full live run (25 Oct) those returns became a
+    # "lead" 5 m ahead that held the car to 0.3-1 m/s for the whole route.
+    min_height_m: float = 0.3
+    max_height_m: float = 3.0  # above: gantries, trees, overhead signs
 
     def __post_init__(self):
         if self.cluster_m <= 0 or self.cluster_rate_mps <= 0 or self.min_returns < 1:
             raise ValueError("RadarConfig: positive cluster sizes and min_returns >= 1")
+        if self.max_height_m <= self.min_height_m:
+            raise ValueError("RadarConfig: max_height_m must exceed min_height_m")
 
 
 @dataclass(frozen=True)
@@ -74,12 +82,19 @@ def ego_radial_speed(points_ego, sensor_xy, ego_speed_mps, yaw_rate_rps):
     return -(u @ v_sensor)
 
 
-def compensate(radar, ego_speed_mps, yaw_rate_rps):
-    """Returns in the vehicle frame with the object's own radial speed: N x 3 (x, y, rate)."""
-    pts = radar.points_ego()[:, :2]
+def compensate(radar, ego_speed_mps, yaw_rate_rps, config=None):
+    """Returns in the vehicle frame with the object's own radial speed: N x 3 (x, y, rate).
+
+    Returns from the road surface (below ``min_height_m``) and from overhead structure
+    (above ``max_height_m``) are dropped: neither is a road user.
+    """
+    c = config or RadarConfig()
+    xyz = radar.points_ego()
+    keep = (xyz[:, 2] >= c.min_height_m) & (xyz[:, 2] <= c.max_height_m)
+    pts = xyz[keep, :2]
     sx, sy, _ = sensor_pose(radar.sensor_to_ego)
     own = ego_radial_speed(pts, (sx, sy), ego_speed_mps, yaw_rate_rps)
-    rate = np.asarray(radar.returns[:, 3], dtype=float) - own
+    rate = np.asarray(radar.returns[keep, 3], dtype=float) - own
     return np.column_stack((pts, rate)), np.array([sx, sy])
 
 
@@ -156,5 +171,5 @@ def cluster_returns(compensated, sensor_xy, name, config=None):
 
 def measure(radar, ego_speed_mps, yaw_rate_rps, config=None):
     """RadarMeasurements from one ``RadarReturns``; an empty frame gives an empty list."""
-    compensated, sensor_xy = compensate(radar, ego_speed_mps, yaw_rate_rps)
+    compensated, sensor_xy = compensate(radar, ego_speed_mps, yaw_rate_rps, config)
     return cluster_returns(compensated, sensor_xy, radar.name, config)
