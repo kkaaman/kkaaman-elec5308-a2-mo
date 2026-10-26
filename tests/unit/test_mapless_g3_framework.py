@@ -164,19 +164,58 @@ def test_radar_only_tracks_start_beyond_lidar_range_or_moving_and_rejections_are
         return RadarMeasurement("radar_front", np.asarray(xy, dtype=float), float(np.hypot(*rel)), float(math.atan2(rel[1], rel[0])), radial, 3, sensor_xy)
 
     tracker = Tracker(TrackerConfig())
-    tracks = tracker.update(0.0, ORIGIN, radar=[ret((15.0, -6.0), 0.0), ret((45.0, 0.0), 0.0), ret((15.0, 3.0), -2.0)])
-    assert len(tracks) == 2  # the far static one and the near moving one
-    assert tracker.radar_stats["clutter_skipped"] == 1 and tracker.radar_stats["spawned"] == 2
-    # A LiDAR track held static while the radar keeps reading 3 m/s away from the sensor.
+    tracks = tracker.update(0.0, ORIGIN, radar=[ret((15.0, -6.0), 0.0), ret((45.0, 0.0), 0.0), ret((15.0, 3.0), -2.0), ret((45.0, 15.0), 0.0)])
+    assert len(tracks) == 2  # the far static one ahead and the near moving one
+    assert tracker.radar_stats["clutter_skipped"] == 2 and tracker.radar_stats["spawned"] == 2
+    # A settled static LiDAR track; the radar reads it moving, alternately 3 m/s away and
+    # towards the sensor: isolated outliers, each rejected and the count restarted.
+    car = LidarMeasurement(np.array([20.0, 0.0]), (4.5, 2.0, 0.0))
     tracker = Tracker(TrackerConfig())
     for k in range(20):
-        tracks = tracker.update(k * 0.05, ORIGIN, lidar=[LidarMeasurement(np.array([20.0, 0.0]), (4.5, 2.0, 0.0))])
+        tracks = tracker.update(k * 0.05, ORIGIN, lidar=[car])
     for k in range(20, 24):
-        tracks = tracker.update(k * 0.05, ORIGIN, lidar=[LidarMeasurement(np.array([20.0, 0.0]), (4.5, 2.0, 0.0))], radar=[ret((20.0, 0.0), 3.0)])
-    assert tracks[0].doppler_rejects == 4
-    assert tracker.radar_stats["doppler_rejected"][0][2] == 4
-    tracks = tracker.update(1.2, ORIGIN, lidar=[LidarMeasurement(np.array([20.0, 0.0]), (4.5, 2.0, 0.0))], radar=[ret((20.0, 0.0), 0.0)])
-    assert tracks[0].doppler_rejects == 0  # an agreeing update ends the run
+        tracks = tracker.update(k * 0.05, ORIGIN, lidar=[car], radar=[ret((20.0, 0.0), 3.0 if k % 2 else -3.0)])
+        assert tracks[0].doppler_rejects == 1 and not tracker.radar_stats["doppler_manoeuvres"]
+    assert abs(tracks[0].velocity[0]) < 0.3
+    # Then 3 m/s away again (the last outlier was too): two running is still rejected,
+    # three running is a manoeuvre and the radial speed is taken.
+    tracks = tracker.update(24 * 0.05, ORIGIN, lidar=[car], radar=[ret((20.0, 0.0), 3.0)])
+    assert tracks[0].doppler_rejects == 2 and not tracker.radar_stats["doppler_manoeuvres"]
+    tracks = tracker.update(25 * 0.05, ORIGIN, lidar=[car], radar=[ret((20.0, 0.0), 3.0)])
+    assert tracker.radar_stats["doppler_manoeuvres"] and tracks[0].doppler_rejects == 0
+    assert tracks[0].velocity[0] > 2.0
+
+
+def test_a_braking_lead_is_seen_by_its_radial_speed_within_three_radar_updates():
+    """B9 (26 Oct): the lead stopped within 0.2 s; the radar read it 1.7 m/s slower than
+    the track nine ticks running and every reading was rejected, so the track slowed only
+    as fast as the LiDAR positions allowed (0.6 s). A one-sided run of rejections is a
+    manoeuvre. The tangential speed is untouched: a crossing walker keeps its speed."""
+    from mapless.radar import RadarMeasurement
+
+    sensor_xy = np.array([2.5, 0.0])
+
+    def ret(xy, radial):
+        rel = np.asarray(xy, dtype=float) - sensor_xy
+        return RadarMeasurement("radar_front", np.asarray(xy, dtype=float), float(np.hypot(*rel)), float(math.atan2(rel[1], rel[0])), radial, 3, sensor_xy)
+
+    tracker = Tracker(TrackerConfig())
+    x = 15.0
+    for k in range(60):  # 2 m/s ahead, LiDAR and radar agreeing
+        x += 2.0 * 0.05
+        tracks = tracker.update(k * 0.05, ORIGIN, lidar=[LidarMeasurement(np.array([x, 0.0]), (0.4, 1.8, 0.0))], radar=[ret((x, 0.0), 2.0)])
+    assert tracks[0].velocity[0] == pytest.approx(2.0, abs=0.2)
+    speeds = []
+    for k in range(60, 66):  # stopped dead
+        tracks = tracker.update(k * 0.05, ORIGIN, lidar=[LidarMeasurement(np.array([x, 0.0]), (0.4, 1.8, 0.0))], radar=[ret((x, 0.0), 0.0)])
+        speeds.append(tracks[0].velocity[0])
+    assert speeds[2] < 0.6  # by the third radar update (0.15 s)
+    # A walker crossing square on: the radar reads ~0 radial, the LiDAR sees it cross.
+    tracker = Tracker(TrackerConfig())
+    for k in range(40):
+        y = -3.0 + 1.2 * k * 0.05
+        tracks = tracker.update(k * 0.05, ORIGIN, lidar=[LidarMeasurement(np.array([20.0, y]), (0.5, 0.5, 0.0))], radar=[ret((20.0, y), 0.0)])
+    assert tracks[0].velocity[1] == pytest.approx(1.2, abs=0.3)
 
 
 def test_radar_twin_of_a_lidar_track_is_merged_and_near_static_radar_clutter_dropped():
@@ -626,6 +665,64 @@ def test_pieces_of_the_lead_are_not_conflicts_but_a_walker_before_it_is():
     behind = track(10, 12.0, 0.2, 0.0, 1.0, 0.5, 0.5)
     kept = outside_lead_body([walker_lead, behind], [predict(behind, c.prediction)], walker_lead, 10.0, ORIGIN, path, s_car, c)
     assert [p.track_id for p in kept] == [10]
+
+
+def test_vehicles_beyond_a_kerb_or_railing_cannot_reach_the_path():
+    """B8/A9/B9 (26 Oct): walls 13-23 m right of the path, their visible stretch sliding
+    at 4-6 m/s, read as cars heading for the path and stopped the car (out of the
+    radar's view). A vehicle's run towards the path must not meet a kerb or anything
+    standing; walkers cross kerbs and are left alone."""
+    from mapless.prediction import predict
+    from mapless.stack import StackConfig, road_reachable
+    from mapless.terrain import CellLabel
+
+    class Grid:
+        def __init__(self, railing):
+            self.railing = railing
+
+        def labels(self, xy):
+            xy = np.asarray(xy, dtype=float)
+            out = np.full(len(xy), CellLabel.ROAD, dtype=np.int8)
+            if self.railing:
+                out[(xy[:, 1] < -5.5) & (xy[:, 1] > -6.5)] = CellLabel.OCCUPIED
+            return out
+
+    c = StackConfig()
+    u = {k: 0.2 for k in ("car", "truck", "bike", "pedestrian", "unknown")}
+
+    def track(tid, x, y, vx, vy, fl, fw):
+        return ObjectTrack(tid, 0.0, [x, y, vx, vy], np.diag([0.05] * 4), u, TrackStatus.CONFIRMED, 20, 0, support=("lidar",), footprint=(fl, fw, 0.0), travelled_m=3.0, recent_speed_mps=4.0)
+
+    path = np.column_stack((np.arange(-2.0, 60.0, 0.5), np.zeros(124)))
+    wall = track(561, 14.23, -15.1, -0.28, 4.1, 5.51, 3.18)  # logged in B9
+    walker = track(2, 14.0, -12.0, 0.0, 1.3, 0.5, 0.5)
+    near = track(3, 20.0, -6.8, 0.0, 2.0, 4.5, 1.9)  # within kerb + reach: the timed check's
+    tracks = [wall, walker, near]
+    preds = [predict(t, c.prediction) for t in tracks]
+    kept, dropped = road_reachable(tracks, preds, path, Grid(railing=True), keep_right_m=5.7, config=c)
+    assert dropped == [561] and sorted(p.track_id for p in kept) == [2, 3]
+    # The same car on an open side road reaches the lane: kept.
+    kept, dropped = road_reachable(tracks, preds, path, Grid(railing=False), keep_right_m=5.7, config=c)
+    assert dropped == [] and len(kept) == 3
+
+
+def test_a_known_lead_coming_to_rest_is_a_stopped_obstacle_not_uncertain():
+    """B9 (26 Oct): the lead's rear face (1.7 x 0.8 m, no class) read "uncertain" while it
+    came to rest, its own walking-pace envelope became a "predicted conflict" and the car
+    stopped 10 m short, twice. As wide as a car's rear, or seen for a second, and not
+    moving along or across: the driver's obstacle stop."""
+    from mapless.stack import StackConfig, lead_role
+
+    c = StackConfig()
+    u = {k: 0.2 for k in ("car", "truck", "bike", "pedestrian", "unknown")}
+    rear = ObjectTrack(57, 0.0, [15, 0, 0.1, 0.0], np.diag([0.05] * 4), u, TrackStatus.CONFIRMED, 200, 0, footprint=(0.84, 1.74, 0.0), travelled_m=20.0, recent_speed_mps=1.0)
+    assert lead_role(rear, 0.1, 0.0, c) == "obstacle_stop"  # known (200 hits)
+    young = ObjectTrack(58, 0.0, [15, 0, 0.1, 0.0], np.diag([0.05] * 4), u, TrackStatus.CONFIRMED, 5, 0, footprint=(0.84, 1.74, 0.0), travelled_m=0.2, recent_speed_mps=None)
+    assert lead_role(young, 0.1, 0.0, c) == "uncertain"
+    assert lead_role(young, 0.1, 0.0, c, wide=True) == "obstacle_stop"
+    # A walker crossing is still crossing, however long it has been seen.
+    walker = ObjectTrack(59, 0.0, [15, 0, 0.1, 1.2], np.diag([0.05] * 4), u, TrackStatus.CONFIRMED, 200, 0, footprint=(0.5, 0.5, 0.0), travelled_m=3.0, recent_speed_mps=1.2)
+    assert lead_role(walker, 0.1, 1.2, c) == "crossing"
 
 
 def test_sensor_support_expires_when_a_sensor_stops_updating_the_track():

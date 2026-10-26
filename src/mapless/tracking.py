@@ -83,6 +83,9 @@ class TrackerConfig:
     # front radar against 61 without, 45 ms of tracking a tick (Town05, 26 Oct).
     radar_spawn_min_range_m: float = 30.0
     radar_spawn_min_speed_mps: float = 0.5
+    # ... and a static one only near the line ahead (vehicle frame): far static returns off
+    # to the side are buildings and poles (B9: 130 tracks against 58 without the radar).
+    radar_static_spawn_half_width_m: float = 8.0
     # One object, two tracks: the radar picks a car up beyond the LiDAR's reach; when the
     # LiDAR clusters it, the cluster fits its own new track better and the radar keeps
     # updating the old one (braking lead B8, 26 Oct: the lead followed as radar-only track
@@ -94,6 +97,13 @@ class TrackerConfig:
     # carried in from beyond 30 m (B8: 148 tracks, 45 ms), once it is this old.
     radar_clutter_range_m: float = 25.0
     radar_clutter_age_s: float = 0.5
+    # A radial speed rejected this many times running, all with the same sign, is the
+    # track's motion changing (a manoeuvre), not an outlier: the velocity variance along
+    # the line of sight is opened by the innovation and the radial speed is used. B9,
+    # 26 Oct: the lead stopped within 0.2 s, the radar read it 1.7 m/s slower nine ticks
+    # running, every one rejected, and the track's speed took 0.6 s to fall by LiDAR alone.
+    # Only the radial component moves: a walker crossing square on keeps its speed.
+    doppler_accept_after: int = 3  # 0.15 s at 20 Hz; two would let an association glitch through
 
     def __post_init__(self):
         if self.confirm_hits > self.confirm_window or self.coast_s >= self.delete_s:
@@ -118,6 +128,7 @@ class _Track:
     trail: deque = field(default_factory=lambda: deque(maxlen=64))  # (time, x, y) after each update
     seen: dict = field(default_factory=dict)  # sensor -> last time it updated the track
     doppler_rejects: int = 0  # consecutive radar updates with the radial speed rejected
+    doppler_sign: float = 0.0  # the sign of the last rejected radial-speed innovation
     origin_time_s: float = 0.0  # when the track started
 
 
@@ -279,22 +290,32 @@ class Tracker:
                     cost[i, j] = d2_pos
                     models[(i, j)] = (z, h, H, R, y, S, sensor_odo)
             assigned = _assign(cost, CHI2_2D)
-            rejected = []
+            rejected, manoeuvres = [], []
             for i, j in assigned:
                 t = self.tracks[ids[i]]
                 z, h, H, R, y, S, sensor_odo = models[(i, j)]
                 d2_rate = float(y[2] ** 2 / S[2, 2])
+                sign = math.copysign(1.0, y[2])
                 if d2_rate <= CHI2_1D:
                     self._kalman(t, y, H, R)
                     t.doppler_rejects = 0
+                elif t.doppler_rejects + 1 >= c.doppler_accept_after and t.doppler_sign == sign:
+                    # Persistent, one-sided: the object's motion changed. Open the velocity
+                    # variance along the line of sight (H's radial-speed row is the unit
+                    # line-of-sight vector over vx, vy) and take the full update.
+                    u = H[2, 2:]
+                    t.P[2:, 2:] += float(y[2] ** 2) * np.outer(u, u)
+                    self._kalman(t, y, H, R)
+                    manoeuvres.append((t.track_id, round(float(y[2]), 2)))
+                    t.doppler_rejects = 0
                 else:
                     # Radial speed inconsistent with the track: use range and bearing only,
-                    # and count it. The radar measures motion along its line of sight only,
-                    # so agreement says nothing about motion across it (a walker crossing
-                    # square on reads ~0); a persistent disagreement is logged, not
-                    # resolved for either sensor (external review, 26 Oct).
+                    # and count it (an isolated outlier). The radar measures motion along
+                    # its line of sight only, so agreement says nothing about motion across
+                    # it (a walker crossing square on reads ~0).
                     self._kalman(t, y[:2], H[:2], R[:2, :2])
-                    t.doppler_rejects += 1
+                    t.doppler_rejects = t.doppler_rejects + 1 if t.doppler_sign == sign else 1
+                    t.doppler_sign = sign
                     rejected.append((t.track_id, round(float(y[2]), 2), t.doppler_rejects))
                 self._absorb(t, None, "radar", time_s)
                 hit.add(ids[i])
@@ -304,14 +325,15 @@ class Tracker:
             spawned = skipped = 0
             for j, m in enumerate(radar):
                 if j not in assigned_cols:
-                    if m.range_m < c.radar_spawn_min_range_m and abs(m.radial_speed_mps) < c.radar_spawn_min_speed_mps:
+                    static = abs(m.radial_speed_mps) < c.radar_spawn_min_speed_mps
+                    if static and (m.range_m < c.radar_spawn_min_range_m or abs(float(m.xy[1])) > c.radar_static_spawn_half_width_m):
                         skipped += 1
                         continue
                     obj_odo = pose.to_world(m.xy[None])[0]
                     tid = self._spawn(obj_odo, 1.0, None, time_s, "radar")
                     hit.add(tid)
                     spawned += 1
-            self.radar_stats = dict(objects=len(radar), associated=len(assigned), doppler_rejected=rejected[:5], spawned=spawned, clutter_skipped=skipped)
+            self.radar_stats = dict(objects=len(radar), associated=len(assigned), doppler_rejected=rejected[:5], doppler_manoeuvres=manoeuvres[:5], spawned=spawned, clutter_skipped=skipped)
         else:
             self.radar_stats = {}
         self._merge_radar_twins(time_s)

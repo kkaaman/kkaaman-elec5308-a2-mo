@@ -1101,6 +1101,7 @@ were saved.
 | pedestrian B6 / cut-in B3 (on `c5f0b74` or earlier: started the minute `081cd04` was pushed) | proactive yield scored as none; false yields to the cut-in car and to a one-tick fragment | M04 gate took the already-slowed speed as reference; the yield took a car's rear face (under 2 m) for a walker and acted on single ticks | gate reference = fastest speed in the 3 s before entry; yield only to crossers (across the path at 0.3 m/s or more) at pedestrian speed (2.5 m/s max) after 0.3 s |
 | braking lead B4 (Town10HD), 4 m/s A6/B6 (Town05), cut-in B4, pedestrian B7, all on `6b1f705` | all MEASURED_PASS (yield 1.99 to 0.14 m/s and resume; no yield during the cut-in); at 4 m/s, stop-and-go for the first 10 s; stop-and-go in the last 10 m behind the stopped lead | an 80 x 7 m kerb railing tracked as a 12 x 7 m object moving with the car (71 conflict ticks in both runs); 0.3 m pieces of the lead's roof and wheels 1.5–4 m beyond its rear face jittering sideways, and once the lead duplicated as a fresh LiDAR-only track | the split above (thin pieces of a structure are structure too); tracks inside the lead's body are not conflict candidates |
 | braking lead B8 (Town05, 4 m/s, lead at 2 m/s braking at 90 m), on `b8c3a46` | MEASURED_PASS; clean start (the railing fix); a stop at 11 s and a slowdown at 23 s | far-right scenery (13–23 m off the path, out of the radar's view) with centroid motion of 4–6 m/s read as vehicles heading for the path; the lead tracked twice, radar-only (followed) and LiDAR (a 'crossing walker'); 148 tracks, 45 ms tracking, 81 ms clustering | radar twins merged into LiDAR tracks; near static radar-only clutter dropped; one linking pass for the split (two passes cost ~18 ms); exact radar Jacobian and vectorised gates. Open: LiDAR-only motion of extended scenery (needs shape/point registration, not a centroid) |
+| braking lead A9/B9 (Town05, 4 m/s, lead 2 m/s braking at 90 m), on `44e4f96` | both MEASURED_PASS, 3.48 m clearance; first A/B table above; both stopped once at ~10 s and stopped short twice as the lead came to rest | walls 13–23 m right read as cars heading for the path (radar blind there); the radar's reading of the lead braking rejected nine ticks running; the stopping lead's rear face 'uncertain', so its own envelope was a conflict | vehicles cannot reach the path through a kerb, railing or object (`road_reachable`, terrain grid); persistent one-sided radial speed is a manoeuvre; a known or car-wide lead at rest is the obstacle stop's; far static radar spawns only within 8 m of the line ahead |
 
 ### External review of `405b056` (ChatGPT, 26 Oct): all five high-priority findings taken
 
@@ -1139,18 +1140,36 @@ were saved.
   radar-only track inside a LiDAR track's footprint (grown by 1 m) is the same object:
   merged into it, the older id kept (B8: the lead was followed as radar-only track 166
   from 32 m to 12 m while its LiDAR twin read as a crossing walker and stopped the car).
-- **Disagreement is logged, not resolved.** A radial speed the track's velocity cannot
-  explain still updates its position and is counted (`doppler_rejects`, consecutive, in
-  the lead and `cap_track` notes; the tick's `radar_stats` lists the innovations). The
-  radar sees motion along its line of sight only, so "radar reads zero" never means
-  "static" (a walker crossing square on reads zero). What to do with a persistent
-  disagreement is decided from logged runs.
+- **Disagreement: an outlier is rejected, a persistent one is a manoeuvre.** A radial
+  speed the track's velocity cannot explain updates the position only and is counted
+  (`doppler_rejects`, in the lead and `cap_track` notes; `radar_stats` lists the
+  innovations). Three running with the same sign (0.15 s) is the object's motion
+  changing: the velocity variance along the line of sight is opened by the innovation
+  and the radial speed is used (`doppler_manoeuvres`). B9 showed why: the lead stopped
+  within 0.2 s, the radar read it 1.7 m/s slower nine ticks running, every reading was
+  rejected, and the track slowed only as fast as the LiDAR positions allowed (0.6 s);
+  replayed, the track now reads ~0 by the third update. Only the radial component moves,
+  so a walker crossing square on (radial ~0) keeps its crossing speed.
 - **Cameras** run the road segmenter; the object detector (`--detector yolo`) has not
   been run live yet, so classes come from footprint and motion alone.
 - **Rear radars** (admission C) feed the tracker but have no consumer until lane
   changes; their tests (approaching, alongside, leaving the blind spot) belong to G4.
 - **First evidence for the radar (B8, lead at 2 m/s):** a lead selected at 32 m, beyond
   the LiDAR's object range, its speed read 1.8–1.9 m/s (true 2.0) and followed.
+- **First A/B (A9 against B9, Town05, 4 m/s, lead at 2 m/s braking at 90 m, `44e4f96`):**
+
+  | | A (LiDAR) | B (+ front radar) |
+  |---|---|---|
+  | first lead (time, true gap) | 9.0 s, 32.5 m | 8.85 s, 32.8 m |
+  | lead-speed error RMSE / p95 | 0.29 / 0.37 m/s | 0.26 / 0.13 m/s |
+  | braking seen after | 0.45 s | 0.50 s (radial speeds rejected; fixed above) |
+  | stopped while the lead moved | 0.45 s | 1.05 s (scenery out of the radar's view) |
+  | minimum clearance | 3.48 m | 3.48 m |
+  | tracking p50 (tracks) | 4 ms (58) | 16 ms (130); was 45 ms before `44e4f96` |
+
+  The radar did not see the lead earlier (the LiDAR clustered it at 32.5 m as well) and
+  its one clear gain so far is the speed error's tail. The braking delay is the
+  measurement it should win, now that a persistent radial speed is used.
 - **Measurement:** every stack braking-lead and cut-in run now reports `lead_tracking`
   (first lead and the true gap then, lead-speed error RMSE/p95, gap error, brake
   detection delay, stops while the lead still moved, sensor support), and the log
