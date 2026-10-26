@@ -52,6 +52,7 @@ from mapless.obstacles import project_onto_polyline
 from mapless.painting import PaintingConfig, SegmentedFrame, paint
 from mapless.prediction import (
     PredictionConfig,
+    decided_class,
     first_footprint_conflict,
     first_occupied_arc,
     is_moving,
@@ -372,17 +373,18 @@ def conflict_candidates(tracks, predictions, lead_id, config):
         track = by_id.get(p.track_id)
         if p.track_id == lead_id or track is None:
             continue
-        if is_moving(track, config) or track.best_class == "pedestrian":
+        if is_moving(track, config) or decided_class(track) == "pedestrian":
             out.append(p)
     return out
 
 
 def is_vulnerable(track, config):
-    """A pedestrian or bike by class, or, without a class, a LiDAR footprint no larger
-    than ``vulnerable_max_m`` (the walker's cluster is well under a metre)."""
-    if track.best_class in ("pedestrian", "bike"):
+    """A pedestrian or bike by a decided class, or, without one, a LiDAR footprint no
+    larger than ``vulnerable_max_m`` (the walker's cluster is well under a metre)."""
+    cls = decided_class(track)
+    if cls in ("pedestrian", "bike"):
         return True
-    if track.best_class in ("car", "truck"):
+    if cls in ("car", "truck"):
         return False
     return track.footprint is not None and max(track.footprint[0], track.footprint[1]) <= config.vulnerable_max_m
 
