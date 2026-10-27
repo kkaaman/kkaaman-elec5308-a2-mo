@@ -14,7 +14,7 @@ more than one site or run without retuning.
 |---|---|---|---|---|---|---|
 | G0 | Rig v2, health, calibration gate | yes | yes | MEASURED_PASS, both PCs | yes | — |
 | G1a | Local trajectory controller | yes | yes | yes (inside G1b) | yes | — |
-| G1b | Straight, curve, obstacle stop at 2 m/s, sensor-only | yes | yes | MEASURED_PASS (Town10HD) | straight at 4 m/s; stack runs | railing-kerb calibration (Town05) fixed offline, not yet live; Stage 1 stopping fixes (holds, clearance, low objects, bends, standstill corridor) offline only |
+| G1b | Straight, curve, obstacle stop at 2 m/s, sensor-only | yes | yes | MEASURED_PASS (Town10HD) | straight at 4 m/s; stack runs; stop and curve again on the Stage 1 code | railing-kerb calibration (Town05) fixed offline, not yet live; Stage 1 stopping cases (holds, clearance, low objects, bends) offline only |
 | G1c | Commanded 90° turn | yes | yes | right (Town10HD) and left (Town03) MEASURED_PASS | no | far exit-kerb bias on bare pavement; furnished and bare synthetic cases to keep separate; exit-line uncertainty not reported |
 | G2 | Segmenter, painting, road model, stack | yes | yes | stack straight and stop MEASURED_PASS (Town10HD site 1) | no | segmentation does not yet place the lane; S0–S5 × 5 not run; segmenter retrained on corrected labels (`road_seg_b0_v2.pt`, mIoU 0.879), the old checkpoint refused by the loader |
 | G3 | Tracker, radar, prediction, following, M04–M06 | yes | yes | braking lead, cut-in, crossing pedestrian MEASURED_PASS (Town10HD site 1), again on `6b1f705` with no false yields; braking lead at 4 m/s MEASURED_PASS with and without radar (Town05 site 0) | no | A/B/C ablation with a lead still moving beyond LiDAR range (in A6/B6 it had stopped before either sensor saw it: first tracked at 30.5 m LiDAR-only, 34.5 m with radar, both static, so nothing was followed); the radar adds ~45 ms of tracking (155 tracks against 61); grades are outside the terrain model's scope; split LiDAR clusters and a separate radar track per parked car; a car within the tight link (0.3 m + 1 cm/m) of a long structure stays part of it and is left to the LiDAR obstacle stop |
@@ -1004,6 +1004,22 @@ mIoU 0.729), so `road_seg_b0_v2_last.pt` is not for use. Training now decays the
 (cosine per step to 5%, `--schedule constant` for the old behaviour). Marking stays the
 weakest class: high recall, lower precision (over-painted thin lines).
 
+Old against retrained on the same corrected Town02 labels (`--evaluate`, 8,000 images):
+
+| | `road_seg_b0.pt` (old table) | `road_seg_b0_v2.pt` |
+|---|---|---|
+| mIoU | 0.874 | **0.879** |
+| pavement IoU / precision / recall | 0.904 / 0.915 / 0.987 | **0.921 / 0.939** / 0.980 |
+| pavement boundary (2 px) precision / recall | 0.838 / 0.829 | **0.911 / 0.842** |
+| marking IoU / precision / recall | 0.690 / 0.714 / 0.953 | **0.712 / 0.804** / 0.861 |
+| road_user IoU / precision / recall | **0.834 / 0.846** / 0.983 | 0.816 / 0.826 / 0.985 |
+| road IoU | 0.972 | 0.974 |
+
+The gain is where the car uses it: pavement boundary precision 0.838 → 0.911 (the old
+model painted pavement on sign panels, so it drew kerb edges that are not there).
+Road users are slightly worse (0.82 against 0.83 precision); mIoU alone (+0.005) hides
+both. `road_seg_b0_v2.pt` is the segmenter.
+
 ### Fresh-eyes review of `6773e24..58adaf3` (25 Oct, three independent reads): all taken
 Turn code (`junction.py`, `driver.py`):
 1. **A mid-arc re-plan committed a path its own follow then rejected**, and the latch had
@@ -1232,11 +1248,21 @@ were saved.
   carries the actor's truth per tick. Next: admission A against B on the same site and
   actor parameters, with compute.
 
-### Stage 1, reliable stopping (27 Oct, offline only)
+### Stage 1, reliable stopping (27 Oct; offline, and the G1b regression live)
 
 After the full review of `73ae759` and the external review of it, the agreed order is:
 1 reliable stopping, 2 object identity, 3 junction commitment, 4 honest evaluation,
-5 sensor benefit. Stage 1 is done offline and has not been run live.
+5 sensor benefit. Stage 1 is done offline; live, only the G1b regression has been run.
+
+**Live regression (PC 2, Town10HD_Opt, `8653753`): stop and curve MEASURED_PASS**, as on
+23 Oct. Stop: held 3.51 m short (3.5 m before), lane p95 0.11 m, worst corner 1.28 m,
+no faults; standing, the corridor grew from 9 to 13 m on accepted refits. Curve: lane p95
+0.06 m, max 0.064 m, worst corner 1.32 m (identical), goal within 2.8 m; step p95 25 ms.
+The stop log showed one more fault, fixed after the run: a missed parked car 27 m out
+on a 24 m line put its held stop at the line's end, 3.9 m short (a projection past the
+end clamps to the end point, and its "lateral" is the distance to it, so an obstacle to
+one side of the line's continuation could be dropped as off the path). Holds are now
+measured along the line continued past its end.
 
 - **One hold per obstacle (S2).** A detection within 2 m (along the path) of a held
   obstacle is that obstacle; anything else gets its own hold. The stop is the nearest

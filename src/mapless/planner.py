@@ -142,8 +142,20 @@ class LanePlanner:
             self._holds = []
 
     def _along(self, corridor, line, xy):
-        """Arc length on ``line`` and lateral offset of odometry points."""
-        s, lateral, _ = project_onto_polyline(corridor.pose.to_body(np.asarray(xy, dtype=float).reshape(-1, 2)), line)
+        """Arc length on ``line`` and lateral offset of odometry points, the line continued
+        straight past its end. A projection clamps to the end point there and its "lateral"
+        is the distance to it: a missed parked car 27 m out on a 24 m line (live stop run,
+        27 Oct) put its stop at the line's end, 3.9 m short, and an obstacle to one side of
+        the line's continuation could be dropped as off the path."""
+        body = corridor.pose.to_body(np.asarray(xy, dtype=float).reshape(-1, 2))
+        s, lateral, outside = project_onto_polyline(body, line)
+        d = line[-1] - line[-2]
+        u = d / max(float(np.hypot(*d)), 1e-9)
+        rel = body - line[-1]
+        ahead = rel @ u
+        past = outside & (ahead > 0)
+        s = np.where(past, s + ahead, s)
+        lateral = np.where(past, u[0] * rel[:, 1] - u[1] * rel[:, 0], lateral)
         return s, lateral
 
     def _near(self, corridor, line, hold):

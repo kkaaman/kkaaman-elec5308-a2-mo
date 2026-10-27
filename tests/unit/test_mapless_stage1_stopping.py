@@ -162,6 +162,16 @@ def test_the_stop_follows_the_held_obstacle_when_the_path_changes_shape():
     assert plan.stop_distance_m > 0.3
 
 
+def test_a_held_obstacle_past_the_lines_end_keeps_its_place():
+    # Live stop run (27 Oct, PC 2): unseen holds beyond a shorter line clamped to its end,
+    # and the clamped "lateral" (the distance to the end point) would drop a far one.
+    p = planner()
+    p.plan(straight(30.0), PathObservation(PathObstacle(15.0, 0.2, 30, 0.0, 0.4), 15.0), None, 0.0)
+    plan = p.plan(straight(5.0), PathObservation(None, 5.0, ground(along=(0.0, 5.0))), None, DT)
+    assert plan.stop_reason == "obstacle_hold"
+    assert abs(plan.stop_distance_m - held_stop(15.0)) < 0.05
+
+
 def test_holds_survive_a_standstill_frame_rebuild_and_not_a_moving_one():
     corridor, p = straight(), planner()
     p.plan(corridor, PathObservation(PathObstacle(7.1, 0.0, 30, -0.2, 0.2), 7.1), None, 0.0)
