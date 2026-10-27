@@ -33,11 +33,15 @@ import numpy as np
 ROAD_CLASSES = ("road", "marking", "pavement", "road_user", "other")
 
 # CARLA 0.9.16 semantic tags -> ROAD_CLASSES index (labels/semantic/<camera>/<frame>.png).
+# 0.9.16 numbers its tags the Cityscapes way (evaluation.capture_inspection.TAG_NAMES):
+# 8 is TrafficSign and 25 is Ground. The first table mapped 8 ("Ground", the pre-0.9.13
+# numbering) to pavement, so sign panels trained as pavement and kerb-side ground as
+# "other" (review of 3e9083a, 27 Oct); road_seg_b0.pt was trained on that table.
 CARLA_TAG_TO_CLASS = {
     1: 0,  # Roads
     24: 1,  # RoadLine
     2: 2,  # Sidewalks
-    8: 2,  # Ground (curb-adjacent ground)
+    25: 2,  # Ground (kerb-side ground at pavement level)
     12: 3,  # Pedestrians
     13: 3,  # Rider
     14: 3,  # Car
