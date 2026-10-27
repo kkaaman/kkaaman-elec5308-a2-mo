@@ -266,6 +266,27 @@ def test_a_walker_beside_the_lead_stays_a_candidate_but_the_leads_pieces_do_not(
     assert 2 in kept(1.6)
 
 
+def test_a_pedestrian_appearing_beside_the_lead_is_a_candidate_once_out_of_its_body():
+    """External review of e93154f: an unclassified walker that first appears inside the
+    lead's body band has no history there. Inside the band it is shadowed by the lead (the
+    car cannot get there without passing the lead's rear); the moment it steps out, into
+    the gap before the lead or beyond its sides, it is a conflict candidate."""
+    c = StackConfig()
+    path = np.column_stack((np.arange(-2.0, 60.0, 0.5), np.zeros(124)))
+    lead = track(1, 15.0, 0.0, 3.0, 0.0, 4.5, 1.8)
+    history = {}
+
+    def kept(x, y):
+        walker = track(9, x, y, 0.0, -1.2, 0.5, 0.5)
+        tracks = [lead, walker]
+        out = outside_lead_body(tracks, [predict(t, c.prediction) for t in tracks], lead, 15.0, ORIGIN, path, 2.0, c, followed=True, history=history, dt_s=DT)
+        return 9 in {p.track_id for p in out}
+
+    assert not kept(14.0, 1.5)  # appears at the lead's side: shadowed by the lead
+    assert kept(11.5, 1.0)  # steps into the gap before the lead's rear face
+    assert kept(14.0, 3.0)  # or out beyond its side
+
+
 def test_a_vehicles_run_to_the_path_is_blocked_only_by_a_persistent_uncovered_wall():
     c = StackConfig()
     path = np.column_stack((np.arange(-2.0, 60.0, 0.5), np.zeros(124)))

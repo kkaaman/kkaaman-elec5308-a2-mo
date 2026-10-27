@@ -465,13 +465,15 @@ class MaplessStack:
         return cap, reason
 
     def _lidar_saw(self, xy_odo):
-        """For odometry points: did the LiDAR hit anything (ground included) within 0.5 m of
-        each within ``lidar_view_age_s``?"""
+        """For odometry points: did the LiDAR hit anything (ground included) in its cell or a
+        neighbouring one (0.25 m) within ``lidar_view_age_s``? A ray that reached the ground
+        there passed through where an object would stand (external review: within 0.5 m
+        was too loose a proxy)."""
         grid = self.driver.grid
         pts = np.asarray(xy_odo, dtype=float).reshape(-1, 2)
         if grid.time_s is None or not len(pts):
             return np.zeros(len(pts), dtype=bool)
-        offsets = np.array([[0.0, 0.0], [0.5, 0.0], [-0.5, 0.0], [0.0, 0.5], [0.0, -0.5]])
+        offsets = np.array([[0.0, 0.0], [0.25, 0.0], [-0.25, 0.0], [0.0, 0.25], [0.0, -0.25]])
         seen = grid.seen_at((pts[:, None, :] + offsets[None]).reshape(-1, 2)).reshape(len(pts), -1)
         return np.any(seen >= grid.time_s - self.config.lidar_view_age_s, axis=1)
 

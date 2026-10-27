@@ -72,6 +72,16 @@ class DetectionsConfig:
     split_line_angle_deg: float = 20.0
     split_line_offset_m: float = 0.3
     split_line_gap_m: float = 2.0
+    # ... and a thin piece of it spanning less than split_sliver_height_m of height is one
+    # scan ring's sliver of scenery (on the Town05 grade, 36 of them at the LiDAR's own
+    # height, hedge and wall tops, became tracks and conflicts when narrow stopped being
+    # the rule, live on e93154f); a road user beside a structure spans several rings.
+    split_sliver_height_m: float = 0.3
+    split_sliver_width_m: float = 0.08  # ... or narrower than this across: points on one scan line
+    # A piece wholly above split_max_floor_m (its lowest point over the road) is a wall or
+    # hedge top, a branch or a sign, not a road user, who stands on the road (seven of the
+    # Town05 pieces sat 1.5-1.9 m up and above).
+    split_max_floor_m: float = 1.4
     box_cover: float = 0.3  # a cluster must cover this share of the box's width to be its foreground
     class_confidence_floor: float = 0.1  # mass kept on the other classes
 
@@ -221,9 +231,10 @@ def _piece_shape(xy):
     return float(np.ptp((xy - centre) @ vt[0])), float(np.ptp((xy - centre) @ vt[1])), vt[0], centre
 
 
-def _structure_pieces(xy, pieces, config):
+def _structure_pieces(xy, pieces, config, height=None):
     """Which pieces of an oversized cluster (index arrays into ``xy``) are structure: still
-    oversized, a line, or a thin piece continuing a line (``DetectionsConfig``)."""
+    oversized, a line, a thin piece continuing a line, or a thin one-ring sliver (by
+    ``height``, the points' heights, when given; ``DetectionsConfig``)."""
     c = config
     shapes = [_piece_shape(xy[piece]) for piece in pieces]
 
@@ -250,7 +261,9 @@ def _structure_pieces(xy, pieces, config):
 
     out = []
     for k, piece in enumerate(pieces):
-        structure = oversized(xy[piece], c) or k in lines or (thin(shapes[k]) and continues(k))
+        sliver = shapes[k][1] < c.split_sliver_width_m or (height is not None and shapes[k][1] < c.split_min_width_m and float(np.ptp(height[piece])) < c.split_sliver_height_m)
+        sliver = sliver or (height is not None and float(height[piece].min()) > c.split_max_floor_m)
+        structure = oversized(xy[piece], c) or k in lines or sliver or (thin(shapes[k]) and continues(k))
         out.append(structure)
     return out
 
@@ -274,7 +287,7 @@ def split_oversized(sweep, clusters, config=None):
         labels = _components(len(members), *_link_pairs(xy, link))
         order = np.argsort(labels, kind="stable")
         pieces = [np.sort(g) for g in np.split(order, np.flatnonzero(np.diff(labels[order])) + 1) if len(g) >= c.min_points]
-        for piece, structure in zip(pieces, _structure_pieces(xy, pieces, c)):
+        for piece, structure in zip(pieces, _structure_pieces(xy, pieces, c, sweep.height_m[members])):
             (structures if structure else objects).append(members[piece])
     return objects, structures
 
@@ -306,7 +319,7 @@ def cluster_and_split(sweep, config=None):
         sub = tight[g]
         o = np.argsort(sub, kind="stable")
         pieces = [g[np.sort(piece)] for piece in np.split(o, np.flatnonzero(np.diff(sub[o])) + 1) if len(piece) >= c.min_points]
-        for members, structure in zip(pieces, _structure_pieces(xy, pieces, c)):
+        for members, structure in zip(pieces, _structure_pieces(xy, pieces, c, sweep.height_m[idx])):
             (structures if structure else objects).append(idx[members])
     return objects, structures
 

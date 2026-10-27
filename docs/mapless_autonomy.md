@@ -1272,9 +1272,18 @@ measured along the line continued past its end.
   0.3 m lateral bin across the obstacle's span (±0.3 m), in the 0.5 m just behind its near
   face, where it stood. Ground beside it, or in front of it, proves nothing; missing
   evidence is UNKNOWN. A 0.5 m box at the lane centre and a car over the right half of
-  the footprint each "cleared" while still there before. The external review's deadlock
-  concern stands as a live check: at the 3.4 m stop gap the region holds one or two
-  ground rings.
+  the footprint each "cleared" while still there before. The external review's sparse
+  sampling concern was real: one sweep put ground in that strip only within about 6 m
+  (rings 3 m apart at 18 m), and in the live stack runs on `e93154f` a walker who had
+  crossed out of the lane, and a lead that had driven on, held the car almost to a stop
+  (0.06 and 0.57 m/s). Each hold now gathers the in-tube ground points of every sweep
+  since its obstacle was last detected (odometry frame), and the strip is judged on all
+  of them: as the car drives, the rings sweep the strip; an obstacle still there keeps it
+  in shadow. A closed-loop test: down to 0.23 m/s before, over 1.5 m/s now; the
+  missed-obstacle cases stay held. Judging it on the terrain grid's cell hit times instead
+  was unsafe: 0.25 m cells leaked the ground beside and in front of a 0.5 m box into its
+  bins, and the car drove into it. The log names what a hold still lacks (`hold_note`:
+  region bins with ground, points gathered, clearance against what it needs).
 - **Holds across a standstill rebuild (S3).** If the car has not moved since odometry
   dropped out, the rebuild keeps the holds (clearance count restarted, UNKNOWN).
 - **The stop comes from the obstacle.** A hold keeps the obstacle's near face across its
@@ -1358,11 +1367,20 @@ review of `73ae759`. Not yet run live.
   LiDAR fix re-anchors it on the cluster and moves its history with it. A walker-sized
   cluster cannot take over a radar-only track moving faster than 6 m/s.
 - **Radar clutter.** A static radar-only track near the car is dropped only where the LiDAR
-  hit something within 0.3 s (ground included). Where it saw nothing (occluded, between
-  rings), the radar is the only evidence, and the track stays.
+  hit something within 0.3 s (ground included) in its cell or a neighbouring one. Where it
+  saw nothing (occluded, between rings), the radar is the only evidence, and the track
+  stays.
 - **Structure splitting (H1).** A piece split off an oversized cluster is structure only if
-  it is still oversized, or a line: under 0.5 m wide, at least 2.5 m long and three times
-  its width. Narrow alone was the rule before.
+  it does not have a road user's shape:
+  - still oversized;
+  - a line: under 0.5 m wide, at least 2.5 m long and three times its width;
+  - a one-ring sliver: under 0.08 m across, or thin and under 0.3 m tall;
+  - or wholly above 1.4 m over the road (a wall or hedge top, a branch).
+
+  Narrow alone was the rule before. The sliver and floor rules came from the first live
+  Town05 runs on `e93154f`: on the start-up sweep the line rule alone made 66 objects
+  where there had been 30, and the extra slivers became tracks and conflicts. With them
+  it makes 31–35.
 - **Lead body (external review, M9).** A track inside the lead's body is dropped as a piece
   of the lead only if it never was a road user of its own: never seen outside the body for
   0.5 s, and not classed pedestrian or bike. The lead's own pieces are born inside it; a
@@ -1395,12 +1413,29 @@ Offline evidence (the reviews' reproductions):
 | A walker beside the lead, seen 0.6 s on the pavement first | dropped as a piece of the lead | kept |
 | A car's run to the path over pavement / through another car's trail / a parked car | dropped | kept |
 
+**Live regression on `e93154f` (27 Oct).** PC 2, Town10HD site 1, admission B, constant
+segmenter:
+- braking lead, cut-in and crossing pedestrian all MEASURED_PASS;
+- braking seen 0.15 s after it began;
+- lead-speed error RMSE 0.41 m/s, p95 0.07 m/s;
+- no stops before the lead stopped.
+
+They also showed the lingering holds fixed above. PC 1, the Town05 pair at 4 m/s, both
+MEASURED_PASS, but not comparable with 26 Oct: without `lead_start_m=50` and
+`--goal-m 100` the route ended before the lead braked. Sliding railing tracks and the
+extra slivers made 27–39 conflict ticks; the slivers are fixed above. The step was 63–68
+ms p50 on PC 2 and 104–116 ms on PC 1, over the 50 ms budget, with the constant
+segmenter.
+
 Known limits: a car seen side-on within the link distance of a barrier (about 0.6 m)
 is a line, so structure. Requiring a collinear second stretch kept it as an object, but
 turned seven more Town05 railing and road-ring stretches back into objects. Its points
 stay OBSTACLE points for the driver's stop. A rear face within the tight link (0.5 m) of a
 railing chains into it. A rate-rejected return is consumed by its track while that
-track's own return is missing. Regression tests: `tests/unit/test_mapless_stage2_identity.py`.
+track's own return is missing. An unclassified walker that first appears inside the lead's
+body band is ignored there, where the lead shadows it, until it steps out of it (a test
+pins both). Long thin railing tracks that were never split (under 12 m) still slide and
+make conflicts on Town05, as before. Regression tests: `tests/unit/test_mapless_stage2_identity.py`.
 
 ## Running Phase 0 live
 

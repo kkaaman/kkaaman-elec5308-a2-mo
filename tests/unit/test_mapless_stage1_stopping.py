@@ -368,6 +368,29 @@ def test_closed_loop_a_held_pedestrian_whose_returns_go_missing_keeps_the_car_st
     assert max(t.s_m for t, _ in log[at:]) - log[at][0].s_m < 0.05
 
 
+def test_closed_loop_an_obstacle_that_leaves_while_far_ahead_does_not_stop_the_car():
+    """Live stack runs on e93154f (PC 2): a walker that crossed out of the lane, and a lead
+    that drove on, held the car almost to a stop (0.06 and 0.57 m/s), because one sweep put
+    ground in the held 0.5 m strip only within about 6 m. The grid's hit history since the
+    obstacle was last seen clears it as the rings sweep over it."""
+    kerb = KerbLine([Straight(250)])
+    person = box_at(kerb, 45.0, 0.0, 0.25, 0.25, 1.8)
+    state = {"gone": None}
+
+    def tamper(k, frame, world, log):
+        if state["gone"] is None and log and log[-1][1].diagnostics.get("obstacle_m") is not None and log[-1][1].diagnostics["obstacle_m"] > 15.0:
+            state["gone"] = k
+            world.boxes = []  # the walker steps out of the lane
+        return frame
+
+    log = run(RoadScene(kerb, hedges=(person,)), seconds=30, tamper=tamper)
+    gone = state["gone"]
+    assert gone is not None and not any(t.collision for t, _ in log)
+    after = log[gone:]
+    assert min(t.speed_mps for t, _ in after[40:]) > 1.5  # no near stop once under way again
+    assert max(t.s_m for t, _ in after) > 50.0
+
+
 def test_closed_loop_an_imu_outage_while_held_keeps_the_hold():
     car = ParkedCar(45.0, 1.75)
     state = {"at": None}
