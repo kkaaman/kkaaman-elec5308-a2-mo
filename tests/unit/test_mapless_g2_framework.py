@@ -78,6 +78,19 @@ def test_constant_segmenter_and_label_mapping():
     assert carla_tags_to_classes(tags).tolist() == [[0, 1, 2], [3, 3, 4]]
 
 
+def test_label_mapping_follows_the_carla_0916_tag_table():
+    """Review of 3e9083a: tag 8 was mapped as "Ground" (the pre-0.9.13 numbering); in 0.9.16
+    it is TrafficSign and Ground is 25. The car-side table must agree with the evaluator's."""
+    from evaluation.capture_inspection import TAG_NAMES
+    from mapless.road_segmentation import CARLA_TAG_TO_CLASS
+
+    expected = {"road": "road", "road_line": "marking", "sidewalk": "pavement", "ground": "pavement"}
+    expected.update({name: "road_user" for name in ("pedestrian", "rider", "car", "truck", "bus", "train", "motorcycle", "bicycle")})
+    mapped = {TAG_NAMES[tag]: ROAD_CLASSES[index] for tag, index in CARLA_TAG_TO_CLASS.items()}
+    assert mapped == expected
+    assert carla_tags_to_classes(np.array([[8, 25, 10]], dtype=np.uint8)).tolist() == [[4, 2, 4]]  # sign, ground, terrain
+
+
 def test_provenance_needs_the_attestation_and_the_classes():
     good = dict(training_towns=["Town03", "Town04"], classes=list(ROAD_CLASSES), training_runs=["r"], label_mapping={}, created="x", test_towns_excluded=True)
     assert check_provenance(good) is good
