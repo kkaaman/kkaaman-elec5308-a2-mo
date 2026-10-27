@@ -33,6 +33,7 @@ from mapless.road_segmentation import (
     TorchRoadSegmenter,
     carla_tags_to_classes,
     check_provenance,
+    label_mapping,
 )
 from mapless.sensor_suite import load_sensor_suite
 from mapless.stack import Admission, MaplessStack, StackConfig
@@ -92,8 +93,10 @@ def test_label_mapping_follows_the_carla_0916_tag_table():
 
 
 def test_provenance_needs_the_attestation_and_the_classes():
-    good = dict(training_towns=["Town03", "Town04"], classes=list(ROAD_CLASSES), training_runs=["r"], label_mapping={}, created="x", test_towns_excluded=True)
+    good = dict(training_towns=["Town03", "Town04"], classes=list(ROAD_CLASSES), training_runs=["r"], label_mapping=label_mapping(), created="x", test_towns_excluded=True)
     assert check_provenance(good) is good
+    with pytest.raises(ValueError, match="tag table"):
+        check_provenance(good | dict(label_mapping={}))
     with pytest.raises(ValueError, match="held-out"):
         check_provenance(good | dict(test_towns_excluded=False))
     with pytest.raises(ValueError, match="held-out"):
@@ -485,6 +488,37 @@ def test_a_cluster_straddling_a_range_ring_stays_one_cluster():
     far = pts + np.array([0.0, 4.0, 0.0])
     both = ClassifiedSweep(np.vstack((pts, far)), np.zeros(240), np.full(240, PointClass.OBSTACLE), np.zeros(1), np.zeros(1))
     assert len(cluster_obstacles(both, DetectionsConfig())) == 2
+
+
+def test_evaluate_scores_checkpoints_on_todays_labels_and_the_loader_refuses_another_tag_table(tmp_path):
+    # External review of the full review of 73ae759: compare the old and the retrained
+    # checkpoint on the same corrected labels, report precision as well as recall, and do
+    # not let the car load a checkpoint trained on another tag table.
+    import torch
+
+    from mapless_training.train_segmentation import evaluate_checkpoints, train
+
+    runs = [write_capture_run(tmp_path, "Town03"), write_capture_run(tmp_path, "Town02")]
+    path, info = train(runs, tmp_path / "model.pt", epochs=1, batch=2, size_wh=(64, 32), device="cpu")
+    assert info["schedule"] == "cosine"
+    scores = info["history"][-1]["validation"]
+    assert set(scores["precision"]) == set(ROAD_CLASSES) and "pavement_boundary_precision_2px" in scores
+    [row] = evaluate_checkpoints(runs, [path], batch=2, device="cpu")
+    assert row["label_mapping_matches"] is True and row["validation_samples"] == 2
+    assert row["validation"]["miou"] == pytest.approx(scores["miou"])  # the same model on the same labels
+    # road_seg_b0.pt's table: tag 8 (TrafficSign on 0.9.16) as pavement, no tag 25.
+    payload = torch.load(path, map_location="cpu", weights_only=False)
+    old_table = dict(payload["provenance"]["label_mapping"])
+    old_table.pop("25")
+    old_table["8"] = "pavement"
+    payload["provenance"]["label_mapping"] = old_table
+    old = tmp_path / "old.pt"
+    torch.save(payload, old)
+    with pytest.raises(ValueError, match="tag table"):
+        TorchRoadSegmenter(old, device="cpu")
+    assert TorchRoadSegmenter(old, device="cpu", allow_label_mismatch=True).provenance["label_mismatch_override"] is True
+    [row] = evaluate_checkpoints(runs, [old], batch=2, device="cpu")
+    assert row["label_mapping_matches"] is False and row["trained_label_mapping"]["8"] == "pavement"
 
 
 def test_segformer_b0_trains_and_loads_offline(tmp_path):

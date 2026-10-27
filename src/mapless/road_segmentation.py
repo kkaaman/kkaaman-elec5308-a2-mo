@@ -114,9 +114,15 @@ class ConstantSegmenter(RoadSegmenter):
         return dict(model="constant", note="no learned model: road assumed below the horizon")
 
 
-def check_provenance(provenance):
+def label_mapping():
+    """Today's tag table as checkpoints record it: {"<CARLA tag>": "<class name>"}."""
+    return {str(k): ROAD_CLASSES[v] for k, v in CARLA_TAG_TO_CLASS.items()}
+
+
+def check_provenance(provenance, allow_label_mismatch=False):
     """Refuse a checkpoint without the training side's attestation that no held-out town
-    was used, or with other classes; return the provenance otherwise."""
+    was used, with other classes, or trained on another tag table (unless
+    ``allow_label_mismatch``, which is recorded in the provenance); return the provenance."""
     if provenance.get("test_towns_excluded") is not True:
         raise ValueError("checkpoint provenance does not attest that held-out towns were excluded: refused")
     if "classes" in provenance and tuple(provenance["classes"]) != ROAD_CLASSES:
@@ -124,6 +130,12 @@ def check_provenance(provenance):
     for key in ("training_runs", "training_towns", "label_mapping", "created"):
         if key not in provenance:
             raise ValueError(f"checkpoint provenance lacks {key!r}")
+    if provenance["label_mapping"] != label_mapping():
+        # road_seg_b0.pt learnt sign panels as pavement and kerb-side ground as "other"
+        # (tag 8 read as Ground); the car must not run it by accident (external review).
+        if not allow_label_mismatch:
+            raise ValueError("checkpoint was trained on another tag table (label_mapping differs): refused; retrain, or pass allow_label_mismatch for an experiment")
+        provenance = dict(provenance, label_mismatch_override=True)
     return provenance
 
 
@@ -183,7 +195,7 @@ class TorchRoadSegmenter(RoadSegmenter):
     to the image.
     """
 
-    def __init__(self, checkpoint_path, device=None):
+    def __init__(self, checkpoint_path, device=None, allow_label_mismatch=False):
         import torch  # noqa: PLC0415
 
         path = Path(checkpoint_path)
@@ -192,7 +204,7 @@ class TorchRoadSegmenter(RoadSegmenter):
         payload = torch.load(path, map_location="cpu", weights_only=False)
         if not isinstance(payload, dict) or "state_dict" not in payload or "provenance" not in payload:
             raise ValueError("checkpoint must hold state_dict and provenance")
-        self._provenance = check_provenance(dict(payload["provenance"]))
+        self._provenance = check_provenance(dict(payload["provenance"]), allow_label_mismatch=allow_label_mismatch)
         self.architecture = self._provenance.get("architecture", "bisenetv2")
         self.input_size = tuple(int(v) for v in payload.get("input_size", (512, 256)))
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")

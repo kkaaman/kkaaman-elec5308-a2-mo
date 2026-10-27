@@ -20,7 +20,7 @@ from pathlib import Path
 import numpy as np
 
 from evaluation.dataset import map_short_name
-from mapless.road_segmentation import CARLA_TAG_TO_CLASS, ROAD_CLASSES, carla_tags_to_classes
+from mapless.road_segmentation import ROAD_CLASSES, carla_tags_to_classes, label_mapping
 
 TRAIN_TOWNS = ("Town01", "Town03", "Town04", "Town05", "Town06")
 VALIDATION_TOWNS = ("Town02",)
@@ -145,7 +145,7 @@ def provenance(manifests, train, validation, size_wh, extra=None):
     towns = sorted({m["town"] for m in manifests.values()})
     return dict(
         classes=list(ROAD_CLASSES),
-        label_mapping={str(k): ROAD_CLASSES[v] for k, v in CARLA_TAG_TO_CLASS.items()},
+        label_mapping=label_mapping(),
         training_runs=sorted(str(s.run) for s in {s.run: s for s in train}.values()),
         training_towns=sorted({s.town for s in train}),
         validation_towns=sorted({s.town for s in validation}),
