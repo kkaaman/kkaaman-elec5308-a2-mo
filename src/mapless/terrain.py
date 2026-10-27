@@ -325,6 +325,19 @@ class TerrainGrid:
         out[inside] = result
         return out
 
+    def tall_evidence(self, xy, max_age_s=None):
+        """Obstacle evidence kept as long as kerbs (``tall``) per odometry point, zero outside
+        the grid or with no obstacle hit within ``max_age_s``: high where something has stood
+        a while (a wall, a railing), low where something only passed through."""
+        ij, inside = self.cells(xy)
+        out = np.zeros(len(ij), dtype=np.float32)
+        i, j = ij[inside, 0], ij[inside, 1]
+        value = self.tall[i, j]
+        if max_age_s is not None and self.time_s is not None:
+            value = np.where(self.seen_by_class[PointClass.OBSTACLE][i, j] < self.time_s - max_age_s, 0.0, value)
+        out[inside] = value
+        return out
+
     def raised_evidence(self, xy, max_age_s=None):
         """Raised (kerb, pavement) evidence per odometry point, zero where no raised hit is
         within ``max_age_s`` or outside the grid: the kerb face itself, wherever a cell's road

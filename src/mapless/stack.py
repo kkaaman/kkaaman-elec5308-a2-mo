@@ -71,7 +71,6 @@ from mapless.prediction import (
 from mapless.radar import RadarConfig, measure
 from mapless.road_model import RoadModelBuilder, RoadModelConfig
 from mapless.road_segmentation import RoadSegmenter, load_segmenter
-from mapless.terrain import CellLabel
 from mapless.tracking import Tracker, TrackerConfig
 
 
@@ -131,6 +130,10 @@ class StackConfig:
     lead_body_m: float = 5.0  # for a lead as wide as a car's rear (or a vehicle)
     lead_body_min_width_m: float = 1.2
     lead_body_margin_m: float = 0.8  # beyond its half-width (at least that of a car, 0.9 m); A10: a piece at 1.5 m
+    # ... but only tracks that have not been road users of their own: one seen outside the
+    # lead's body for lead_piece_independent_s, or classed a pedestrian or bike, is kept
+    # (external review of the full review of 73ae759: a walker beside the lead was dropped).
+    lead_piece_independent_s: float = 0.5
     # A lead seen this many times is known, not new: once it is no longer moving along or
     # across the path it is a stopped obstacle, not an "uncertain" small object (B9: the
     # lead's rear face, 1.7 m wide, read "uncertain" while it came to rest and its own
@@ -141,6 +144,18 @@ class StackConfig:
     # reach_check_m cannot get there (B8/A9/B9: walls 13-23 m right, their visible
     # stretch sliding at 4-6 m/s, read as cars heading for the path, out of the radar's view).
     reach_check_m: float = 30.0
+    # ... and "runs into" means a wall: cells with persistent tall evidence
+    # (reach_wall_min_evidence, ~1 s of steady hits; a car passing through leaves ~10) that
+    # no live track covers, across a car's width (reach_wall_half_width_m each side of the
+    # run), for reach_block_ticks running. A kerb or pavement is not a wall (a car leaves a
+    # driveway over it), nor a parked car or another crossing car's trail (review of
+    # 3e9083a, M2; external review: an uncertain obstruction must not erase the vehicle).
+    reach_wall_min_evidence: float = 20.0
+    reach_wall_half_width_m: float = 1.0
+    reach_block_ticks: int = 3
+    # A static radar-only track near the car is clutter only where the LiDAR hit something
+    # (ground or not) within lidar_view_age_s; where it saw nothing the radar is all there is.
+    lidar_view_age_s: float = 0.3
     # The yield is for road users crossing the path: moving across it at approach_min_mps
     # or more (a car driving ahead in the lane, its rear face under 2 m across, is a lead),
     # no faster than a pedestrian or cyclist (vru_max_speed_mps), and qualifying for
@@ -191,6 +206,8 @@ class MaplessStack:
         self._structures = []  # clusters too big for a road user, this tick, for the log
         self._unreachable = []  # vehicle candidates a kerb or object separates from the path
         self._yield_since = {}  # track id -> first time it qualified for a yield
+        self._outside_lead_s = {}  # track id -> time seen outside the lead's body (a road user of its own)
+        self._blocked_ticks = {}  # track id -> ticks running its run to the path met a wall
         self.records = []
 
     @staticmethod
@@ -277,7 +294,7 @@ class MaplessStack:
                 if frame.status_of(radar.name).state is SensorState.OK:
                     radar_measurements.extend(measure(radar, motion.speed_mps, motion.yaw_rate_rps, c.radar))
             # -- track and predict ----------------------------------------------------------
-            tracks = tuple(self.tracker.update(t, pose, measurements, radar_measurements, camera_only))
+            tracks = tuple(self.tracker.update(t, pose, measurements, radar_measurements, camera_only, lidar_view=self._lidar_saw))
             live = self.tracker.live(tracks)
             # Only tracks the tracker vouches for are predicted onto the path: a fresh
             # tentative track carries the filter's initial velocity variance (5 m/s), which
@@ -424,9 +441,12 @@ class MaplessStack:
             if keep_right is not None:
                 others = plausible_crossers(tracks, others, xy, keep_right, c)
             if keep_right is not None:
-                others, self._unreachable = road_reachable(tracks, others, xy, self.driver.grid, keep_right, c)
-            if lead_id is not None:
-                others = outside_lead_body(tracks, others, lead[1], lead[0], pose, path_body, s_car, c, followed=role == "follow")
+                others, self._unreachable = road_reachable(tracks, others, xy, self.driver.grid, keep_right, c, history=self._blocked_ticks)
+            if lead is not None and role != "crossing":
+                # Also for a followed walker or cyclist, which stays in the crossing checks
+                # itself (review of 3e9083a, M9: pieces 2.7 m beyond a narrow followed lead
+                # were yielded to, because the filter ran only for a vehicle lead).
+                others = outside_lead_body(tracks, others, lead[1], lead[0], pose, path_body, s_car, c, followed=role == "follow", history=self._outside_lead_s, dt_s=self.driver.dt_s)
             hit = first_footprint_conflict(others, xy, times, self.driver.config.body)
             if hit is not None and hit[0] <= c.conflict_horizon_s:
                 # Stop short of where the road user may be, not at once: a speed from which
@@ -444,6 +464,17 @@ class MaplessStack:
                 self._cause = _track_note(tracks, yield_id, pose)
         return cap, reason
 
+    def _lidar_saw(self, xy_odo):
+        """For odometry points: did the LiDAR hit anything (ground included) within 0.5 m of
+        each within ``lidar_view_age_s``?"""
+        grid = self.driver.grid
+        pts = np.asarray(xy_odo, dtype=float).reshape(-1, 2)
+        if grid.time_s is None or not len(pts):
+            return np.zeros(len(pts), dtype=bool)
+        offsets = np.array([[0.0, 0.0], [0.5, 0.0], [-0.5, 0.0], [0.0, 0.5], [0.0, -0.5]])
+        seen = grid.seen_at((pts[:, None, :] + offsets[None]).reshape(-1, 2)).reshape(len(pts), -1)
+        return np.any(seen >= grid.time_s - self.config.lidar_view_age_s, axis=1)
+
     def reset_spatial(self):
         """Drop everything kept in the odometry frame: tracks, semantic evidence, the
         following history and the cached segmentation (the frame they were placed in is gone)."""
@@ -451,6 +482,8 @@ class MaplessStack:
         self.road_model.reset()
         self.following.reset()
         self._yield_since = {}
+        self._outside_lead_s = {}
+        self._blocked_ticks = {}
         self._segmentations, self._model = None, None
         self.driver.speed_cap_mps = None
 
@@ -525,20 +558,27 @@ def plausible_crossers(tracks, candidates, path_xy, keep_right_m, config):
     return out
 
 
-def road_reachable(tracks, candidates, path_xy, grid, keep_right_m, config):
+def road_reachable(tracks, candidates, path_xy, grid, keep_right_m, config, history=None):
     """``(kept, dropped_ids)``: drop vehicle candidates beyond the kerb plus ``vru_reach_m``
-    whose straight run along their velocity towards the path meets a kerb or pavement
-    (BARRIER) or anything standing (OCCUPIED: a railing, a wall, a parked car) in the
-    terrain grid before it reaches the lane, within ``reach_check_m``. Cells within the
-    track's own footprint are not checked (its own returns). Walkers and cyclists cross
-    kerbs and are left alone; so is a vehicle whose run reaches the lane without meeting
-    anything (a car pulling out of a side road or a gap), or that never reaches it."""
+    whose straight run along their velocity towards the path meets a wall before it
+    reaches the lane, within ``reach_check_m``.
+
+    A wall is persistent tall evidence (``reach_wall_min_evidence``) that no live track's
+    footprint covers, across ``reach_wall_half_width_m`` either side of the run: a railing,
+    a building. A kerb or pavement is not one (a car leaves a driveway over it), nor a
+    parked car (a track) or another crossing car's fading trail (review of 3e9083a, M2).
+    With ``history`` (track id -> ticks running, kept by the caller) a candidate is
+    dropped only after ``reach_block_ticks`` running. Cells within the track's own
+    footprint are not checked. Walkers and cyclists cross kerbs and are left alone; so is
+    a vehicle whose run reaches the lane without meeting a wall, or that never reaches it.
+    """
     path = np.asarray(path_xy, dtype=float)
     if len(path) < 2:
         return list(candidates), []
     by_id = {t.track_id: t for t in tracks}
     kept, dropped = [], []
     band = config.following.lane_half_width_m + 0.5
+    blocked_now = set()
     for p in candidates:
         track = by_id.get(p.track_id)
         if track is None or not is_vehicle(track, config):
@@ -551,31 +591,71 @@ def road_reachable(tracks, candidates, path_xy, grid, keep_right_m, config):
             continue
         own = 0.5 * max(track.footprint[0], track.footprint[1]) + 0.5 if track.footprint is not None else 1.5
         steps = np.arange(own, config.reach_check_m, 0.25)
-        pts = track.position[None] + steps[:, None] * (track.velocity / speed)[None]
+        heading = track.velocity / speed
+        pts = track.position[None] + steps[:, None] * heading[None]
         _, lat_pts, _ = project_onto_polyline(pts, path)
         enters = np.flatnonzero(np.abs(lat_pts) <= band)
         if enters.size == 0:
             kept.append(p)  # never reaches the lane on its line: the timed check decides
             continue
-        labels = grid.labels(pts[: enters[0]])
-        if np.any((labels == CellLabel.BARRIER) | (labels == CellLabel.OCCUPIED)):
-            dropped.append(p.track_id)
-            continue
+        if _wall_across(pts[: enters[0]], heading, grid, tracks, track.track_id, config):
+            blocked_now.add(p.track_id)
+            if history is None:
+                dropped.append(p.track_id)
+                continue
+            history[p.track_id] = history.get(p.track_id, 0) + 1
+            if history[p.track_id] >= config.reach_block_ticks:
+                dropped.append(p.track_id)
+                continue
         kept.append(p)
+    if history is not None:
+        for tid in list(history):
+            if tid not in blocked_now:
+                del history[tid]
     return kept, dropped
 
 
-def outside_lead_body(tracks, candidates, lead, lead_ahead_m, pose, path_body, s_car, config, followed=False):
-    """Drop candidates inside the lead's body: from its rear face (less 0.3 m) to
-    ``lead_body_m`` beyond it when the lead is a vehicle or as wide as a car's rear, else to
-    its own far edge plus 0.5 m, and within its half-width (at least a car's) plus
-    ``lead_body_margin_m`` of its line.
+def _wall_across(run, heading, grid, tracks, own_id, config):
+    """Whether the run (odometry points) meets a wall: a sample whose cells have persistent
+    tall evidence uncovered by any other track, at the run and across it either side."""
+    if not len(run):
+        return False
+    normal = np.array([-heading[1], heading[0]])
+    offsets = np.linspace(-config.reach_wall_half_width_m, config.reach_wall_half_width_m, 5)
+    pts = (run[:, None, :] + offsets[None, :, None] * normal[None, None, :]).reshape(-1, 2)
+    tall = grid.tall_evidence(pts).reshape(len(run), len(offsets)) >= config.reach_wall_min_evidence
+    if not tall.any():
+        return False
+    covered = np.zeros(len(pts), dtype=bool)
+    for other in tracks:
+        if other.track_id == own_id or other.footprint is None:
+            continue
+        length, width, yaw = other.footprint
+        rel = pts - other.position[None]
+        along = np.abs(rel[:, 0] * math.cos(yaw) + rel[:, 1] * math.sin(yaw))
+        across = np.abs(-rel[:, 0] * math.sin(yaw) + rel[:, 1] * math.cos(yaw))
+        covered |= (along <= length / 2 + 0.3) & (across <= width / 2 + 0.3)
+    wall = tall & ~covered.reshape(len(run), len(offsets))
+    return bool(np.any(wall.all(axis=1)))
+
+
+def outside_lead_body(tracks, candidates, lead, lead_ahead_m, pose, path_body, s_car, config, followed=False, history=None, dt_s=0.05):
+    """Drop candidates that are pieces of the lead: inside its body, from its rear face
+    (less 0.3 m) to ``lead_body_m`` beyond it when the lead is a vehicle or as wide as a
+    car's rear, else to its own far edge plus 0.5 m, and within its half-width (at least a
+    car's) plus ``lead_body_margin_m`` of its line, and never road users of their own.
 
     Braking-lead runs on 6b1f705 (26 Oct): 0.3 m pieces of the lead's roof and wheels,
     1.5 to 4 m beyond its rear face, jittered sideways at 0.5 to 2.6 m/s and stopped the
     car for "predicted conflicts" on every approach, once with the lead itself duplicated
     as a fresh LiDAR-only track (a 2.4 m/s initial velocity). Nothing can cross the path
     there without first leaving the lead's body, where the check still sees it.
+
+    A road user of its own is a track classed pedestrian or bike, or one seen outside the
+    body for ``lead_piece_independent_s`` (``history``: track id -> seconds, kept by the
+    caller and updated here by ``dt_s``). A walker beside the lead came from somewhere;
+    the lead's own pieces are born inside it (external review of the full review of
+    73ae759: an independent pedestrian was dropped). The lead itself is never dropped.
     """
     line = np.asarray(path_body, dtype=float)
     ahead_l = float(lead_ahead_m)
@@ -595,12 +675,16 @@ def outside_lead_body(tracks, candidates, lead, lead_ahead_m, pose, path_body, s
     out = []
     for p in candidates:
         track = by_id.get(p.track_id)
-        if track is None:
+        if track is None or p.track_id == lead.track_id:
             out.append(p)
             continue
         s, lat, _ = project_onto_polyline(pose.to_body(track.position[None]), line)
         ahead = float(s[0]) - s_car
-        if rear - 0.3 <= ahead <= far and abs(float(lat[0]) - lat_l) <= half:
+        inside = rear - 0.3 <= ahead <= far and abs(float(lat[0]) - lat_l) <= half
+        if history is not None and not inside:
+            history[p.track_id] = history.get(p.track_id, 0.0) + dt_s
+        own = decided_class(track) in ("pedestrian", "bike") or (history is not None and history.get(p.track_id, 0.0) >= config.lead_piece_independent_s - 1e-9)
+        if inside and not own:
             continue
         out.append(p)
     return out

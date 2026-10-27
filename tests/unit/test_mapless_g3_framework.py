@@ -673,21 +673,20 @@ def test_pieces_of_the_lead_are_not_conflicts_but_a_walker_before_it_is():
 def test_vehicles_beyond_a_kerb_or_railing_cannot_reach_the_path():
     """B8/A9/B9 (26 Oct): walls 13-23 m right of the path, their visible stretch sliding
     at 4-6 m/s, read as cars heading for the path and stopped the car (out of the
-    radar's view). A vehicle's run towards the path must not meet a kerb or anything
-    standing; walkers cross kerbs and are left alone."""
+    radar's view). A vehicle's run towards the path must not meet a wall (persistent tall
+    evidence across a car's width); walkers cross kerbs and are left alone."""
     from mapless.prediction import predict
     from mapless.stack import StackConfig, road_reachable
-    from mapless.terrain import CellLabel
 
     class Grid:
         def __init__(self, railing):
             self.railing = railing
 
-        def labels(self, xy):
+        def tall_evidence(self, xy):
             xy = np.asarray(xy, dtype=float)
-            out = np.full(len(xy), CellLabel.ROAD, dtype=np.int8)
+            out = np.zeros(len(xy), dtype=np.float32)
             if self.railing:
-                out[(xy[:, 1] < -5.5) & (xy[:, 1] > -6.5)] = CellLabel.OCCUPIED
+                out[(xy[:, 1] < -5.5) & (xy[:, 1] > -6.5)] = 50.0  # seen standing for seconds
             return out
 
     c = StackConfig()

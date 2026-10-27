@@ -17,7 +17,7 @@ more than one site or run without retuning.
 | G1b | Straight, curve, obstacle stop at 2 m/s, sensor-only | yes | yes | MEASURED_PASS (Town10HD) | straight at 4 m/s; stack runs; stop and curve again on the Stage 1 code | railing-kerb calibration (Town05) fixed offline, not yet live; Stage 1 stopping cases (holds, clearance, low objects, bends) offline only |
 | G1c | Commanded 90° turn | yes | yes | right (Town10HD) and left (Town03) MEASURED_PASS | no | far exit-kerb bias on bare pavement; furnished and bare synthetic cases to keep separate; exit-line uncertainty not reported |
 | G2 | Segmenter, painting, road model, stack | yes | yes | stack straight and stop MEASURED_PASS (Town10HD site 1) | no | segmentation does not yet place the lane; S0–S5 × 5 not run; segmenter retrained on corrected labels (`road_seg_b0_v2.pt`, mIoU 0.879), the old checkpoint refused by the loader |
-| G3 | Tracker, radar, prediction, following, M04–M06 | yes | yes | braking lead, cut-in, crossing pedestrian MEASURED_PASS (Town10HD site 1), again on `6b1f705` with no false yields; braking lead at 4 m/s MEASURED_PASS with and without radar (Town05 site 0) | no | A/B/C ablation with a lead still moving beyond LiDAR range (in A6/B6 it had stopped before either sensor saw it: first tracked at 30.5 m LiDAR-only, 34.5 m with radar, both static, so nothing was followed); the radar adds ~45 ms of tracking (155 tracks against 61); grades are outside the terrain model's scope; split LiDAR clusters and a separate radar track per parked car; a car within the tight link (0.3 m + 1 cm/m) of a long structure stays part of it and is left to the LiDAR obstacle stop |
+| G3 | Tracker, radar, prediction, following, M04–M06 | yes | yes | braking lead, cut-in, crossing pedestrian MEASURED_PASS (Town10HD site 1), again on `6b1f705` with no false yields; braking lead at 4 m/s MEASURED_PASS with and without radar (Town05 site 0) | no | A/B/C ablation with a lead still moving beyond LiDAR range (in A6/B6 it had stopped before either sensor saw it: first tracked at 30.5 m LiDAR-only, 34.5 m with radar, both static, so nothing was followed); the radar adds ~45 ms of tracking (155 tracks against 61); grades are outside the terrain model's scope; split LiDAR clusters and a separate radar track per parked car; a car within the tight link (0.3 m + 1 cm/m) of a long structure stays part of it and is left to the LiDAR obstacle stop; Stage 2 identity fixes (radar association, twins, lead body, reachability, structure split) offline only |
 | G4–G6 | Urban behaviours, learning, final report | no | — | — | — | — |
 
 Stack compute on the lab PCs: ~90–140 ms per 50 ms tick (p50) after the clustering
@@ -1327,6 +1327,80 @@ Known limits: a 0.12 m speed hump across the lane is held for as an obstacle (be
 corridor fault); the stack cannot tell a traversable hump from a low object. At 4 m/s a
 0.25 m brick first seen 13 m from the axle leaves about 1.5 m of the 2.5 m stop gap.
 Regression tests: `tests/unit/test_mapless_stage1_stopping.py` (11 unit, 4 closed loop).
+
+### Stage 2, object identity (27 Oct, offline only)
+
+From the review of `3e9083a` (H1, H4, M1, M2, M6, M9) and the external review of the full
+review of `73ae759`. Not yet run live.
+
+- **Radar association (H4, M1).** A return associates on range, bearing and radial speed
+  together (chi-squared 11.34, allowing 1 m/s of speed change). For a track the LiDAR
+  holds, range and bearing are loosened by its footprint's half-extent along and across
+  the line of sight, so a return off a car's corner joins the car's track. Before, a return
+  joined only within about 0.8 m of the LiDAR centroid, and past that it spawned a
+  radar-only twin, merged again on 37–64% of radar ticks in B9 and B10. A return whose
+  radial speed fails on its own (6.63) is dropped whole and counted.
+- **Manoeuvres (H4).** A braking lead (B9) is still taken from its radial speed by the
+  third return. The run must be:
+  - three rejections within 0.3 s, all with the same sign;
+  - agreeing with the run's first and last innovation;
+  - centred on the track: the mean range and bearing innovations within 1.5 sigma.
+
+  The velocity variance opens by at most 10 m/s² × the time since the first rejection,
+  not by the innovation squared.
+- **Radar twins.** A radar-only track is folded into a LiDAR track only when:
+  - it has lain inside that track's footprint for two ticks;
+  - their radial speeds agree within 3 sigma plus 0.5 m/s;
+  - the LiDAR track is bigger than a walker (1.2 m).
+
+  The two velocity estimates are combined, so the radar's speed is kept. The longer
+  history (trail, origin) is kept, moved to the LiDAR position. A radar-held track's first
+  LiDAR fix re-anchors it on the cluster and moves its history with it. A walker-sized
+  cluster cannot take over a radar-only track moving faster than 6 m/s.
+- **Radar clutter.** A static radar-only track near the car is dropped only where the LiDAR
+  hit something within 0.3 s (ground included). Where it saw nothing (occluded, between
+  rings), the radar is the only evidence, and the track stays.
+- **Structure splitting (H1).** A piece split off an oversized cluster is structure only if
+  it is still oversized, or a line: under 0.5 m wide, at least 2.5 m long and three times
+  its width. Narrow alone was the rule before.
+- **Lead body (external review, M9).** A track inside the lead's body is dropped as a piece
+  of the lead only if it never was a road user of its own: never seen outside the body for
+  0.5 s, and not classed pedestrian or bike. The lead's own pieces are born inside it; a
+  walker beside it came from somewhere. The filter now also covers a followed walker or
+  cyclist lead, which stays in the crossing checks itself.
+- **Reachability (M2).** A vehicle's run to the path is blocked only by a wall:
+  - persistent tall evidence (20 or more, about a second of steady hits) that no track's
+    footprint covers;
+  - across ±1 m of the run;
+  - for 3 ticks running.
+
+  A kerb or pavement does not block (a car leaves a driveway over it), and neither does a
+  parked car (a track) or another crossing car's fading trail (about 10).
+
+Offline evidence (the reviews' reproductions):
+
+| Case | Before | Now |
+|---|---|---|
+| A parked car's corner return 2.6 m beside a 5 m/s lead | lead 0.02 m/s | 5.0 m/s |
+| A neighbour at 10 m/s beside it | lead 9.97 m/s, and it stays | 5.0 m/s |
+| A neighbour 3.3 m beside a radar-only lead, at 7 m/s, its own return missing | pulled 0.8 m sideways, 6.9 m/s | 0.0 m, 5.0 m/s; the neighbour gets its own track |
+| Radar point 1.0–2.5 m off the LiDAR centroid (merge churn) | twins spawned and merged (37–64% of radar ticks live) | 30/30 returns associated, none spawned, none merged |
+| The radar after a merged lead stops dead | its speed lost (the fresh twin's kept) | 2.0 → 0.16 m/s by the third return |
+| Parked car held by the radar, then clustered | "uncertain" about 1 s, travelled 1.8 m for good | static, travelled 0.0 |
+| Three rejections spread over 1.5 s | a manoeuvre | not counted |
+| Opposite-motion tracks (+5 / −5 m/s) | merged, one velocity | separate |
+| A walker-sized cluster beside a radar-held 8 m/s car | took over the car's track | two tracks |
+| Pedestrian 0.7 m from a wall, 1.2 m from one at 25 m, cyclist by a fence, pedestrian between parked cars, a lead's rear face by a railing | structure: never tracked | objects |
+| Town05 grade sweep (railings, road rising) | no lead | no lead |
+| A walker beside the lead, seen 0.6 s on the pavement first | dropped as a piece of the lead | kept |
+| A car's run to the path over pavement / through another car's trail / a parked car | dropped | kept |
+
+Known limits: a car seen side-on within the link distance of a barrier (about 0.6 m)
+is a line, so structure. Requiring a collinear second stretch kept it as an object, but
+turned seven more Town05 railing and road-ring stretches back into objects. Its points
+stay OBSTACLE points for the driver's stop. A rear face within the tight link (0.5 m) of a
+railing chains into it. A rate-rejected return is consumed by its track while that
+track's own return is missing. Regression tests: `tests/unit/test_mapless_stage2_identity.py`.
 
 ## Running Phase 0 live
 
