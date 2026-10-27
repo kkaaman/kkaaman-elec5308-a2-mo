@@ -601,8 +601,19 @@ def test_only_plausible_crossers_count_the_tracks_from_the_fourth_live_m04_run()
         for tid, (x, y, vx, vy, fl, fw, tr, rs) in logged.items()
     ]
     preds = [predict(t, c.prediction) for t in tracks]
-    kept = plausible_crossers(tracks, preds, path, keep_right_m=4.197, config=c)
+
+    class Walls:
+        # The structures these tracks were: walls and fences 12 m and more to the right,
+        # seen steadily (persistent tall evidence), as on the live run. The car drove at 2 m/s.
+        def tall_evidence(self, xy, max_age_s=None):
+            return np.where(np.asarray(xy)[:, 1] < -12.0, 60.0, 0.0)
+
+    kept = plausible_crossers(tracks, preds, path, keep_right_m=4.197, config=c, ego_speed_mps=2.0, grid=Walls())
     assert [p.track_id for p in kept] == [529]
+    # Off the road but heading across it on open ground, with no slide: a cyclist out of a
+    # side road is kept (review of 3e9083a, H3: the reach alone dropped it until 3.75 m out).
+    cyclist = ObjectTrack(5, 0.0, [7.0, -8.0, 0.0, 5.0], np.diag([0.05] * 4), uniform, TrackStatus.CONFIRMED, 20, 0, support=("lidar",), footprint=(1.8, 0.6, math.pi / 2), travelled_m=4.0, recent_speed_mps=5.0)
+    assert [p.track_id for p in plausible_crossers([cyclist], [predict(cyclist, c.prediction)], path, 4.197, c, ego_speed_mps=2.0, grid=Walls())] == [5]
     # A car-sized mover is left to the timed conflict check, wherever it is.
     car = ObjectTrack(9, 0.0, [20.0, -12.0, 0.0, 3.0], np.diag([0.05] * 4), uniform, TrackStatus.CONFIRMED, 20, 0, support=("lidar",), footprint=(4.5, 1.9, 0.0), travelled_m=5.0)
     assert [p.track_id for p in plausible_crossers([car], [predict(car, c.prediction)], path, 4.197, c)] == [9]
@@ -803,8 +814,10 @@ def test_yield_only_to_pedestrian_speed_crossers_that_persist():
     rear_face = ObjectTrack(1, 0.0, [18.0, 0.0, 2.9, 0.0], np.diag([0.05] * 4), u, TrackStatus.CONFIRMED, 20, 0, footprint=(1.83, 1.62, 0.0), travelled_m=5.0, recent_speed_mps=2.9)
     fragment = ObjectTrack(2, 0.0, [14.5, -5.5, 1.5, 2.45], np.diag([0.05] * 4), u, TrackStatus.CONFIRMED, 20, 0, footprint=(0.49, 0.3, 0.0), travelled_m=2.0, recent_speed_mps=4.78)
     walker = ObjectTrack(3, 0.0, [18.0, -3.0, 0.0, 1.2], np.diag([0.05] * 4), u, TrackStatus.CONFIRMED, 20, 0, footprint=(0.6, 0.6, 0.0), travelled_m=1.5, recent_speed_mps=1.2)
-    for tr in (rear_face, fragment):
-        assert crossing_yield([tr], [predict(tr, c.prediction)], path, 0.0, BODY, 1.0, c) == (None, None)
+    assert crossing_yield([rear_face], [predict(rear_face, c.prediction)], path, 0.0, BODY, 1.0, c) == (None, None)
+    # Cyclist-speed crossers are yielded to now (review of 3e9083a, H3: 2.5 m/s left a
+    # runner at 2.6 m/s), so a one-tick fragment is kept out by the persistence alone.
+    assert crossing_yield([fragment], [predict(fragment, c.prediction)], path, 0.0, BODY, 1.0, c, {}, 5.0) == (None, None)
     since = {}
     pred = [predict(walker, c.prediction)]
     assert crossing_yield([walker], pred, path, 0.0, BODY, 1.0, c, since, 10.0) == (None, None)  # just seen

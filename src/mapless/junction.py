@@ -76,6 +76,8 @@ class JunctionConfig:
     exit_max_unseen_m: float = 3.0  # unseen strip allowed between the exit road and its kerb (ring spacing at 25-30 m)
     exit_kerb_edge: str = "raised"  # "raised": the first cell with fresh raised evidence beyond the road run (live Town10HD); "barrier": the first BARRIER cell; "midpoint": halfway between it and the road's last cell; "road": the road's last cell when the strip is wide
     exit_min_road_width_m: float = 0.5  # a run of road cells this wide counts as the exit road (far lanes are sampled by a ring or two)
+    median_max_m: float = 2.5  # road again within this beyond a raised strip: the strip is a median, the kerb lies further out
+    refine_max_shift_m: float = 1.5  # a re-measured exit line further than this from the latched is another road, not a correction
     memory_s: float = 2.0  # exit-kerb stations remembered for the line fit
     road_memory_s: float = 10.0  # road cells count as observed for this long
     observed_share: float = 0.4  # of a pose's footprint cells seen as road: the pose is observed
@@ -84,10 +86,26 @@ class JunctionConfig:
     near_cover_m: float = 8.0  # within this along the path (the stopping envelope) verified means covered across the body's width ...
     near_column_share: float = 0.8  # ... : this share of the footprint's lateral columns hold observed road, gaps allowed gap_m only
     after_turn_m: float = 15.0  # centreline continues this far past the arc
+    exit_hazard_after_m: float = 2.0  # a hazard this far past the arc's end limits the verified distance, not the radius
     exit_tolerance_rad: float = math.radians(10)  # hand back to kerb following within this of the exit heading
     replan_max_heading_rad: float = math.radians(5)  # a blocked latched path is re-planned from the entry line while the car has turned less than this (beyond: mid-arc)
     opening_min_m: float = 3.0  # a right kerb gap at least this long is a junction mouth
     max_entry_offset_m: float = 10.0  # the route's entry point may be this far from the kerb opening (the opening is read ~4 m into the fillet)
+    # Oncoming traffic on a left turn (full review of 73ae759, S5): the body may enter the
+    # opposing lane (lane_width_m beside the car's own, which is lane_width_m wide) only once
+    # its approach is seen clear for as long as the car takes to cross it (from here, at
+    # gate_accel_mps2 up to the planner's cruise speed) plus oncoming_margin_s, at
+    # oncoming_mps, as far as oncoming_view_m (the LiDAR's reach; the stack's tracks see
+    # further). Fewer than oncoming_min_cells OCCUPIED cells hit within oncoming_age_s is clear.
+    oncoming_check: bool = True
+    lane_width_m: float = 3.5
+    oncoming_mps: float = 8.5  # 30 km/h, town traffic
+    oncoming_margin_s: float = 1.5
+    oncoming_view_m: float = 40.0
+    oncoming_min_cells: int = 2
+    oncoming_age_s: float = 0.3
+    gate_accel_mps2: float = 1.0
+    gate_gap_m: float = 0.3  # the body stops this far short of the opposing lane
 
     def __post_init__(self):
         if not 0 < self.min_radius_m <= self.max_radius_m:
@@ -176,23 +194,30 @@ def _arc_path(y_entry, exit_point, exit_heading, radius, step, after_m):
     x1 = px - tangent  # tangent point on the entry line
     if x1 < -1.5:
         return None  # the tangent point is behind the car: a tighter radius is needed
-    x1 = max(x1, 0.0)  # just behind: begin the arc now (a small heading step the controller absorbs)
+    # Just behind: the arc is entered where it passes the car (a few centimetres off the
+    # entry line and a few degrees on, which the controller absorbs), its centre kept so the
+    # exit straight lies on the exit line. Clamping the tangent point to the car instead
+    # moved the whole arc forward and put the exit straight up to 1.5 m off the measured
+    # line (full review of 73ae759: the exit offset).
+    u0 = math.asin(min(1.0, -x1 / radius)) if x1 < 0.0 else 0.0
+    start = max(x1, 0.0)
     # The entry straight runs up to the tangent point; when that is at the car (a mid-arc
     # re-plan solves the radius so it is, up to rounding) there is no straight: a point at
     # x = 1e-15 duplicated the arc's first point and gave it an arbitrary heading, which
     # the swept check then swung over the kerb (fresh-eyes review of 58adaf3).
-    xs = np.arange(0.0, x1 - 1e-6, step) if x1 > 1e-6 else np.zeros(0)
+    xs = np.arange(0.0, start - 1e-6, step) if start > 1e-6 else np.zeros(0)
     entry = np.column_stack((xs, np.full(len(xs), y_entry)))
     sign = 1.0 if theta > 0 else -1.0
     cx, cy = x1, y_entry + sign * radius
-    n_arc = max(2, int(math.ceil(abs(theta) * radius / step)))
-    angles = -sign * math.pi / 2 + sign * np.linspace(0.0, abs(theta), n_arc + 1)
+    sweep = abs(theta) - u0
+    n_arc = max(2, int(math.ceil(sweep * radius / step)))
+    angles = -sign * math.pi / 2 + sign * np.linspace(u0, abs(theta), n_arc + 1)
     arc = np.column_stack((cx + radius * np.cos(angles), cy + radius * np.sin(angles)))
     x2, y2 = arc[-1]
     n_out = int(after_m / step)
     out = np.column_stack((x2 + c * step * np.arange(1, n_out + 1), y2 + s * step * np.arange(1, n_out + 1)))
     points = np.vstack((entry, arc, out))
-    return points, float(x1), float(x1 + abs(theta) * radius)
+    return points, float(start), float(start + sweep * radius)
 
 
 class _HazardField:
@@ -241,7 +266,7 @@ class _HazardField:
         return out
 
 
-def _swept_check(grid, pose, points, body, c, barrier_age_s, hazard_xy=None, margin_m=None, clearance_from_m=0.0, clearance_to_m=math.inf, road_memory_s=None, hazard_tolerated_beyond_m=None):
+def _swept_check(grid, pose, points, body, c, barrier_age_s, hazard_xy=None, margin_m=None, clearance_from_m=0.0, clearance_to_m=math.inf, road_memory_s=None, hazard_tolerated_beyond_m=None, tolerate_kerb_only=False):
     """(feasible, verified_m, clearance_m): no BARRIER/OCCUPIED under the body swept
     along ``points``, how far along the path the footprint lies on observed road, and the
     body's nearest approach to a hazard cell (``hazard_xy``, odometry frame), margin excluded.
@@ -304,6 +329,8 @@ def _swept_check(grid, pose, points, body, c, barrier_age_s, hazard_xy=None, mar
         first_hazard_m = float(arcs[int(np.argmax(hit))])
         if hazard_tolerated_beyond_m is None or first_hazard_m <= hazard_tolerated_beyond_m:
             return False, 0.0, 0.0
+        if tolerate_kerb_only and (hazards == CellLabel.OCCUPIED).any():
+            return False, 0.0, 0.0  # something standing on the exit is waited for at the mouth, not tolerated
         verified_cap = max(0.0, first_hazard_m - 1.0)
     clearance = math.inf
     if hazard_xy is not None and hazard_xy.n:
@@ -338,6 +365,108 @@ def _swept_check(grid, pose, points, body, c, barrier_age_s, hazard_xy=None, mar
     return True, min(verified, verified_cap), clearance
 
 
+@dataclass(frozen=True)
+class OncomingGate:
+    """The opposing lane a left turn crosses, and whether its approach is clear (S5).
+
+    ``frame`` is the entry lane (odometry pose on its centre, along it); in it the opposing
+    lane is ``band`` (y range) and oncoming traffic moves towards -x. The body enters the
+    band at ``entry_m`` and has left it at ``exit_m`` (rear axle, along the path from the
+    car); while in it, the body spans ``zone_x`` along the lane. ``required_s`` is the time
+    the car needs to be across, margin included; the approach is checked over ``checked_m``
+    beyond the zone.
+    """
+
+    frame: Pose2D
+    band: tuple
+    zone_x: tuple
+    entry_m: float
+    exit_m: float
+    required_s: float
+    checked_m: float
+    cells: int
+    clear: bool
+    note: str
+
+
+def _time_to_cover(distance_m, speed_mps, accel_mps2, max_mps):
+    """Seconds to drive ``distance_m`` from ``speed_mps``, accelerating at ``accel_mps2`` to ``max_mps``."""
+    if distance_m <= 0:
+        return 0.0
+    v0 = min(max(speed_mps, 0.0), max_mps)
+    ramp = (max_mps**2 - v0**2) / (2 * accel_mps2)
+    if distance_m <= ramp:
+        return (math.sqrt(v0**2 + 2 * accel_mps2 * distance_m) - v0) / accel_mps2
+    return (max_mps - v0) / accel_mps2 + (distance_m - ramp) / max_mps
+
+
+def body_corners(points, body):
+    """(N, 4, 2) corners of the body at each pose of a rear-axle path (heading along the path)."""
+    d = np.diff(points, axis=0)
+    heading = np.arctan2(d[:, 1], d[:, 0])
+    heading = np.append(heading, heading[-1] if len(heading) else 0.0)
+    u = np.array([body.front_m, body.front_m, body.rear_m, body.rear_m])
+    v = np.array([body.half_width_m, -body.half_width_m, -body.half_width_m, body.half_width_m])
+    ch, sh = np.cos(heading)[:, None], np.sin(heading)[:, None]
+    return np.stack((points[:, 0][:, None] + ch * u - sh * v, points[:, 1][:, None] + sh * u + ch * v), axis=-1)
+
+
+def oncoming_gate(grid, pose, path_body, frame, body, c, speed_mps, cruise_mps, excused=()):
+    """The opposing-lane gate for a left turn along ``path_body`` (rear axle, vehicle frame).
+
+    ``excused``: footprints ((x, y) odometry centre, length, width, yaw) of things known not
+    to be oncoming traffic (the stack's static or departing tracks), whose cells do not count.
+    None when the path never enters the opposing lane.
+    """
+    pts = np.asarray(path_body, dtype=float)
+    if len(pts) < 2:
+        return None
+    seg = np.hypot(*np.diff(pts, axis=0).T)
+    arcs = np.concatenate(([0.0], np.cumsum(seg)))
+    fine = np.arange(0.0, arcs[-1], 0.25)
+    pts = np.column_stack((np.interp(fine, arcs, pts[:, 0]), np.interp(fine, arcs, pts[:, 1])))
+    if len(pts) < 2:
+        return None
+    car = int(np.argmin(np.hypot(pts[:, 0], pts[:, 1])))
+    s = fine - fine[car]
+    in_frame = frame.to_body(pose.to_world(pts))
+    corners = body_corners(in_frame, body)
+    lo = c.lane_width_m / 2
+    hi = lo + c.lane_width_m
+    top, bottom = corners[:, :, 1].max(axis=1), corners[:, :, 1].min(axis=1)
+    inside = (top > lo) & (bottom < hi)
+    if not inside.any():
+        return None
+    first = int(np.argmax(inside))
+    beyond = np.flatnonzero((np.arange(len(pts)) > first) & (bottom >= hi))
+    last = int(beyond[0]) if beyond.size else len(pts) - 1
+    zone = corners[first : last + 1][inside[first : last + 1]]
+    x_lo, x_hi = float(zone[:, :, 0].min()), float(zone[:, :, 0].max())
+    entry_m, exit_m = float(s[first]), float(s[last]) if beyond.size else math.inf
+    distance = exit_m if math.isfinite(exit_m) else float(s[-1])  # from the car until the body has left the lane
+    required = _time_to_cover(max(0.0, distance), speed_mps, c.gate_accel_mps2, cruise_mps) + c.oncoming_margin_s
+    checked = min(c.oncoming_mps * required, c.oncoming_view_m)
+    cell = grid.config.cell_m
+    xs = np.arange(x_lo - 1.0, x_hi + checked, cell)
+    ys = np.arange(lo + cell / 2, hi, cell)
+    gx, gy = np.meshgrid(xs, ys, indexing="ij")
+    region = frame.to_world(np.column_stack((gx.ravel(), gy.ravel())))
+    occupied = grid.labels(region, max_age_s=c.oncoming_age_s) == CellLabel.OCCUPIED
+    for (cx, cy), length, width, yaw in excused:
+        rel = region - np.array([cx, cy])
+        along = np.abs(rel[:, 0] * math.cos(yaw) + rel[:, 1] * math.sin(yaw))
+        across = np.abs(-rel[:, 0] * math.sin(yaw) + rel[:, 1] * math.cos(yaw))
+        occupied &= ~((along <= length / 2 + 0.3) & (across <= width / 2 + 0.3))
+    cells = int(np.unique(grid.cells(region[occupied])[0], axis=0).shape[0]) if occupied.any() else 0
+    clear = cells < c.oncoming_min_cells
+    if clear:
+        note = f"oncoming lane clear for {checked:.0f} m ({checked / c.oncoming_mps:.1f} s at {c.oncoming_mps:g} m/s; crossing needs {required:.1f} s)"
+    else:
+        nearest = float(gx.ravel()[occupied].min()) - x_hi
+        note = f"oncoming lane occupied {max(0.0, nearest):.0f} m from the crossing ({cells} cells)"
+    return OncomingGate(frame, (lo, hi), (x_lo, x_hi), entry_m, exit_m, required, checked, cells, clear, note)
+
+
 class JunctionTurn:
     def __init__(self, config, body, estimator):
         if not isinstance(body, VehicleBody) or not isinstance(estimator, CorridorEstimator):
@@ -355,6 +484,7 @@ class JunctionTurn:
         # verified distance shrank from 35 m to 14 m in four seconds standing at the mouth,
         # and the car could not creep forward). Freshness is measured from the last motion.
         self.standing_s = 0.0
+        self.still_credit_s = 0.0  # the last standstill's length, until the car has moved on (driver)
         self._committed = None  # (odometry points, arc end index, exit heading in odometry) once the turn has begun
         self._exit_odo = None  # the exit lane point and heading the latched path was built on, in the odometry frame
         self._probe_odo = None  # the route's exit point in the odometry frame: where the exit road is searched for
@@ -363,6 +493,7 @@ class JunctionTurn:
         self.refine_note = None  # why the last refinement did or did not move the path (console diagnostics)
         self._refine_candidate = None  # (odometry exit point, first seen) of a re-measured line that differs from the latched
         self.last_measured_odo = None  # (exit lane point, kerb stations) in odometry from the last kerb measurement, for the drive log
+        self.last_exit = None  # (exit point, exit heading, entry line y) in the vehicle frame of the last plan
 
     @property
     def barrier_age_s(self):
@@ -370,7 +501,11 @@ class JunctionTurn:
 
     @property
     def road_memory_s(self):
-        return self.config.road_memory_s + self.standing_s
+        # Observed road stays observed for the standstill's length after the car moves off
+        # (``still_credit_s``): a car that waited at the mouth found the road ahead
+        # "unseen" the moment it moved (S7). Kerbs do not get that credit: a kerb read from
+        # 22 m while waiting, 0.9 m out, was kept fresh and the refinement never corrected it.
+        return self.config.road_memory_s + max(self.standing_s, self.still_credit_s)
 
     def observe(self, sweep, pose, time_s):
         """Note the time; the exit search reads the terrain grid, which holds the sweeps."""
@@ -410,6 +545,7 @@ class JunctionTurn:
             raised = grid.raised_evidence(probe.to_world(np.column_stack((px.ravel(), py.ravel()))), self.barrier_age_s).reshape(px.shape)
         merge = int(round(0.5 / cc.lateral_step_m))  # road runs split by an unseen cell or two are one road
         min_run = int(round(c.exit_min_road_width_m / cc.lateral_step_m))
+        median_cells = int(round(c.median_max_m / cc.lateral_step_m))
         found = []  # (station, kerb y) in the probe frame, this tick
         for i in range(len(stations)):
             # The exit road is the run of ROAD cells nearest the probe line, on either side of
@@ -421,15 +557,29 @@ class JunctionTurn:
             if run is None:
                 continue
             right_end, _ = run
-            if raised is not None:
-                # The first cell with fresh raised evidence right of (or at) the run's end.
-                lookback = int(round(0.5 / cc.lateral_step_m))
-                hits = np.flatnonzero(raised[i, : min(len(offsets), right_end + lookback + 1)] >= grid.config.barrier_min_evidence)
-            else:
-                hits = np.flatnonzero(labels[i, :right_end] == CellLabel.BARRIER)
-            if not len(hits):
+            jb = None
+            for _ in range(3):
+                if raised is not None:
+                    # The first cell with fresh raised evidence right of (or at) the run's end.
+                    lookback = int(round(0.5 / cc.lateral_step_m))
+                    hits = np.flatnonzero(raised[i, : min(len(offsets), right_end + lookback + 1)] >= grid.config.barrier_min_evidence)
+                else:
+                    hits = np.flatnonzero(labels[i, :right_end] == CellLabel.BARRIER)
+                if not len(hits):
+                    jb = None
+                    break
+                jb = int(hits[-1])  # the first raised cell right of the run
+                # Road again just beyond it: a median, not the kerb. The car keeps right, so
+                # the exit carriageway is the outermost one (full review of 73ae759, S6: with
+                # the route's point 4 m out, the run nearest it was the opposing carriageway
+                # and the car drove 20 m the wrong way).
+                lo = max(0, jb - median_cells)
+                beyond = _nearest_road_run(labels[i, lo:jb] == CellLabel.ROAD, jb - lo, merge, min_run)
+                if beyond is None:
+                    break
+                right_end = lo + beyond[0]
+            if jb is None:
                 continue
-            jb = int(hits[-1])  # the first raised cell right of the run
             strip = max(0.0, (right_end - jb) * cc.lateral_step_m)
             if strip > c.exit_max_unseen_m:
                 continue
@@ -521,6 +671,7 @@ class JunctionTurn:
         c = self.config
         y_entry = corridor.lateral_offset_at(0.0) if corridor.ok else 0.0
         exit_point, source, exit_heading_body, fit = self.exit_line(grid, pose, exit_point_body, exit_heading_body)
+        self.last_exit = (tuple(float(v) for v in exit_point), float(exit_heading_body), float(y_entry))
         radii = np.arange(c.min_radius_m, c.max_radius_m + 1e-9, c.radius_step_m)
         hazards = _HazardField(grid, pose, self.barrier_age_s)
         # The best feasible turn is the nearest to the nominal radius among those with the
@@ -537,8 +688,13 @@ class JunctionTurn:
             if built is None:
                 continue
             points, arc_start, arc_end = built
+            # A kerb cell under the exit straight, past the arc, does not rule a radius out:
+            # the exit line read from 15 m is a few decimetres off, the car is held short
+            # of the cell (verified), and the line is refined as it closes. Ruled out, a car
+            # standing at the mouth had no radius at all and never moved (Stage 3, S7).
             feasible, verified, clearance = _swept_check(
-                grid, pose, points, self.body, c, self.barrier_age_s, hazards, clearance_from_m=arc_start, clearance_to_m=arc_end, road_memory_s=self.road_memory_s
+                grid, pose, points, self.body, c, self.barrier_age_s, hazards, clearance_from_m=arc_start, clearance_to_m=arc_end, road_memory_s=self.road_memory_s,
+                hazard_tolerated_beyond_m=arc_end + c.exit_hazard_after_m, tolerate_kerb_only=True,
             )
             if feasible:
                 candidates.append((float(radius), points, arc_start, arc_end, verified, clearance))
@@ -594,8 +750,28 @@ class JunctionTurn:
         )
         return TurnPlan(turn, radius, source, arc_start, arc_end, float(exit_heading_body), verified, fit, clearance)
 
+    def latest_start_m(self):
+        """How far along the entry line (rear axle, vehicle frame of the last ``plan``) the
+        nominal arc (``nominal_fillet_m`` plus the lane's kerb distance) begins on its way to
+        the last exit line, or None without one: from there the tighter radii lie ahead and
+        the wider ones within the 1.5 m clamp.
+
+        A car held at the junction mouth must not stand beyond it: at a 6 m kerb fillet the
+        mouth (where the kerb ends) lies past the tangent point of the car's tightest arc,
+        and a car that crept up to it could no longer turn (full review of 73ae759, S7)."""
+        if self.last_exit is None:
+            return None
+        (ex, ey), heading, y_entry = self.last_exit
+        theta = wrap(heading)
+        if abs(math.sin(theta)) < 1e-3:
+            return None
+        px = ex + (y_entry - ey) / math.sin(theta) * math.cos(theta)
+        nominal = self.config.nominal_fillet_m + (self.estimator.keep_right_m or 1.75)
+        return float(px - nominal * math.tan(abs(theta) / 2))
+
     def reset(self):
         self._radius = None
+        self.last_exit = None
         self._kerb = []
         self._committed = None
         self._exit_odo = None
@@ -714,6 +890,13 @@ class JunctionTurn:
             # range rule held a 1.15 m correction back for 3 s on the synthetic right turn).
             normal = np.array([-math.sin(heading_odo_new), math.cos(heading_odo_new)])
             shift = float((exit_odo - exit_odo_new) @ normal)
+            if abs(shift) > c.refine_max_shift_m:
+                # Further than a measurement can be off from close by: another carriageway
+                # or road, not this exit lane (S6: a 4.6 m "refinement" onto the opposing
+                # carriageway). The latched path stands; its own check stops the car if blocked.
+                self._refine_candidate = None
+                self.refine_note = f"exit line {shift:+.2f} m off: beyond {c.refine_max_shift_m:g} m, not taken"
+                return None
             if abs(shift) < min_shift_m:
                 # A reading hovering about the threshold (-0.41, -0.51, -0.41 ... on the
                 # synthetic right turn) must not reset the candidate every other tick: it

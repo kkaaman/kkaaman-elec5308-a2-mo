@@ -273,7 +273,7 @@ def follow_junction(wp, max_m=80.0):
     return None
 
 
-def find_turn_sites(carla, carla_map, command, approach_m, exit_m, junction_clearance_m=8.0, angle_tolerance_deg=30.0, max_kerb_mismatch_m=0.3, max_approach_bend_deg=5.0, max_slope_deg=3.0):
+def find_turn_sites(carla, carla_map, command, approach_m, exit_m, junction_clearance_m=8.0, angle_tolerance_deg=10.0, max_kerb_mismatch_m=0.3, max_approach_bend_deg=5.0, max_slope_deg=3.0):
     """Sites for a commanded turn: a rightmost lane run ending at a junction whose connecting
     lane turns about 90 degrees to ``command``'s side into a rightmost exit lane.
 
@@ -286,7 +286,11 @@ def find_turn_sites(carla, carla_map, command, approach_m, exit_m, junction_clea
       tell until lane markings are read (G2);
     - the approach must be straight within ``max_approach_bend_deg`` over its length: the
       exit heading is a right angle to the approach lane's fitted direction, and a bend
-      skews it.
+      skews it;
+    - for the same reason the junction must turn within ``angle_tolerance_deg`` of a right
+      angle: the car keeps the right-angle prior unless the route disagrees by 35 degrees,
+      and a 100 degree junction ended 1.85 m towards the opposing lane (full review of
+      73ae759; was 30 degrees). Skewed junctions are not supported yet.
     """
     want = -math.pi / 2 if command == "RIGHT" else math.pi / 2
     census = dict(segments=0, no_junction_end=0, not_rightmost=0, too_short=0, approach_bent=0, sloped=0, no_matching_exit=0, exit_too_short=0, kerb_mismatch=0, sites=0)

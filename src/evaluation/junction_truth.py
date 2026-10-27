@@ -105,12 +105,20 @@ def truth_sample(site, rear_axle_xy, yaw_rad, body):
     xy = np.asarray(rear_axle_xy, dtype=float)
     s, lateral, _ = project_onto_polyline(xy[None], path)
     c, sn = math.cos(yaw_rad), math.sin(yaw_rad)
-    corners = np.array(
-        [
-            (xy[0] + c * u - sn * v, xy[1] + sn * u + c * v)
-            for u, v in ((body.front_m, body.half_width_m), (body.front_m, -body.half_width_m), (body.rear_m, -body.half_width_m), (body.rear_m, body.half_width_m))
-        ]
+    # The body's outline every 0.25 m, not its four corners: on an arc the middle of the
+    # inner side bulges past a line its corners keep inside (full review of 73ae759: a body
+    # side over the kerb still passed the four-corner test).
+    us = np.linspace(body.rear_m, body.front_m, max(2, int(math.ceil((body.front_m - body.rear_m) / 0.25)) + 1))
+    vs = np.linspace(-body.half_width_m, body.half_width_m, max(2, int(math.ceil(2 * body.half_width_m / 0.25)) + 1))
+    outline = np.vstack(
+        (
+            np.column_stack((us, np.full(len(us), body.half_width_m))),
+            np.column_stack((us, np.full(len(us), -body.half_width_m))),
+            np.column_stack((np.full(len(vs), body.front_m), vs)),
+            np.column_stack((np.full(len(vs), body.rear_m), vs)),
+        )
     )
+    corners = np.column_stack((xy[0] + c * outline[:, 0] - sn * outline[:, 1], xy[1] + sn * outline[:, 0] + c * outline[:, 1]))
     cs, c_lateral, _ = project_onto_polyline(corners, path)
     excess = np.abs(c_lateral) - site.half_width_at(cs)
     return dict(

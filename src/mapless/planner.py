@@ -74,6 +74,7 @@ class PlannerConfig:
     clear_region_depth_m: float = 0.5  # ... and is this deep: where it stood, not the road in front of it
     clear_region_bin_m: float = 0.3
     clear_region_min_points: int = 1  # ground points in each bin of the region
+    clear_region_move_m: float = 0.25  # a sweep joins the gathered ground only from this far on (a new viewpoint)
 
     def __post_init__(self):
         for name in ("cruise_mps", "lateral_accel_mps2", "decel_mps2", "validity_s"):
@@ -122,7 +123,9 @@ class _Hold:
     # centreline projected 2.4 m behind the car on a straight refit, and released).
     span_xy: np.ndarray
     seen_s: float = -math.inf  # when it was last detected
-    ground_odo: np.ndarray | None = None  # ground points (odometry) on its region since then
+    ground_odo: np.ndarray | None = None  # ground points (odometry) on its region since then, one sweep per viewpoint
+    ground_now: np.ndarray | None = None  # ... and this sweep's, from where the car stands
+    gathered_at: np.ndarray | None = None  # where the car was (odometry) for the last sweep added to ground_odo
     note: str = ""  # why it is not clear (see Plan.hold_note)
     clear_since_s: float | None = None
     clear_last_s: float | None = None  # the last clear observation: continuity is judged against it
@@ -154,7 +157,7 @@ class LanePlanner:
         if keep_holds:
             for hold in self._holds:
                 hold.clear_since_s = hold.clear_last_s = None
-                hold.ground_odo = None
+                hold.ground_odo = hold.ground_now = hold.gathered_at = None
                 hold.state = "unknown"
         else:
             self._holds = []
@@ -188,6 +191,15 @@ class LanePlanner:
         if not keep.any():
             return
         pts = corridor.pose.to_world(observation.ground_body[keep])
+        # Standing still, every sweep repeats the same rays: their noise, gathered over
+        # seconds, put a point in the strip behind a missed pedestrian's feet and released
+        # the hold (Stage 3). Only a new viewpoint adds; from where the car stands, the
+        # current sweep counts alone.
+        here = np.array([corridor.pose.x_m, corridor.pose.y_m])
+        if hold.gathered_at is not None and float(np.hypot(*(here - hold.gathered_at))) < c.clear_region_move_m:
+            hold.ground_now = pts
+            return
+        hold.gathered_at, hold.ground_now = here, None
         hold.ground_odo = pts if hold.ground_odo is None else np.vstack((hold.ground_odo, pts))[-4000:]
 
     def _near(self, corridor, line, hold):
@@ -216,7 +228,8 @@ class LanePlanner:
         if hi <= lo:
             return True  # the region lies outside the tube: nothing of it is on the path
         bins = max(1, int(math.ceil((hi - lo) / c.clear_region_bin_m)))
-        if hold.ground_odo is not None and len(hold.ground_odo):
+        gathered = hold.ground_odo if hold.ground_now is None or hold.ground_odo is None else np.vstack((hold.ground_odo, hold.ground_now))
+        if gathered is not None and len(gathered):
             # Every sweep's ground since it was last seen, as points (exact, not grid cells:
             # 0.25 m cells leaked the ground beside and in front of a 0.5 m box into its
             # bins, and the car drove into it). At 18 m the rings are 3 m apart, and one
@@ -224,7 +237,7 @@ class LanePlanner:
             # had crossed out of the lane and a lead that had driven on held the car almost
             # to a stop (live stack runs on e93154f). As the car drives, the rings sweep the
             # strip; an obstacle still there keeps it in shadow.
-            along, lateral = self._along(corridor, line, hold.ground_odo)
+            along, lateral = self._along(corridor, line, gathered)
             along = along - s_car
         else:
             if observation.ground is None or not len(observation.ground):
@@ -282,7 +295,7 @@ class LanePlanner:
                 hold = seen[1]
                 hold.span_xy = span
             hold.seen_s = now_s
-            hold.ground_odo = None
+            hold.ground_odo = hold.ground_now = hold.gathered_at = None
             hold.clear_since_s = hold.clear_last_s = None
             hold.state = "blocked"
             seen = hold
