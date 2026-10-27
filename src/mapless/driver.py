@@ -124,7 +124,7 @@ class MaplessDriver:
         self.ego = EgoMotion(self.progress.plane, config.ego)
         self.grid = TerrainGrid(config.terrain)
         self.corridor = CorridorEstimator(config.corridor)
-        self.planner = LanePlanner(config.planner, config.body)
+        self.planner = LanePlanner(config.planner, config.body, tube_half_m=config.body.half_width_m + config.obstacles.margin_m)
         self.turn = JunctionTurn(config.junction, config.body, self.corridor)
         self._turning = False
         self.speed_cap_mps = None  # the stack's following/prediction cap for this tick (None: none)
@@ -141,6 +141,7 @@ class MaplessDriver:
         self._last_steer = 0.0
         self._calibrated = False
         self._rebuild = False  # odometry was lost: grid, corridor, hold and trajectory are stale
+        self._rebuild_since = None  # when the odometry was first lost
 
     def _brake(self, mode, reason, diagnostics):
         """Standstill hold: wheels straight, brake on."""
@@ -191,6 +192,8 @@ class MaplessDriver:
         if classified is not None and motion.odometry_trusted and not self._rebuild:
             self.grid.add(classified, motion.odometry, t)  # never placed with a broken frame
         if not motion.odometry_trusted:
+            if not self._rebuild:
+                self._rebuild_since = t
             self._rebuild = True
         d = dict(
             time_s=t,
@@ -226,6 +229,8 @@ class MaplessDriver:
         if calibration == "calibrating":
             return self._brake(DriveMode.CALIBRATING, "measuring the kerb at standstill", d)
         stale = self.health.stale([self.lidar], c.lidar_max_age_s)
+        standing = 0.0 if self._moving_t is None or not motion.stationary else max(0.0, t - self._moving_t)
+        self.corridor.standing_s = standing
         corridor = self.corridor.update(self.grid, motion.odometry, t)
         d.update(
             corridor_ok=corridor.ok,
@@ -255,7 +260,13 @@ class MaplessDriver:
                 return self._fault("odometry recovered: stopping to rebuild the local frame", d, motion, t, dt)
             self.grid.reset()
             self.corridor.reset()
-            self.planner.reset()
+            # An obstacle hold is an obligation to stay stopped, not a map: when the car stood
+            # still from before the outage to now (brake held), its odometry position is still
+            # where the car is, and the hold is kept (full review of 73ae759: a 0.3 s IMU dropout
+            # at a standstill dropped the hold and the car drove 1.24 m towards the obstacle).
+            still = self._moving_t is None or (self._rebuild_since is not None and self._moving_t <= self._rebuild_since)
+            self.planner.reset(keep_holds=still)
+            d.update(holds_kept=bool(still and self.planner.holding))
             self.controller.reset()
             self.turn.reset()  # a latched turn path lived in the old frame too
             self._turning, self._mouth_odo, self._lane_heading_odo, self._turn_corridor, self._opening_odo = False, None, None, None, None
@@ -280,7 +291,7 @@ class MaplessDriver:
         junction = self._junction_context(guidance, motion, corridor)
         if junction is not None and junction[-1] == self._turn_done:
             junction = None  # this junction's turn is done: kerb following to the exit point
-        self.turn.standing_s = 0.0 if self._moving_t is None or not motion.stationary else max(0.0, t - self._moving_t)
+        self.turn.standing_s = standing
         self.turn.observe(classified, motion.odometry, t)
         if self.turn.committed:
             # In the turn: follow the latched path to its end, whatever the route says.

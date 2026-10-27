@@ -21,6 +21,24 @@ of three states:
   CLEAR releases the stop.
 - UNKNOWN: neither. The stop stays. A missed or occluded obstacle is not clearance
   (review of 94b5caa; live run e released after 1 s of missed detections and crept 0.6 m).
+
+Each held obstacle keeps its own hold, and the stop is the nearest of them: an
+unresolved hold is never made less restrictive because something else was seen (full
+review of 73ae759: one sweep that missed the held obstacle 7 m ahead but saw another
+22 m ahead moved the stop to 15.7 m and forgot the first). A detection within
+``hold_match_m`` of a held obstacle is that obstacle (its stop follows it as it moves).
+A hold keeps the obstacle's own position (its near face, across its lateral span), and
+its stop is worked out from that on each tick's path; on a bend the tube and the region
+widen on the outside as ``obstacles.tube_bounds``.
+
+Clear also needs the held obstacle's own region seen: ground in every
+``clear_region_bin_m`` lateral bin across the obstacle's lateral span (plus
+``clear_region_pad_m``), in the ``clear_region_depth_m`` just behind its near face. Where
+it stood the ground was hidden (under it, or in its shadow); once it has gone, that ground
+is in view. The road in front of the face proves nothing. Ground beside a
+narrow or off-centre obstacle is not its clearance (same review: a 0.5 m box at the lane
+centre, and a car over the right half of the footprint, each "cleared" while still there,
+and the car drove into them).
 """
 
 import math
@@ -29,7 +47,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from mapless.corridor import Corridor
-from mapless.obstacles import PathObservation, project_onto_polyline
+from mapless.obstacles import PathObservation, project_onto_polyline, tube_bounds
 from mapless.terrain import VehicleBody
 from navigation_control.local import LocalTrajectory, TrajectorySample
 
@@ -44,6 +62,12 @@ class PlannerConfig:
     resume_clear_s: float = 1.0
     clear_beyond_m: float = 2.0
     clear_gap_s: float = 0.15  # clear observations further apart than this are not continuous
+    hold_match_m: float = 2.0  # a detection this close along the path to a held obstacle is that obstacle
+    clear_region_pad_m: float = 0.3  # beyond the held obstacle's lateral span
+    clear_region_start_m: float = 0.1  # the region begins this far behind the near face ...
+    clear_region_depth_m: float = 0.5  # ... and is this deep: where it stood, not the road in front of it
+    clear_region_bin_m: float = 0.3
+    clear_region_min_points: int = 1  # ground points in each bin of the region
 
     def __post_init__(self):
         for name in ("cruise_mps", "lateral_accel_mps2", "decel_mps2", "validity_s"):
@@ -78,21 +102,81 @@ def polyline_curvature(points):
     return (dx * ddy - dy * ddx) / np.maximum((dx**2 + dy**2) ** 1.5, 1e-9)
 
 
+@dataclass(eq=False)  # compared by identity: the fields are arrays
+class _Hold:
+    """One held obstacle, in the odometry frame."""
+
+    # 2 x 2: the obstacle's lateral extremes at its near face. The obstacle itself, not a
+    # point on the path: the stop is worked out from it on each tick's path, so a path
+    # that changes shape does not move the stop (a stop point kept on the bend's old
+    # centreline projected 2.4 m behind the car on a straight refit, and released).
+    span_xy: np.ndarray
+    clear_since_s: float | None = None
+    clear_last_s: float | None = None  # the last clear observation: continuity is judged against it
+    state: str = "blocked"
+
+
 class LanePlanner:
-    def __init__(self, config, body):
+    def __init__(self, config, body, tube_half_m=None):
         if not isinstance(config, PlannerConfig) or not isinstance(body, VehicleBody):
             raise TypeError("LanePlanner(PlannerConfig, VehicleBody)")
         self.config = config
         self.body = body
-        self._hold_point = None  # odometry xy of the rear-axle stop point
-        self._obstacle_point = None  # odometry xy of the held obstacle's nearest point
-        self._clear_since_s = None
-        self._clear_last_s = None  # the last clear observation: continuity is judged against it
+        # The obstacle tube's half-width: a held region is checked only inside it.
+        self.tube_half_m = body.half_width_m + 0.35 if tube_half_m is None else float(tube_half_m)
+        self._holds = []
 
-    def reset(self):
-        self._hold_point = None
-        self._obstacle_point = None
-        self._clear_since_s = self._clear_last_s = None
+    @property
+    def holding(self):
+        return bool(self._holds)
+
+    def reset(self, keep_holds=False):
+        """Forget the plan state. ``keep_holds``: keep the obstacle holds (the car stood still
+        across a frame rebuild, so their odometry positions are still where it is), with
+        their clearance counts restarted."""
+        if keep_holds:
+            for hold in self._holds:
+                hold.clear_since_s = hold.clear_last_s = None
+                hold.state = "unknown"
+        else:
+            self._holds = []
+
+    def _along(self, corridor, line, xy):
+        """Arc length on ``line`` and lateral offset of odometry points."""
+        s, lateral, _ = project_onto_polyline(corridor.pose.to_body(np.asarray(xy, dtype=float).reshape(-1, 2)), line)
+        return s, lateral
+
+    def _near(self, corridor, line, hold):
+        """A hold's near face along ``line`` and its lateral span there."""
+        s, lateral = self._along(corridor, line, hold.span_xy)
+        return float(s.min()), float(lateral.min()), float(lateral.max())
+
+    def _span_at(self, corridor, line, arcs, s, lat_lo, lat_hi):
+        """Odometry points ``lat_lo`` and ``lat_hi`` (+left) off the line at arc ``s``."""
+        k = int(np.clip(np.searchsorted(arcs, s, side="right") - 1, 0, len(line) - 2))
+        d = line[k + 1] - line[k]
+        normal = np.array([-d[1], d[0]]) / max(float(np.hypot(*d)), 1e-9)
+        foot = np.array([np.interp(s, arcs, line[:, 0]), np.interp(s, arcs, line[:, 1])])
+        return corridor.pose.to_world(np.array([foot + lat_lo * normal, foot + lat_hi * normal]))
+
+    def _region_seen(self, observation, corridor, line, s_car, hold):
+        """Ground in every lateral bin of the held obstacle's region (see the module notes)."""
+        c = self.config
+        if observation is None or observation.ground is None or not len(observation.ground):
+            return False
+        near, lat_lo, lat_hi = self._near(corridor, line, hold)
+        s_near = near - s_car
+        right, left = tube_bounds(line, np.array([near]), self.tube_half_m, self.body)
+        lo = max(lat_lo - c.clear_region_pad_m, float(right[0]))
+        hi = min(lat_hi + c.clear_region_pad_m, float(left[0]))
+        if hi <= lo:
+            return True  # the region lies outside the tube: nothing of it is on the path
+        along, lateral = observation.ground[:, 0], observation.ground[:, 1]
+        start = s_near + c.clear_region_start_m
+        near = (along >= start) & (along <= start + c.clear_region_depth_m) & (lateral >= lo) & (lateral <= hi)
+        bins = max(1, int(math.ceil((hi - lo) / c.clear_region_bin_m)))
+        counts = np.bincount(np.clip(((lateral[near] - lo) / (hi - lo) * bins).astype(int), 0, bins - 1), minlength=bins)
+        return bool(np.all(counts >= c.clear_region_min_points))
 
     def plan(self, corridor, observation, goal_body, now_s, hold_at_m=None, speed_cap_mps=None):
         """``observation``: this sweep's ``PathObservation`` (None without a sweep this tick).
@@ -108,44 +192,76 @@ class LanePlanner:
             raise TypeError("observation must be a PathObservation or None")
         c = self.config
         if not corridor.ok:
-            self._clear_since_s = self._clear_last_s = None  # no corridor: clearance is not being observed
-            return Plan(None, "", math.inf, math.inf, "unknown" if self._hold_point is not None else "")
+            for hold in self._holds:  # no corridor: clearance is not being observed
+                hold.clear_since_s = hold.clear_last_s = None
+                hold.state = "unknown"
+            return Plan(None, "", math.inf, math.inf, "unknown" if self._holds else "")
         line = corridor.centre_body
         arcs = np.concatenate(([0.0], np.cumsum(np.hypot(*np.diff(line, axis=0).T))))
         s_car = float(project_onto_polyline(np.zeros((1, 2)), line)[0][0])
 
         stop_s, reason, state = math.inf, "", ""
         obstacle = None if observation is None else observation.obstacle
+        seen = None
         if obstacle is not None:
-            stop_s = s_car + obstacle.distance_m - self.body.front_m - c.stop_gap_m
-            reason, state = "obstacle", "blocked"
-            point = np.interp(stop_s, arcs, line[:, 0]), np.interp(stop_s, arcs, line[:, 1])
-            self._hold_point = corridor.pose.to_world(np.array([point]))[0]
-            nearest = s_car + obstacle.distance_m
-            point = np.interp(nearest, arcs, line[:, 0]), np.interp(nearest, arcs, line[:, 1])
-            self._obstacle_point = corridor.pose.to_world(np.array([point]))[0]
-            self._clear_since_s = self._clear_last_s = None
-        elif self._hold_point is not None:
-            held = corridor.pose.to_body(self._hold_point[None])
-            stop_s = float(project_onto_polyline(held, line)[0][0])
-            where = corridor.pose.to_body(self._obstacle_point[None])
-            needed = float(project_onto_polyline(where, line)[0][0]) - s_car + c.clear_beyond_m
-            if observation is not None and observation.clear_to_m >= needed:
-                state = "clear"
+            near_s = s_car + obstacle.distance_m
+            lat_lo = obstacle.lateral_m if obstacle.lateral_min_m is None else obstacle.lateral_min_m
+            lat_hi = obstacle.lateral_m if obstacle.lateral_max_m is None else obstacle.lateral_max_m
+            # The same obstacle as a hold already kept (within hold_match_m along the path)?
+            for hold in self._holds:
+                gap = abs(self._near(corridor, line, hold)[0] - near_s)
+                if gap <= c.hold_match_m and (seen is None or gap < seen[0]):
+                    seen = (gap, hold)
+            if seen is not None:
+                # While it is seen, its region is all it has covered (a walker crossing widens it).
+                _, held_lat = self._along(corridor, line, seen[1].span_xy)
+                lat_lo, lat_hi = min(lat_lo, float(held_lat.min())), max(lat_hi, float(held_lat.max()))
+            span = self._span_at(corridor, line, arcs, near_s, lat_lo, lat_hi)
+            if seen is None:
+                hold = _Hold(span)
+                self._holds.append(hold)
+            else:
+                hold = seen[1]
+                hold.span_xy = span
+            hold.clear_since_s = hold.clear_last_s = None
+            hold.state = "blocked"
+            seen = hold
+        released = False
+        for hold in list(self._holds):
+            if hold is seen:
+                continue
+            near, lat_lo, lat_hi = self._near(corridor, line, hold)
+            right, left = tube_bounds(line, np.array([near]), self.tube_half_m, self.body)
+            if near < s_car or lat_lo > float(left[0]) + 1.0 or lat_hi < float(right[0]) - 1.0:
+                # Behind the rear axle, or off this path (the line moved on: a turn, a
+                # re-acquired corridor): no longer an obstacle the car can drive into.
+                self._holds.remove(hold)
+                continue
+            needed = near - s_car + c.clear_beyond_m
+            if observation is not None and observation.clear_to_m >= needed and self._region_seen(observation, corridor, line, s_car, hold):
+                hold.state = "clear"
                 # Continuous means every tick: a gap (a fault, a missing sweep, the planner
                 # not called) restarts the count (review of 2b7e14d: one clear observation,
                 # 3 s of nothing, one more, and the stop released).
-                if self._clear_since_s is None or now_s - self._clear_last_s > c.clear_gap_s:
-                    self._clear_since_s = now_s
-                self._clear_last_s = now_s
+                if hold.clear_since_s is None or now_s - hold.clear_last_s > c.clear_gap_s:
+                    hold.clear_since_s = now_s
+                hold.clear_last_s = now_s
+                if now_s - hold.clear_since_s >= c.resume_clear_s:
+                    self._holds.remove(hold)
+                    released = True
             else:
-                state = "unknown"
-                self._clear_since_s = self._clear_last_s = None
-            if state == "clear" and now_s - self._clear_since_s >= c.resume_clear_s:
-                self._hold_point = self._obstacle_point = self._clear_since_s = self._clear_last_s = None
-                stop_s, state = math.inf, "clear"
-            else:
-                reason = "obstacle_hold"
+                hold.state = "unknown"
+                hold.clear_since_s = hold.clear_last_s = None
+        binding = None
+        for hold in self._holds:
+            held_stop = self._near(corridor, line, hold)[0] - self.body.front_m - c.stop_gap_m
+            if binding is None or held_stop < binding[0]:
+                binding = (held_stop, hold)
+        if binding is not None:
+            stop_s, state = binding[0], binding[1].state
+            reason = "obstacle" if binding[1] is seen else "obstacle_hold"
+        elif released:
+            state = "clear"
 
         if hold_at_m is not None and math.isfinite(hold_at_m) and s_car + hold_at_m < stop_s:
             stop_s, reason = s_car + hold_at_m, "junction"

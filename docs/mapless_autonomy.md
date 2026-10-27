@@ -4,7 +4,7 @@ Branch `feature/mapless-autonomy`, built from `feature/shadow-localisation`. Thi
 extension: the frozen baseline is unchanged. The sections below the status table are
 the working record, oldest first; the table is the current state.
 
-## Current status (26 Oct)
+## Current status (27 Oct)
 
 "Implemented" means the code exists; "offline" that it passes the harness and replay
 tests; "live" that it has passed on CARLA at least once; "repeated" that it has passed on
@@ -14,7 +14,7 @@ more than one site or run without retuning.
 |---|---|---|---|---|---|---|
 | G0 | Rig v2, health, calibration gate | yes | yes | MEASURED_PASS, both PCs | yes | — |
 | G1a | Local trajectory controller | yes | yes | yes (inside G1b) | yes | — |
-| G1b | Straight, curve, obstacle stop at 2 m/s, sensor-only | yes | yes | MEASURED_PASS (Town10HD) | straight at 4 m/s; stack runs | railing-kerb calibration (Town05) fixed offline, not yet live |
+| G1b | Straight, curve, obstacle stop at 2 m/s, sensor-only | yes | yes | MEASURED_PASS (Town10HD) | straight at 4 m/s; stack runs | railing-kerb calibration (Town05) fixed offline, not yet live; Stage 1 stopping fixes (holds, clearance, low objects, bends, standstill corridor) offline only |
 | G1c | Commanded 90° turn | yes | yes | right (Town10HD) and left (Town03) MEASURED_PASS | no | far exit-kerb bias on bare pavement; furnished and bare synthetic cases to keep separate; exit-line uncertainty not reported |
 | G2 | Segmenter, painting, road model, stack | yes | yes | stack straight and stop MEASURED_PASS (Town10HD site 1) | no | segmentation does not yet place the lane; S0–S5 × 5 not run |
 | G3 | Tracker, radar, prediction, following, M04–M06 | yes | yes | braking lead, cut-in, crossing pedestrian MEASURED_PASS (Town10HD site 1), again on `6b1f705` with no false yields; braking lead at 4 m/s MEASURED_PASS with and without radar (Town05 site 0) | no | A/B/C ablation with a lead still moving beyond LiDAR range (in A6/B6 it had stopped before either sensor saw it: first tracked at 30.5 m LiDAR-only, 34.5 m with radar, both static, so nothing was followed); the radar adds ~45 ms of tracking (155 tracks against 61); grades are outside the terrain model's scope; split LiDAR clusters and a separate radar track per parked car; a car within the tight link (0.3 m + 1 cm/m) of a long structure stays part of it and is left to the LiDAR obstacle stop |
@@ -373,9 +373,9 @@ The car is `mapless.driver.MaplessDriver`: `SensorFrame`s and a sat-nav route in
 |---|---|---|
 | Ego motion | `ego_motion.py` | Odometry frame (wheel speed and gyro, gyro bias measured at standstill) for driving. EKF route pose initialised from GNSS and compass averaged over 1 s at standstill, then GNSS and compass updates; used only for route progress and the goal |
 | Terrain | `terrain.py` | Per sweep: road height in 2 m bands grown out from the car; points labelled ROAD, RAISED (kerb, pavement, 0.10 to 0.30 m), OBSTACLE (0.30 to 2.4 m). Evidence accumulates on a grid in the odometry frame (kerbs decay over 3 s, obstacles over 0.5 s) |
-| Corridor | `corridor.py` | Lateral profiles along last tick's centreline; right kerb = first raised cell with road seen next to it (obstacles such as parked cars are OCCUPIED, never an edge); the kerb may not jump in either direction (side roads, cars); kerb evidence must lie within 0.75 m of where last tick's line puts it; lane centre `keep_right_m` left of the kerb, measured at a standstill before the car moves (the kerb's raw inner contour from 10 m behind to 15 m ahead fitted as a quadratic, or a line when only one side is seen, accepted once 10 sweeps agree within 0.15 m, else a FAULT with the reason; never a default); a corridor under 5.5 m wide is one lane, driven in its middle; polynomial fit (degree from how far the evidence reaches) with last tick's line as a prior, continued along its tangent past the evidence, or last tick's line carried unchanged when there is too little evidence. Kerb cells count only if hit within 3 s, the road ahead must be observed within 1 s (an empty LiDAR ends the corridor), and the evidence time is the newest kerb hit, so a carried line ages and expires after 5 s |
-| Obstacles | `obstacles.py` | This sweep's OBSTACLE points in the car-width tube along the centreline (nearest dense cluster), and how far the tube is *seen clear*: ground observed in 0.5 m slices from near the car outwards |
-| Planner | `planner.py` | Cruise speed, curve limit, braking ramp to a stop 2.5 m short of an obstacle (bumper) or at the goal (final-goal trajectory). Obstacle hold in three states: BLOCKED (seen), CLEAR (road seen clear 2 m past where it stood), UNKNOWN (neither: the stop stays). Released only after 1 s of continuous CLEAR |
+| Corridor | `corridor.py` | Lateral profiles along last tick's centreline; right kerb = first raised cell with road seen next to it (obstacles such as parked cars are OCCUPIED, never an edge); the kerb may not jump in either direction (side roads, cars); kerb evidence must lie within 0.75 m of where last tick's line puts it; lane centre `keep_right_m` left of the kerb, measured at a standstill before the car moves (the kerb's raw inner contour from 10 m behind to 15 m ahead fitted as a quadratic, or a line when only one side is seen, accepted once 10 sweeps agree within 0.15 m, else a FAULT with the reason; never a default); a corridor under 5.5 m wide is one lane, driven in its middle; polynomial fit (degree from how far the evidence reaches) with last tick's line as a prior, continued along its tangent past the evidence, short evidence that bends on its own gets a quadratic, or last tick's line carried unchanged when there is too little evidence or the car stands still. Kerb cells count only if hit within 3 s, the road ahead must be observed within 1 s (an empty LiDAR ends the corridor), and the evidence time is the newest kerb hit, so a carried line ages and expires after 5 s |
+| Obstacles | `obstacles.py` | This sweep's OBSTACLE points in the car-width tube along the centreline (nearest dense cluster), widened on the outside of a bend by the front corner's sweep (`tube_bounds`); RAISED points under the body width, 12 up to 5 m and fewer with range (never under 3); and how far the tube is *seen clear*: ground observed in 0.5 m slices from near the car outwards |
+| Planner | `planner.py` | Cruise speed, curve limit, braking ramp to a stop 2.5 m short of an obstacle (bumper) or at the goal (final-goal trajectory). One hold per obstacle, each in three states: BLOCKED (seen), CLEAR (road seen clear 2 m past where it stood, and ground in every 0.3 m bin of its own region just behind its near face), UNKNOWN (neither: the stop stays). The stop is the nearest hold's, worked out from the obstacle's own position on each tick's path. Released only after 1 s of continuous CLEAR |
 | Control | `navigation_control.local` | `LocalTrajectoryController` in the odometry frame |
 | Driver | `driver.py` | Modes STARTUP (GNSS and compass averaging), CALIBRATING (kerb distance), DRIVING, STOPPING, FINISHED, FAULT. Faults: LiDAR older than 0.15 s, IMU or speedometer older than 0.2 s, GNSS older than 3 s, route position sigma over 4 m, failed calibration, no corridor. A fault brakes along the last trajectory while odometry is trusted (IMU and speed fresh), otherwise holds the last steering: never wheels straight in a bend. From a standstill the car moves only on kerb evidence fresher than 0.5 s; a lost corridor at a standstill is re-acquired from the start-up assumption |
 
@@ -1204,6 +1204,76 @@ were saved.
   detection delay, stops while the lead still moved, sensor support), and the log
   carries the actor's truth per tick. Next: admission A against B on the same site and
   actor parameters, with compute.
+
+### Stage 1, reliable stopping (27 Oct, offline only)
+
+After the full review of `73ae759` and the external review of it, the agreed order is:
+1 reliable stopping, 2 object identity, 3 junction commitment, 4 honest evaluation,
+5 sensor benefit. Stage 1 is done offline and has not been run live.
+
+- **One hold per obstacle (S2).** A detection within 2 m (along the path) of a held
+  obstacle is that obstacle; anything else gets its own hold. The stop is the nearest
+  hold's. Before, one sweep that missed the held obstacle 7 m ahead but saw another at
+  22 m moved the stop to 15.7 m and forgot the first.
+- **Clearance over the obstacle's own region (S1).** CLEAR also needs ground in every
+  0.3 m lateral bin across the obstacle's span (±0.3 m), in the 0.5 m just behind its near
+  face, where it stood. Ground beside it, or in front of it, proves nothing; missing
+  evidence is UNKNOWN. A 0.5 m box at the lane centre and a car over the right half of
+  the footprint each "cleared" while still there before. The external review's deadlock
+  concern stands as a live check: at the 3.4 m stop gap the region holds one or two
+  ground rings.
+- **Holds across a standstill rebuild (S3).** If the car has not moved since odometry
+  dropped out, the rebuild keeps the holds (clearance count restarted, UNKNOWN).
+- **The stop comes from the obstacle.** A hold keeps the obstacle's near face across its
+  span, in odometry, and its stop is worked out on each tick's path. A stop point kept on
+  an old centreline projected 2.4 m behind the car when the path was refitted, and released.
+- **Swept body on bends.** The tube widens on the outside by front² · |k| / 2 (0.59 m at
+  12 m radius, at most 1 m), for detection and for the hold region (`tube_bounds`).
+- **Low objects (S4).** RAISED points count under the body's full width (was the inner
+  0.85 m): 12 up to 5 m from the axle, then 12 · (5 / d)² and never under 3. The
+  32-channel roof LiDAR gives a 0.25 m brick 17 raised points at 6 m, 5 at 9 m, 3 at 11 m
+  and none past 20 m. All nine low-object cases now stop about 3.4 m short (first
+  detection 11–23 m from the axle). Before, the brick under the left wheel was hit at
+  2 m/s, and the other kerb-high ones were never obstacles: each ended in a corridor
+  FAULT 1.8–2.0 m short and stayed stuck.
+- **Bumper mask.** Points ahead of the bumper are masked only 0.05 m out (was 0.3 m, which
+  hid all 272 points of a person standing just in front). Beside and behind the body the
+  0.3 m margin stays (mirrors, the rear radars): a person there is beside the path, not in
+  it.
+- **Corridor at a standstill.** Kerb cells inside the LiDAR's ~4 m blind ring age out
+  while standing, and refits went straight across a 12 m bend: the held pole fell out of
+  the tube and was hit. Standing still, a refit is taken only if it reaches as far as the
+  carried line and lies within 0.25 m of the line the car stopped on (not of the last
+  refit: accepted refits otherwise walked 0.28 m in 4 s). Freezing the line outright
+  instead left a departed parked car's shadow as the line's end, so its road could never
+  be seen clear.
+- **Corridor fit and support.** Evidence under 8 m that bends on its own (a line leaves
+  over 0.1 m rms and a quadratic halves it) is fitted with a quadratic. A raised strip with
+  road within 2 m beyond it no longer ends the support (that is the obstacle check's
+  job). Support observed to the line's last 0.5 m sample is the line's end: the sample
+  quantisation cut each carried line by about 1 m a tick.
+
+Offline evidence (synthetic kerbed road, roof LiDAR v2, 2 m/s), all on the final code:
+
+| Case | `73ae759` | Now |
+|---|---|---|
+| Nine low objects in the lane: 0.25 m bricks (centred, under each wheel, 0.7 m off centre), a kerbstone, a 0.4 m box, legs, a toddler-size box, a 1.6 m wide low strip | brick under the left wheel hit at 2 m/s; the centred and right-wheel bricks, kerbstone and low strip: corridor FAULT 1.8–2.0 m short, stuck | all held 3.37–3.41 m short, first seen 10.9–22.9 m from the axle |
+| 0.5 m box at the lane centre, its returns removed once held | hit at 2.1 m/s | held, moved 0.0 m |
+| The same with a parked car 22 m beyond it | — | held, moved 0.0 m |
+| Parked car 0.5 m into the footprint, returns removed once held | hit at 1.75 m/s | held, moved 0.0 m |
+| Parked car over the right half of the footprint, returns removed | hit at 2.15 m/s | held, moved 0.0 m |
+| 0.3 s IMU or speedometer outage while held at a standstill | drove 1.24 m towards the occluded car | held, moved 0.0 m |
+| Pole 1.5 m left of the lane centre, outside of a 12 m bend | no contact (rear axle stopped at s 32.4, pole at 33.1) | held at s 26.9, no contact |
+| The same bend without the pole | finished | finished; body corner at most 1.44 m left of the lane centre |
+| 3 m deep, 40 m long lay-by | finished, no pavement contact | the same |
+| Parked car removed once held | resumed on observed clearance | the same |
+| LiDAR OK but empty sweeps from 12 s, at 2 m/s | — | FAULT after 0.95 s and 1.93 m |
+| 0.12 m speed hump across the lane | corridor FAULT, stuck | held for as an obstacle |
+
+Known limits: a 0.12 m speed hump across the lane is held for as an obstacle (before: a
+corridor fault); the stack cannot tell a traversable hump from a low object. At 4 m/s a
+0.25 m brick first seen 13 m from the axle leaves about 1.5 m of the 2.5 m stop gap.
+Regression tests: `tests/unit/test_mapless_stage1_stopping.py` (11 unit, 4 closed loop).
 
 ## Running Phase 0 live
 

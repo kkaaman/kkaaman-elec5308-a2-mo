@@ -147,7 +147,7 @@ def test_classification_separates_road_kerb_obstacle_overhead_and_the_car_itself
     own_roof = np.array([[1.5, 0.0, 1.45], [0.5, 0.3, 1.4]])
     sweep = classify_sweep(np.vstack((road, car, overhead, own_roof)), BODY, TerrainConfig())
     assert len(sweep.xyz) == len(road) + len(car) + 1 - int(np.sum(
-        (road[:, 0] > BODY.rear_m - 0.3) & (road[:, 0] < BODY.front_m + 0.3) & (np.abs(road[:, 1]) < BODY.half_width_m + 0.3)
+        (road[:, 0] > BODY.rear_m - 0.3) & (road[:, 0] < BODY.front_m + TerrainConfig().body_front_margin_m) & (np.abs(road[:, 1]) < BODY.half_width_m + 0.3)
     ))
     on_pavement = sweep.xyz[:, 1] < -1.9
     assert np.all(sweep.cls[on_pavement & (sweep.xyz[:, 2] < 0.2)] == PointClass.RAISED)
@@ -247,6 +247,12 @@ def test_planner_stops_the_bumper_short_of_an_obstacle_and_holds_until_the_path_
     assert np.all(speeds[along > plan.stop_distance_m + 0.5] == 0)
     assert speeds.max() <= 2.0 + 1e-9
 
+    def seen(clear_to):
+        # The tube's ground out to clear_to, as the sweep sees it: the planner checks the
+        # held obstacle's own region against it (Stage 1).
+        a, lat = np.meshgrid(np.arange(0.0, clear_to, 0.1), np.arange(-1.4, 1.41, 0.1))
+        return PathObservation(None, clear_to, np.column_stack((a.ravel(), lat.ravel())))
+
     def hold(observation, t):
         p = planner.plan(corridor, observation, None, t)
         return p.stop_reason, p.hold_state
@@ -254,27 +260,27 @@ def test_planner_stops_the_bumper_short_of_an_obstacle_and_holds_until_the_path_
     def clear_run(t0, seconds, clear_to=30.0):
         last = None
         for k in range(int(round(seconds / 0.05)) + 1):
-            last = hold(PathObservation(None, clear_to), t0 + 0.05 * k)
+            last = hold(seen(clear_to), t0 + 0.05 * k)
         return last
 
     # Not seeing the obstacle is not seeing the road clear: an occluded or missed obstacle
     # leaves the ground behind it unseen, and the stop holds however long that lasts.
-    assert hold(PathObservation(None, 14.0), 10.05) == ("obstacle_hold", "unknown")
+    assert hold(seen(14.0), 10.05) == ("obstacle_hold", "unknown")
     assert hold(None, 10.1) == ("obstacle_hold", "unknown")  # no sweep this tick
-    assert hold(PathObservation(None, 16.9), 30.0) == ("obstacle_hold", "unknown")  # needs 15 + 2 m
+    assert hold(seen(16.9), 30.0) == ("obstacle_hold", "unknown")  # needs 15 + 2 m
     # Seen clear past where it stood, every tick for resume_clear_s: released.
     assert clear_run(30.05, 0.5) == ("obstacle_hold", "clear")
-    assert hold(PathObservation(None, 9.0), 30.6) == ("obstacle_hold", "unknown")  # interrupted
+    assert hold(seen(9.0), 30.6) == ("obstacle_hold", "unknown")  # interrupted
     assert clear_run(30.65, 0.9) == ("obstacle_hold", "clear")  # 0.95 s of continuous clearance
-    assert hold(PathObservation(None, 30.0), 31.65) == ("", "clear")  # 1.0 s: released
-    assert hold(PathObservation(None, 30.0), 31.7) == ("", "")
+    assert hold(seen(30.0), 31.65) == ("", "clear")  # 1.0 s: released
+    assert hold(seen(30.0), 31.7) == ("", "")
     # Clearance must be continuous (review of 2b7e14d): one clear tick, 3 s of no planner
     # calls (a fault), one more clear tick: still holding, the count restarted.
     planner.plan(corridor, PathObservation(PathObstacle(15.0, 0.0, 10), 15.0), None, 40.0)
-    assert hold(PathObservation(None, 30.0), 40.05) == ("obstacle_hold", "clear")
-    assert hold(PathObservation(None, 30.0), 43.05) == ("obstacle_hold", "clear")
+    assert hold(seen(30.0), 40.05) == ("obstacle_hold", "clear")
+    assert hold(seen(30.0), 43.05) == ("obstacle_hold", "clear")
     assert clear_run(43.1, 0.9) == ("obstacle_hold", "clear")
-    assert hold(PathObservation(None, 30.0), 44.05) == ("", "clear")
+    assert hold(seen(30.0), 44.05) == ("", "clear")
 
 
 def test_planner_goal_stop_is_a_final_goal_trajectory_ending_at_the_goal():

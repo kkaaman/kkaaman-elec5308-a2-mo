@@ -23,7 +23,14 @@ Each tick:
 5. **Fit.** A polynomial y(x) of degree 1 to 3 (by how far the evidence reaches) is fitted
    to these centre points and to last tick's centreline, which gets ``prior_weight``. This
    bridges openings and blind stretches and keeps the path still between ticks. Points
-   further than ``outlier_m`` from a first fit are dropped before the second.
+   further than ``outlier_m`` from a first fit are dropped before the second. Evidence
+   shorter than 8 m gets a line, unless it bends on its own (``bend_min_rms_m``).
+6. **Standing still** (``standing_s`` > 0, set by the driver once the car has moved), a
+   refit is taken only if it reaches as far as the carried line and lies within
+   ``standing_refit_tol_m`` of the line the car stopped on; otherwise the line is carried. The kerb has not moved, and the cells
+   in the LiDAR's blind ring age out, so a refit sees less and less (Stage 1: on a 12 m
+   bend the refit went straight across the corner); but road coming into view (a parked
+   car that drove off) still extends the line.
 
 The centreline is valid up to ``extrapolate_m`` past the furthest evidence, or to what is
 left of last tick's corridor, whichever reaches further, and never beyond a heading of
@@ -83,6 +90,8 @@ class CorridorConfig:
     evidence_range_m: float = 20.0  # evidence weight halves at this distance ahead
     prior_weight: float = 0.5
     outlier_m: float = 0.6
+    standing_refit_tol_m: float = 0.25  # standing still, a refit further than this from the carried line is not taken
+    bend_min_rms_m: float = 0.1  # short evidence is fitted with a quadratic when a line leaves this much and a quadratic halves it
     min_evidence: int = 5
     extrapolate_m: float = 6.0
     max_heading_rad: float = 0.9
@@ -211,6 +220,16 @@ def _edges(labels, j0, max_gap_cells):
     return out
 
 
+def _shows_bend(x, y, min_rms_m):
+    """The evidence on its own bends: a line leaves more than ``min_rms_m`` rms, and a
+    quadratic halves that. On a straight the two leave the same scatter."""
+    if len(x) < 5 or np.ptp(x) < 4.0:
+        return False
+    line = np.sqrt(np.mean((np.polyval(np.polyfit(x, y, 1), x) - y) ** 2))
+    quadratic = np.sqrt(np.mean((np.polyval(np.polyfit(x, y, 2), x) - y) ** 2))
+    return bool(line > min_rms_m and quadratic < 0.5 * line)
+
+
 def _fit(x, y, w, degree, outlier_m, raw_count):
     coefficients = np.polyfit(x, y, degree, w=np.sqrt(w))
     residual = np.abs(np.polyval(coefficients, x) - y)
@@ -230,11 +249,16 @@ class CorridorEstimator:
         self._fits = []
         self._last_fit = None
         self._edge_seen_s = np.zeros(0)
+        # How long the car has stood still since it last moved (set by the driver each tick;
+        # 0 while moving and before the first motion).
+        self.standing_s = 0.0
+        self._standing_anchor = None  # the line (odometry) when the standstill began
         self._calibration_began_s = None
         self.calibration_summary = None
 
     def reset(self):
         self.previous = None
+        self._standing_anchor = None
 
     def seed(self, centre_body, pose, time_s):
         """Start kerb following from a given line (the exit of a junction turn, G1c)."""
@@ -293,6 +317,14 @@ class CorridorEstimator:
         labels = grid.labels(pose.to_world(pts), max_age_s=c.support_max_age_s).reshape(len(xs), len(band))
         observed = np.any((labels == CellLabel.ROAD) | (labels == CellLabel.OCCUPIED), axis=1)
         kerb = np.any(labels == CellLabel.BARRIER, axis=1)
+        # A raised strip with the road going on within 2 m past it (a brick, a kerbstone, a
+        # narrow island) is not the road's end: it is an object on the road, the obstacle
+        # check's to stop for. Ending the corridor at it stopped the car on a fault short of
+        # the stop point, stuck (full review of 73ae759). A kerb across the road has
+        # pavement, not road, behind it.
+        road_beyond = observed & ~kerb
+        ahead = np.array([road_beyond[k + 1 : k + 5].any() for k in range(len(xs))])
+        kerb &= ~ahead
         first = np.flatnonzero(observed & (xs <= c.support_start_m))
         if first.size == 0:
             return 0.0
@@ -304,6 +336,11 @@ class CorridorEstimator:
                 last = float(x)
             elif x - last > max(c.support_gap_m, c.support_gap_per_m * x):
                 break
+        if last == float(xs[-1]):
+            # Observed to the last 0.5 m sample: the line's end. Returning the sample cut each
+            # carried-forward line a little, and the next carry cut it again: standing still
+            # the line shrank 1 m a tick, to a fault in 0.4 s (Stage 1).
+            return float(centre_body[-1, 0])
         return last
 
     @property
@@ -687,6 +724,22 @@ class CorridorEstimator:
             # Too little to refit: keep last tick's line as it is. Refitting the prior on its
             # own extrapolates it a little further each tick and drifts.
             return self._carry_forward(grid, pose, time_s, stations, ref, accepted_right, left, blocked, evidence, prior_end)
+        # Standing still the kerb has not moved, and the cells inside the LiDAR's blind ring
+        # are no longer hit and age out, so a refit sees less and less of the road: stopped
+        # on a 12 m bend for a pole, the evidence span fell under 8 m within 1 s, the refit
+        # went straight across the corner, the pole left the tube, its hold was released
+        # and the car drove into it (Stage 1). A refit is taken only if it agrees with the
+        # carried line and reaches as far; otherwise the line is carried. Freezing it
+        # outright left a parked car's shadow as the line's end after the car had gone:
+        # the road behind it could never be seen clear.
+        standing = self.standing_s > 0 and self.previous is not None and prior_end >= c.min_valid_m
+        if not standing:
+            self._standing_anchor = None
+        elif self._standing_anchor is None:
+            # Refits are held to the line the car stopped on, not to the last one taken:
+            # 0.25 m at a time, accepted refits had walked 0.28 m from it in 4 s.
+            self._standing_anchor = self.previous.centre_odometry.copy()
+        carry_args = (grid, pose, time_s, stations, ref, accepted_right, left, blocked, evidence, prior_end)
         # Near evidence is denser and better placed than far evidence.
         x_parts, y_parts, w_parts = [ex], [ey], [1.0 / (1.0 + (np.maximum(ex, 0.0) / c.evidence_range_m) ** 2)]
         if self.previous is not None and c.prior_weight > 0:
@@ -711,6 +764,12 @@ class CorridorEstimator:
             # shoulder-parking road.
             span = float(np.ptp(ex)) if len(ex) >= 2 else 0.0
             degree = 1 if span < 8 else 2 if span < 20 else 3
+            if degree == 1 and _shows_bend(ex, ey, c.bend_min_rms_m):
+                # Short evidence that itself bends: stopped on a 12 m radius bend, two
+                # stations went missing, the span fell to 7.7 m, the line went straight
+                # across the corner, the held pole fell out of the tube and the car drove
+                # into it.
+                degree = 2
             degree = min(degree, len(x_all) - 1)
             coefficients, keep = _fit(x_all, y_all, w_all, degree, c.outlier_m, len(ex))
             evidence = evidence[keep[: len(ex)]]
@@ -771,6 +830,28 @@ class CorridorEstimator:
             evidence_time_s=evidence_time,
             support_m=float(support),
         )
+        if standing and not self._agrees(corridor, pose, prior_end):
+            return self._carry_forward(*carry_args)
         if corridor.ok:
             self.previous = corridor
         return corridor
+
+    def _agrees(self, corridor, pose, prior_end):
+        """A refit at a standstill reaches as far as the carried line, and matches the line the
+        car stopped on where both run."""
+        c = self.config
+        if not corridor.ok:
+            return False
+        carried = _carried(self.previous, pose, prior_end)
+        fresh = corridor.centre_body
+        if len(carried) < 2 or fresh[-1, 0] < carried[-1, 0] - 0.5:
+            return False
+        anchor = pose.to_body(self._standing_anchor)
+        if len(anchor) < 2 or np.any(np.diff(anchor[:, 0]) <= 0):
+            return False
+        lo, hi = max(float(anchor[0, 0]), float(fresh[0, 0]), 0.0), min(float(anchor[-1, 0]), float(fresh[-1, 0]))
+        if hi - lo < 3.0:
+            return False
+        x = np.arange(lo, hi + 1e-9, 0.5)
+        gap = np.abs(np.interp(x, fresh[:, 0], fresh[:, 1]) - np.interp(x, anchor[:, 0], anchor[:, 1]))
+        return bool(gap.max() <= c.standing_refit_tol_m)

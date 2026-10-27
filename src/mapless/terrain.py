@@ -80,7 +80,8 @@ class TerrainConfig:
     overhead_m: float = 2.4
     below_m: float = -0.4
     max_range_m: float = 45.0
-    body_margin_m: float = 0.3
+    body_margin_m: float = 0.3  # beside and behind the body (mirrors, the rear radars) ...
+    body_front_margin_m: float = 0.05  # ... and ahead of the front bumper, where nothing of the car is
     static_tau_s: float = 3.0
     obstacle_tau_s: float = 0.5
     barrier_min_evidence: float = 1.0
@@ -175,9 +176,11 @@ def classify_sweep(xyz, body, config):
     c = config
     xyz = np.asarray(xyz, dtype=float).reshape(-1, 3)
     m = c.body_margin_m
+    # The 0.3 m margin ahead of the bumper hid a person standing just in front of it (0 of
+    # 272 points left, full review of 73ae759): nothing of the car is there to mask.
     on_body = (
         (xyz[:, 0] > body.rear_m - m)
-        & (xyz[:, 0] < body.front_m + m)
+        & (xyz[:, 0] < body.front_m + c.body_front_margin_m)
         & (np.abs(xyz[:, 1]) < body.half_width_m + m)
         & (xyz[:, 2] < body.height_m + 0.6)
     )
