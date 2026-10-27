@@ -54,10 +54,24 @@ class DetectionsConfig:
     max_object_width_m: float = 4.0
     split_link_m: float = 0.3  # the tight link an oversized cluster is re-clustered with
     split_link_per_m: float = 0.01
-    # A piece of a split cluster narrower than this is a stretch of the structure (a
-    # railing, a wall's scan line), not a road user beside it: 4.9 m x 0.3 m pieces of the
-    # Town05 railings slid along at up to 11 m/s and were predicted into the path.
+    # A piece of a split cluster is a stretch of the structure (a railing, a wall's scan
+    # line), not a road user beside it, when it is a line: narrower than split_min_width_m
+    # and at least split_line_min_length_m long and split_line_aspect times its width
+    # (4.9 m x 0.3 m pieces of the Town05 railings slid along at up to 11 m/s and were
+    # predicted into the path), or a thin piece continuing such a line along its own
+    # direction (within split_line_angle_deg, split_line_offset_m of it and
+    # split_line_gap_m of its end: a railing broken by its posts). Narrow alone was the
+    # rule, and a pedestrian 0.7 m from a wall, a cyclist by a fence and a car's rear face
+    # beside a railing all became structure and were never tracked (review of 3e9083a, H1).
+    # Known limit: a car seen side-on within the link distance of a barrier (~0.6 m) is a
+    # line too; requiring a collinear second stretch kept it, but turned seven more Town05
+    # railing and road-ring stretches back into objects. Its points stay OBSTACLE points.
     split_min_width_m: float = 0.5
+    split_line_min_length_m: float = 2.5
+    split_line_aspect: float = 3.0
+    split_line_angle_deg: float = 20.0
+    split_line_offset_m: float = 0.3
+    split_line_gap_m: float = 2.0
     box_cover: float = 0.3  # a cluster must cover this share of the box's width to be its foreground
     class_confidence_floor: float = 0.1  # mass kept on the other classes
 
@@ -198,13 +212,56 @@ def oversized(xy, config):
     return length > config.max_object_length_m or width > config.max_object_width_m
 
 
+def _piece_shape(xy):
+    """(length, width, unit direction, centre) of points in plan, along their principal axis."""
+    centre = xy.mean(axis=0)
+    if len(xy) < 2:
+        return 0.0, 0.0, np.array([1.0, 0.0]), centre
+    _, _, vt = np.linalg.svd(xy - centre, full_matrices=False)
+    return float(np.ptp((xy - centre) @ vt[0])), float(np.ptp((xy - centre) @ vt[1])), vt[0], centre
+
+
+def _structure_pieces(xy, pieces, config):
+    """Which pieces of an oversized cluster (index arrays into ``xy``) are structure: still
+    oversized, a line, or a thin piece continuing a line (``DetectionsConfig``)."""
+    c = config
+    shapes = [_piece_shape(xy[piece]) for piece in pieces]
+
+    def thin(shape):
+        length, width = shape[0], shape[1]
+        return width < c.split_min_width_m and length >= c.split_line_aspect * max(width, 0.05)
+
+    lines = [k for k, sh in enumerate(shapes) if thin(sh) and sh[0] >= c.split_line_min_length_m]
+    cos_max = np.cos(np.radians(c.split_line_angle_deg))
+
+    def continues(k):
+        length, _, direction, centre = shapes[k]
+        for m in lines:
+            l_len, _, l_dir, l_centre = shapes[m]
+            if abs(float(direction @ l_dir)) < cos_max:
+                continue
+            rel = centre - l_centre
+            normal = np.array([-l_dir[1], l_dir[0]])
+            if abs(float(rel @ normal)) > c.split_line_offset_m:
+                continue
+            if abs(float(rel @ l_dir)) - 0.5 * (l_len + length) <= c.split_line_gap_m:
+                return True
+        return False
+
+    out = []
+    for k, piece in enumerate(pieces):
+        structure = oversized(xy[piece], c) or k in lines or (thin(shapes[k]) and continues(k))
+        out.append(structure)
+    return out
+
+
 def split_oversized(sweep, clusters, config=None):
     """``(objects, structures)``: clusters no larger than a road user, and the rest.
 
     An oversized cluster is re-clustered at the tight link; its object-sized pieces join
-    ``objects`` and what is still oversized, or a line narrower than
-    ``split_min_width_m``, goes to ``structures`` (index arrays both). Pieces under
-    ``min_points`` are dropped, as in ``cluster_obstacles``.
+    ``objects`` and what is still oversized, or a line (``_structure_pieces``), goes to
+    ``structures`` (index arrays both). Pieces under ``min_points`` are dropped, as in
+    ``cluster_obstacles``.
     """
     c = config or DetectionsConfig()
     objects, structures = [], []
@@ -216,12 +273,9 @@ def split_oversized(sweep, clusters, config=None):
         link = c.split_link_m + c.split_link_per_m * np.hypot(xy[:, 0], xy[:, 1])
         labels = _components(len(members), *_link_pairs(xy, link))
         order = np.argsort(labels, kind="stable")
-        for g in np.split(order, np.flatnonzero(np.diff(labels[order])) + 1):
-            if len(g) < c.min_points:
-                continue
-            piece_xy = xy[np.sort(g)]
-            line = plan_extent(piece_xy)[1] < c.split_min_width_m
-            (structures if line or oversized(piece_xy, c) else objects).append(members[np.sort(g)])
+        pieces = [np.sort(g) for g in np.split(order, np.flatnonzero(np.diff(labels[order])) + 1) if len(g) >= c.min_points]
+        for piece, structure in zip(pieces, _structure_pieces(xy, pieces, c)):
+            (structures if structure else objects).append(members[piece])
     return objects, structures
 
 
@@ -251,12 +305,9 @@ def cluster_and_split(sweep, config=None):
             tight = _components(len(idx), i[keep], j[keep])
         sub = tight[g]
         o = np.argsort(sub, kind="stable")
-        for piece in np.split(o, np.flatnonzero(np.diff(sub[o])) + 1):
-            if len(piece) < c.min_points:
-                continue
-            members = g[np.sort(piece)]
-            line = plan_extent(xy[members])[1] < c.split_min_width_m
-            (structures if line or oversized(xy[members], c) else objects).append(idx[members])
+        pieces = [g[np.sort(piece)] for piece in np.split(o, np.flatnonzero(np.diff(sub[o])) + 1) if len(piece) >= c.min_points]
+        for members, structure in zip(pieces, _structure_pieces(xy, pieces, c)):
+            (structures if structure else objects).append(idx[members])
     return objects, structures
 
 
