@@ -63,3 +63,4 @@ demonstration for the autonomous perception and navigation library.
    evidence/BL-E-02/README
    evidence/baseline-batch/README
    evidence/TEST-13/README
+   remote_inference

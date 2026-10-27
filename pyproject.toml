@@ -17,6 +17,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+remote = ["pillow", "matplotlib"]
 test = [
     "pytest",
     "ruff",
