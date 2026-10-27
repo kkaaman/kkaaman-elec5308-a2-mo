@@ -16,7 +16,7 @@ more than one site or run without retuning.
 | G1a | Local trajectory controller | yes | yes | yes (inside G1b) | yes | — |
 | G1b | Straight, curve, obstacle stop at 2 m/s, sensor-only | yes | yes | MEASURED_PASS (Town10HD) | straight at 4 m/s; stack runs | railing-kerb calibration (Town05) fixed offline, not yet live; Stage 1 stopping fixes (holds, clearance, low objects, bends, standstill corridor) offline only |
 | G1c | Commanded 90° turn | yes | yes | right (Town10HD) and left (Town03) MEASURED_PASS | no | far exit-kerb bias on bare pavement; furnished and bare synthetic cases to keep separate; exit-line uncertainty not reported |
-| G2 | Segmenter, painting, road model, stack | yes | yes | stack straight and stop MEASURED_PASS (Town10HD site 1) | no | segmentation does not yet place the lane; S0–S5 × 5 not run |
+| G2 | Segmenter, painting, road model, stack | yes | yes | stack straight and stop MEASURED_PASS (Town10HD site 1) | no | segmentation does not yet place the lane; S0–S5 × 5 not run; segmenter retrained on corrected labels (`road_seg_b0_v2.pt`, mIoU 0.879), the old checkpoint refused by the loader |
 | G3 | Tracker, radar, prediction, following, M04–M06 | yes | yes | braking lead, cut-in, crossing pedestrian MEASURED_PASS (Town10HD site 1), again on `6b1f705` with no false yields; braking lead at 4 m/s MEASURED_PASS with and without radar (Town05 site 0) | no | A/B/C ablation with a lead still moving beyond LiDAR range (in A6/B6 it had stopped before either sensor saw it: first tracked at 30.5 m LiDAR-only, 34.5 m with radar, both static, so nothing was followed); the radar adds ~45 ms of tracking (155 tracks against 61); grades are outside the terrain model's scope; split LiDAR clusters and a separate radar track per parked car; a car within the tight link (0.3 m + 1 cm/m) of a long structure stays part of it and is left to the LiDAR obstacle stop |
 | G4–G6 | Urban behaviours, learning, final report | no | — | — | — | — |
 
@@ -977,6 +977,33 @@ workers alive across epochs and writes the best checkpoint after every improving
 (provenance `selection.in_progress`), so a run that dies keeps its best. The BiSeNetV2
 rerun is only for the report's comparison table.
 
+**These numbers are obsolete.** `road_seg_b0.pt` was trained on a tag table that read
+CARLA 0.9.16's tag 8 (TrafficSign) as pavement and left tag 25 (Ground) as "other" (review
+of `3e9083a`). The car's loader now refuses it (its recorded `label_mapping` differs);
+`--evaluate` scores it on today's labels for the comparison.
+
+### Segmenter retrained on the corrected labels (27 Oct, PC 1): `road_seg_b0_v2.pt`
+
+SegFormer-B0, same six captures (48k training images from Town01/03/04/05/06, Town02's 8k
+for validation; Town07 and Town10HD refused), 8 epochs at a constant rate, best epoch 6
+saved:
+
+| Class | IoU | Recall | Precision |
+|---|---|---|---|
+| road | 0.974 | 0.978 | 0.995 |
+| marking | 0.712 | 0.861 | 0.804 |
+| pavement | 0.921 | 0.980 | 0.939 |
+| road_user | 0.816 | 0.985 | 0.826 |
+| other | 0.975 | 0.978 | 0.997 |
+
+mIoU 0.879; pavement boundary within 2 px 0.842 (recall); 2.3 ms/image (RTX 4000 Ada, no
+CARLA running). Precision here is derived from IoU and recall; the training and
+`--evaluate` reports now print it, with the boundary's precision. The constant rate was
+unstable: loss spikes in epochs 4 and 7, and in epoch 8 the marking class died (IoU 0.0,
+mIoU 0.729), so `road_seg_b0_v2_last.pt` is not for use. Training now decays the rate
+(cosine per step to 5%, `--schedule constant` for the old behaviour). Marking stays the
+weakest class: high recall, lower precision (over-painted thin lines).
+
 ### Fresh-eyes review of `6773e24..58adaf3` (25 Oct, three independent reads): all taken
 Turn code (`junction.py`, `driver.py`):
 1. **A mid-arc re-plan committed a path its own follow then rejected**, and the latch had
@@ -1319,6 +1346,9 @@ python scripts/replay_mapless_frames.py --run <run folder> --junction exit_kerb_
 python scripts/train_mapless_segmentation.py --run "$HOME\Documents\Group7_runs\capture_Town01_s5311" `
     --run "$HOME\Documents\Group7_runs\capture_Town02_s5314" --run ... --output models\road_seg_b0.pt --architecture segformer_b0 --epochs 8
 python scripts/train_mapless_segmentation.py --run ... --output models\road_seg_bisenet.pt --architecture bisenetv2 --epochs 8
+# 6b. Score checkpoints on Town02 with today's labels (no training; one JSON line each, with the
+#     checkpoint's own tag table and whether it matches): old against retrained.
+python scripts/train_mapless_segmentation.py --run ... --evaluate models\road_seg_b0.pt --evaluate models\road_seg_b0_v2.pt
 
 # 7. G2/G3 stack on the drive harness (after G1c; --admission A|B|C, --segmenter <checkpoint>, --detector yolo)
 python scripts/run_mapless_stack.py --scenario straight --admission B --output "$HOME\Documents\Group7_runs\stack_straight"

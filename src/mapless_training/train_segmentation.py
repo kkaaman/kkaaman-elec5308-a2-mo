@@ -17,9 +17,16 @@ beside it as ``*_last.pt``. Without a validation split there is nothing to selec
 the file is named ``*_smoke.pt`` and its provenance says ``validated: false``. A
 ``.provenance.json`` sidecar goes beside each checkpoint.
 
+The learning rate decays per step (cosine to 5%; ``--schedule constant`` keeps it fixed:
+road_seg_b0_v2's marking class died in its last constant-rate epoch). ``--evaluate
+<checkpoint>`` only scores checkpoints on the validation town with today's tag table, so an
+old and a retrained checkpoint compare on the same labels.
+
 Usage:
     python scripts/train_mapless_segmentation.py --run <capture run> [--run ...] \
         --output models/mapless_road_seg.pt --epochs 8 --batch 8 --seed 0
+    python scripts/train_mapless_segmentation.py --run <capture run> [--run ...] \
+        --evaluate models/road_seg_b0.pt --evaluate models/road_seg_b0_v2.pt
 
 Status: the loop is written and exercised on a two-sample synthetic run in the unit
 tests (one epoch, CPU); the first real training run on the Town03/04/05 captures is the
@@ -28,6 +35,7 @@ G2 debug pass.
 
 import argparse
 import json
+import math
 import random
 import time
 from datetime import datetime, timezone
@@ -38,7 +46,9 @@ import numpy as np
 from mapless.road_segmentation import (
     ARCHITECTURES,
     ROAD_CLASSES,
+    TorchRoadSegmenter,
     build_model,
+    label_mapping,
     logits,
     write_provenance_sidecar,
 )
@@ -72,13 +82,28 @@ def boundary_agreement(pred, truth, class_index, tolerance_px=2):
     return float((t_edge & dilated).sum() / t_edge.sum())
 
 
+def boundary_precision(pred, truth, class_index, tolerance_px=2):
+    """Share of predicted ``class_index`` boundary pixels within ``tolerance_px`` of a truth
+    boundary (None when nothing is predicted): ``boundary_agreement`` is its recall."""
+    import cv2  # noqa: PLC0415
+
+    kernel = np.ones((3, 3), np.uint8)
+    t_edge = cv2.morphologyEx((truth == class_index).astype(np.uint8), cv2.MORPH_GRADIENT, kernel) > 0
+    p_edge = cv2.morphologyEx((pred == class_index).astype(np.uint8), cv2.MORPH_GRADIENT, kernel) > 0
+    if not p_edge.any():
+        return None
+    dilated = cv2.dilate(t_edge.astype(np.uint8), np.ones((2 * tolerance_px + 1,) * 2, np.uint8)) > 0
+    return float((p_edge & dilated).sum() / p_edge.sum())
+
+
 def evaluate(model, loader, device, torch, architecture="bisenetv2", warmup=2):
-    """Per-class IoU and recall, pavement boundary agreement and ms/image. CUDA kernels run
+    """Per-class IoU, recall and precision, pavement boundary recall and precision (within
+    2 px) and ms/image. CUDA kernels run
     asynchronously, so the timing synchronises before and after each forward pass and
     skips ``warmup`` untimed passes first (allocator and cuDNN autotuning); CPU needs neither."""
     n = len(ROAD_CLASSES)
     total = np.zeros((n, n), dtype=np.int64)
-    boundary, times = [], []
+    boundary, boundary_p, times = [], [], []
     cuda = str(device).startswith("cuda")
 
     def sync():
@@ -106,14 +131,20 @@ def evaluate(model, loader, device, torch, architecture="bisenetv2", warmup=2):
                 b = boundary_agreement(p, t, ROAD_CLASSES.index("pavement"))
                 if b is not None:
                     boundary.append(b)
+                bp = boundary_precision(p, t, ROAD_CLASSES.index("pavement"))
+                if bp is not None:
+                    boundary_p.append(bp)
     tp = np.diag(total)
     iou = tp / np.maximum(total.sum(0) + total.sum(1) - tp, 1)
     recall = tp / np.maximum(total.sum(1), 1)
+    precision = tp / np.maximum(total.sum(0), 1)
     return dict(
         iou={k: float(v) for k, v in zip(ROAD_CLASSES, iou)},
         recall={k: float(v) for k, v in zip(ROAD_CLASSES, recall)},
+        precision={k: float(v) for k, v in zip(ROAD_CLASSES, precision)},
         miou=float(iou.mean()),
-        pavement_boundary_within_2px=float(np.mean(boundary)) if boundary else None,
+        pavement_boundary_within_2px=float(np.mean(boundary)) if boundary else None,  # recall
+        pavement_boundary_precision_2px=float(np.mean(boundary_p)) if boundary_p else None,
         ms_per_image=float(1000 * np.mean(times)) if times else None,
         timing=dict(device=str(device), synchronised=cuda, warmup_passes=warmup if cuda else 0, batches=len(times)),
     )
@@ -137,12 +168,17 @@ def better(candidate, best):
     return candidate["loss"] < best["loss"]
 
 
-def train(run_dirs, output, epochs=8, batch=8, size_wh=(512, 256), lr=1e-3, device=None, cameras=None, max_samples=None, workers=0, architecture="bisenetv2", pretrained=True, seed=0, allow_unaccepted=False, progress_every=200):
+SCHEDULES = ("constant", "cosine")
+
+
+def train(run_dirs, output, epochs=8, batch=8, size_wh=(512, 256), lr=1e-3, device=None, cameras=None, max_samples=None, workers=0, architecture="bisenetv2", pretrained=True, seed=0, allow_unaccepted=False, progress_every=200, schedule="cosine"):
     import cv2  # noqa: PLC0415
     import torch  # noqa: PLC0415
 
     if architecture not in ARCHITECTURES:
         raise ValueError(f"architecture must be one of {ARCHITECTURES}")
+    if schedule not in SCHEDULES:
+        raise ValueError(f"schedule must be one of {SCHEDULES}")
     seed_everything(seed, torch)
     samples, manifests = index_runs(run_dirs, cameras, allow_unaccepted=allow_unaccepted)
     train_samples, validation_samples, other = split(samples)
@@ -175,6 +211,13 @@ def train(run_dirs, output, epochs=8, batch=8, size_wh=(512, 256), lr=1e-3, devi
         else None
     )
     validated = val_loader is not None
+    # Cosine decay per step to 5% of each group's rate. At a constant rate (road_seg_b0_v2,
+    # 27 Oct) the loss spiked in epochs 4 and 7 and in epoch 8 the marking class died
+    # (IoU 0.71 at epoch 6, 0.0 at epoch 8); selection kept epoch 6.
+    total_steps = max(1, epochs * len(loader))
+    scheduler = None
+    if schedule == "cosine":
+        scheduler = torch.optim.lr_scheduler.LambdaLR(optimiser, lambda k: 0.05 + 0.95 * 0.5 * (1.0 + math.cos(math.pi * min(k, total_steps) / total_steps)))
     history, best = [], None
 
     def common(history):
@@ -183,6 +226,7 @@ def train(run_dirs, output, epochs=8, batch=8, size_wh=(512, 256), lr=1e-3, devi
             epochs=epochs,
             batch=batch,
             learning_rate=lr,
+            schedule=schedule,
             seed=seed,
             device=device,
             towns_left_out=other,
@@ -205,6 +249,8 @@ def train(run_dirs, output, epochs=8, batch=8, size_wh=(512, 256), lr=1e-3, devi
             optimiser.zero_grad()
             loss.backward()
             optimiser.step()
+            if scheduler is not None:
+                scheduler.step()
             losses.append(float(loss.detach()))
             if progress_every and step % progress_every == 0:
                 # A full epoch over 48k images is 20 minutes or more; the console says so.
@@ -260,10 +306,51 @@ def save_checkpoints(output, best, model, epochs_done, epochs, validated, manife
     return output, info
 
 
+def evaluate_checkpoints(run_dirs, checkpoints, batch=16, workers=0, device=None, cameras=None, allow_unaccepted=False, max_samples=None):
+    """Score checkpoints on the validation town of ``run_dirs`` with today's labels.
+
+    Each checkpoint is scored against the current ``CARLA_TAG_TO_CLASS``, whatever mapping it
+    was trained on, so an old and a retrained checkpoint compare on the same labels. Its
+    own mapping, and whether it matches, are reported beside the scores.
+    """
+    import torch  # noqa: PLC0415
+
+    samples, _ = index_runs(run_dirs, cameras, allow_unaccepted=allow_unaccepted)
+    _, validation_samples, other = split(samples)
+    if max_samples:
+        validation_samples = validation_samples[:max_samples]
+    if not validation_samples:
+        raise ValueError("no validation samples (the validation town is Town02)")
+    device = device or ("cuda" if torch.cuda.is_available() else "cpu")
+    current = label_mapping()
+    results = []
+    for checkpoint in checkpoints:
+        segmenter = TorchRoadSegmenter(checkpoint, device=device, allow_label_mismatch=True)
+        size = segmenter.input_size
+        loader = torch.utils.data.DataLoader(TorchSegmentationDataset(validation_samples, size), batch_size=batch, num_workers=workers)
+        scores = evaluate(segmenter.model, loader, device, torch, segmenter.architecture)
+        trained_on = segmenter.provenance.get("label_mapping")
+        results.append(
+            dict(
+                checkpoint=str(checkpoint),
+                architecture=segmenter.architecture,
+                epoch=segmenter.provenance.get("epoch"),
+                trained_label_mapping=trained_on,
+                label_mapping_matches=trained_on == current,
+                validation_samples=len(validation_samples),
+                towns_left_out=other,
+                validation=scores,
+            )
+        )
+    return results
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--run", type=Path, action="append", required=True, help="Capture run folder (repeatable)")
-    parser.add_argument("--output", type=Path, required=True, help="Checkpoint path (.pt)")
+    parser.add_argument("--output", type=Path, help="Checkpoint path (.pt); required unless --evaluate")
+    parser.add_argument("--evaluate", type=Path, action="append", default=None, help="Only score this checkpoint on the validation town with today's labels (repeatable); no training")
+    parser.add_argument("--schedule", choices=SCHEDULES, default="cosine", help="Learning rate: cosine decay per step to 5%% (default) or constant")
     parser.add_argument("--epochs", type=int, default=8)
     parser.add_argument("--batch", type=int, default=16, help="Images per step (16 fits the RTX 4000 Ada at 512x256 with room to spare)")
     parser.add_argument("--lr", type=float, default=1e-3)
@@ -278,8 +365,15 @@ def main(argv=None):
     parser.add_argument("--allow-unaccepted", action="store_true", help="Smoke runs only: train on captures the inspection did not accept")
     parser.add_argument("--progress-every", type=int, default=200, help="Print a progress line every this many steps (0: none)")
     args = parser.parse_args(argv)
+    if args.evaluate:
+        for row in evaluate_checkpoints(args.run, args.evaluate, args.batch, args.workers, args.device, args.camera, args.allow_unaccepted, args.max_samples):
+            print(json.dumps(row, default=str), flush=True)
+        return
+    if args.output is None:
+        parser.error("--output is required to train")
     path, info = train(
-        args.run, args.output, args.epochs, args.batch, (args.width, args.height), args.lr, args.device, args.camera, args.max_samples, args.workers, args.architecture, seed=args.seed, allow_unaccepted=args.allow_unaccepted, progress_every=args.progress_every
+        args.run, args.output, args.epochs, args.batch, (args.width, args.height), args.lr, args.device, args.camera, args.max_samples, args.workers, args.architecture,
+        seed=args.seed, allow_unaccepted=args.allow_unaccepted, progress_every=args.progress_every, schedule=args.schedule,
     )
     print(json.dumps(dict(checkpoint=str(path), towns=info["training_towns"], samples=info["samples"], selection=info["selection"], last=info["history"][-1] if info["history"] else None), default=str))
 
