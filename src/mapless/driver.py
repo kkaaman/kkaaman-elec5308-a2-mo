@@ -446,6 +446,8 @@ class MaplessDriver:
             obstacle_lateral_m=None if obstacle is None else obstacle.lateral_m,
             clear_to_m=None if observation is None else observation.clear_to_m,
             hold_state=plan.hold_state,
+            hold_note=plan.hold_note or None,
+            holds=self.planner.hold_count,
             stop_reason=plan.stop_reason,
             stop_distance_m=plan.stop_distance_m if math.isfinite(plan.stop_distance_m) else None,
         )

@@ -159,6 +159,9 @@ class PathObservation:
     # (along from the rear axle, lateral), or None: the planner checks a held obstacle's
     # own region against them.
     ground: np.ndarray | None = None
+    # The same ground points in the vehicle frame (x, y): the planner gathers them, every
+    # sweep, on each held obstacle's region until it is seen again.
+    ground_body: np.ndarray | None = None
 
 
 def observe_path(sweep, corridor, body, config=None):
@@ -195,13 +198,14 @@ def observe_path(sweep, corridor, body, config=None):
     lo, hi = line.min(axis=0) - half - 1.0, line.max(axis=0) + half + 1.0
     ground = ground[np.all((ground >= lo) & (ground <= hi), axis=1)]
     clear = 0.0
-    in_tube = np.zeros((0, 2))
+    in_tube = in_tube_body = np.zeros((0, 2))
     if len(ground):
         s, lateral, outside = project_onto_polyline(ground, line)
         s_car, _, _ = project_onto_polyline(np.zeros((1, 2)), line)
         right, left = tube_bounds(line, s, half, body)
         wide = (lateral >= right) & (lateral <= left) & ~outside & (s >= s_car[0])
         in_tube = np.column_stack((s[wide] - s_car[0], lateral[wide]))
+        in_tube_body = ground[wide]
         inside = (np.abs(lateral) <= half) & ~outside
         along, lateral = (s - s_car[0])[inside], lateral[inside]
         limit = obstacle.distance_m if obstacle is not None else math.inf
@@ -222,4 +226,4 @@ def observe_path(sweep, corridor, body, config=None):
                         break
                     clear = float(x)
                 clear = min(clear + c.clear_bin_m, limit)
-    return PathObservation(obstacle, clear, in_tube)
+    return PathObservation(obstacle, clear, in_tube, in_tube_body)

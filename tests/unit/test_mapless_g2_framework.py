@@ -565,8 +565,12 @@ def test_scenery_chained_into_one_cluster_is_never_a_lead():
         length, width = plan_extent(sweep.xyz[m, :2])
         return length <= config.max_object_length_m and width <= config.max_object_width_m
 
-    # Structure: too big, or a thin line split off it (a railing's stretch).
-    assert structures and all(not road_user_sized(m) or plan_extent(sweep.xyz[m, :2])[1] < config.split_min_width_m for m in structures)
+    # Structure: too big, a thin piece split off it (a railing's stretch, a one-ring sliver),
+    # or a piece wholly above where a road user stands (a wall or hedge top).
+    assert structures and all(
+        not road_user_sized(m) or plan_extent(sweep.xyz[m, :2])[1] < config.split_min_width_m or sweep.height_m[m].min() > config.split_max_floor_m
+        for m in structures
+    )
     assert all(road_user_sized(m) for m in objects)
     assert _in_lane_ahead(sweep, objects) == []
     # Every OBSTACLE point is still somewhere (objects, structures or a dropped speck):
