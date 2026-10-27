@@ -414,7 +414,21 @@ def main() -> None:
     parser.add_argument("--skip-carla", action="store_true")
     parser.add_argument("--skip-torch", action="store_true")
     parser.add_argument("--skip-lfs", action="store_true")
+    parser.add_argument("--offline", action="store_true",
+                        help="Never install or download; requires --check-only.")
+    parser.add_argument("--check-only", action="store_true",
+                        help="Read-only checks against configs/reproduction.json.")
+    parser.add_argument("--assets-only", action="store_true",
+                        help="Check model identities only; requires --check-only.")
     args = parser.parse_args()
+    if args.offline and not args.check_only:
+        parser.error("--offline requires --check-only; use the documented local wheelhouse recipe")
+    if args.assets_only and not args.check_only:
+        parser.error("--assets-only requires --check-only")
+    if args.check_only:
+        from scripts.check_reproduction import main as check_reproduction
+
+        raise SystemExit(check_reproduction(["--assets-only"] if args.assets_only else []))
 
     check_python_version()
     remove_conflicting_opencv()
