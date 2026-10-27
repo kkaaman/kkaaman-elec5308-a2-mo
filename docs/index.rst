@@ -63,3 +63,5 @@ demonstration for the autonomous perception and navigation library.
    evidence/BL-E-02/README
    evidence/baseline-batch/README
    evidence/TEST-13/README
+   evidence/TEST-08/README
+   evidence/TEST-08/current/baseline_table
