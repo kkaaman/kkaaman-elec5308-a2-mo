@@ -106,9 +106,21 @@ def tube_bounds(line, s, half_m, body):
 
     On a bend the outer front corner sweeps body.front_m^2 * |k| / 2 outside the rear
     axle's path (0.59 m at 12 m radius): the tube widens by that on the outside, up to 1 m
-    (full review of 73ae759: the corner ran 0.13-0.4 m outside the fixed tube).
+    (full review of 73ae759: the corner ran 0.13-0.4 m outside the fixed tube). The corner
+    over a point at ``s`` belongs to the rear axle body.front_m behind it, so the curvature
+    is the mean over that stretch: where a bend begins the path has barely turned and the
+    corner has not swung out. With the full widening from the bend's first metre, the kerb
+    beside a left turn's arc start fell inside the tube as a "low obstacle", and its held
+    region, on the kerb, could never see ground (Stage 3).
     """
-    kappa = np.interp(s, _arcs(line), _curvature(line))
+    arcs = _arcs(line)
+    k = _curvature(line)
+    total = np.concatenate(([0.0], np.cumsum(0.5 * (k[1:] + k[:-1]) * np.diff(arcs))))
+    window = body.front_m
+    s = np.asarray(s, dtype=float)
+    back = s - window  # before the line's start it bends as at its first vertex (the car is already in the bend)
+    lower = np.where(back < 0.0, k[0] * back, np.interp(back, arcs, total))
+    kappa = (np.interp(s, arcs, total) - lower) / window
     outer = np.minimum(body.front_m**2 * np.abs(kappa) / 2.0, 1.0)
     return -half_m - np.where(kappa > 0, outer, 0.0), half_m + np.where(kappa < 0, outer, 0.0)
 

@@ -252,24 +252,37 @@ class TerrainGrid:
         inside = (ij[:, 0] >= 0) & (ij[:, 0] < self.n) & (ij[:, 1] >= 0) & (ij[:, 1] < self.n)
         return ij, inside
 
-    def add(self, sweep, pose, time_s):
-        """Decay to ``time_s``, then add a classified sweep seen from odometry ``pose``."""
+    def add(self, sweep, pose, time_s, stationary=False):
+        """Decay to ``time_s``, then add a classified sweep seen from odometry ``pose``.
+
+        ``stationary``: the car stands still. The LiDAR's rings then hit the same cells
+        every sweep and never the cells between them, which were seen while the car moved
+        and cannot have been seen differently since. Their static evidence (road, kerb,
+        tall) is kept as it was instead of decaying: after 5-10 s at a junction mouth the
+        road ahead had decayed to unknown, the verified distance fell from 22 m to 0 and
+        the car never moved off (full review of 73ae759, S7). Cells this sweep covers decay
+        as usual, so their evidence stays bounded; obstacle evidence always decays.
+        """
         if not isinstance(sweep, ClassifiedSweep) or not isinstance(pose, Pose2D):
             raise TypeError("add(ClassifiedSweep, Pose2D, time_s)")
         c = self.config
-        if self.time_s is not None:
-            dt = max(0.0, time_s - self.time_s)
-            self.road *= math.exp(-dt / c.static_tau_s)
-            self.raised *= math.exp(-dt / c.static_tau_s)
-            self.tall *= math.exp(-dt / c.static_tau_s)
-            self.obstacle *= math.exp(-dt / c.obstacle_tau_s)
-        self.time_s = time_s
         if math.hypot(*(np.array([pose.x_m, pose.y_m]) - self._centre())) > c.recentre_m:
             self._recentre(pose.x_m, pose.y_m)
         xy = pose.to_world(sweep.xyz[:, :2])
         ij, inside = self.cells(xy)
         flat = ij[:, 0] * self.n + ij[:, 1]
-        self.seen.ravel()[np.unique(flat[inside & (sweep.cls != PointClass.IGNORED)])] = time_s
+        covered = np.unique(flat[inside & (sweep.cls != PointClass.IGNORED)])
+        if self.time_s is not None:
+            dt = max(0.0, time_s - self.time_s)
+            static = math.exp(-dt / c.static_tau_s)
+            for grid in (self.road, self.raised, self.tall):
+                if stationary:
+                    grid.ravel()[covered] *= static
+                else:
+                    grid *= static
+            self.obstacle *= math.exp(-dt / c.obstacle_tau_s)
+        self.time_s = time_s
+        self.seen.ravel()[covered] = time_s
         for point_class, grid in (
             (PointClass.ROAD, self.road),
             (PointClass.RAISED, self.raised),

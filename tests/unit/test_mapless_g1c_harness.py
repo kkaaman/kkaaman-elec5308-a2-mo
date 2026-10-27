@@ -43,6 +43,32 @@ def test_truth_sample_knows_the_segments_and_the_permitted_area():
     assert on_exit["segment"] == "exit" and abs(on_exit["heading_error_rad"]) < 1e-6
 
 
+def test_the_whole_body_side_is_tested_against_the_lane_not_its_corners():
+    """Full review of 73ae759: only the four corners were tested, so a body side over the
+    exit kerb in the first metres of the exit lane (corners still inside on the bend) passed."""
+    site = l_site()
+    start, end = site.segment_bounds()
+    path, arcs = site.path, site.arcs
+    s = end + 2.0
+    hd = heading_at(path, arcs, s)
+    on_line = np.array([np.interp(s, arcs, path[:, 0]), np.interp(s, arcs, path[:, 1])])
+    right = np.array([math.sin(hd), -math.cos(hd)])
+    inside = truth_sample(site, on_line + 0.6 * right, hd, BODY)
+    over = truth_sample(site, on_line + 1.15 * right, hd, BODY)  # the body side 0.45 m past the kerb
+    assert inside["corner_excess_m"] <= 0.0 < over["corner_excess_m"]
+    # On the arc, the middle of the inner side lies further in than its corners.
+    centre = np.array([40.0, -8.0])
+    pose = centre + 9.2 * np.array([math.sin(math.pi / 4), math.cos(math.pi / 4)])
+    sample = truth_sample(site, pose, -math.pi / 4, BODY)
+    us = np.linspace(BODY.rear_m, BODY.front_m, 40)
+    c, sn = math.cos(-math.pi / 4), math.sin(-math.pi / 4)
+    side = np.column_stack((pose[0] + c * us + sn * BODY.half_width_m, pose[1] + sn * us - c * BODY.half_width_m))
+    from mapless.obstacles import project_onto_polyline  # noqa: PLC0415
+
+    ss, lat, _ = project_onto_polyline(side, path)
+    assert sample["corner_excess_m"] >= float((np.abs(lat) - site.half_width_at(ss)).max()) - 0.02
+
+
 def test_score_turn_gates():
     site = l_site()
     rows = []

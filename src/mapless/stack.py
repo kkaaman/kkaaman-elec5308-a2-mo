@@ -160,7 +160,11 @@ class StackConfig:
     # or more (a car driving ahead in the lane, its rear face under 2 m across, is a lead),
     # no faster than a pedestrian or cyclist (vru_max_speed_mps), and qualifying for
     # yield_persist_s first (single-tick fragments braked the car hard; live cut-in B3).
-    vru_max_speed_mps: float = 2.5
+    vru_max_speed_mps: float = 6.0  # a cyclist (review of 3e9083a, H3: 2.5 left a runner at 2.6 m/s)
+    # A slow cluster with no class up to group_max_m across is people on foot (a group),
+    # yielded to and never a "vehicle" a wall can make unreachable (review of 3e9083a, M7).
+    group_max_m: float = 4.0
+    group_max_mps: float = 2.0
     yield_persist_s: float = 0.3
     road_model_every: int = 4  # build the road model every this many ticks (5 Hz at 0.05 s; it is a slow product)
     segment_every: int = 2
@@ -203,6 +207,8 @@ class MaplessStack:
         self._cap_reason = ""  # what produced the cap the driver plans the next command under
         self._lead = None  # the lead behind the last cap, for the log
         self._cause = None  # the track behind a conflict or yield cap, for the log
+        self._clearing = None  # a vehicle not stopped for while clearing a left turn's opposing lane (S5)
+        self._oncoming = None  # the stack's verdict on a left turn's opposing lane, for the log
         self._structures = []  # clusters too big for a road user, this tick, for the log
         self._unreachable = []  # vehicle candidates a kerb or object separates from the path
         self._yield_since = {}  # track id -> first time it qualified for a yield
@@ -242,7 +248,7 @@ class MaplessStack:
         t = frame.sim_time_s
         tracks, predictions = (), ()
         cap, cap_reason = None, ""
-        self._lead = self._cause = None
+        self._lead = self._cause = self._clearing = self._oncoming = None
         self._structures = []
         self._unreachable = []
         coverage = {s.name: s.state.value for s in frame.status}
@@ -313,6 +319,9 @@ class MaplessStack:
             # -- follow and conflicts --------------------------------------------------------
             begun = time.perf_counter()
             cap, cap_reason = self._speed_cap(motion, pose, live, predictions, t)
+            gate = self.driver.last_gate
+            self.driver.oncoming_override = None if gate is None else oncoming_verdict(live, gate, self.driver.config.junction, c)
+            self._oncoming = None if self.driver.oncoming_override is None else self.driver.oncoming_override["note"]
             timing["plan"] = (time.perf_counter() - begun) * 1000
             # -- road model ------------------------------------------------------------------
             if self._tick % c.road_model_every == 0:
@@ -353,6 +362,8 @@ class MaplessStack:
             speed_cap_reason=cap_reason,  # logged every tick: a hold at a standstill never reaches the veto
             lead=self._lead,
             cap_track=self._cause,
+            clearing_for=self._clearing,
+            oncoming=self._oncoming,
             frame_generation=self.frame_generation,
             stack_timing_ms=record.timing_ms,
         )
@@ -362,13 +373,19 @@ class MaplessStack:
         """Following speed for the lead in the lane, and zero on a predicted conflict."""
         c = self.config
         plan = self.driver.last_plan
-        corridor = self.driver.corridor.previous
-        if corridor is None or not corridor.ok:
-            # No corridor to place a lead or a conflict on: no cap from the stack (the
-            # driver brakes or faults on the missing corridor itself). Was a bare None,
-            # which the caller unpacks (first Town05 run, 26 Oct).
+        # The path the driver planned along this tick, in this tick's frame: in a turn, the
+        # turn's (review of 3e9083a, H5: the kerb corridor's last good line, from an older
+        # frame, made a car crossing 9 m ahead mid-turn the "lead" and dropped it).
+        corridor = self.driver.last_corridor
+        if corridor is None or not corridor.ok or plan is None:
+            # No path to place a lead or a conflict on this tick: the checks did not run, so
+            # the restriction already in force stands (review of 3e9083a, M8: returning no
+            # cap cleared a zero cap). The driver brakes or faults on its own account.
             self._lead = self._cause = None
-            return None, ""
+            held = self.driver.speed_cap_mps
+            if held is None:
+                return None, ""
+            return held, (self._cap_reason or "speed cap").removesuffix(" (held: no path this tick)") + " (held: no path this tick)"
         path_body = corridor.centre_body
         # The corridor line starts behind the rear axle: arc lengths are measured from the car.
         s_car = float(project_onto_polyline(np.zeros((1, 2)), path_body)[0][0])
@@ -376,7 +393,8 @@ class MaplessStack:
         self._lead = self._cause = None
         # Only tracks the tracker vouches for lead the car (a 3-point tentative cluster must not).
         leads = [tr for tr in self.tracker.live(tracks) if tr.status in LEAD_STATUSES]
-        lead = self.following.lead_ahead(leads, pose, path_body, s_from_m=s_car)
+        tube_half = self.driver.config.body.half_width_m + self.driver.config.obstacles.margin_m
+        lead = self.following.lead_ahead(leads, pose, path_body, s_from_m=s_car, tube_half_m=tube_half)
         lead_id = None
         if lead is not None:
             s, track = lead
@@ -439,7 +457,7 @@ class MaplessStack:
             others = conflict_candidates(tracks, predictions, lead_id, c.prediction)
             keep_right = self.driver.corridor.keep_right_m
             if keep_right is not None:
-                others = plausible_crossers(tracks, others, xy, keep_right, c)
+                others = plausible_crossers(tracks, others, xy, keep_right, c, ego_speed_mps=motion.speed_mps, grid=self.driver.grid)
             if keep_right is not None:
                 others, self._unreachable = road_reachable(tracks, others, xy, self.driver.grid, keep_right, c, history=self._blocked_ticks)
             if lead is not None and role != "crossing":
@@ -447,17 +465,33 @@ class MaplessStack:
                 # itself (review of 3e9083a, M9: pieces 2.7 m beyond a narrow followed lead
                 # were yielded to, because the filter ran only for a vehicle lead).
                 others = outside_lead_body(tracks, others, lead[1], lead[0], pose, path_body, s_car, c, followed=role == "follow", history=self._outside_lead_s, dt_s=self.driver.dt_s)
-            hit = first_footprint_conflict(others, xy, times, self.driver.config.body)
-            if hit is not None and hit[0] <= c.conflict_horizon_s:
+            body = self.driver.config.body
+            clearing = self.driver.clearing_opposing_lane
+            for p in others:
+                # Every road user with a timed conflict within the horizon, not just the
+                # earliest (review of 3e9083a, H2: a car crossing first hid one pulling out
+                # beside the car, cap 2.83 m/s where it should be 0).
+                hit = first_footprint_conflict([p], xy, times, body)
+                if hit is None or hit[0] > c.conflict_horizon_s:
+                    continue
                 # Stop short of where the road user may be, not at once: a speed from which
                 # the car stops conflict_margin_m before the first place the path is
                 # predicted occupied by it. A conflict up close is still a zero cap; one
                 # 3-tick fragment 9 m ahead no longer brakes the car from 2 m/s to rest
                 # (A10, 26 Oct). The cap is recomputed every tick as the car closes.
-                conflict_cap = conflict_speed_cap([p for p in others if p.track_id == hit[1]], xy, s_now, self.driver.config.body, c)
+                arc = first_occupied_arc([p], xy, body, from_arc_m=s_now)
+                track = next((t for t in tracks if t.track_id == p.track_id), None)
+                if clearing and arc is not None and arc <= s_now + 0.5 and track is not None and is_vehicle(track, c) and motion_state(track, c.prediction) == "moving":
+                    # In the opposing lane of a left turn, a vehicle predicted where the car
+                    # already is: stopping there keeps the car in its way; it clears the
+                    # lane instead (full review of 73ae759, S5). The driver's obstacle stop
+                    # still stops for anything in the path ahead.
+                    self._clearing = _track_note(tracks, p.track_id, pose)
+                    continue
+                conflict_cap = conflict_speed_cap([p], xy, s_now, body, c)
                 if cap is None or conflict_cap < cap:
                     cap, reason = conflict_cap, "predicted conflict on the path"
-                    self._cause = _track_note(tracks, hit[1], pose)
+                    self._cause = _track_note(tracks, p.track_id, pose)
             yield_cap, yield_id = crossing_yield(tracks, others, xy, s_now, self.driver.config.body, self.driver.config.planner.decel_mps2, c, self._yield_since, t)
             if yield_cap is not None and (cap is None or yield_cap < cap):
                 cap, reason = yield_cap, "yielding to a road user crossing the path"
@@ -488,6 +522,7 @@ class MaplessStack:
         self._blocked_ticks = {}
         self._segmentations, self._model = None, None
         self.driver.speed_cap_mps = None
+        self.driver.oncoming_override = None
 
     def reset(self):
         self.reset_spatial()
@@ -527,17 +562,82 @@ def conflict_candidates(tracks, predictions, lead_id, config):
     return out
 
 
-def plausible_crossers(tracks, candidates, path_xy, keep_right_m, config):
-    """Drop candidates that are not clearly vehicles and cannot be crossing: beyond the
-    kerb plus ``vru_reach_m`` from the path, or moving, outside the path band and not
-    heading for it (an uncertain one within reach is kept). Vehicles (a decided car/truck class, or a footprint ``vehicle_min_m`` or longer)
-    are kept: the timed conflict check handles them. A clipped wall segment can be any
-    length under that (2.19 m in the fourth live M04 run)."""
+def oncoming_verdict(tracks, gate, junction, config):
+    """The stack's view of the opposing lane a left turn is about to cross (S5), for the
+    driver's gate: dict(clear, excused, note).
+
+    Tracks in the lane (``gate.band``, 0.5 m either side) from the crossing on: one moving
+    towards it that can reach it (``gate.zone_x``) within ``gate.required_s``, at its own
+    speed plus 1 m/s, blocks; so does one whose motion is not known yet within the reach of
+    ``junction.oncoming_mps``. Static ones (a parked car, one waiting to turn), ones driving
+    away and ones too far or too slow are excused: the driver's LiDAR check does not count
+    their cells, which on its own it must (it cannot tell a parked car from a stopped one
+    about to go). The radar's tracks reach beyond the LiDAR's 40 m.
+    """
+    lo, hi = gate.band
+    x_lo, x_hi = gate.zone_x
+    reach = junction.oncoming_mps * gate.required_s
+    excused, blocking = [], []
+    for track in tracks:
+        pos = gate.frame.to_body(track.position[None])[0]
+        if not lo - 0.5 <= pos[1] <= hi + 0.5 or pos[0] < x_lo - 3.0:
+            continue
+        vel = gate.frame.to_body(np.array([track.position + track.velocity]))[0] - pos
+        if track.footprint is not None:
+            length, width, yaw = track.footprint
+        else:
+            length, width, yaw = 4.5, 2.0, gate.frame.yaw_rad
+        half = 0.5 * (length * abs(math.cos(yaw - gate.frame.yaw_rad)) + width * abs(math.sin(yaw - gate.frame.yaw_rad)))
+        gap = float(pos[0]) - half - x_hi
+        toward = -float(vel[0])
+        state = motion_state(track, config.prediction)
+        footprint = ((float(track.position[0]), float(track.position[1])), length, width, yaw)
+        if state == "static" or (state == "moving" and toward < -config.prediction.stationary_mps):
+            excused.append(footprint)
+        elif state == "uncertain":
+            if gap <= reach:
+                blocking.append((track.track_id, gap, None))
+            else:
+                excused.append(footprint)
+        elif gap <= 0.0 or (gap / max(toward + 1.0, 1e-3)) < gate.required_s:
+            blocking.append((track.track_id, gap, toward))
+        else:
+            excused.append(footprint)
+    if blocking:
+        tid, gap, toward = min(blocking, key=lambda b: b[1])
+        speed = "" if toward is None else f" at {toward:.1f} m/s"
+        note = f"track {tid} in the oncoming lane {max(0.0, gap):.0f} m from the crossing{speed}"
+        return dict(clear=False, excused=excused, note=note)
+    return dict(clear=True, excused=excused, note=f"oncoming lane: {len(excused)} tracks excused")
+
+
+def plausible_crossers(tracks, candidates, path_xy, keep_right_m, config, ego_speed_mps=0.0, grid=None):
+    """Drop candidates that are not clearly vehicles and cannot be crossing. Vehicles (a
+    decided car/truck class, or a footprint ``vehicle_min_m`` or longer) are kept: the timed
+    conflict check handles them. Of the rest, kept are:
+
+    - those in the path band;
+    - within the kerb plus ``vru_reach_m`` of the path: a pedestrian, one whose motion is
+      not known yet (its envelope is bounded), or one heading for the path at
+      ``approach_min_mps`` or more;
+    - beyond that reach: one heading for the path at ``approach_min_mps`` or more, unless
+      it shows the sliding-wall signature (moving along the path, the car's way, faster than
+      towards it and at half the car's speed or more) or stands on structure (``grid``:
+      persistent tall evidence, ``reach_wall_min_evidence``, where it is). Walls and fences
+      beside the road slide past as the car moves (the visible stretch's centre travels with
+      it: 1.5-3.5 m/s "walkers" 7-15 m to the right in the fourth live M04 run, some of
+      them heading for the path); a cyclist out of a side road comes across open road
+      (review of 3e9083a, H3: the reach alone dropped one at 5 m/s until it was 3.75 m from
+      the path, and the car hit it).
+
+    A clipped wall segment can be any length under ``vehicle_min_m`` (2.19 m in the fourth
+    live M04 run)."""
     by_id = {t.track_id: t for t in tracks}
     path = np.asarray(path_xy, dtype=float)
     if len(path) < 2:
         return list(candidates)
     heads = path_headings(path)
+    arcs = np.concatenate(([0.0], np.cumsum(np.hypot(*np.diff(path, axis=0).T))))
     out = []
     for p in candidates:
         track = by_id.get(p.track_id)
@@ -546,17 +646,30 @@ def plausible_crossers(tracks, candidates, path_xy, keep_right_m, config):
             continue
         s, lateral, _ = project_onto_polyline(track.position[None], path)
         lat = float(lateral[0])
-        if abs(lat) > keep_right_m + config.vru_reach_m:
-            continue
-        if motion_state(track, config.prediction) == "uncertain":
-            out.append(p)  # within reach, motion unknown: its envelope is bounded, keep it
-            continue
-        seg = int(np.clip(np.searchsorted(np.concatenate(([0.0], np.cumsum(np.hypot(*np.diff(path, axis=0).T)))), float(s[0]), side="right") - 1, 0, len(path) - 1))
-        normal = np.array([-math.sin(heads[seg]), math.cos(heads[seg])])  # +left
-        towards = -math.copysign(1.0, lat) * float(track.velocity @ normal)  # speed towards the path line
-        in_band = abs(lat) <= config.following.lane_half_width_m + 0.5
-        if in_band or towards >= config.approach_min_mps:
+        within = abs(lat) <= keep_right_m + config.vru_reach_m
+        if within and (motion_state(track, config.prediction) == "uncertain" or decided_class(track) == "pedestrian"):
+            # Within reach and motion unknown (its envelope is bounded), or a pedestrian,
+            # who can step out from a standstill (review of 3e9083a, M5): keep it.
             out.append(p)
+            continue
+        seg = int(np.clip(np.searchsorted(arcs, float(s[0]), side="right") - 1, 0, len(path) - 1))
+        tangent = np.array([math.cos(heads[seg]), math.sin(heads[seg])])
+        normal = np.array([-tangent[1], tangent[0]])  # +left
+        towards = -math.copysign(1.0, lat) * float(track.velocity @ normal)  # speed towards the path line
+        along = float(track.velocity @ tangent)
+        if abs(lat) <= config.following.lane_half_width_m + 0.5:
+            out.append(p)
+            continue
+        if towards < config.approach_min_mps:
+            continue
+        if not within:
+            if ego_speed_mps > 0.5 and along >= 0.5 * ego_speed_mps and along > towards:
+                continue  # the sliding-wall signature
+            if grid is not None:
+                around = track.position[None] + np.array([[0.0, 0.0], [0.25, 0.0], [-0.25, 0.0], [0.0, 0.25], [0.0, -0.25]])
+                if float(grid.tall_evidence(around).max()) >= config.reach_wall_min_evidence:
+                    continue  # standing on a wall or a fence: its visible stretch, not a road user
+        out.append(p)
     return out
 
 
@@ -583,7 +696,7 @@ def road_reachable(tracks, candidates, path_xy, grid, keep_right_m, config, hist
     blocked_now = set()
     for p in candidates:
         track = by_id.get(p.track_id)
-        if track is None or not is_vehicle(track, config):
+        if track is None or not is_vehicle(track, config) or is_group(track, config):
             kept.append(p)
             continue
         _, lat, _ = project_onto_polyline(track.position[None], path)
@@ -707,6 +820,11 @@ def lead_role(track, along_mps, across_mps, config, wide=False):
         return "crossing"
     if along_mps > config.prediction.stationary_mps and state == "moving":
         return "follow"
+    if vehicle and state == "moving" and (along_mps < -config.prediction.stationary_mps or abs(across_mps) >= config.approach_min_mps):
+        # Coming towards the car, reversing or crossing: not a stopped obstacle to hand to
+        # the driver's stop, which looks only along the path (review of 3e9083a, M4: an
+        # oncoming car in the lane at -4 m/s left every check). The conflict check keeps it.
+        return "crossing"
     if state == "static" or vehicle:
         return "obstacle_stop"
     if track.hits >= config.lead_known_hits and abs(along_mps) <= config.prediction.stationary_mps and abs(across_mps) < config.approach_min_mps:
@@ -776,7 +894,16 @@ def is_vulnerable(track, config):
         return True
     if cls in ("car", "truck"):
         return False
-    return track.footprint is not None and max(track.footprint[0], track.footprint[1]) <= config.vulnerable_max_m
+    return track.footprint is not None and (max(track.footprint[0], track.footprint[1]) <= config.vulnerable_max_m or is_group(track, config))
+
+
+def is_group(track, config):
+    """People on foot together: no decided class, at most ``group_max_m`` across, moving no
+    faster than ``group_max_mps`` (review of 3e9083a, M7: a 2.4 m group was not yielded to,
+    and one of 3 m or more counted as a vehicle a wall could make unreachable)."""
+    if decided_class(track) is not None or track.footprint is None:
+        return False
+    return max(track.footprint[0], track.footprint[1]) <= config.group_max_m and max(track.speed_mps, track.recent_speed_mps or 0.0) <= config.group_max_mps
 
 
 def conflict_speed_cap(predictions, path_xy, s_now, body, config):

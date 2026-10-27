@@ -15,13 +15,15 @@ more than one site or run without retuning.
 | G0 | Rig v2, health, calibration gate | yes | yes | MEASURED_PASS, both PCs | yes | — |
 | G1a | Local trajectory controller | yes | yes | yes (inside G1b) | yes | — |
 | G1b | Straight, curve, obstacle stop at 2 m/s, sensor-only | yes | yes | MEASURED_PASS (Town10HD) | straight at 4 m/s; stack runs; stop and curve again on the Stage 1 code | railing-kerb calibration (Town05) fixed offline, not yet live; Stage 1 stopping cases (holds, clearance, low objects, bends) offline only |
-| G1c | Commanded 90° turn | yes | yes | right (Town10HD) and left (Town03) MEASURED_PASS | no | far exit-kerb bias on bare pavement; furnished and bare synthetic cases to keep separate; exit-line uncertainty not reported |
+| G1c | Commanded 90° turn | yes | yes | right (Town10HD) and left (Town03) MEASURED_PASS | no | Stage 3 (oncoming gate, standstill at the mouth, medians, exact arcs, evaluator outline) offline only; far exit-kerb bias (up to 1 m on the synthetic verge); skewed junctions unsupported (sites now within 10° of a right angle); exit-line uncertainty not reported |
 | G2 | Segmenter, painting, road model, stack | yes | yes | stack straight and stop MEASURED_PASS (Town10HD site 1) | no | segmentation does not yet place the lane; S0–S5 × 5 not run; segmenter retrained on corrected labels (`road_seg_b0_v2.pt`, mIoU 0.879), the old checkpoint refused by the loader |
 | G3 | Tracker, radar, prediction, following, M04–M06 | yes | yes | braking lead, cut-in, crossing pedestrian MEASURED_PASS (Town10HD site 1), again on `6b1f705` with no false yields; braking lead at 4 m/s MEASURED_PASS with and without radar (Town05 site 0) | no | A/B/C ablation with a lead still moving beyond LiDAR range (in A6/B6 it had stopped before either sensor saw it: first tracked at 30.5 m LiDAR-only, 34.5 m with radar, both static, so nothing was followed); the radar adds ~45 ms of tracking (155 tracks against 61); grades are outside the terrain model's scope; split LiDAR clusters and a separate radar track per parked car; a car within the tight link (0.3 m + 1 cm/m) of a long structure stays part of it and is left to the LiDAR obstacle stop; Stage 2 identity fixes (radar association, twins, lead body, reachability, structure split) offline only |
 | G4–G6 | Urban behaviours, learning, final report | no | — | — | — | — |
 
-Stack compute on the lab PCs: ~90–140 ms per 50 ms tick (p50) after the clustering
-rewrite, from ~550 ms.
+Stack compute on the lab PCs (27 Oct, `e401188`, v2 segmenter): 58–62 ms p50 and about
+215 ms p95 per 50 ms tick on Town10HD, 140 ms p50 and 295–310 ms p95 on Town05. The
+segmentation is 56 ms p50 and 150–180 ms p95 on the ticks it runs; clustering is 19 ms on
+Town10HD and 78 ms on Town05. The 50 ms budget is not met.
 
 ## Goal and label
 
@@ -1436,6 +1438,130 @@ track's own return is missing. An unclassified walker that first appears inside 
 body band is ignored there, where the lead shadows it, until it steps out of it (a test
 pins both). Long thin railing tracks that were never split (under 12 m) still slide and
 make conflicts on Town05, as before. Regression tests: `tests/unit/test_mapless_stage2_identity.py`.
+
+**Live on `e401188` with the v2 segmenter (27 Oct).** All four runs MEASURED_PASS, and the
+reports record `road_seg_b0_v2.pt` (sha256 `e8c38004aa6d…`).
+- **PC 2, Town10HD site 1, admission B.**
+  - Crossing pedestrian: one yield (0.17 m/s), then 1.95 m/s to the goal. The second
+    near-stop is gone.
+  - Braking lead: no slowdown on the approach; final gap 3.47 m; lead-speed RMSE 0.18
+    m/s, p95 0.05 m/s; braking seen after 0.15 s. The lead still stops before the car
+    arrives, so this remains "approach a stopped car" (Stage 4).
+- **PC 1, Town05 at 4 m/s, like-for-like** (`--goal-m 100`, `lead_start_m=50`,
+  `brake_at_m=90`):
+
+  | | A: no radar | B: front radar |
+  |---|---|---|
+  | Lead-speed RMSE / p95 | 0.35 / 0.70 m/s | 0.13 / 0.11 m/s |
+  | Braking seen after | 0.60 s | 0.15 s |
+  | Final gap | 3.46 m | 3.49 m |
+
+  Both stopped for about 1.2 s near 11 s. Car-sized tracks 14–15 m right of the road
+  appeared to move towards it at 2–7 m/s. There is no other traffic in the scenario, so
+  these are scenery, and the reachability filter does not drop them (open).
+
+Stages 1 and 2 stay open on compute, on actor-matched identity metrics and on the live
+stopping edge cases.
+
+### Stage 3, junction commitment (27 Oct, offline only)
+
+From the full review of `73ae759` (S5, S6, S7 and the junction medium items) and the
+review of `3e9083a` (H2, H3, H5, M4, M5, M7, M8). The reviewers' reproductions were re-run
+in the synthetic world.
+
+- **Oncoming traffic on a left turn (S5).** The body may enter the opposing lane only once
+  its approach is clear. That is the lane beside the car's own, 3.5 m wide. "Clear" means:
+  - clear for as long as the car needs to be across it, plus 1.5 s;
+  - that time is worked out from where the car is, accelerating at 1 m/s² to its cruise
+    speed;
+  - oncoming traffic is assumed to drive at 30 km/h.
+
+  Until then the car holds 0.3 m short of the lane. Once its body is in the lane it clears
+  the lane, and the gate never stops it there.
+  - **The LiDAR alone:** any obstacle cell hit in the last 0.3 s counts as traffic, out to
+    40 m. That is 4.7 s at 30 km/h, while a 2 m/s turn from a standstill needs about 8 s,
+    so the driver alone certifies only part of the gap (the log says how much).
+  - **With the stack:** it decides from tracks.
+    - A track that can reach the crossing in time blocks, at its own speed plus 1 m/s.
+    - A track whose motion is unknown blocks within reach.
+    - Parked, departing, far or slow tracks are excused, and the LiDAR check does not
+      count their cells.
+    - Radar tracks reach beyond 40 m.
+  - **In the opposing lane:** a vehicle predicted where the car already stands no longer
+    sets a zero cap. The driver's obstacle stop still stops for anything in the path
+    ahead.
+- **Standing at the mouth (S7).**
+  - **Grid:** standing still, the grid keeps the static evidence of cells the current
+    sweep does not hit. The rings re-hit the same cells and never the ones between them.
+  - **Freshness credit:** the observed road keeps its freshness for the length of the
+    standstill until the car has moved 3 m on. Kerbs do not get this credit: a kerb read
+    0.9 m out from 22 m was otherwise kept fresh and never refined.
+  - **Mouth:** a car standing at the mouth moves its stop on to a kerb opening that it
+    reads steadily further on for 1 s. It never stands past the tangent point of the
+    nominal arc to the exit line, and that point only comes nearer.
+  - **Radii:** a kerb cell under the exit straight, 2 m past the arc, no longer rules a
+    radius out. The verified distance stops the car short of it, and the line is refined
+    as the car closes. Something standing on the exit still rules it out.
+  - **Held regions:** standing still, a hold's ground is the current sweep only. Over
+    seconds, the noise of identical sweeps put a point in the strip behind a missed
+    pedestrian's feet.
+- **Divided exit roads (S6).** A raised strip with road again within 2.5 m beyond it is a
+  median: the exit carriageway is the outermost one. A refinement further than 1.5 m from
+  the latched exit line is not taken.
+- **Exact arcs (exit offset).** A tangent point up to 1.5 m behind the car is entered where
+  the arc passes the car, a few centimetres off and a few degrees on. The arc is no longer
+  shifted forward, so the exit straight lies on the exit line. It lay up to 1.5 m off.
+- **Obstacle tube on bends.** The outer widening uses the mean curvature over the car's
+  length behind each point. Where a bend begins, the body has not swung out yet. On a left
+  turn, the full widening put the kerb at the arc start in the tube as a "low obstacle",
+  and its hold could never clear.
+- **Turn evaluator.** The body outline is tested every 0.25 m, not just its four corners. A
+  side over the exit kerb passed before. Turn sites must turn within 10° of a right angle
+  (was 30°). The car keeps the right-angle prior, and a 100° junction ended 1.85 m
+  towards the opposing lane. **This changes the turn-site numbering**, so `--site N` for
+  turns may name a different junction than before.
+- **Stack.**
+  - **H2:** the conflict cap is the lowest over every road user with a timed conflict.
+  - **H5:** leads and conflicts are placed on the path the driver planned along this tick
+    (a turn's, in a turn).
+  - **M8:** a tick with no planned path holds the cap in force.
+  - **M4:** a vehicle coming towards the car, reversing or crossing is kept for the
+    conflict check, not handed to the obstacle stop.
+  - **M5:** a lead must reach into the swept tube, and a pedestrian within reach is
+    always a candidate.
+  - **H3:** off the road, a mover heading for the path is kept unless it shows the
+    sliding-wall signature or stands on persistent tall evidence. The kerb-plus-2 m reach
+    alone used to drop a cyclist out of a side road. Yields cover cyclist speeds (6 m/s).
+  - **M7:** a slow unclassified cluster up to 4 m across is a group on foot: it is
+    yielded to and is never a "vehicle" a wall can make unreachable.
+
+| Case (synthetic world) | Before | Now |
+|---|---|---|
+| Held 12 s / 30 s before the mouth | committed, verified 21.9 → 0 m, stuck | turns, reaches the goal |
+| Walker on the exit lane until the car has stood 3 s (8 m fillet) | stuck at the mouth | waits, then turns |
+| Left turn, oncoming car at 8 m/s released 30–60 m out | entered with a 13 m (1.6 s) gap, stopped in its lane, hit | waits and enters behind it; no collision in 6 cases |
+| Divided exit road, route point 3–4 m out (two seeds) | 4.6 m refinement onto the opposing carriageway | near carriageway, within 0.1 m |
+| Arc with its tangent point 0.5–1.5 m behind the car | exit straight 0.25–1.5 m off the line | on the line |
+| Right/left turns, bare/furnished, seeds 4–7, 14 m fillet | finish | finish |
+| Missed pedestrian / side intrusions after a hold (Stage 1 cases) | held | held |
+| The stack review's ten failing tests (3e9083a) | fail | pass |
+
+Known limits:
+- **Exit kerb bias.** On the synthetic verge the exit kerb reads up to 1 m onto the
+  pavement from 20 m or more, and the car often commits on that line. A walker on the
+  exit at a 10 m fillet now leaves the car stuck mid-turn: the exact arc no longer
+  shifts the exit straight back towards the lane by accident. At a 6 m fillet the car
+  still waits at the mouth for good, as before. On Town10HD the raised returns sat at the
+  kerb line; this needs the live turn runs.
+- **Oncoming check (LiDAR only):** it cannot tell a parked car in the opposing lane from
+  a stopped one, so it waits for both.
+- **Lane geometry:** the opposing lane is assumed to be one 3.5 m lane beside the car's
+  own.
+- **Not covered:** traffic on the cross road at a four-way junction, and traffic signals.
+
+Regression tests: `tests/unit/test_mapless_stage3_junctions.py`,
+`tests/unit/test_mapless_stage3_stack.py`, and the evaluator test in
+`tests/unit/test_mapless_g1c_harness.py`.
 
 ## Running Phase 0 live
 

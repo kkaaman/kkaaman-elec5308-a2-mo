@@ -1,0 +1,275 @@
+"""Stage 3, junction commitment: the full review of 73ae759, S5 (oncoming traffic on a left
+turn), S6 (divided exit roads), S7 (standing at the junction mouth) and the exit-offset,
+tube and evaluator items, on the synthetic world."""
+
+import math
+from pathlib import Path
+
+import numpy as np
+
+from mapless.corridor import CorridorConfig
+from mapless.driver import DriveMode, DriverConfig, MaplessDriver
+from mapless.ego_motion import Pose2D
+from mapless.junction import JunctionConfig, _arc_path, oncoming_gate
+from mapless.obstacles import tube_bounds
+from mapless.satnav import Command, RoutePoint, SatNavRoute
+from mapless.sensor_suite import load_sensor_suite
+from mapless.terrain import (
+    CellLabel,
+    ClassifiedSweep,
+    PointClass,
+    TerrainConfig,
+    TerrainGrid,
+    VehicleBody,
+)
+from navigation_control.local import LocalControlConfig
+from navigation_control.types import ControlCommand, ControllerConfig
+from sim_harness.mapless_road import (
+    KerbLine,
+    MaplessRoadWorld,
+    RoadScene,
+    SideRoad,
+    Straight,
+    side_road_hedges,
+)
+
+ROOT = Path(__file__).resolve().parents[2]
+SUITE = load_sensor_suite(ROOT / "configs" / "sensor_suites" / "mapless_v2.json")
+BODY = VehicleBody()
+DT = 0.05
+
+
+def control():
+    return LocalControlConfig(
+        ControllerConfig(wheelbase_m=3.00465, max_steering_angle_rad=math.radians(20), lookahead_m=4.0, kp=0.45, ki=0.15, stopping_deceleration_mps2=1.0, hold_brake=0.5)
+    )
+
+
+def junction_world(side, fillet_m=10.0, extra_boxes=(), side_road=None, seed=5308):
+    side_road = side_road or SideRoad(60.0, side, fillet_m=fillet_m)
+    scene = RoadScene(KerbLine([Straight(150)]), side_roads=(side_road,), hedges=side_road_hedges(side_road) + tuple(extra_boxes))
+    return MaplessRoadWorld(scene, SUITE, turn=side_road, start_s_m=15.0, seed=seed), side_road
+
+
+def goal_after_turn(world, extra_m=25.0):
+    return world.path.starts[2][3] + extra_m
+
+
+def drive(world, route, seconds=80, per_tick=None):
+    config = DriverConfig(body=BODY, control=control(), corridor=CorridorConfig(keep_right_m=1.75), junction=JunctionConfig())
+    driver = MaplessDriver(SUITE, route, config, DT)
+    log = []
+    for k in range(int(seconds / DT)):
+        step = driver.step(world.frame())
+        log.append((world.truth(), step))
+        if per_tick is not None:
+            per_tick(k, world, driver, step)
+        world.apply(step.command)
+        if step.mode is DriveMode.FINISHED and world.state.speed == 0:
+            break
+    return log
+
+
+def finished(world, log):
+    truth, last = log[-1]
+    return last.mode is DriveMode.FINISHED and abs(truth.s_m - goal_after_turn(world)) < 3.0 and not any(t.collision for t, _ in log)
+
+
+# -- S7: standing at the mouth -------------------------------------------------------------
+
+
+def test_cells_between_the_rings_keep_their_evidence_while_the_car_stands():
+    """S7: standing still, the LiDAR's rings hit the same cells every sweep; the cells
+    between them were seen while the car moved and keep that, instead of decaying to
+    unknown (the verified distance fell from 22 m to 0 after 10 s at the mouth)."""
+    grid = TerrainGrid(TerrainConfig())
+    pose = Pose2D(0.0, 0.0, 0.0)
+
+    def sweep(xs):
+        xyz = np.column_stack((xs, np.zeros(len(xs)), np.zeros(len(xs))))
+        return ClassifiedSweep(xyz, np.zeros(len(xs)), np.full(len(xs), PointClass.ROAD, dtype=np.int8), np.zeros(0), np.zeros(0))
+
+    grid.add(sweep(np.array([10.0, 20.0])), pose, 0.0)  # both seen while moving
+    for k in range(1, 201):  # 10 s standing: only the cell at 10 m is hit again
+        grid.add(sweep(np.array([10.0])), pose, k * DT, stationary=True)
+    far = grid.cells(np.array([[20.0, 0.0]]))[0][0]
+    near = grid.cells(np.array([[10.0, 0.0]]))[0][0]
+    assert grid.road[far[0], far[1]] == 1.0  # kept as it was
+    assert 1.0 < grid.road[near[0], near[1]] < 1.0 / (1.0 - math.exp(-DT / 3.0)) + 1.0  # re-hit and decaying: bounded
+    grid.add(sweep(np.array([10.0])), pose, 10.0 + 3.0, stationary=False)  # moving: everything decays
+    assert grid.road[far[0], far[1]] < 0.4
+
+
+def test_a_long_pause_before_the_mouth_does_not_leave_the_car_stuck():
+    """S7: held on the brake for 12 s just before the junction mouth, the car went on to
+    commit, saw its verified distance shrink to 0 and stood there for 55 s."""
+    world, _ = junction_world(-1)
+    route = world.route(goal_after_turn(world))
+    state = dict(start=None)
+    apply = world.apply
+
+    def held(command):
+        if state["start"] is not None and world.time_s - state["start"] < 12.0:
+            command = ControlCommand(0.0, 0.0, 1.0)
+        apply(command)
+
+    def per_tick(k, w, driver, step):
+        if state["start"] is None and w.state.x >= 44.0:
+            state["start"] = w.time_s
+
+    world.apply = held
+    log = drive(world, route, seconds=60, per_tick=per_tick)
+    assert state["start"] is not None and finished(world, log)
+
+
+def test_a_walker_on_the_exit_lane_is_waited_for_and_the_turn_then_completes():
+    """S7: a walker on the exit lane until the car has stood 3 s at the mouth (8 m kerb
+    fillet). The car waits, then turns: it was left at the mouth for good."""
+    walker = (58.25, -10.0, 0.0, 0.25, 0.25, 1.7)
+    world, _ = junction_world(-1, fillet_m=8.0, extra_boxes=(walker,))
+    state = dict(since=None, removed=False)
+
+    def per_tick(k, w, driver, step):
+        if state["removed"]:
+            return
+        if w.state.speed < 0.01 and w.state.x > 40.0:
+            state["since"] = w.time_s if state["since"] is None else state["since"]
+            if w.time_s - state["since"] >= 3.0:
+                w.boxes = [b for b in w.boxes if b != walker]
+                state["removed"] = True
+        else:
+            state["since"] = None
+
+    log = drive(world, world.route(goal_after_turn(world)), seconds=80, per_tick=per_tick)
+    assert state["removed"] and finished(world, log)
+
+
+# -- the arc and the tube ------------------------------------------------------------------
+
+
+def test_an_arc_begun_just_past_its_tangent_point_ends_on_the_exit_line():
+    """The tangent point just behind the car (up to 1.5 m) was clamped to the car without
+    moving the arc, and the exit straight lay up to 1.5 m off the measured line."""
+    for theta in (-math.pi / 2, math.pi / 2):
+        exit_point = (10.0, 12.0 * math.copysign(1.0, theta))
+        for radius in (9.5, 10.5, 11.5):
+            points, arc_start, _ = _arc_path(0.0, exit_point, theta, radius, 1.0, 15.0)
+            rel = points[-1] - np.array(exit_point)
+            assert abs(-rel[0] * math.sin(theta) + rel[1] * math.cos(theta)) < 1e-6
+            assert arc_start >= 0.0 and np.hypot(*points[0]) < 0.15  # entered where it passes the car
+
+
+def test_the_tube_widens_only_as_the_bend_takes_hold():
+    """The corner over a point belongs to the rear axle a car's length behind it: where a
+    bend begins the body has not swung out. The full widening from the bend's first metre
+    put the kerb beside a left turn's arc start in the tube as a low obstacle, whose held
+    region, on the kerb, never saw ground."""
+    straight = np.column_stack((np.arange(0.0, 10.01, 0.5), np.zeros(21)))
+    th = np.linspace(0.0, math.pi / 2, 40)[1:]
+    arc = np.column_stack((10.0 + 10.0 * np.sin(th), 10.0 * (1 - np.cos(th))))
+    line = np.vstack((straight, arc))
+    right, _ = tube_bounds(line, np.array([5.0, 10.5, 16.0]), 1.4, BODY)
+    full = BODY.front_m**2 * 0.1 / 2
+    assert right[0] == -1.4  # straight
+    assert -1.4 - right[1] < 0.3 * full  # half a metre into the bend
+    assert -1.4 - right[2] > 0.8 * full  # a car's length in
+
+
+# -- S5: oncoming traffic on a left turn ---------------------------------------------------
+
+
+def _gate_grid(occupied_xy=()):
+    grid = TerrainGrid(TerrainConfig())
+    grid.time_s = 10.0
+    for x, y in occupied_xy:
+        ij = grid.cells(np.array([[x, y]]))[0][0]
+        grid.obstacle[ij[0], ij[1]] = 3.0
+        grid.seen[ij[0], ij[1]] = 10.0
+    return grid
+
+
+def _left_turn_path():
+    entry = np.column_stack((np.arange(0.0, 6.0, 0.5), np.zeros(12)))
+    th = np.linspace(0.0, math.pi / 2, 30)[1:]
+    arc = np.column_stack((6.0 + 10.0 * np.sin(th), 10.0 * (1 - np.cos(th))))
+    out = np.column_stack((np.full(20, 16.0), 10.0 + np.arange(0.5, 10.5, 0.5)))
+    return np.vstack((entry, arc, out))
+
+
+def test_the_gate_sees_the_opposing_lane_and_what_is_in_it():
+    c = JunctionConfig()
+    frame = Pose2D(0.0, 0.0, 0.0)  # the lane centre at the car, along the lane
+    path = _left_turn_path()
+    gate = oncoming_gate(_gate_grid(), frame, path, frame, BODY, c, 0.0, 2.0)
+    assert gate is not None and gate.clear and gate.band == (1.75, 5.25)
+    assert 0.0 < gate.entry_m < gate.exit_m < 20.0 and gate.required_s > 5.0
+    car = [(30.0 + dx, 3.5 + dy) for dx in (0.0, 1.0, 2.0) for dy in (-0.5, 0.5)]  # a car in the opposing lane 15 m on
+    blocked = oncoming_gate(_gate_grid(car), frame, path, frame, BODY, c, 0.0, 2.0)
+    assert not blocked.clear and "occupied" in blocked.note
+    excused = oncoming_gate(_gate_grid(car), frame, path, frame, BODY, c, 0.0, 2.0, excused=(((31.0, 3.5), 4.5, 2.0, 0.0),))
+    assert excused.clear  # the stack knows it is parked
+    beside = oncoming_gate(_gate_grid([(30.0, -1.0), (31.0, -1.0)]), frame, path, frame, BODY, c, 0.0, 2.0)
+    assert beside.clear  # in the car's own lane: not oncoming traffic
+
+
+def test_a_left_turn_waits_for_oncoming_traffic():
+    """S5: an oncoming car at 8 m/s, 40 m out when the car reaches the junction: the car
+    entered with a 13 m (1.6 s) gap, stopped in the opposing lane and was hit. It now
+    waits and enters behind it."""
+    world, _ = junction_world(1)
+    route = world.route(goal_after_turn(world))
+    length, width = 4.2, 1.8
+    world.boxes.append((500.0, 5.25, math.pi, length / 2, width / 2, 1.5))
+    state = dict(x=None, entered_gap=None)
+
+    def per_tick(k, w, driver, step):
+        if state["x"] is None and w.state.x >= 45.0:
+            state["x"] = 85.0
+        if state["x"] is None:
+            return
+        corners = w._body_corners()
+        if state["entered_gap"] is None and corners[:, 1].max() > 3.5:
+            state["entered_gap"] = (state["x"] - length / 2) - corners[:, 0].max()
+        state["x"] -= 8.0 * w.dt_s
+        w.boxes[-1] = (state["x"], 5.25, math.pi, length / 2, width / 2, 1.5)
+
+    log = drive(world, route, seconds=70, per_tick=per_tick)
+    assert not any(t.collision for t, _ in log)
+    assert state["entered_gap"] is not None and state["entered_gap"] < 0.0  # it went behind the oncoming car
+    assert any("waiting" in (s.diagnostics.get("turn_gate") or "") for _, s in log)
+    assert finished(world, log)
+
+
+# -- S6: a divided exit road ---------------------------------------------------------------
+
+
+def test_a_divided_exit_road_is_entered_on_the_near_carriageway():
+    """S6: with the route's exit point 4 m out, the exit road nearest it was the opposing
+    carriageway beyond a 1 m median, and a 4.6 m refinement sent the car 20 m the wrong
+    way. The median is skipped (road beyond a raised strip) and refinements are capped."""
+    side_road = SideRoad(60.0, -1, width_m=8.0, fillet_m=10.0)  # carriageways [56, 59.5] and [60.5, 64]
+    median = (60.0, -45.0, math.pi / 2, 35.0, 0.5, 0.15)
+    world, _ = junction_world(-1, side_road=side_road, extra_boxes=(median,))
+    route = world.route(goal_after_turn(world))
+    plane, points = world.plane, []
+    for p in route.points:
+        if p.command is Command.LANEFOLLOW and points and points[-1].command is Command.RIGHT:
+            x, y = plane.to_local(p.latitude_deg, p.longitude_deg)
+            p = RoutePoint(*plane.to_geodetic(x + 4.0, y), p.command)
+        points.append(p)
+    log = drive(world, SatNavRoute(route.name, tuple(points)), seconds=60)
+    assert finished(world, log)
+    on_exit = [t for t, _ in log if t.s_m > goal_after_turn(world) - 20.0]
+    assert on_exit and max(abs(t.lane_offset_m) for t in on_exit) < 0.5  # the near carriageway's lane
+
+
+def test_labels_used_by_the_gate_are_the_grids():
+    # The gate counts OCCUPIED cells only: kerbs and pavement in the region are not traffic.
+    grid = _gate_grid()
+    ij = grid.cells(np.array([[30.0, 4.0]]))[0][0]
+    grid.raised[ij[0], ij[1]] = 5.0
+    grid.seen[ij[0], ij[1]] = 10.0
+    grid.seen_by_class[PointClass.RAISED][ij[0], ij[1]] = 10.0
+    assert grid.labels(np.array([[30.0, 4.0]]), max_age_s=0.3)[0] == CellLabel.BARRIER
+    frame = Pose2D(0.0, 0.0, 0.0)
+    assert oncoming_gate(grid, frame, _left_turn_path(), frame, BODY, JunctionConfig(), 0.0, 2.0).clear

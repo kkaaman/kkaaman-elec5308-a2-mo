@@ -75,11 +75,16 @@ class FollowingController:
     def reset(self):
         self._target, self._accel = None, 0.0
 
-    def lead_ahead(self, tracks, pose, path_body, max_ahead_m=60.0, s_from_m=0.0):
+    def lead_ahead(self, tracks, pose, path_body, max_ahead_m=60.0, s_from_m=0.0, tube_half_m=None):
         """The nearest track within the lane along ``path_body`` (N x 2, vehicle frame), as
         (distance ahead of the rear axle, track). ``s_from_m``: the rear axle's own arc length
         on the line (the corridor line starts behind the car). Tentative and deleted
-        tracks are never leads, whatever the caller passes."""
+        tracks are never leads, whatever the caller passes.
+
+        ``tube_half_m``: the track must also reach into the car's swept tube (its near edge,
+        half its narrower footprint side inside the centre, within this of the path): a
+        bollard or a waiting walker at the lane's edge is not the lead and must not displace
+        it (review of 3e9083a, M5)."""
         best = None
         line = np.asarray(path_body, dtype=float)
         for track in tracks:
@@ -90,6 +95,10 @@ class FollowingController:
             ahead = float(s[0]) - s_from_m
             if outside[0] or abs(lateral[0]) > self.config.lane_half_width_m or not 0.0 < ahead <= max_ahead_m:
                 continue
+            if tube_half_m is not None:
+                half = 0.5 * min(track.footprint[0], track.footprint[1]) if track.footprint is not None else 0.5
+                if abs(lateral[0]) - half > tube_half_m:
+                    continue
             if best is None or ahead < best[0]:
                 best = (ahead, track)
         return best
