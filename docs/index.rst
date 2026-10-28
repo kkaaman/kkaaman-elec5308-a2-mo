@@ -47,6 +47,10 @@ demonstration for the autonomous perception and navigation library.
    lane_recovery
    stack_skeleton
    kinematic_world
+   parking
+   evidence/E5-P1/README
+   evidence/E5-P1/ai-journal
+   evidence/E5-P1/phase-j-20261028/README
    simulator_boundary
    vehicle_adapter
    world_lifecycle
@@ -64,8 +68,11 @@ demonstration for the autonomous perception and navigation library.
    evidence/baseline-batch/README
    evidence/TEST-13/README
    remote_inference
+   evidence/TEST-08/README
+   evidence/TEST-08/current/baseline_table
 
 .. toctree::
    :maxdepth: 1
 
    inference_service
+   weather_experiment

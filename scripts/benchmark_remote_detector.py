@@ -143,6 +143,7 @@ def main(argv=None):
                             rows.append(dict(mode=mode, width=width, height=height, jpeg_quality=quality,
                                 frame=path.name, status=status, error=error, total_s=total,
                                 tp=counts[0], fp=counts[1], fn=counts[2],
+                                session_reset_s=timing.get("session_reset_s"),
                                 encode_s=timing.get("encode_s"), decode_s=timing.get("decode_s"),
                                 http_round_trip_s=timing.get("http_round_trip_s"),
                                 server_duration_s=timing.get("server_duration_s"),

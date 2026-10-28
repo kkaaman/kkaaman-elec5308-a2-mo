@@ -78,7 +78,7 @@ def server(monkeypatch):
             value = state["change"](doc)
             raw = value if isinstance(value, bytes) else json.dumps(value).encode()
             time.sleep(state["delay"])
-            self.send_response(200)
+            self.send_response(state.get("status",200))
             self.send_header("X-Run-Id", self.headers["X-Run-Id"])
             self.send_header("X-Session-Id", state.get("response_session", self.headers["X-Session-Id"]))
             self.end_headers()
@@ -401,3 +401,20 @@ def test_remote_session_resets_isolate_repeated_episode_and_reject_wrong_respons
     server["response_session"] = first
     with pytest.raises(ValueError, match="session"):
         backend.detect(frame(1))
+
+
+
+def test_expired_or_failed_service_session_recovers_with_fresh_identity(server):
+    import urllib.error
+
+    for status in (410,503):
+        backend=JpegHttpBackend(server["endpoint"],source_id="replay",model_version="test-model")
+        backend.reset(episode_id="test")
+        old=backend.session_id
+        server["status"]=status
+        with pytest.raises(urllib.error.HTTPError):
+            backend.detect(frame())
+        server["status"]=200
+        assert backend.detect(frame(1)).valid
+        assert backend.session_id != old
+        backend.close()

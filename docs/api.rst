@@ -73,3 +73,9 @@ Optional inference service
 
 .. automodule:: cloud.server
    :members:
+
+Optional hybrid control adapter
+-------------------------------
+
+.. automodule:: autonomy.hybrid_detector
+   :members:
