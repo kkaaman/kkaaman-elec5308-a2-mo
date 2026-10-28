@@ -163,3 +163,19 @@ checks consequently fail on this draft. Do not edit the validator, exclude these
 modules, rewrite historical records, or claim existing G1 admission covers this
 change. Keep this work in its separate feature branch and coordinate the normal
 review/rebinding process before merge/live use. No admission record was changed.
+
+
+## Explicit server session identity (issue #56 dependency)
+
+The existing JSON v1 body is supplemented by required `X-Run-Id` and
+`X-Session-Id` headers. A backend creates a fresh UUID session on every reset,
+including repeated episodes with the same name; the server must echo both
+headers and the client rejects mismatches. `DETECTOR_TOKEN` (or explicit token)
+is sent as a bearer credential; never include it in URLs or evidence logs.
+`X-Send-Monotonic-S` is the client send clock; optional
+`X-Capture-Monotonic-S` records the actual client capture start when available.
+These two clocks share a client domain. The server never subtracts either from
+its own monotonic clock. Server duration is measured entirely on the server.
+No legacy server that omits session echoes is silently accepted. Session reset
+is local/nonblocking: old server state expires independently rather than doing
+HTTP on the control thread. Service implementation/packaging belongs to #56.

@@ -4,8 +4,10 @@ from __future__ import annotations
 import base64
 import io
 import json
+import os
 import time
 import urllib.request
+import uuid
 from urllib.parse import urlsplit
 
 from obstacle_perception.types import (
@@ -27,7 +29,7 @@ class JpegHttpBackend:
     Explicit endpoint only; no model downloads or simulator imports.
     """
     def __init__(self, endpoint, *, source_id, model_version, timeout_s=0.2,
-                 jpeg_quality=85, max_response_bytes=2_000_000):
+                 jpeg_quality=85, max_response_bytes=2_000_000, token=None, run_id=None):
         url = urlsplit(endpoint)
         if url.scheme not in ("http", "https") or not url.hostname or url.username or url.password:
             raise ValueError("Explicit HTTP(S) endpoint without embedded credentials required")
@@ -41,10 +43,16 @@ class JpegHttpBackend:
         self.timeout_s = positive(timeout_s, "timeout_s")
         self.quality, self.max_bytes = jpeg_quality, max_response_bytes
         self.episode_id = None
+        self.session_id = None
+        self.run_id = run_id or str(uuid.uuid4())
+        self.token = token if token is not None else os.environ.get("DETECTOR_TOKEN")
+        if not isinstance(self.run_id, str) or not self.run_id.strip():
+            raise ValueError("Nonempty run_id required")
         self.last_timing = {}
 
     def reset(self, *, episode_id):
         self.episode_id = episode_id
+        self.session_id = str(uuid.uuid4())
 
     def detect(self, frame):
         from PIL import Image
@@ -61,8 +69,17 @@ class JpegHttpBackend:
         payload = json.dumps(dict(identity, jpeg_base64=base64.b64encode(buffer.getvalue()).decode("ascii")),
                              allow_nan=False).encode()
         encoded = time.monotonic()
-        request = urllib.request.Request(self.endpoint, payload, {"Content-Type": "application/json"})
+        headers = {"Content-Type": "application/json", "X-Run-Id": self.run_id,
+                   "X-Session-Id": self.session_id, "X-Send-Monotonic-S": str(encoded)}
+        if frame.capture_started_monotonic_s is not None:
+            headers["X-Capture-Monotonic-S"] = str(frame.capture_started_monotonic_s)
+        if self.token:
+            headers["Authorization"] = "Bearer " + self.token
+        request = urllib.request.Request(self.endpoint, payload, headers)
         with urllib.request.urlopen(request, timeout=self.timeout_s) as response:
+            if (response.headers.get("X-Run-Id") != self.run_id
+                    or response.headers.get("X-Session-Id") != self.session_id):
+                raise ValueError("Response run/session identity mismatch")
             raw = response.read(self.max_bytes + 1)
         received = time.monotonic()
         if len(raw) > self.max_bytes:

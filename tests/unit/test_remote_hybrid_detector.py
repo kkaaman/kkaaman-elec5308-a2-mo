@@ -74,6 +74,8 @@ def server(monkeypatch):
             raw = value if isinstance(value, bytes) else json.dumps(value).encode()
             time.sleep(state["delay"])
             self.send_response(200)
+            self.send_header("X-Run-Id", self.headers["X-Run-Id"])
+            self.send_header("X-Session-Id", state.get("response_session", self.headers["X-Session-Id"]))
             self.end_headers()
             try:
                 self.wfile.write(raw)
@@ -379,3 +381,18 @@ def test_annotated_replay_reports_missed_truth(tmp_path, monkeypatch):
     accuracy = summary["modes"]["local"]["configurations"][0]["accuracy"]
     assert accuracy["fn"] == 200 and accuracy["recall"] == 0
     assert "NOT RUN" in (output / "comparison.md").read_text()
+
+
+def test_remote_session_resets_isolate_repeated_episode_and_reject_wrong_response(server):
+    backend = JpegHttpBackend(server["endpoint"], source_id="replay", model_version="test-model")
+    backend.reset(episode_id="test")
+    first = backend.session_id
+    backend.detect(frame())
+    backend.reset(episode_id="test")
+    assert backend.session_id != first
+    state = backend.session_id
+    backend.detect(frame())
+    assert backend.session_id == state
+    server["response_session"] = first
+    with pytest.raises(ValueError, match="session"):
+        backend.detect(frame(1))
