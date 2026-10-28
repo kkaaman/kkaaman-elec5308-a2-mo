@@ -1,0 +1,11 @@
+{
+  "status": "IDENTITY_AND_LOADER_PASS",
+  "config_identity_sha256": "2903124878485c8030e160f3598c381bf0197329f79d74773d84048a96c2e9ef",
+  "config_file_sha256": "a4b5e669f9426db24d42d9a1d20114981c95bb15302af006b1196044696fe187",
+  "runner_scope_sha256": "cac8bc9c4f131b16b871191f69562d87517d3f1b956849b9950543e582ff400a",
+  "runner_base_revision": "897bd126cb098ccc29a9a16f9b06c1052ca13d73",
+  "publication_state": "PR108_REVIEWED_LOADER_ONLY_SOURCE_REBIND",
+  "cruise_mps": 4.0,
+  "admitted_profile": "stationary_vehicle_g2_only",
+  "live_acceptance": false
+}

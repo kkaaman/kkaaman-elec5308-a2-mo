@@ -210,11 +210,11 @@ def test_frozen_baseline_entry_point_uses_the_same_startup_gate(monkeypatch, tmp
     root = Path(__file__).resolve().parents[2]
     document = json.loads((root / "configs/mission_baseline.json").read_text())
     freeze = document["baseline_threshold_freeze"]
-    # Exercise the bounded local candidate loader; this is not team G1 admission.
+    # Use the exact versioned local admission proposal, retaining its identity.
     freeze["status"] = "FROZEN_GATED_OPERATIONAL"
     freeze["frozen_values"] = dict(freeze["candidate_values"])
-    path = tmp_path / "hypothetical-accepted-baseline.json"
-    path.write_text(json.dumps(document))
+    path = root / "configs/mission_baseline.json"
+    assert json.loads(path.read_text()) == document
     import perception.object_detection as detector_module
     import perception.recorded_detector as assets
 

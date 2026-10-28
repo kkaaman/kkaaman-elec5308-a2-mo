@@ -18,9 +18,9 @@
   "hold_policy": "request_zero_speed_without_resetting_route",
   "resume_policy": "fresh_valid_clearance_then_positive_speed_without_set_path",
   "goal_policy": "latched_finished_until_explicit_reset",
-  "speed_status": "TECHNICALLY_VALIDATED_CANDIDATE_PENDING_G1_ADMISSION",
+  "speed_status": "FROZEN_GATED_OPERATIONAL_STATIONARY_VEHICLE_ONLY",
   "reverse_allowed": false,
-  "speed_note": "4.0 m/s technically validated stationary-vehicle G2 candidate only; not G1-admitted or closed-loop certified. Pedestrian operational first-admission is unestablished. Preserve all-track HOLD and clock limits.",
+  "speed_note": "4.0 m/s stationary-vehicle G2 profile only; strict versioned configuration/source admission identity. Pedestrian operational first-admission remains deferred; not general visibility or closed-loop certification. This local admission proposal still requires publication and final designated review.",
   "ego_truth_for_navigation": "ALLOWED_BY_USER_COURSE_SCOPE_CONFIRMATION",
   "obstacle_truth_for_control": false,
   "route_file": "routes/town10hd_baseline_v1.json",
@@ -60,7 +60,7 @@
     "percentile_rule": "Linear interpolation at (n-1)*0.95"
   },
   "baseline_threshold_freeze": {
-    "status": "TECHNICALLY_VALIDATED_CANDIDATE",
+    "status": "FROZEN_GATED_OPERATIONAL",
     "required_evidence": {
       "depth_accuracy": "BL-B-04",
       "detector_range_and_latency": "BL-C-05",
@@ -76,16 +76,16 @@
       "perception_latency_p95_s": 0.1
     },
     "frozen_values": {
-      "cruise_speed_mps": null,
+      "cruise_speed_mps": 4.0,
       "deceleration_mps2": 1.497566177392398,
-      "response_budget_s": null,
+      "response_budget_s": 0.9500000052154064,
       "stop_margin_m": 6.0
     },
-    "freeze_rule": "Published PR #97 technical candidate, not admitted: stationary-vehicle profile only, freshness-gated same-frame path, checked expiry, identical model/tracker/rig/depth/confirmation and all-track validity. PR #90 / issue #38 and required team review must publish actual admission.",
+    "freeze_rule": "Admitted values are enforced by docs/gates/G1-admission.json config/source identity. Stationary-vehicle G2 profile only; exact reviewed #41 source plus admission hardening, all-track validity and unchanged timing/depth/confirmation guards. Downstream live acceptance remains separate.",
     "review_date": "2026-10-21",
     "review_report": "../docs/evidence/BL-D-06/review.json",
     "decision_record": "../docs/baseline_threshold_freeze.md",
-    "candidate_constraints_note": "D-003 permits a lower supported cruise; neither 4.0 nor 3.2 m/s is mandatory. Acceptance constraints and numeric candidate inputs are unchanged; cruise/response frozen values remain null pending G1 admission.",
+    "candidate_constraints_note": "Original candidate constraints and measured candidate history are preserved. Numeric candidate inputs are unchanged; frozen values now represent the exact stationary-vehicle G1 admission proposal, pending publication and final designated review.",
     "implementation_policy": {
       "acceleration_mps2": 1.0,
       "lateral_acceleration_mps2": 1.5,
@@ -93,7 +93,7 @@
       "provenance": "Existing BL-D-07 tests/unit/test_speed_governor.py config fixture; explicitly policy, not newly measured physical limits."
     },
     "parameter_kinds": {
-      "cruise_speed_mps": "Unchanged 4.0 m/s technically validated stationary-vehicle candidate; G1/team admission pending",
+      "cruise_speed_mps": "4.0 m/s exact stationary-vehicle frozen admission proposal; publication/final designated review pending",
       "deceleration_mps2": "BL-E-03 calibration with existing reserve",
       "response_budget_s": "0.5 s enforced capture age + 0.1 s separate delivery reserve + measured BL-E lag once",
       "stop_margin_m": "Unchanged acceptance upper bound",
@@ -180,13 +180,16 @@
       "response_budget_s": 0.9500000052154064,
       "stop_margin_m": 6.0
     },
-    "publication_status": "PUBLISHED_PR_97_TECHNICAL_CANDIDATE_PENDING_G1_TEAM_ADMISSION",
+    "publication_status": "PREPARED_G1_ADMISSION_PENDING_PUBLICATION_AND_FINAL_REVIEW",
     "operational_range_evidence": {
       "report": "../docs/evidence/BL-D-06/operational-approach/review.json",
       "usable_first_admission_range_m": 22.348599722608924,
       "scope": "Stationary-vehicle controlled straight-scene all-track supported-surface provider only; pedestrian first-admission unestablished; no empty-corridor clearance or general visibility certificate"
     },
-    "operational_scope": "Stationary-vehicle obstacle profile for the G2 stationary-car baseline only; pedestrian operational first-admission range unestablished/deferred."
+    "operational_scope": "Stationary-vehicle obstacle profile for the G2 stationary-car baseline only; pedestrian operational first-admission range unestablished/deferred.",
+    "admitted_profile": "stationary_vehicle_g2_only",
+    "issue41_runner_scope_sha256": "cac8bc9c4f131b16b871191f69562d87517d3f1b956849b9950543e582ff400a",
+    "issue41_runner_source_revision": "897bd126cb098ccc29a9a16f9b06c1052ca13d73"
   },
   "runtime_entrypoint": "autonomy.baseline_operation.baseline_operational_stack"
 }

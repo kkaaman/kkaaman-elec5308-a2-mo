@@ -1,0 +1,23 @@
+{
+  "status": "REAL_MODEL_CONTAINER_PROTOCOL_SMOKE_PASS",
+  "accuracy": "NOT_MEASURED",
+  "real_lan_or_cloud_measurement": "NOT_RUN",
+  "image_id": "sha256:9566025c47d796e11d4e105cacbb549b5fb9024c15b6fb664ecf7176507d85b3",
+  "network_mode": "none",
+  "readonly_rootfs": true,
+  "memory_bytes": 4294967296,
+  "nano_cpus": 2000000000,
+  "pids_limit": 128,
+  "mounts": [
+    {
+      "destination": "/models/yolo26n.pt",
+      "read_write": false
+    }
+  ],
+  "source_sha256": {
+    "src/cloud/server.py": "4e4089ee857b12c24f54ed56370da249e0f7d08822d1efa8ccd308019ea8820d",
+    "src/cloud/__init__.py": "b5907b3e456935e8fc2553ce289f0254eba06df72e0f7bc17e1cb0fa2fb0c99b",
+    "src/perception/remote_detector.py": "ae04606fa862461f2e7b96ff993eb584b7f44e0d496d1d08a979d2969c1033a5"
+  },
+  "lock_sha256": "8bb1f5c2a2a7ce04af4ace5c32d01aa1361dec81cdb635e59d9c600e006f1be4"
+}
