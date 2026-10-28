@@ -59,3 +59,9 @@ issue #49 remains open for that work after its runner prerequisites.
 The new config/adapter changes the exact G1 source inventory. The trusted record
 is unchanged; reviewed rebinding is needed before integrated operational use.
 AI-assisted with OpenAI Codex, 28 October 2026; no human or live approval claimed.
+
+```{toctree}
+:hidden:
+
+evidence/E1-01-02/phase-j-20261028/README
+```
