@@ -1,61 +1,33 @@
-# Phase J: LiDAR validation and remaining acceptance
+# PR103 / issue52 LiDAR continuation
 
-AI-assisted with OpenAI Codex, 28 October 2026. Canonical `ae6a83d` merged
-normally; original Mohammad commits preserved.
+AI-assisted with OpenAI Codex. Original contributor history is preserved.
+Complete production review and supported loader-only rebinding are recorded
+adjacent, including the intermediate binding before capture-schema completion.
 
-Freshness fix: future simulation timestamps cannot supply a gap or clearance;
-nonfinite maximum ages are rejected. Sixty focused LiDAR tests pass; Ruff,
-boundary smoke (90 modules) and strict Sphinx pass. Synthetic replay reports
-10 frames, 8 valid sweeps, 7 fused valid, 3 HOLD, maximum gap error 0.034831 m
-and zero depth-loss frames treated clear. This is synthetic evidence only.
+Corrected unsupported positive clearance: sparse road returns at 7.6-7.7m
+could report 8m extent despite an unobserved near prefix. Descriptive extent
+now never supplies positive clearance or releases HOLD. Clustering grid and
+component work are bounded; overload invalidates the sweep. Capture COMPLETE
+requires known-object checks and settings restoration/no leaked actors.
 
-Before the freshness fix, full integrated tests: 972 passed, 6 failed,
-1 CARLA deselected, 3 subtests. All failures are exact-source G1 admission
-mismatches. A final full regression log is recorded alongside this note.
+Capture now covers 10/20/30m at center/left/right offsets in one parked
+session: 9 cases, 10 frames each, 90 sweeps. Recorded target footprint geometry
+is evaluation-only, never policy input. Replay measures target-to-cluster
+corridor classification; missing geometry is unknown, never fabricated.
 
-The adjacent source-binding proposal does not modify the trusted record or
-claim designated corridor-owner/admission review. Issue #52 acceptance remains
-incomplete: corridor-owner protocol acceptance, live known-object capture,
-recorded road/roadside/in-corridor replay and admission review are outstanding.
-Issue #40 must not privately duplicate this unmerged capability.
+Final offline validation: 67 focused and 1067 full tests passed, 1 CARLA
+deselected, 3 subtests. Admission and all 19 negative probes pass; Ruff,
+boundary (96 modules), strict Sphinx and diff checks pass. Synthetic fixture
+evidence remains synthetic. The prior pending source blocker is resolved.
 
-## CARLA run queue: first session, parked LiDAR capture
+Status: CARLA BLOCKED. Issue52 stays open for actual known-object capture and
+recorded replay. CARLA stayed OFF. No #40 positive-clearance or #41 sensor
+false-positive resolution is claimed.
 
-Prerequisites: reviewed/admitted candidate, matching CARLA 0.9.16 client/server,
-Town10HD_Opt, empty world, no other synchronous client; local project installed.
-Keep the ego parked. From this PR checkout, in PowerShell:
-
-```powershell
-$py = '.\.venv\Scripts\python.exe'
-& $py scripts/capture_lidar_sweeps.py --host 127.0.0.1 --output runs/lidar-capture-v1
-& $py scripts/replay_lidar_obstacles.py --input runs/lidar-capture-v1/sweeps.json --output runs/lidar-capture-v1/replay.json
-```
-
-Retain all sweeps/arrays, script/source identity, frame IDs, simulation times,
-point counts/density/coverage, known-object coordinate/intensity results at
-10/20/30 m, cleanup/restoration status and replay rows. Preserve failures.
-This capture has no RGB-D channel: fused HOLD is expected and must not be
-reported as joint RGB-D/LiDAR clearance or stop/resume acceptance.
-
-## Continuation review and corrected clearance semantics
-
-Complete production diff reviewed after canonical PR100/108/107 integration.
-Fixed an unsupported draft clearance predicate: road points only 7.6–7.7 m
-beyond the bumper could report 8 m extent while the near prefix was unobserved.
-The source now withholds positive clearance; descriptive road extent cannot
-release HOLD. This strengthens the draft without altering baseline contracts
-or declaring a different physical rig mandatory. Clustering grid/component work
-is now explicitly bounded and overload invalidates the sweep. Capture COMPLETE
-requires all known-object checks and verified actor/settings cleanup; incomplete
-captures return nonzero. Regressions retain the counterexamples.
-
-Reviewed loader-only rebind is applied; frozen values/scope/model/sensor and
-historical #41 runner binding remain unchanged. Production admission and 19
-negative probes pass. **65 focused LiDAR tests and 1065 full-suite tests pass**
-(1 CARLA deselected, 3 subtests), along with Ruff, boundary smoke (96 modules),
-strict Sphinx, diff and fixture hashes/replay. No trusted validator/test was
-weakened to accept a hash. Source/config/model/record identities are adjacent.
-
-Status: **CARLA BLOCKED** for actual known-object capture and recorded replay;
-no physical clearance/resume certificate or #40/#41 acceptance is claimed.
-The earlier pending-inventory blocker is superseded; live criteria are not.
+When explicitly authorized later, use CARLA0.9.16 Town10HD_Opt, empty world,
+no competing synchronous client, fixed dt0.05:
+python scripts/capture_lidar_sweeps.py --host 127.0.0.1 --distances 10 20 30 --lateral-offsets 0 4.5 -4.5 --frames 10 --output runs/lidar-capture-v1
+python scripts/replay_lidar_obstacles.py --input runs/lidar-capture-v1/sweeps.json --output runs/lidar-capture-v1/replay.json
+Retain every sweep, identity, coordinate/intensity/density/coverage check,
+target classification, source hash and cleanup record. Known-object face error
+must meet the configured 0.3m tolerance. Without RGB-D, fused HOLD is expected.

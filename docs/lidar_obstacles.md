@@ -213,7 +213,7 @@ receives `min(gap, seen_clear)` as visibility, which is conservative.
 With CARLA 0.9.16 / Town10HD_Opt running and an otherwise empty world:
 
 ```bash
-PYTHONPATH=src python scripts/capture_lidar_sweeps.py --host <carla-host> --output runs/lidar-capture-v1
+PYTHONPATH=src python scripts/capture_lidar_sweeps.py --host <carla-host> --distances 10 20 30 --lateral-offsets 0 4.5 -4.5 --frames 10 --output runs/lidar-capture-v1
 PYTHONPATH=src python scripts/replay_lidar_obstacles.py --input runs/lidar-capture-v1/sweeps.json \
     --output runs/lidar-capture-v1/replay.json
 ```
@@ -254,3 +254,11 @@ association. Exceeding 1,000,000 grid cells or 1,024 connected components return
 an invalid `clustering_budget_exceeded` sweep, never obstacle-free clearance.
 The live capture command returns success only when known-object checks and
 settings/actor cleanup all verify; incomplete captures return nonzero.
+
+The parked capture now batches nine cases (10/20/30 m × centred/left/right
+roadside offsets) with ten sweeps each: 90 retained sweeps in one session.
+Expected target geometry, bumper gaps and corridor labels are evaluation-only;
+replay records matched-target classifications/failures and scores the centred
+gap. Known roadside failures/occlusion remain visible. A chosen site's physical
+side clearance may invalidate a case; retain that failure rather than relabel it.
+All live data is still NOT_RUN; only the schema/geometry path is tested offline.

@@ -48,10 +48,12 @@ def expected_target_box(world_to_actor, vertices_world, rear_axle_offset_m):
     return [float(v) for v in (low + high) / 2], [float(v) for v in np.maximum(high - low, 1e-3)]
 
 
-def serialise_sweep(sweep, npy_name, directory, *, check, target, distance_m):
+def serialise_sweep(sweep, npy_name, directory, *, check, target, distance_m,
+                    lateral_m=0.0, front_bumper_m=None):
     """Manifest row for one captured sweep; the array is saved alongside."""
     path = Path(directory) / npy_name
     np.save(path, sweep.points_xyzi)
+    geometry = isinstance(target,dict) and {"x_m","y_m","size_x_m","size_y_m"} <= set(target)
     return dict(
         frame_id=sweep.frame_id,
         sim_time_s=sweep.sim_time_s,
@@ -61,6 +63,13 @@ def serialise_sweep(sweep, npy_name, directory, *, check, target, distance_m):
         density_fraction=sweep.density_fraction,
         azimuth_coverage_deg=sweep.azimuth_coverage_deg(),
         target_distance_m=distance_m,
+        target_lateral_m=lateral_m,
+        target_case="in_corridor" if abs(lateral_m) < 1.5 else "roadside_left" if lateral_m > 0 else "roadside_right",
+        expected_in_corridor=(None if not geometry else
+            abs(target["y_m"]) <= 1.5 + target["size_y_m"]/2),
+        expected_gap_m=(None if not geometry or front_bumper_m is None
+            or abs(target["y_m"]) > 1.5 + target["size_y_m"]/2 else
+            target["x_m"]-target["size_x_m"]/2-front_bumper_m),
         objects=[target] if target is not None else [],
         known_object_check=check,
         depth_gap_m=None,
@@ -92,12 +101,15 @@ def straight_site(map_):
     raise RuntimeError("No checked 60 m straight capture site")
 
 
-def target_pose(carla, waypoint, distance):
+def target_pose(carla, waypoint, distance, lateral_m=0.0):
     options = waypoint.next(distance)
     if len(options) != 1 or options[0].is_junction:
         raise RuntimeError("Target left checked straight road")
     pose = options[0].transform
     pose.location.z += 0.05
+    yaw = math.radians(pose.rotation.yaw)
+    pose.location.x += math.sin(yaw) * lateral_m
+    pose.location.y -= math.cos(yaw) * lateral_m
     return carla.Transform(pose.location, pose.rotation)
 
 
@@ -116,6 +128,9 @@ def collect(args):
     before = _settings_record(world.get_settings())
     actors_before = {a.id for a in world.get_actors()}
     site, spawn, waypoint = straight_site(map_)
+    cases = capture_cases(args.distances, args.lateral_offsets)
+    if type(args.frames) is not int or args.frames < 1:
+        raise ValueError("At least one sweep per case is required")
     args.output.mkdir(parents=True, exist_ok=False)
     source = Path(__file__).resolve()
     (args.output / "capture-script.py").write_bytes(source.read_bytes())
@@ -142,6 +157,8 @@ def collect(args):
         provenance=dict(capture_script=dict(path=str(source), sha256=sha256(source))),
         route_xy_m=[[0.0, 0.0], [60.0, 0.0]],
         sweeps=[],
+        planned_cases=[dict(distance_m=d,lateral_m=y) for d,y in cases],
+        sweeps_per_case=args.frames,
     )
     owned_ids = []
     error = None
@@ -182,8 +199,8 @@ def collect(args):
                     [float(v) for v in row] for row in capture.sensor_to_ego
                 ]
                 document["actor_ids"] = dict(ego=ego.id, target=target.id, lidar=capture.sensor.id)
-                for distance in args.distances:
-                    target.set_transform(target_pose(carla, waypoint, distance))
+                for distance, lateral in capture_cases(args.distances, args.lateral_offsets):
+                    target.set_transform(target_pose(carla, waypoint, distance, lateral))
                     for _ in range(SETTLE_TICKS):
                         owner.tick()
                     for _ in range(args.frames):
@@ -222,6 +239,8 @@ def collect(args):
                                 check=check,
                                 target=target_box,
                                 distance_m=distance,
+                                lateral_m=lateral,
+                                front_bumper_m=document["front_bumper_from_rear_axle_m"],
                             )
                         )
                         print(
@@ -252,6 +271,15 @@ def collect(args):
     return document
 
 
+def capture_cases(distances, lateral_offsets):
+    """Batch known target distances and left/right offsets while ego stays parked."""
+    if (not distances or not lateral_offsets
+            or any(not math.isfinite(v) or not 5 <= v <= 40 for v in distances)
+            or any(not math.isfinite(v) or abs(v)>6 for v in lateral_offsets)):
+        raise ValueError("Use finite 5..40 m distances and lateral offsets within +/-6 m")
+    return [(float(distance),float(lateral)) for distance in distances for lateral in lateral_offsets]
+
+
 def final_capture_status(error, checks, cleanup):
     """Acceptance data is complete only with all checks and clean restoration."""
     complete = (error is None and bool(checks) and all(checks)
@@ -277,6 +305,8 @@ def main():
         default=list(DEFAULT_DISTANCES_M),
         help="target distances ahead of the ego spawn (metres)",
     )
+    parser.add_argument("--lateral-offsets",type=float,nargs="+",default=[0.0,4.5,-4.5],
+                        help="known target offsets: + left / - right, metres; default centre and both roadsides")
     parser.add_argument(
         "--mount-height",
         type=float,

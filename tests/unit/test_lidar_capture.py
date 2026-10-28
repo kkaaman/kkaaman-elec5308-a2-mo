@@ -271,3 +271,15 @@ def test_capture_completion_requires_verified_cleanup_and_all_measurements():
         ("capture failure",[True],clean),
     ):
         assert final_capture_status(error,checks,cleanup) == "INCOMPLETE"
+
+
+
+def test_capture_batch_pairs_all_distances_with_centre_and_both_roadsides():
+    from scripts.capture_lidar_sweeps import capture_cases
+
+    cases=capture_cases([10,20,30],[0,4.5,-4.5])
+    assert len(cases)==9 and len(set(cases))==9
+    for distance in (10.,20.,30.):
+        assert {lateral for d,lateral in cases if d==distance}=={0.,4.5,-4.5}
+    with pytest.raises(ValueError):
+        capture_cases([float("nan")],[0])

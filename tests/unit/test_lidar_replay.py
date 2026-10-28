@@ -102,3 +102,33 @@ def test_replay_script_writes_summary(tmp_path):
     assert "frames" in completed.stdout
     data = json.loads(output.read_text())
     assert data["summary"]["frames"] == 10 and len(data["frames"]) == 10
+
+
+
+def test_recorded_schema_scores_known_centre_and_both_roadside_targets_offline(tmp_path):
+    from dataclasses import asdict
+
+    from autonomy.lidar_replay import replay_manifest
+    from obstacle_perception.lidar_synthetic import Scene, SceneBox, synthetic_sweep
+    from scripts.capture_lidar_sweeps import known_object_check, serialise_sweep
+
+    rows=[]
+    last=None
+    for index,y in enumerate((0.,5.2,-5.2)):
+        box=SceneBox(20.,y,4.,2.,1.5,base_z_m=.15 if y else 0.,label="target")
+        sweep=synthetic_sweep(Scene(boxes=(box,)),episode_id="paired",frame_id=index,sim_time_s=index*.05)
+        last=sweep
+        target=asdict(box)
+        check=known_object_check(sweep,center_ego_m=(20.,y,box.base_z_m+.75),extent_m=(4.,2.,1.5))
+        rows.append(serialise_sweep(sweep,f"sweep-{index}.npy",tmp_path,check=check,target=target,
+                                   distance_m=20.,lateral_m=y,front_bumper_m=3.8))
+    manifest=dict(episode_id="paired",origin="synthetic-recorded-schema-test",route_xy_m=[[0.,0.],[60.,0.]],
+                  front_bumper_from_rear_axle_m=3.8,config=last.config.to_dict(),
+                  sensor_to_ego=last.sensor_to_ego,sweeps=rows)
+    result=replay_manifest(manifest,tmp_path)
+    assert result["summary"]["target_classification_checks"]==3
+    assert result["summary"]["target_classification_failures"]==0
+    assert set(result["summary"]["target_cases"])=={"in_corridor","roadside_left","roadside_right"}
+    assert rows[0]["expected_gap_m"]==14.2
+    assert all(row["expected_gap_m"] is None for row in rows[1:])
+    assert all(not frame["fused"]["valid"] for frame in result["frames"])  # missing RGB-D still HOLDs

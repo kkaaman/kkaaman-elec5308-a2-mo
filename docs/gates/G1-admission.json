@@ -58,7 +58,7 @@
         "src/autonomy/freshness.py": "fd11d2ceda67eb9675031569a90c6abc1ed3f3e1f0e9ae78fe3f48394c2977f8",
         "src/autonomy/interfaces.py": "bb56919b50bee998fd3b39a451c857d8f5c9d333595c7633d8e14be483a14dd3",
         "src/autonomy/lidar_fusion.py": "6b55c717c48c7326ab346b23388674f2df4f91a8f51ebd4f1daaada61b92326e",
-        "src/autonomy/lidar_replay.py": "598f186d37cbb01821be659da4ad258a043c0607cdf4601c6511aa6bae8399f4",
+        "src/autonomy/lidar_replay.py": "d9619d2d911ea0e03fcd9ad6399dd14754e3b5580e093322538287e7fef34d43",
         "src/autonomy/mission.py": "2fc7dfaeff3fad0893acb3a53d5a764b97d3e23cc6efb234b22896eabdc7c872",
         "src/autonomy/obstacle_policy.py": "03de571deee9fb1a73a18e534b9f9a65b8824050c49e22e8caafd5f0f8076012",
         "src/autonomy/operational.py": "5baaa7c347aa2ca3c0b63c5055d3ed71371f72218a8043abbe60f01b24a08877",
@@ -180,7 +180,7 @@
         "configs/weather/robustness_v1.json": "0bfc4770bfcdb6f5eff0276dd80d8ffbb9b4f296c383d5899e7e4eac87184874",
         "docs/evidence/BL-D-06/sources/depth-calibration.json": "89d64df2475790eea16a0fc2b862a9fcbafdf125c9f3fd5ef3f74453afc9cf5f"
       },
-      "scope_sha256": "56ebccc4759d917aebfca8ccb7ab31740728d53922efb7b8d58469a38dee0548"
+      "scope_sha256": "639a8bc367cdf66a7921807ba978b396f397cd0353b1314d52326dac9c95d51b"
     },
     "issue41_runner": {
       "kind": "issue41_runner",

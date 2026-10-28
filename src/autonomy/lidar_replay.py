@@ -17,7 +17,7 @@ from pathlib import Path
 
 from autonomy.lidar_fusion import LidarCorridorSource
 from obstacle_perception.fusion import SourceCorridorReport, fuse_corridor_reports
-from obstacle_perception.lidar_obstacles import EgoBody, LidarObstaclePolicy
+from obstacle_perception.lidar_obstacles import EgoBody, LidarObstaclePolicy, footprints_overlap
 from obstacle_perception.lidar_synthetic import load_fixture_sweep
 from planning.corridor import RouteGeometry
 
@@ -86,11 +86,25 @@ def replay_manifest(
         batch = source.last_batch
         if lidar.valid and lidar.nearest_gap_m is not None and expected is not None:
             errors.append(abs(lidar.nearest_gap_m - float(expected)))
+        target_check = None
+        if type(row.get("expected_in_corridor")) is bool:
+            target = next((item for item in row.get("objects",[]) if item.get("label")=="target"),None)
+            if target is not None:
+                x,y=target["x_m"],target["y_m"]
+                hx,hy=target["size_x_m"]/2,target["size_y_m"]/2
+                footprint=((x-hx,y-hy),(x+hx,y-hy),(x+hx,y+hy),(x-hx,y+hy))
+                matched=[c for c in batch.clusters if footprints_overlap(c.footprint_ego_m,footprint,.3)]
+                target_check=dict(expected_in_corridor=row["expected_in_corridor"],
+                    matched_clusters=len(matched), observed_in_corridor=[c.in_corridor for c in matched],
+                    classification_matches=bool(batch.valid and matched and all(
+                        c.in_corridor==row["expected_in_corridor"] for c in matched)))
         frames.append(
             dict(
                 frame_id=sweep.frame_id,
                 sim_time_s=sweep.sim_time_s,
                 note=row.get("note"),
+                target_case=row.get("target_case"),
+                target_evaluation=target_check,
                 point_count=sweep.point_count,
                 density_fraction=sweep.density_fraction,
                 sweep_valid=batch.valid,
@@ -135,6 +149,11 @@ def replay_manifest(
         )
     summary = dict(
         input_origin=manifest.get("origin"),
+        target_cases={name:sum(f["target_case"]==name for f in frames)
+                      for name in sorted({f["target_case"] for f in frames if f["target_case"]})},
+        target_classification_checks=sum(f["target_evaluation"] is not None for f in frames),
+        target_classification_failures=sum(f["target_evaluation"] is not None and not
+                                          f["target_evaluation"]["classification_matches"] for f in frames),
         episode_id=manifest["episode_id"],
         frames=len(frames),
         sweep_valid_frames=sum(f["sweep_valid"] for f in frames),
