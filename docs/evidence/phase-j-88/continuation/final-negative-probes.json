@@ -1,0 +1,86 @@
+{
+  "status": "PASS",
+  "configuration_semantic_sha256": "2903124878485c8030e160f3598c381bf0197329f79d74773d84048a96c2e9ef",
+  "configuration_file_sha256": "a4b5e669f9426db24d42d9a1d20114981c95bb15302af006b1196044696fe187",
+  "source_fingerprint": "520921912f1f43bc6743d01ad176167d901bf07678377dfaa3382ff3cc9c7875",
+  "record_sha256": "9c88950c498acaa17232228bfebb4c61096552cb75ed17c9d6a4f1b370fb3c9d",
+  "negative_probes": {
+    "candidate": {
+      "status": "REJECTED",
+      "reason": "Baseline is not frozen for operational governance"
+    },
+    "cruise": {
+      "status": "REJECTED",
+      "reason": "Admitted configuration identity mismatch"
+    },
+    "deceleration": {
+      "status": "REJECTED",
+      "reason": "Admitted configuration identity mismatch"
+    },
+    "response": {
+      "status": "REJECTED",
+      "reason": "Admitted configuration identity mismatch"
+    },
+    "margin": {
+      "status": "REJECTED",
+      "reason": "Admitted configuration identity mismatch"
+    },
+    "scope": {
+      "status": "REJECTED",
+      "reason": "Admitted configuration identity mismatch"
+    },
+    "profile": {
+      "status": "REJECTED",
+      "reason": "Admitted configuration identity mismatch"
+    },
+    "model_identity": {
+      "status": "REJECTED",
+      "reason": "Admitted configuration identity mismatch"
+    },
+    "sensor_rig": {
+      "status": "REJECTED",
+      "reason": "Admitted configuration identity mismatch"
+    },
+    "confirmation": {
+      "status": "REJECTED",
+      "reason": "Admitted configuration identity mismatch"
+    },
+    "depth_policy": {
+      "status": "REJECTED",
+      "reason": "Admitted configuration identity mismatch"
+    },
+    "runner_hash": {
+      "status": "REJECTED",
+      "reason": "Admitted configuration identity mismatch"
+    },
+    "runner_revision": {
+      "status": "REJECTED",
+      "reason": "Admitted configuration identity mismatch"
+    },
+    "changed_source": {
+      "status": "REJECTED",
+      "reason": "Admitted source inventory mismatch"
+    },
+    "missing_source": {
+      "status": "REJECTED",
+      "reason": "Admitted source inventory mismatch"
+    },
+    "added_source": {
+      "status": "REJECTED",
+      "reason": "Admitted source inventory mismatch"
+    },
+    "aux_config": {
+      "status": "REJECTED",
+      "reason": "Admitted source inventory mismatch"
+    },
+    "record_checksum": {
+      "status": "REJECTED",
+      "reason": "Admitted configuration identity mismatch"
+    },
+    "actual_model_bytes": {
+      "status": "REJECTED",
+      "reason": "Asset checksum mismatch"
+    }
+  },
+  "production_tree_mutated": false
+}

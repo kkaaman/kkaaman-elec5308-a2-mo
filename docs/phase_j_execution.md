@@ -1,90 +1,108 @@
-# Phase J official execution graph and CARLA RUN QUEUE
+# Phase J continuation execution and consolidated CARLA queue
 
-28 October 2026, Australia/Sydney. Canonical main remains `ae6a83d`.
-[Machine-readable official graph](evidence/phase-j-88/project-graph.json) records
-refreshed open PRs, official Task-ID owners/dependencies and issue bodies' textual
-prerequisites. No PR was merged and no issue closed in this execution. No CARLA
-server was started. Existing issue #40 uncommitted work was preserved.
+28 October 2026, Australia/Sydney. CARLA remained OFF. Original #40 dirty work
+was preserved. Normal merges/pushes preserved contributor histories: no force
+push, rebase, squash or contributor branch deletion. This supersedes the
+[initial snapshot](evidence/phase-j-88/initial-phase-j-report.txt).
 
-## Work published through official owners
+## Completed merges
 
-| Official PR / issue | Published outcome | Validation / remaining acceptance |
+| PR | Merge commit | Issue | Validation |
+|---|---|---|---|
+| #100 parking harness | 7f0a80d35fd2288a8ee61a02c0c0f5bf56cf2b26 | #59 CLOSED; #60 OPEN | 77 focused/972 full; P1 8/8, S0 5/5, archive/member hashes |
+| #108 weather preparation | 86a7e189776d996bc6a6e9fe4ca80ead3bbac5d7 | #49 OPEN | 12 focused/984 full; all27 paired cells NOT_RUN |
+| #107 aggregation scaffold | d0ceb4f2134b8b3a2eca4e422c1e42e532a29113 | #47 OPEN | 16 focused/1000 full; identity/duplicate/fault checks, empty register BLOCKED |
+| #105 client/fallback implementation scaffold | 29aed99b7c1a6c22228c26db0e40f4b2a28ae80b | #57 OPEN | 37 focused/1037 full; canonical optional control composition, HOLD retained across source/session changes |
+| #109 inference service | deeefde82fee14257d5b9e4dd0cf915f89ec99fe | #56 CLOSED | 55 focused/1055 full; fresh real-model two-client/duplicate/repeated-session Docker smoke |
+
+All full runs deselected one CARLA test and passed three subtests; server runs
+retain one dependency deprecation warning. Ruff, simulator boundary, strict
+Sphinx and diff checks pass. Docker smoke used network none, read-only root/
+weights, 4GiB/2CPU/128PIDs/nonroot/no capabilities; temporary container removed.
+Black images are protocol evidence, not accuracy/LAN performance.
+
+CI failures were classified billing-only only after actual payment/spending
+annotation, no runner and zero steps were verified (#105/#107). Missing checks
+were NOT_REPORTED. No unexecuted CI check is represented as passed.
+
+## Remaining PR dispositions
+
+| PR | Classification | Remaining criterion |
 |---|---|---|
-| #103 / #52 | Canonical main merged normally; future sweep timestamps and nonfinite freshness limits rejected; exact binding proposal retained | 60 focused tests pass; 976 full-suite passes, 6 exact-source admission failures; live known-object capture/recorded replay and corridor-owner review remain |
-| #101 / #42,#45 | All three requested evidence defects fixed; canonical main merged normally; exact binding proposal retained | 14 scenario tests pass; 949 full-suite passes, 6 admission failures; recorded curves, S3/S4/S5 and timing evidence remain |
-| #100 / #59 | Canonical-main integration validated; complete source-delta proposal and logs added to original contributor branch | Original head: 882 tests, P1 8/8 and S0 5/5 pass; canonical integration: 966 passes, 6 admission failures; no live parking claim |
-| #105 / #57 | Existing client updated with explicit run/session identity, response echoes, capture/send client-clock metadata, bearer credentials and worker-side old-session cleanup | 27 focused tests pass; 945 full-suite passes, 4 admission failures; controller integration and real labelled local/LAN/cloud comparison remain |
-| #109 / #56 | Focused server PR stacked on #105; bounded isolated trackers, FastAPI routes, complete CPU wheel hash lock and actual offline-runtime image smoke | 45 combined focused tests pass; 961 full-suite passes, 6 admission failures; real-model network-none/read-only smoke passes; no accuracy or deployment-performance claim |
-| #108 / #49 | Explicit 27-cell paired weather plan and installed-preset/light preflight | 12 tests pass; 930 full-suite passes, 4 admission failures; every capture cell remains NOT_RUN; dataset/labels and installed verification remain |
-| #88 / #62 | Requested stale module notes/evidence index fixed; failed LFS pull tolerated only after pinned local asset validation; explicit binding proposal retained | 9 reproduction tests pass; 927 full-suite passes, 4 admission failures; fresh disconnected install, complete platform lock and upstream evidence remain |
-| #40 local branch | Existing implementation/evidence preserved; no private copy of #103 introduced | 54 targeted tests pass; no physical clearance/resume certificate or live acceptance claimed |
+| #99/#41 | TECHNICALLY INCOMPLETE; validated correction needs further sensor evidence | Learned detector still emits car for trash-can region, confidence0.55528. Crop verifier rejects genuine car too; width interval overlaps583/599 genuine observations. No validated sensor-only correction. Runner/site and mission runner fingerprint differ from historical admission; no blind rebind. |
+| #101/#42,#45 | CARLA BLOCKED; final runner dependencies explicit | Recorded lane/curve/HUD, S3/S4/S5 and final full-workload timing. Substantive review fixes complete; 41 focused/1041 full and19 negative probes pass. |
+| #102/#54 | READY component/replay scope; RV-06 integration dependency remains for whole issue | 40 focused/1095 full and19 negative probes pass. Hash-verified merged TEST-02 archive supplies24 actual pose samples,3 paused and24 new HUDs. Original HOLD false-stop FAIL retained. No live camera-overlay claim. |
+| #103/#52 | CARLA BLOCKED | Actual90-sweep known-object dataset and recorded road/roadside/in-corridor replay. 67 focused/1067 full and19 negative probes pass. Sparse road extent never supplies positive clearance. |
+| #88+#106/#62 | Documentation scope READY after final publication checks | Contributor PR106 merged normally into88, useful preflight/tests retained. Complete75-wheel Linux CPU profile and fresh disconnected installation verified. Whole62 remains open for final upstream evidence. |
 
-Ruff, simulator-boundary smoke and strict Sphinx pass on the changed PR branches.
-Full regression logs retain every admission failure; the validator was not weakened
-and the trusted record was not silently rebound. Original contributor histories
-were preserved by normal merges/pushes. No force push, squash or branch deletion.
-PR #106 overlaps #88's ownership of #62; both remain Draft and must reconcile
-useful documentation/reproduction work while preserving both authors.
+No new human approval was invented. Complete production review uses explicit
+user delegation. Source binding is separate from live/sensor acceptance.
 
-## Immediate external prerequisite: exact-source admission review
+## Admission
 
-The production loader hashes every Python source and auxiliary config, including
-optional extensions. Consequently a feature addition changes baseline identity
-even while off. See [the governing repository process](gates/G1-admission-notes.md)
-and [issue #38's designated review process](https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/38#issuecomment-6395116981).
-A designated reviewer/owner must review the published candidate binding; this
-execution cannot invent that human review. Full-team unanimous sign-off is not
-required. No permission is inferred from a stale approval of different bytes.
+| Branch | Old source fingerprint | Reviewed new fingerprint |
+|---|---|---|
+| #100 | bb8f19fedc92a330b90ee090a928bd836612390019104d823a44482ff242203d | b0f3edc49691ce9033bc85226a2473854122a9d386f2c822d161064903f40b90 |
+| #108 | b0f3edc49691ce9033bc85226a2473854122a9d386f2c822d161064903f40b90 | 664c4d019ad385f1a6a6b360bf8a776ed4fa47c157230da3c751853f21984f5c |
+| #105 | 664c4d019ad385f1a6a6b360bf8a776ed4fa47c157230da3c751853f21984f5c | f34a21469f2207fdbefe53eee91b7d3913cb7e522081e25747bddd70021ffea3 |
+| #109 | f34a21469f2207fdbefe53eee91b7d3913cb7e522081e25747bddd70021ffea3 | e036881ecd771d85698915075c3f6c5c7134a36de30d02f62cc3418ceff32924 |
+| #88/#106 | e036881ecd771d85698915075c3f6c5c7134a36de30d02f62cc3418ceff32924 | 520921912f1f43bc6743d01ad176167d901bf07678377dfaa3382ff3cc9c7875 |
+| #101 candidate | 664c4d019ad385f1a6a6b360bf8a776ed4fa47c157230da3c751853f21984f5c | b6967c2a16de3fd3b3f5b2d7ffecd2bd601992d5b3f8f6b88bf3cb5a2a4cc47e |
+| #102 candidate | e036881ecd771d85698915075c3f6c5c7134a36de30d02f62cc3418ceff32924 | bf72ba45692595a89810d36f7859f1417f0321b96555b21fbdbb885f1610d496 |
+| #103 candidate | 664c4d019ad385f1a6a6b360bf8a776ed4fa47c157230da3c751853f21984f5c | 639a8bc367cdf66a7921807ba978b396f397cd0353b1314d52326dac9c95d51b |
 
-Concrete review proposals are already committed to the corresponding PRs:
+Per-branch applied-review JSON records complete inventory/classification,
+config semantic/file SHA, actual model, camera/depth and record SHA. Historical
+records are preserved. Open candidates require canonical refresh/revalidation
+before future merge; their bindings admit no live extension operation.
 
-| PR | Exact candidate proposal |
-|---|---|
-| #100 | `docs/evidence/E5-P1/phase-j-20261028/admission-proposal.json` |
-| #103 | `docs/evidence/E2-01-04/phase-j-20261028/admission-proposal.json` |
-| #101 | `docs/evidence/phase-j-101/admission-proposal.json` |
-| #105 | `docs/evidence/E4-04-05-07-09/phase-j-20261028/admission-proposal.json` |
-| #109 | `docs/evidence/E4-01-03-06/phase-j-20261028/admission-proposal.json` |
-| #108 | `docs/evidence/E1-01-02/phase-j-20261028/admission-proposal.json` |
-| #88 | `docs/evidence/phase-j-88/admission-proposal.json` |
+Frozen values stay4m/s,1.497566177392398m/s²,0.9500000052154064s,6m;
+stationary_vehicle_g2_only, pedestrian admission deferred, supported depth25m,
+existing confirmation/freshness/all-track contracts. Mission semantic SHA:
+2903124878485c8030e160f3598c381bf0197329f79d74773d84048a96c2e9ef.
+Mission file SHA:
+a4b5e669f9426db24d42d9a1d20114981c95bb15302af006b1196044696fe187.
+Model SHA:
+9b09cc8bf347f0fc8a5f7657480587f25db09b34bf33b0652110fb03a8ad4fef.
+Historical runner fingerprint:
+cac8bc9c4f131b16b871191f69562d87517d3f1b956849b9950543e582ff400a.
 
-Each proposal preserves mission values/scope and the historical #41 runner binding;
-it does not grant live or general obstacle admission. These are independent branch
-snapshots. After any prerequisite merge, merge the new canonical main into each
-dependent branch, regenerate its exact proposal, validate again and obtain the
-required review of changed bytes before merging with a merge commit.
+All19 probes still reject modified/missing/added source, aux config, mission
+values/scope/profile, model identity/actual bytes, camera, confirmation/depth,
+runner revision/hash and record checksum. No validator was disabled.
 
-#100 is the shortest path to a completed independent PR: its #59 acceptance is
-harness-scoped. Once its exact rebind is reviewed and final integrated checks pass,
-merge normally and inspect/close #59 only if all its criteria still hold. Live
-parking qualification remains #60. Do not treat a live #60 gap as a hidden #59
-requirement, and do not waive genuine G1 source identity failures.
+## Official graph and issues remaining open
 
-## CI infrastructure evidence
+[Refreshed metadata](evidence/phase-j-88/continuation/official-state.json) retains
+official issue bodies, dependencies and PR heads. Cycles42↔43,43↔44,43↔45,
+56↔57,57↔58,66↔72 represent integration feedback.105→109 implementation landed
+without inventing57 results.
 
-For actual run [40652652932](https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/actions/runs/40652652932),
-all three jobs had empty runner names, zero steps and the payment/spending-limit
-annotation. This matches the authorised infrastructure exception. It does not
-excuse the separately reproduced local admission failures. Local lint/docs/tests
-were run instead of representing unexecuted CI as passed.
+- #40: supported action/positive-clearance bounds and repeated stop/HOLD/resume.
+- #41/#43: validated detector correction/held-out audit. #42/#44/#45/#46:
+  complete-stack lane/sensor/fault/cost and repeated live evidence.
+- #47/#48: real acceptance register, failures/uncertainty, final scope and freeze.
+- #49/#50/#51: actual paired weather captures/labels, robustness table/admission.
+- #52/#53: recorded LiDAR evidence, performance/cost and extension admission.
+- #54/#55: recorded Wayfinder HUD and route/integration/admission criteria.
+- #57/#58: >=200 labelled held-out real frames per local/LAN configuration,
+  hardware/model/config identity, latency/accuracy/miss tables; available cloud
+  or NOT_RUN; live fault/operational extension admission.
+- #60/#61: actual near-field/low-speed parking qualification; reverse evidence or
+  explicitly authorized cut decision, not an invented owner decision.
+- #62: final41/45/46/57 evidence and final report/claim verification. Linux CPU
+  reproduction passes; historical runtime/backup CUDA remain separate.
+- #63/#67/#70: selected admitted release, all-flags/combined/final sensors
+  depend on missing G3 and extension decisions.
+- #64/#65/#66/#68/#71/#72/#73/#74: stable measured report/media/release/demo,
+  real backup-machine/hardware and archive access depend on selected release.
+- #75/#76/#78/#79: actual rehearsals, Q&A, peer review and cross-training.
+- #80–#85: respective humans' private submissions.
 
-## Dependency order and feedback cycles
-
-The critical path is #103/#52's official sensor evidence, then supported #40
-clearance/stop-hold-resume, then #99/#41's integrated sensor-driven stop and
-#42–#46's repeated/fault evidence, then #107/#47 aggregation and #48 freeze.
-#103 must genuinely complete and merge before #40 imports that capability.
-A second sensor alone does not fix #41: its recorded learned-detector false
-positive is still a substantive defect. Nearer-wins conservative fusion can
-retain an RGB-D false positive. Neither #41 nor #43 is declared passed.
-
-The literal graph has feedback cycles: #42↔#43, #43↔#44, #43↔#45,
-#56↔#57, #57↔#58 and #66↔#72. They describe integration/validation feedback;
-PR-number sorting is not a valid execution order. The #56/#57 code is exposed as
-a focused stack (#109 based on #105), rather than a competing client. Neither
-whole issue is closed before its acceptance evidence exists. #63 waits for
-#48/G3 and #58/E4-10; it cannot claim all-flags acceptance before selected flags,
-source identities and baseline decisions are established.
+Locally actionable client/control, server, source review, capture/replay,
+aggregation and reproduction tooling were completed. Remaining official work
+depends on missing validated sensor contracts/data, live runs, hardware,
+release decisions or human participation. No claim that all work is complete.
 
 ## CARLA RUN QUEUE — ordered to minimise simulator sessions
 
@@ -95,17 +113,17 @@ and record candidate/source/config/model identities for every batch.
 
 ### Session A — parked sensor qualification, #103/#52 (conditional live queue)
 
-Before starting: corridor owner accepts the protocol/fixture; exact candidate
-source is reviewed/admitted. Require matching client/server, empty world and no
+Offline protocol/production review and source rebinding are complete. Refresh
+canonical source/admission before the future run. Require matching client/server, empty world and no
 other synchronous client. Install the selected PR checkout locally, then:
 
 ```powershell
 $py = '.\.venv\Scripts\python.exe'
-& $py scripts/capture_lidar_sweeps.py --host 127.0.0.1 --output runs/lidar-capture-v1
+& $py scripts/capture_lidar_sweeps.py --host 127.0.0.1 --distances 10 20 30 --lateral-offsets 0 4.5 -4.5 --frames 10 --output runs/lidar-capture-v1
 & $py scripts/replay_lidar_obstacles.py --input runs/lidar-capture-v1/sweeps.json --output runs/lidar-capture-v1/replay.json
 ```
 
-Scenarios: parked ego, known target at 10/20/30 m on the checked straight.
+Parked target: 10/20/30m × center/+4.5/-4.5m ×10 frames = 90 sweeps, dt0.05. Require face-gap error <=0.3m and all intensity/frame/density/cleanup checks.
 Retain all `.npy` sweeps, `sweeps.json`, source script/hash, coordinates/intensity
 checks, frame/simulation timestamps, point counts, density/coverage, cleanup/
 restoration and recorded replay. Verify road/roadside/in-corridor classification,
@@ -119,7 +137,7 @@ In the same installed environment, #108/#49 can verify presets without driving:
 & $py -m carla_adapter.weather_experiment --host 127.0.0.1 --output runs/weather-v1/installed-settings.json
 ```
 
-That command requires the #108 source/config checkout and its reviewed identity;
+Weather preparation #108 is canonical; check its current reviewed identity;
 do not copy private capability duplicates into another branch. It reads versions,
 map, presets and lighting flags only. Actual weather dataset stays NOT_CAPTURED.
 
@@ -208,32 +226,19 @@ extension-run command cannot be supplied honestly before these runner/admission
 prerequisites exist. #67 combined regression/G4 and #70 final constraints follow,
 then backup capture, rehearsal, report and release packaging.
 
-## Other external/environment evidence — no CARLA required
 
-#109's actual CPU container is available locally as `group7-inference:issue56`;
-its recipe/hash lock and smoke commands are in [the service guide](https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/blob/cf52257/docs/inference_service.md)
-on that PR. It does not replace #62's full target-platform/CUDA lock.
-#57/#58 need an actual selected local/LAN deployment, a labelled held-out replay
-of at least 200 measured frames per configuration, matching model/hardware notes,
-accuracy/miss-rate/latency outputs, and controlled-stop integration through the
-final runner. Cloud stays NOT_RUN when unavailable; loopback and black-image
-smokes are not substituted for LAN or accuracy measurements.
+## Recorded Wayfinder input
 
-#62/#71 need a real fresh disconnected install and backup-machine environment;
-#65/#66/#72 need stable measured report claims/evidence; #73/#74 need the selected
-release and actual fallback media. #75/#76 require the real six-person rehearsals
-and cross-module Q&A, #78/#79 actual peer/cross-training records, and #80–#85 each
-person's own private submission material. This agent cannot fabricate human
-participation, reflection, sign-off or evidence. Those official issues remain open.
+After a later authorized real capture:
+python scripts/wayfinder_replay.py --origin baseline_start --destination baseline_goal --poses runs/wayfinder-poses.json --output runs/wayfinder-recorded-v1
+Require one complete recorded route including stop; retain provenance and
+actual poses. Schema1 origin=recorded,run_id,steps(time_s,x_m,y_m,yaw_rad,speed_mps).
+The CLI renders each supplied pose and preserves hashes; declared origin alone
+does not establish acceptance. Actual live HUD integration depends on RV-06.
 
-The next integration action is designated review of the already published source
-proposals, starting with the dependency-ready candidates. After each genuinely
-complete merge, fetch canonical main, refresh this graph, merge main into dependent
-branches and continue. No billing exception, partial scaffold or synthetic evidence
-is used to close an incomplete issue.
+## External deployment/reproduction queue
 
-```{toctree}
-:hidden:
-
-evidence/phase-j-88/README
-```
+Canonical service recipe and75-wheel CPU reproduction profile are available.
+No service is running.57 requires actual LAN hardware and labelled replay,
+not loopback/black-image replacement. Cloud unavailable stays NOT_RUN.
+Actual backup-machine/CUDA validation remains71. Retain every failed attempt.

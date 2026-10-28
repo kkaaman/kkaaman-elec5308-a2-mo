@@ -1,22 +1,20 @@
-# PR #88 review refresh, 28 October 2026
+# PR88 / PR106 reconciled documentation scope
 
-AI-assisted with OpenAI Codex. Canonical main merged normally, preserving
-original author commits. Regenerated module notes and corrected evidence index:
-#86/#90 are merged, #38 is closed, exact-source bounded G1 admission is recorded,
-and general clearance/resume, pedestrian admission and downstream runs are not
-established. The index separates historical blocked records from current scope.
+PR106 contributor history merged normally into88; useful preflight/tests retained.
+Generated module notes cover current source. Initial report and failed inventory
+logs are explicitly historical.
 
-Connected LFS failure falls back only to pinned local asset verification;
-incorrect/missing/pointer weights still fail. New installer regression passes.
-Contributors are instructed to regenerate module notes after source changes.
+15 reproduction tests and1070 full tests pass,1 CARLA deselected,3 subtests,
+one dependency deprecation warning. Production admission and19 negative probes,
+Ruff, boundary96 modules, generated-note check and strict Sphinx pass.
 
-Nine reproduction tests, Ruff, module-note check and strict Sphinx pass.
-Full integrated suite: 927 passed, 4 failed, 1 CARLA deselected, 3 subtests.
-The failures are exact-source inventory/admission checks; trusted admission was
-not altered. Full log retained alongside this note.
+Complete75-wheel CPython3.12 Linux CPU runtime/test/docs/build profile installed
+into a fresh venv inside network-disabled Docker. Hashed offline install, pip
+check, full profile/version/asset checks, imports,15 tests and strict Sphinx pass.
+Historical partial runtime preserved; CUDA/CARLA/backup hardware not validated.
 
-PR remains Draft: complete transitive platform lock, actual fresh disconnected
-installation, exact-source admission review and upstream implementation/evidence
-remain outstanding. No final report or measured extension claim is fabricated.
-PR #106 also targets #62; it must be reconciled with this earlier official PR
-before either can merge, preserving both contributors' useful work.
+Outline budgets900 body+100 caption/reference words and<=3 pages. No unmeasured
+final result inserted. Updated evidence map and execution report/queue retain
+actual limitations. #62 remains OPEN for final41/45/46/57 evidence and report
+verification. Documentation tooling scope complete. CARLA stayed OFF.
+AI-assisted with OpenAI Codex; delegated review, no new human approval asserted.

@@ -81,3 +81,8 @@ demonstration for the autonomous perception and navigation library.
    phase_j_execution
    inference_service
    weather_experiment
+
+.. toctree::
+   :hidden:
+
+   evidence/phase-j-88/README

@@ -142,7 +142,7 @@ Core CI excludes the CARLA client; marked live tests require a separate server.
 The docs build needs installed ML libraries to import the public modules, but
 must not require a server or download models. CI uploads `documentation-html`
 only after a successful build. Keep build/test output and the actual CI run URL
-with the tested revision. Final fresh-environment evidence and the full lock remain open. Current task
+with the tested revision. Fresh Linux CPU evidence and complete profile are now retained below; target-machine/CUDA evidence remains open. Current task
 states and their partial foundations are recorded in the [evidence index](evidence_index.md).
 BL-F-07 (issue #41), E4-07 (#57), RV-07 (#46) and RV-08 (#45) remain open; accepted
 navigation/offline logging is not final sensor-driven stop acceptance. G1 and
@@ -168,3 +168,32 @@ The separate carla_adapter.environment_check entry point remains available.
 PR106's original generated notes are retained as
 [evidence](evidence/phase-j-88/pr106-module-notes.txt); current generated notes
 use the canonical Sphinx module_notes.rst generator.
+
+## Validated disconnected Linux CPU profile
+
+A separate CPython3.12 Linux x86_64 CPU profile now includes all 75 runtime,
+test, docs and build wheels, with complete hashes in
+deploy/reproduction/requirements-linux-cpu.lock and wheelhouse-manifest.json.
+It uses torch2.6.0+cpu and the pinned ultralytics8.4.177; historical recorded
+package versions in configs/reproduction.json are unchanged. This profile
+does not include CARLA or CUDA, and does not validate the backup machine.
+
+Prepare the exact wheels on a connected compatible machine:
+python -m pip download --require-hashes -r deploy/reproduction/requirements-linux-cpu.lock --dest wheelhouse
+The CPU torch/torchvision wheels may need the official CPU wheel index during
+preparation. Verify every filename/hash against the manifest. Transfer source,
+wheelhouse and the authorized model binaries before disconnecting.
+
+In a new CPython3.12 environment, run:
+python setup_environment.py --offline --wheelhouse wheelhouse --lock-file deploy/reproduction/requirements-linux-cpu.lock
+python scripts/check_reproduction.py --profile linux-cpu
+python scripts/generate_module_notes.py --check
+python -m sphinx -W docs /tmp/documentation-html
+
+Actual fresh-venv verification ran in a Docker container with network=none:
+offline hashed installation, pip check, core/server/torch/OpenCV imports,
+15 reproduction tests, generated-note check and strict Sphinx all passed.
+The final check log and environment provenance are retained under
+docs/evidence/phase-j-88/continuation/. The source-backed editable installation
+requires its source directory to remain present. Live client/server/GPU checks
+remain separate and were not run.

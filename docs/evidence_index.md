@@ -1,9 +1,9 @@
 # Report evidence index — DOC-01 / DOC-03 / DOC-05
 
 Snapshot: **28 October 2026**, Australia/Sydney. Canonical team main inspected:
-`ae6a83d`. Current GitHub metadata and committed admission records were inspected.
+`deeefde82fee14257d5b9e4dd0cf915f89ec99fe`. Current GitHub metadata and committed admission records were inspected.
 This is a claim-to-source map, not approval of safety thresholds or final gates.
-**PR #88 remains Draft; #62 is not closed by this refresh.**
+**Documentation tooling is updated; #62 stays open for final upstream evidence.**
 
 ## Evidence and acceptance status
 
@@ -15,7 +15,7 @@ This is a claim-to-source map, not approval of safety thresholds or final gates.
 | BL-E-03 / TEST-03, PR #91 | **MERGED ON MAIN**; comparison qualifications retained | [Braking report](evidence/BL-E-03/README.md), [measurements](evidence/BL-E-03/longitudinal.json), [A1 comparison](evidence/TEST-03/README.md). Conservative deceleration 1.497566177392398 m/s²; vehicle lag 0.3500000052154064 s. Route/protocol/timing intervals differ; ratios alone are not proof of overall improvement. |
 | BL-C-04–06, PR #93 | **IMPLEMENTATION MERGED; HISTORICAL SCREENING QUALIFIED** | [Tracking report](track_stabilisation.md), [timing audit](evidence/BL-C-04-06/sensor-wait-timing-review.json), [current G1 record](gates/G1-admission-notes.md). Old 4.9 m/s and untimed confirmation claims remain withdrawn. Later bounded stationary-vehicle admission does not establish pedestrian or general obstacle performance. |
 | BL-D-04–07, PR #86 | **MERGED; BOUNDED STATIONARY-VEHICLE PROFILE RECORDED** | [Historical report][bl-d-report], [admission record](gates/G1-admission-notes.md). Canonical config records 4.0 m/s, 1.497566177392398 m/s² deceleration, 0.9500000052154064 s response and 6 m margin for the exact bounded G2 source profile. General clearance/resume and pedestrian admission remain unestablished. |
-| G1, issue #38 / PR #90 | **#38 CLOSED; #90 MERGED; EXACT-SOURCE ADMISSION** | [Gate record](gates/G1-admission-notes.md) and [trusted binding](gates/G1-admission.json). Later source additions require explicit reviewed rebinding. PRs #100/#101/#103 fail the current inventory check after canonical integration; no blanket admission or downstream acceptance is inferred. |
+| G1, issue #38 / PR #90 | **#38 CLOSED; #90 MERGED; EXACT-SOURCE ADMISSION** | [Gate record](gates/G1-admission-notes.md) and [trusted binding](gates/G1-admission.json). Later source additions require explicit reviewed rebinding. Reviewed source-only rebinding is recorded per branch. Canonical #100/#108/#105/#109 inventories pass production admission and 19 negative probes each; no downstream acceptance is inferred. |
 
 PR #86 links retain the historical reviewed head. Current bounded admission is recorded separately; historical blocked decisions are not rewritten as measurements.
 
@@ -25,11 +25,11 @@ PR #86 links retain the historical reviewed head. Current bounded admission is r
 |---|---|---|
 | PROC-01 / BL-C-01 | Process/contracts are available; retain each decision's actual approval state | Cite [decisions](decisions.md) and [contracts](detector_contracts.md); do not infer unanimous review. |
 | BL-F-07 — [issue #41](https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/41) | **OPEN / BLOCKED**; final live integration acceptance not established | Same core harness/CARLA path, first sensor-driven stationary-car stop, raw logs and reproducible fault/acceptance command. Navigation TEST-02 and offline TEST-14 are existing evidence, not completion of this task; G1 PASS is required. |
-| E4-07 — [issue #57](https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/57) | **OPEN / MISSING MEASURED SWEEP** | Latency sweep/breakdown and comparable local/LAN/available-cloud results. Main's cloud package is a planned namespace; no extension improvement is claimed. Unavailable modes stay NOT RUN. |
+| E4-07 — [issue #57](https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/57) | **OPEN / MISSING MEASURED SWEEP** | Latency sweep/breakdown and comparable local/LAN/available-cloud results. Main now contains the validated optional client/control adapter and server; no measured extension improvement is claimed. Unavailable modes stay NOT RUN. |
 | RV-07 — [issue #46](https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/46) | **OPEN / PARTIAL FOUNDATIONS** | A1 wrappers/mission lifecycle and endpoint behavior records exist, but the task checklist, complete-stack five-run S0 and controller-fault acceptance are not closed. RV-07 means archive/demo/endpoint documentation, not a generic peer-review label. |
 | RV-08 — [issue #45](https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/45) | **OPEN / PARTIAL FOUNDATIONS** | Rig/depth/lifecycle docs exist, but complete sensor/segmentation documentation, S3/S4 evidence and full sensor-cost/cadence acceptance remain outstanding. RV-08 is a sensor documentation task. |
-| Full runtime lock | **PENDING**; no complete transitive hashed lock is committed | Platform-specific validated lock with build/docs/test dependencies and selected torch/CARLA wheels. Recorded version subsets are not locks. |
-| Fresh disconnected installation | **NOT ESTABLISHED** | The installer/checks and recipe exist; retain an actual clean disconnected installation log, wheel hashes and environment identity before claiming reproduction. |
+| Full runtime lock | **LINUX CPU PROFILE VALIDATED**; 75 hashed runtime/test/docs/build wheels | See deploy/reproduction; CARLA/CUDA and the actual backup-machine profile remain separate. Historical version subsets are preserved. |
+| Fresh disconnected installation | **LINUX CPU PASS** | Fresh venv in network-disabled container: hashed offline install, pip check, imports, reproduction tests and strict docs passed. Actual backup-machine/CUDA validation remains open. |
 | Final report verification | **PENDING**; #62 remains OPEN | Final word/page count, reviewed numeric claims/figures, raw archive access and final admitted configuration. No final report or extension performance is fabricated. |
 
 ## Four-section claim map

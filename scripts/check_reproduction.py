@@ -42,7 +42,7 @@ def check_packages(expected, version=importlib.metadata.version):
     for name, target in expected.items():
         try:
             installed = version(name)
-            passed = installed.split("+", 1)[0] == target
+            passed = installed == target if "+" in target else installed.split("+", 1)[0] == target
             results.append({"package": name, "expected": target, "installed": installed,
                             "status": "PASS" if passed else "FAIL"})
         except importlib.metadata.PackageNotFoundError:
@@ -110,6 +110,7 @@ def check_live(host, port, timeout, expected, require_cuda=False):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--profile", choices=("historical", "linux-cpu"), default="historical")
     parser.add_argument("--assets-only", action="store_true",
                         help="Skip package/Python checks; does not validate an environment")
     parser.add_argument("--live", action="store_true")
@@ -125,15 +126,19 @@ def main(argv=None):
     manifest = json.loads((ROOT / "configs/reproduction.json").read_text(encoding="utf-8"))
     results = check_assets(ROOT, manifest)
     if not args.assets_only:
-        results += check_packages(manifest["recorded_packages"])
+        expected = manifest["recorded_packages"]
+        if args.profile == "linux-cpu":
+            wheels = json.loads((ROOT / "deploy/reproduction/wheelhouse-manifest.json").read_text())["wheels"]
+            expected = {row["name"]:row["version"] for row in wheels}
+        results += check_packages(expected)
         results.append({"python": sys.version.split()[0], "reference": manifest["python_reference"],
                         "status": "PASS" if sys.version_info[:2] == (3, 12) else "FAIL"})
     if args.live:
         results += [{"status": "FAIL", "error": error} for error in
                     check_live(args.host, args.port, args.timeout,
                                manifest["carla_version"], args.require_cuda)]
-    report = {"scope": "asset identity only" if args.assets_only else manifest["scope"],
-              "checks": results, "status": "PASS" if all(x["status"] == "PASS" for x in results) else "FAIL"}
+    report = {"scope": "asset identity only" if args.assets_only else ("validated Linux CPU dependency profile" if args.profile == "linux-cpu" else manifest["scope"]),
+              "profile": args.profile, "checks": results, "status": "PASS" if all(x["status"] == "PASS" for x in results) else "FAIL"}
     print(json.dumps(report, indent=2))
     return 0 if report["status"] == "PASS" else 1
 

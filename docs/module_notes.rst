@@ -141,6 +141,17 @@ Why: Keep frame, detector and command contracts independent of the world impleme
 
 Declared public classes/functions: ``OperationalFreshnessGate``.
 
+autonomy/hybrid_detector.py
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Role (source summary)::
+
+    Optional nonblocking hybrid detector adapter for the existing control stack.
+
+Why: Keep frame, detector and command contracts independent of the world implementation.
+
+Declared public classes/functions: ``LocalTrackingBackend``, ``HybridFrameDetector``, ``hybrid_control_stack``.
+
 autonomy/interfaces.py
 ~~~~~~~~~~~~~~~~~~~~~~
 
@@ -184,6 +195,28 @@ Role (source summary)::
 Why: Keep frame, detector and command contracts independent of the world implementation.
 
 Declared public classes/functions: ``operational_stack``.
+
+autonomy/parking.py
+~~~~~~~~~~~~~~~~~~~
+
+Role (source summary)::
+
+    Opt-in forward parking episode: depth -> governor -> controller -> PARK.
+
+Why: Keep frame, detector and command contracts independent of the world implementation.
+
+Declared public classes/functions: ``ParkingEvent``, ``ParkingStep``, ``ParkingEpisode``.
+
+autonomy/parking_contracts.py
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Role (source summary)::
+
+    Opt-in P1 contracts; A1 VehicleState and ControlCommand retain their APIs.
+
+Why: Keep frame, detector and command contracts independent of the world implementation.
+
+Declared public classes/functions: ``finite``, ``angle_error``, ``DriveMode``, ``ParkingPhase``, ``MotionState``, ``ParkingVehicle``, ``ParkingBay``, ``ParkingGoal``, ``ParkingConfig``.
 
 autonomy/paths.py
 ~~~~~~~~~~~~~~~~~
@@ -383,6 +416,17 @@ Why: Contain simulator ownership and coordinate conversion at the boundary; keep
 
 Declared public classes/functions: ``VehicleGeometry``, ``geometry_from_wheels``, ``forward_state``, ``normalized_steering``.
 
+carla_adapter/weather_experiment.py
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Role (source summary)::
+
+    Read-only installed CARLA weather/light preflight for E1-01/02.
+
+Why: Contain simulator ownership and coordinate conversion at the boundary; keep the core reusable.
+
+Declared public classes/functions: ``verify_settings``, ``main``.
+
 carla_adapter/world.py
 ~~~~~~~~~~~~~~~~~~~~~~
 
@@ -399,11 +443,22 @@ cloud/__init__.py
 
 Role (source summary)::
 
-    Optional hybrid inference backend (extension E4). Off by default.
+    Optional inference service, separate from the local baseline.
 
 Why: Reserve the optional E4 backend namespace; its existence is not evidence of a measured extension.
 
 No public top-level classes/functions declared; see exports/source.
+
+cloud/server.py
+~~~~~~~~~~~~~~~
+
+Role (source summary)::
+
+    Bounded session-isolated optional HTTP inference service (official issue #56).
+
+Why: Reserve the optional E4 backend namespace; its existence is not evidence of a measured extension.
+
+Declared public classes/functions: ``ServiceError``, ``Session``, ``InferenceService``, ``create_app``, ``from_environment``.
 
 demo_combined_perception.py
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -746,6 +801,17 @@ Why: Turn sensor detections/depth into explicit observations without introducing
 
 Declared public classes/functions: ``canonical_box``.
 
+obstacle_perception/parking_clearance.py
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Role (source summary)::
+
+    Conservative depth-buffer visibility of parking swept body prisms.
+
+Why: Turn sensor detections/depth into explicit observations without introducing evaluation truth.
+
+Declared public classes/functions: ``Clearance``, ``DepthParkingClearance``.
+
 obstacle_perception/tracking.py
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -790,6 +856,17 @@ Why: Expose RGB perception and deterministic fixtures through simulator-independ
 
 No public top-level classes/functions declared; see exports/source.
 
+perception/async_detector.py
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Role (source summary)::
+
+    Bounded detector workers. The caller thread only submits and polls.
+
+Why: Expose RGB perception and deterministic fixtures through simulator-independent APIs.
+
+Declared public classes/functions: ``positive``, ``matches``, ``Work``, ``AsyncDetector``.
+
 perception/frame_detector.py
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -800,6 +877,17 @@ Role (source summary)::
 Why: Expose RGB perception and deterministic fixtures through simulator-independent APIs.
 
 Declared public classes/functions: ``FrameDetector``.
+
+perception/hybrid_detector.py
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Role (source summary)::
+
+    E4-05 concurrent inference with fresh same-frame local fallback.
+
+Why: Expose RGB perception and deterministic fixtures through simulator-independent APIs.
+
+Declared public classes/functions: ``DetectionDecision``, ``HybridDetector``.
 
 perception/lane_inference.py
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -855,6 +943,28 @@ Role (source summary)::
 Why: Expose RGB perception and deterministic fixtures through simulator-independent APIs.
 
 Declared public classes/functions: ``verify_local_asset``, ``RecordedDetector``, ``benchmark_calls``.
+
+perception/remote_detector.py
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Role (source summary)::
+
+    E4-04 JPEG/JSON HTTP detector; all encoding and HTTP run in a bounded worker.
+
+Why: Expose RGB perception and deterministic fixtures through simulator-independent APIs.
+
+Declared public classes/functions: ``JpegHttpBackend``, ``RemoteDetector``.
+
+perception/replay_accuracy.py
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Role (source summary)::
+
+    Class-aware one-to-one IoU matching for explicitly annotated replay.
+
+Why: Expose RGB perception and deterministic fixtures through simulator-independent APIs.
+
+Declared public classes/functions: ``match_counts``.
 
 perception/types.py
 ~~~~~~~~~~~~~~~~~~~
@@ -943,6 +1053,28 @@ Role (source summary)::
 Why: Use explicit graph connectivity and reusable routes rather than simulator objects in control.
 
 Declared public classes/functions: ``audit_lane_topology``.
+
+planning/parking.py
+~~~~~~~~~~~~~~~~~~~
+
+Role (source summary)::
+
+    Deterministic forward bay approaches with certified Bezier curvature bounds.
+
+Why: Use explicit graph connectivity and reusable routes rather than simulator objects in control.
+
+Declared public classes/functions: ``ParkingSegment``, ``ParkingPlan``, ``plan_forward_parking``.
+
+planning/parking_geometry.py
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Role (source summary)::
+
+    Small convex geometry helpers for bounded P1 full-body sweeps.
+
+Why: Use explicit graph connectivity and reusable routes rather than simulator objects in control.
+
+Declared public classes/functions: ``polygon``, ``rectangle``, ``footprint``, ``bay_polygon``, ``contains``, ``intersects``, ``swept_rectangle``.
 
 planning/route_manager.py
 ~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1042,6 +1174,17 @@ Role (source summary)::
 Why: Exercise world/stack contracts without CARLA; synthetic fixtures do not prove live performance.
 
 Declared public classes/functions: ``KinematicConfig``, ``KinematicWorld``.
+
+sim_harness/parking.py
+~~~~~~~~~~~~~~~~~~~~~~
+
+Role (source summary)::
+
+    P1 synthetic depth rendering and independent body-contact evaluation.
+
+Why: Exercise world/stack contracts without CARLA; synthetic fixtures do not prove live performance.
+
+Declared public classes/functions: ``DepthBox``, ``render_parking_depth``, ``motion_envelope``, ``standard_case``, ``run_parking_case``.
 
 sim_harness/s0_acceptance.py
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~

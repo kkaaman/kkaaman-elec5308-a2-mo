@@ -78,7 +78,7 @@ class ReproductionTests(unittest.TestCase):
             self.assertEqual(self.invoke_setup(["--offline", "--check-only", "--assets-only"]), 0)
             install.assert_not_called()
             lfs.assert_not_called()
-            self.assertIn("--assets-only", run.call_args.args[0])
+            run.assert_not_called()
 
     def test_offline_rejects_direct_urls_nested_requirements_and_options_before_pip(self):
         with tempfile.TemporaryDirectory() as directory:

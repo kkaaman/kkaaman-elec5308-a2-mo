@@ -437,10 +437,9 @@ def main() -> int:
     if args.assets_only and not args.check_only:
         parser.error("--assets-only requires --check-only")
     if args.check_only:
-        command = [sys.executable, str(root / "scripts/check_reproduction.py")]
-        if args.assets_only:
-            command.append("--assets-only")
-        return 0 if run(command, "Read-only reproduction preflight") else 1
+        from scripts.check_reproduction import main as preflight
+
+        return preflight(["--assets-only"] if args.assets_only else [])
     if args.offline:
         if not args.wheelhouse or not args.wheelhouse.is_dir():
             parser.error("--offline installation needs --wheelhouse pointing to local wheels")
