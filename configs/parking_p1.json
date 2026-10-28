@@ -1,0 +1,28 @@
+{
+  "scope": "synthetic_depth_kinematic_P1",
+  "note": "Opt-in harness policy. No live CARLA calibration or G1 admission is implied. Ego body dimensions and top-down depth rig are illustrative fixtures.",
+  "policy": {
+    "max_speed_mps": 0.8,
+    "lookahead_m": 0.8,
+    "dt_s": 0.05,
+    "deceleration_mps2": 1.0,
+    "response_budget_s": 0.4,
+    "stop_margin_m": 0.35,
+    "emergency_margin_m": 0.1,
+    "acceleration_mps2": 0.5,
+    "stopped_speed_mps": 0.05,
+    "hold_brake": 0.5,
+    "preview_m": 4.0,
+    "sample_step_m": 0.15,
+    "straight_finish_m": 2.0,
+    "tracking_margin_m": 0.15,
+    "tracking_heading_rad": 0.08726646259971647,
+    "max_observation_age_s": 0.25,
+    "command_ttl_s": 0.1,
+    "depth_margin_m": 0.02,
+    "ground_exclusion_m": 0.08,
+    "max_depth_m": 50.0,
+    "max_duration_s": 120.0
+  },
+  "cases": ["straight", "left", "right", "rotated", "blocked", "side_blocked", "resume", "depth_dropout"]
+}

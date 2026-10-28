@@ -1,0 +1,111 @@
+{
+  "schema_version": 1,
+  "issue": 49,
+  "carla_version": "0.9.16",
+  "map": "Town10HD_Opt",
+  "status": "PLANNED_NOT_CAPTURED",
+  "preset_source": "https://github.com/carla-simulator/carla/blob/0.9.16/LibCarla/source/carla/rpc/WeatherParameters.cpp",
+  "overrides_note": "sun_azimuth_angle fixed at 0 degrees instead of preset -1 sentinel, to avoid inheriting prior world state",
+  "fixed_delta_seconds": 0.05,
+  "scenarios": [
+    "S0",
+    "S1",
+    "S2"
+  ],
+  "repetitions": 3,
+  "paired_seeds": [
+    530801,
+    530802,
+    530803
+  ],
+  "conditions": [
+    {
+      "name": "ClearNoon",
+      "weather": {
+        "cloudiness": 5,
+        "precipitation": 0,
+        "precipitation_deposits": 0,
+        "wind_intensity": 10,
+        "sun_azimuth_angle": 0,
+        "sun_altitude_angle": 45,
+        "fog_density": 2,
+        "fog_distance": 0.75,
+        "fog_falloff": 0.1,
+        "wetness": 0,
+        "scattering_intensity": 1,
+        "mie_scattering_scale": 0.03,
+        "rayleigh_scattering_scale": 0.0331,
+        "dust_storm": 0
+      },
+      "vehicle_lights": [],
+      "split": "held_out_weather_evaluation"
+    },
+    {
+      "name": "HardRainNoon",
+      "weather": {
+        "cloudiness": 100,
+        "precipitation": 100,
+        "precipitation_deposits": 90,
+        "wind_intensity": 100,
+        "sun_azimuth_angle": 0,
+        "sun_altitude_angle": 45,
+        "fog_density": 7,
+        "fog_distance": 0.75,
+        "fog_falloff": 0.1,
+        "wetness": 0,
+        "scattering_intensity": 1,
+        "mie_scattering_scale": 0.03,
+        "rayleigh_scattering_scale": 0.0331,
+        "dust_storm": 0
+      },
+      "vehicle_lights": [],
+      "split": "held_out_weather_evaluation"
+    },
+    {
+      "name": "ClearNight",
+      "weather": {
+        "cloudiness": 5,
+        "precipitation": 0,
+        "precipitation_deposits": 0,
+        "wind_intensity": 10,
+        "sun_azimuth_angle": 0,
+        "sun_altitude_angle": -90,
+        "fog_density": 60,
+        "fog_distance": 75,
+        "fog_falloff": 1,
+        "wetness": 0,
+        "scattering_intensity": 1,
+        "mie_scattering_scale": 0.03,
+        "rayleigh_scattering_scale": 0.0331,
+        "dust_storm": 0
+      },
+      "vehicle_lights": [
+        "Position",
+        "LowBeam"
+      ],
+      "split": "held_out_weather_evaluation"
+    }
+  ],
+  "frozen_policy": "Do not tune model, confidence, tracker, route, controller or baseline thresholds on this evaluation set",
+  "required_artifacts": [
+    "manifest.json",
+    "samples.csv",
+    "events.json",
+    "rgb_frames",
+    "labels.json",
+    "depth_frames",
+    "sensor_effects.json",
+    "cleanup.json"
+  ],
+  "sensor_effects": {
+    "rgb": "NOT_OBSERVED",
+    "depth": "NOT_OBSERVED",
+    "lidar": "NOT_RUN_OPTIONAL"
+  },
+  "label_requirements": [
+    "car/person boxes with visibility/occlusion and actor identity",
+    "frame/session/scenario/condition/seed identity",
+    "manual label verification before scoring",
+    "preserve false negatives, invalid depth and every failed capture"
+  ]
+}

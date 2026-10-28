@@ -1,0 +1,506 @@
+{
+  "passed": true,
+  "scope": "synthetic_depth_kinematic_P1",
+  "cases": [
+    {
+      "case": "straight",
+      "passed": true,
+      "scope": "synthetic_depth_kinematic_P1",
+      "contacts": 0,
+      "drive_to_park_count": 1,
+      "route_install_count": 1,
+      "boundary_violations": 0,
+      "final_body_fits": true,
+      "events": [
+        {
+          "frame_id": 0,
+          "sim_time_s": 0.0,
+          "event": "path_installed"
+        },
+        {
+          "frame_id": 0,
+          "sim_time_s": 0.0,
+          "event": "approach"
+        },
+        {
+          "frame_id": 412,
+          "sim_time_s": 20.6,
+          "event": "stopping"
+        },
+        {
+          "frame_id": 425,
+          "sim_time_s": 21.25,
+          "event": "drive_to_park"
+        },
+        {
+          "frame_id": 425,
+          "sim_time_s": 21.25,
+          "event": "parked"
+        }
+      ],
+      "max_speed_mps": 0.7999999999999996,
+      "max_curvature_bound": 0.0,
+      "curvature_limit": 0.12113565116276517,
+      "final": {
+        "frame_id": 434,
+        "sim_time_s": 21.700000000000003,
+        "x_m": 15.898555799945024,
+        "y_m": 0.0,
+        "yaw_rad": 0.0,
+        "speed_mps": 0.0,
+        "position_error_m": 0.10144420005497601,
+        "heading_error_rad": 0.0,
+        "target_speed_mps": 0.0,
+        "progress_m": 15.898322754638944,
+        "steering_angle_rad": 0,
+        "throttle": 0,
+        "brake": 1,
+        "mode": "park",
+        "phase": "parked",
+        "clearance": "not_rechecked",
+        "obstacle_gap_m": null,
+        "reason": "park_latched"
+      }
+    },
+    {
+      "case": "left",
+      "passed": true,
+      "scope": "synthetic_depth_kinematic_P1",
+      "contacts": 0,
+      "drive_to_park_count": 1,
+      "route_install_count": 1,
+      "boundary_violations": 0,
+      "final_body_fits": true,
+      "events": [
+        {
+          "frame_id": 0,
+          "sim_time_s": 0.0,
+          "event": "path_installed"
+        },
+        {
+          "frame_id": 0,
+          "sim_time_s": 0.0,
+          "event": "approach"
+        },
+        {
+          "frame_id": 821,
+          "sim_time_s": 41.050000000000004,
+          "event": "stopping"
+        },
+        {
+          "frame_id": 834,
+          "sim_time_s": 41.7,
+          "event": "drive_to_park"
+        },
+        {
+          "frame_id": 834,
+          "sim_time_s": 41.7,
+          "event": "parked"
+        }
+      ],
+      "max_speed_mps": 0.7999999999999996,
+      "max_curvature_bound": 0.07482249380030363,
+      "curvature_limit": 0.12113565116276517,
+      "final": {
+        "frame_id": 843,
+        "sim_time_s": 42.150000000000006,
+        "x_m": 19.99999442367281,
+        "y_m": 19.90021667486472,
+        "yaw_rad": 1.5708685245788148,
+        "speed_mps": 0.0,
+        "position_error_m": 0.09978332529109561,
+        "heading_error_rad": 7.219778391820418e-05,
+        "target_speed_mps": 0.0,
+        "progress_m": 32.24665343870888,
+        "steering_angle_rad": 0,
+        "throttle": 0,
+        "brake": 1,
+        "mode": "park",
+        "phase": "parked",
+        "clearance": "not_rechecked",
+        "obstacle_gap_m": null,
+        "reason": "park_latched"
+      }
+    },
+    {
+      "case": "right",
+      "passed": true,
+      "scope": "synthetic_depth_kinematic_P1",
+      "contacts": 0,
+      "drive_to_park_count": 1,
+      "route_install_count": 1,
+      "boundary_violations": 0,
+      "final_body_fits": true,
+      "events": [
+        {
+          "frame_id": 0,
+          "sim_time_s": 0.0,
+          "event": "path_installed"
+        },
+        {
+          "frame_id": 0,
+          "sim_time_s": 0.0,
+          "event": "approach"
+        },
+        {
+          "frame_id": 821,
+          "sim_time_s": 41.050000000000004,
+          "event": "stopping"
+        },
+        {
+          "frame_id": 834,
+          "sim_time_s": 41.7,
+          "event": "drive_to_park"
+        },
+        {
+          "frame_id": 834,
+          "sim_time_s": 41.7,
+          "event": "parked"
+        }
+      ],
+      "max_speed_mps": 0.7999999999999996,
+      "max_curvature_bound": 0.07482249380030363,
+      "curvature_limit": 0.12113565116276517,
+      "final": {
+        "frame_id": 843,
+        "sim_time_s": 42.150000000000006,
+        "x_m": 19.99999442367281,
+        "y_m": -19.90021667486472,
+        "yaw_rad": -1.5708685245788148,
+        "speed_mps": 0.0,
+        "position_error_m": 0.09978332529109561,
+        "heading_error_rad": 7.219778391820418e-05,
+        "target_speed_mps": 0.0,
+        "progress_m": 32.24665343870888,
+        "steering_angle_rad": 0,
+        "throttle": 0,
+        "brake": 1,
+        "mode": "park",
+        "phase": "parked",
+        "clearance": "not_rechecked",
+        "obstacle_gap_m": null,
+        "reason": "park_latched"
+      }
+    },
+    {
+      "case": "rotated",
+      "passed": true,
+      "scope": "synthetic_depth_kinematic_P1",
+      "contacts": 0,
+      "drive_to_park_count": 1,
+      "route_install_count": 1,
+      "boundary_violations": 0,
+      "final_body_fits": true,
+      "events": [
+        {
+          "frame_id": 0,
+          "sim_time_s": 0.0,
+          "event": "path_installed"
+        },
+        {
+          "frame_id": 0,
+          "sim_time_s": 0.0,
+          "event": "approach"
+        },
+        {
+          "frame_id": 821,
+          "sim_time_s": 41.050000000000004,
+          "event": "stopping"
+        },
+        {
+          "frame_id": 834,
+          "sim_time_s": 41.7,
+          "event": "drive_to_park"
+        },
+        {
+          "frame_id": 834,
+          "sim_time_s": 41.7,
+          "event": "parked"
+        }
+      ],
+      "max_speed_mps": 0.7999999999999996,
+      "max_curvature_bound": 0.07482249380458542,
+      "curvature_limit": 0.12113565116276517,
+      "final": {
+        "frame_id": 843,
+        "sim_time_s": 42.150000000000006,
+        "x_m": -23.100199009980507,
+        "y_m": -0.4707281180154067,
+        "yaw_rad": 3.8397965521714066,
+        "speed_mps": 0.0,
+        "position_error_m": 0.0997833252910925,
+        "heading_error_rad": 7.219778388156682e-05,
+        "target_speed_mps": 0.0,
+        "progress_m": 32.24665343870888,
+        "steering_angle_rad": 0,
+        "throttle": 0,
+        "brake": 1,
+        "mode": "park",
+        "phase": "parked",
+        "clearance": "not_rechecked",
+        "obstacle_gap_m": null,
+        "reason": "park_latched"
+      }
+    },
+    {
+      "case": "blocked",
+      "passed": true,
+      "scope": "synthetic_depth_kinematic_P1",
+      "contacts": 0,
+      "drive_to_park_count": 0,
+      "route_install_count": 1,
+      "boundary_violations": 0,
+      "final_body_fits": false,
+      "events": [
+        {
+          "frame_id": 0,
+          "sim_time_s": 0.0,
+          "event": "path_installed"
+        },
+        {
+          "frame_id": 0,
+          "sim_time_s": 0.0,
+          "event": "approach"
+        },
+        {
+          "frame_id": 57,
+          "sim_time_s": 2.85,
+          "event": "hold"
+        },
+        {
+          "frame_id": 58,
+          "sim_time_s": 2.9000000000000004,
+          "event": "approach"
+        },
+        {
+          "frame_id": 212,
+          "sim_time_s": 10.600000000000001,
+          "event": "hold"
+        }
+      ],
+      "max_speed_mps": 0.7999928009625548,
+      "max_curvature_bound": 0.0,
+      "curvature_limit": 0.12113565116276517,
+      "final": {
+        "frame_id": 699,
+        "sim_time_s": 34.95,
+        "x_m": 5.90133054547782,
+        "y_m": 0.0,
+        "yaw_rad": 0.0,
+        "speed_mps": 0.0,
+        "position_error_m": 10.098669454522181,
+        "heading_error_rad": 0.0,
+        "target_speed_mps": 0.0,
+        "progress_m": 5.90133054547782,
+        "steering_angle_rad": 0,
+        "throttle": 0,
+        "brake": 1,
+        "mode": "drive",
+        "phase": "hold",
+        "clearance": "blocked",
+        "obstacle_gap_m": 0.34866945452218,
+        "reason": "blocked_bay"
+      }
+    },
+    {
+      "case": "side_blocked",
+      "passed": true,
+      "scope": "synthetic_depth_kinematic_P1",
+      "contacts": 0,
+      "drive_to_park_count": 0,
+      "route_install_count": 1,
+      "boundary_violations": 0,
+      "final_body_fits": false,
+      "events": [
+        {
+          "frame_id": 0,
+          "sim_time_s": 0.0,
+          "event": "path_installed"
+        },
+        {
+          "frame_id": 0,
+          "sim_time_s": 0.0,
+          "event": "approach"
+        },
+        {
+          "frame_id": 143,
+          "sim_time_s": 7.15,
+          "event": "hold"
+        }
+      ],
+      "max_speed_mps": 0.7999697492053246,
+      "max_curvature_bound": 0.0,
+      "curvature_limit": 0.12113565116276517,
+      "final": {
+        "frame_id": 699,
+        "sim_time_s": 34.95,
+        "x_m": 3.9007706896319494,
+        "y_m": 0.0,
+        "yaw_rad": 0.0,
+        "speed_mps": 0.0,
+        "position_error_m": 12.09922931036805,
+        "heading_error_rad": 0.0,
+        "target_speed_mps": 0.0,
+        "progress_m": 3.9007706896319494,
+        "steering_angle_rad": 0,
+        "throttle": 0,
+        "brake": 1,
+        "mode": "drive",
+        "phase": "hold",
+        "clearance": "blocked",
+        "obstacle_gap_m": 0.3492293103680506,
+        "reason": "blocked_bay"
+      }
+    },
+    {
+      "case": "resume",
+      "passed": true,
+      "scope": "synthetic_depth_kinematic_P1",
+      "contacts": 0,
+      "drive_to_park_count": 1,
+      "route_install_count": 1,
+      "boundary_violations": 0,
+      "final_body_fits": true,
+      "events": [
+        {
+          "frame_id": 0,
+          "sim_time_s": 0.0,
+          "event": "path_installed"
+        },
+        {
+          "frame_id": 0,
+          "sim_time_s": 0.0,
+          "event": "approach"
+        },
+        {
+          "frame_id": 57,
+          "sim_time_s": 2.85,
+          "event": "hold"
+        },
+        {
+          "frame_id": 58,
+          "sim_time_s": 2.9000000000000004,
+          "event": "approach"
+        },
+        {
+          "frame_id": 212,
+          "sim_time_s": 10.600000000000001,
+          "event": "hold"
+        },
+        {
+          "frame_id": 329,
+          "sim_time_s": 16.45,
+          "event": "approach"
+        },
+        {
+          "frame_id": 594,
+          "sim_time_s": 29.700000000000003,
+          "event": "stopping"
+        },
+        {
+          "frame_id": 607,
+          "sim_time_s": 30.35,
+          "event": "drive_to_park"
+        },
+        {
+          "frame_id": 607,
+          "sim_time_s": 30.35,
+          "event": "parked"
+        }
+      ],
+      "max_speed_mps": 0.7999999999999792,
+      "max_curvature_bound": 0.0,
+      "curvature_limit": 0.12113565116276517,
+      "final": {
+        "frame_id": 616,
+        "sim_time_s": 30.8,
+        "x_m": 15.900712515450167,
+        "y_m": 0.0,
+        "yaw_rad": 0.0,
+        "speed_mps": 0.0,
+        "position_error_m": 0.0992874845498335,
+        "heading_error_rad": 0.0,
+        "target_speed_mps": 0.0,
+        "progress_m": 15.900712515450167,
+        "steering_angle_rad": 0,
+        "throttle": 0,
+        "brake": 1,
+        "mode": "park",
+        "phase": "parked",
+        "clearance": "not_rechecked",
+        "obstacle_gap_m": null,
+        "reason": "park_latched"
+      }
+    },
+    {
+      "case": "depth_dropout",
+      "passed": true,
+      "scope": "synthetic_depth_kinematic_P1",
+      "contacts": 0,
+      "drive_to_park_count": 1,
+      "route_install_count": 1,
+      "boundary_violations": 0,
+      "final_body_fits": true,
+      "events": [
+        {
+          "frame_id": 0,
+          "sim_time_s": 0.0,
+          "event": "path_installed"
+        },
+        {
+          "frame_id": 0,
+          "sim_time_s": 0.0,
+          "event": "approach"
+        },
+        {
+          "frame_id": 140,
+          "sim_time_s": 7.0,
+          "event": "hold"
+        },
+        {
+          "frame_id": 174,
+          "sim_time_s": 8.700000000000001,
+          "event": "approach"
+        },
+        {
+          "frame_id": 467,
+          "sim_time_s": 23.35,
+          "event": "stopping"
+        },
+        {
+          "frame_id": 481,
+          "sim_time_s": 24.05,
+          "event": "drive_to_park"
+        },
+        {
+          "frame_id": 481,
+          "sim_time_s": 24.05,
+          "event": "parked"
+        }
+      ],
+      "max_speed_mps": 0.7999999999999995,
+      "max_curvature_bound": 0.0,
+      "curvature_limit": 0.12113565116276517,
+      "final": {
+        "frame_id": 490,
+        "sim_time_s": 24.5,
+        "x_m": 15.900786440039514,
+        "y_m": 0.0,
+        "yaw_rad": 0.0,
+        "speed_mps": 0.0,
+        "position_error_m": 0.09921355996048575,
+        "heading_error_rad": 0.0,
+        "target_speed_mps": 0.0,
+        "progress_m": 15.900786440039514,
+        "steering_angle_rad": 0,
+        "throttle": 0,
+        "brake": 1,
+        "mode": "park",
+        "phase": "parked",
+        "clearance": "not_rechecked",
+        "obstacle_gap_m": null,
+        "reason": "park_latched"
+      }
+    }
+  ]
+}
