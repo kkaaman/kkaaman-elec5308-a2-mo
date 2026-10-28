@@ -146,5 +146,14 @@ with the tested revision. Final fresh-environment evidence and the full lock rem
 states and their partial foundations are recorded in the [evidence index](evidence_index.md).
 BL-F-07 (issue #41), E4-07 (#57), RV-07 (#46) and RV-08 (#45) remain open; accepted
 navigation/offline logging is not final sensor-driven stop acceptance. G1 and
-D-006 remain BLOCKED. This recipe neither freezes 4.0 m/s obstacle cruise nor
-establishes 25 m confirmed range; it does not weaken any acceptance threshold.
+D-006 history must be read alongside the current bounded G1 admission record.
+Canonical main records a source-specific stationary-vehicle G2 profile; changed
+source inventories require reviewed rebinding. This recipe does not establish
+general obstacle clearance, pedestrian range or stop/resume acceptance.
+
+
+When adding or changing source modules, run `python scripts/generate_module_notes.py`
+and commit the regenerated `docs/module_notes.rst`; CI checks for stale notes.
+A failed connected LFS pull is tolerated only when `check_reproduction.py
+--assets-only` verifies all existing local weights against the pinned manifest.
+Missing files, pointer stubs or incorrect size/hash still fail installation.

@@ -1,7 +1,7 @@
 # Report evidence index — DOC-01 / DOC-03 / DOC-05
 
-Snapshot: **20 October 2026**, Australia/Sydney. Canonical team main inspected:
-`884dbe7f824cc12d3b1c7a677519172729a64029`. PR/issue states were checked through GitHub read-only.
+Snapshot: **28 October 2026**, Australia/Sydney. Canonical team main inspected:
+`ae6a83d`. Current GitHub metadata and committed admission records were inspected.
 This is a claim-to-source map, not approval of safety thresholds or final gates.
 **PR #88 remains Draft; #62 is not closed by this refresh.**
 
@@ -13,11 +13,11 @@ This is a claim-to-source map, not approval of safety thresholds or final gates.
 | BL-F / TEST-14, PR #87 | **MERGED / ACCEPTED ON MAIN**; review APPROVED | [Offline acceptance logging](acceptance-logging.md), retained `offline-s0-acceptance` CI artifact. Offline S0 tests do not complete BL-F-07's live sensor-driven stop. |
 | BL-B / TEST-13, PR #92 | **MERGED ON MAIN**; no separate aggregate reviewer approval asserted | [Depth report](evidence/TEST-13/README.md), [calibration](evidence/TEST-13/depth_calibration.json), [analysis](evidence/TEST-13/depth_analysis.json). Axial convention: 107 off-axis samples, median axial error ~0.050 m vs radial hypothesis ~1.886 m. Reviewed car/person bins through 25 m have median error <0.5 m and 0% invalid plain-depth target boxes. **Depth accuracy is not confirmed obstacle/bumper visibility.** |
 | BL-E-03 / TEST-03, PR #91 | **MERGED ON MAIN**; comparison qualifications retained | [Braking report](evidence/BL-E-03/README.md), [measurements](evidence/BL-E-03/longitudinal.json), [A1 comparison](evidence/TEST-03/README.md). Conservative deceleration 1.497566177392398 m/s²; vehicle lag 0.3500000052154064 s. Route/protocol/timing intervals differ; ratios alone are not proof of overall improvement. |
-| BL-C-04–06, PR #93 | **IMPLEMENTATION MERGED; SPEED SCREENING BLOCKED** | [Tracking report](track_stabilisation.md), [timing audit](evidence/BL-C-04-06/sensor-wait-timing-review.json). Sensor-failure temporal semantics and measured read/conversion replay accounting are fixed and regression-tested. The historical 600 frames lack read-wait timing; old confirmation latencies and **4.9 m/s** cap are stale, not current support for 4.0 m/s. Fresh sensor-wait-aware CARLA capture is required. PR is merged despite its historical Changes requested review record. |
-| BL-D-04–07, PR #86 | **IMPLEMENTATION MERGED ON MAIN; D-006 ACCEPTANCE BLOCKED** | [Pinned PR report][bl-d-report], [current blocked review][bl-d-review], [corridor fix][corridor-fix]. Geometry, guards/governor, outer-turn/front-overhang regressions and freshness timing exist. Independent 0.9500000052 s response composition is retained, but no 25 m confirmed bumper visibility is established. **4.0 m/s obstacle operation is not frozen/supported**; navigation cruise and acceptance thresholds are unchanged. PR #86 merged on 21 October 2026; merge does not establish operational acceptance. |
-| G1, issue #38 / PR #90 | **BLOCKED; REVIEW PENDING** | [Gate PR][g1-pr] remains open with Changes requested. Fresh BL-C timing/range, BL-D admission, final configuration and full-team review remain outstanding. No G1 PASS or downstream acceptance is inferred. |
+| BL-C-04–06, PR #93 | **IMPLEMENTATION MERGED; HISTORICAL SCREENING QUALIFIED** | [Tracking report](track_stabilisation.md), [timing audit](evidence/BL-C-04-06/sensor-wait-timing-review.json), [current G1 record](gates/G1-admission-notes.md). Old 4.9 m/s and untimed confirmation claims remain withdrawn. Later bounded stationary-vehicle admission does not establish pedestrian or general obstacle performance. |
+| BL-D-04–07, PR #86 | **MERGED; BOUNDED STATIONARY-VEHICLE PROFILE RECORDED** | [Historical report][bl-d-report], [admission record](gates/G1-admission-notes.md). Canonical config records 4.0 m/s, 1.497566177392398 m/s² deceleration, 0.9500000052154064 s response and 6 m margin for the exact bounded G2 source profile. General clearance/resume and pedestrian admission remain unestablished. |
+| G1, issue #38 / PR #90 | **#38 CLOSED; #90 MERGED; EXACT-SOURCE ADMISSION** | [Gate record](gates/G1-admission-notes.md) and [trusted binding](gates/G1-admission.json). Later source additions require explicit reviewed rebinding. PRs #100/#101/#103 fail the current inventory check after canonical integration; no blanket admission or downstream acceptance is inferred. |
 
-PR #86 evidence links below retain the historical reviewed head `fcfa3d8fe592c2516472fbf45f80540796c0162e`. PR #86 is now merged into main; D-006 and G1 acceptance blockers remain explicit.
+PR #86 links retain the historical reviewed head. Current bounded admission is recorded separately; historical blocked decisions are not rewritten as measurements.
 
 ## Remaining dependencies for #62
 
@@ -38,14 +38,14 @@ PR #86 evidence links below retain the historical reviewed head `fcfa3d8fe592c25
 |---|---|---|---|
 | A1 Architecture | F1: sensor → frame/packet → stack → control, simulator boundary | [Interfaces](interfaces.md), [contracts](detector_contracts.md), [boundary](simulator_boundary.md), [API](api.rst), [module notes](module_notes.rst) | Implemented contracts; final F1 drawing pending. Evaluation truth stays separate from control. |
 | A2 Architecture | Offline world and live synchronous owner | [Kinematic world](kinematic_world.md), [world lifecycle](world_lifecycle.md) | Synthetic offline world is not live driving validation. PR #86 integration is merged; runtime acceptance remains separate. |
-| D1 Decisions | Units, rear axle/front bumper, freshness, single tick owner | [Decision register](decisions.md), [PR #86 decision][bl-d-report] | D-006 blocks the operational cruise freeze; geometry fixes do not supply missing range. |
+| D1 Decisions | Units, rear axle/front bumper, freshness, single tick owner | [Decision register](decisions.md), [G1 record](gates/G1-admission-notes.md) | Bounded stationary-vehicle admission is source-specific; general stop/resume acceptance remains incomplete. |
 | D2 Decisions | Local model identity and reproducibility | [Assets](assets.md), [manifest](../configs/reproduction.json), [reproduction](reproduction.md) | Asset hash/sample inference is not accuracy, CUDA validation or a full lock. |
 | R1 Evaluation | Inherited TEST-01 baseline and limitations | [A1 record](evidence/TEST-01-baseline.md); `TEST-01-summary.json`, manifest, samples and video-frame CSVs | Historical run with failures; retain metric definitions and archive access caveat. |
 | R2 Evaluation | Existing navigation/braking/depth measurements | TEST-02 `packaged-acceptance` 5-run archive, [TEST-03](evidence/TEST-03/README.md), [TEST-13](evidence/TEST-13/README.md) | Available merged results can populate labelled panels/trace F2. Navigation-only S0 is not the missing full sensor-to-control stop. |
 | R3 Evaluation | Final integrated obstacle acceptance | BL-F-07 / issue #41; raw stop-run ID **pending** | **NOT ESTABLISHED / BLOCKED**; no final stop/HOLD/resume PASS. |
 | R4 Evaluation | Optional extension comparison | E4-07 / issue #57; measured run IDs **pending** | **NOT RUN**; no local/LAN/cloud improvement claim. |
 | L1 Limitations | A1 failures, repaired-runtime scope, metric/depth/timing limits | [TEST-01](evidence/TEST-01-baseline.md), [TEST-02](evidence/TEST-02/README.md), [TEST-03](evidence/TEST-03/README.md), [BL-C audit](evidence/BL-C-04-06/sensor-wait-timing-review.json) | Old BL-C timing/cap is withdrawn as current screening evidence; axial accuracy is not usable confirmed range. |
-| L2 Limitations | Final integration, task closure and human review | Issues #41/#45/#46/#57, [G1][g1-pr] | Open deliverables and final/full-team review remain explicit. |
+| L2 Limitations | Final integration, task closure and designated review | Issues #41/#45/#46/#57, [G1 record](gates/G1-admission-notes.md) | Open deliverables and exact-source review remain explicit; unanimous individual sign-off is not required. |
 
 ## Archive identity and new-run registration
 

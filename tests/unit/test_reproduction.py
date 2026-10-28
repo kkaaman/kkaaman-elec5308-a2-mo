@@ -116,6 +116,19 @@ class ReproductionTests(unittest.TestCase):
             self.assertFalse(setup.install_carla("0.9.16", Path("carla-0.9.15-cp312-cp312-win_amd64.whl")))
             install.assert_not_called()
 
+    def test_lfs_failure_only_succeeds_with_verified_local_assets(self):
+        for assets_valid in (True, False):
+            with patch.object(setup, "check_python_version"), \
+                    patch.object(setup, "remove_conflicting_opencv", return_value=True), \
+                    patch.object(setup, "detect_cuda_tag"), \
+                    patch.object(setup, "install_requirements", return_value=True), \
+                    patch.object(setup, "pull_lfs_weights", return_value=False), \
+                    patch.object(setup, "run", return_value=assets_valid) as run:
+                result = self.invoke_setup(["--skip-torch", "--skip-carla"])
+                self.assertEqual(result, 0 if assets_valid else 1)
+                self.assertIn("--assets-only", run.call_args.args[0])
+                self.assertTrue(str(run.call_args.args[0][1]).endswith("check_reproduction.py"))
+
     def test_connected_install_failure_returns_nonzero(self):
         with patch.object(setup, "check_python_version"), \
                 patch.object(setup, "remove_conflicting_opencv", return_value=True), \

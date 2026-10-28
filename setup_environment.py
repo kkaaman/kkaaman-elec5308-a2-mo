@@ -499,7 +499,10 @@ def main() -> int:
 
     if not args.skip_lfs:
         if not pull_lfs_weights():
-            return 1
+            if not run([sys.executable, str(root / "scripts/check_reproduction.py"),
+                        "--assets-only"], "Verifying existing local weights after LFS failure"):
+                return 1
+            print("LFS pull failed; existing local weights match the pinned manifest.")
     else:
         print("\n[SKIPPED] git-lfs weight pull (--skip-lfs)")
 

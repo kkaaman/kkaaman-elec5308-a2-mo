@@ -97,6 +97,17 @@ Why: Keep frame, detector and command contracts independent of the world impleme
 
 No public top-level classes/functions declared; see exports/source.
 
+autonomy/admission.py
+~~~~~~~~~~~~~~~~~~~~~
+
+Role (source summary)::
+
+    Verify the versioned G1 configuration and source identity before loading.
+
+Why: Keep frame, detector and command contracts independent of the world implementation.
+
+Declared public classes/functions: ``read_json``, ``config_identity``, ``source_inventory``, ``scope_fingerprint``, ``load_admitted_baseline``.
+
 autonomy/baseline_operation.py
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -294,6 +305,28 @@ Role (source summary)::
 Why: Contain simulator ownership and coordinate conversion at the boundary; keep the core reusable.
 
 Declared public classes/functions: ``configuration_digest``, ``execution_provenance``, ``signed_cross_track``, ``route_speed_target``, ``CameraReceipt``, ``RGBReceiptQueue``, ``RunSensors``, ``FrozenEnvironment``, ``run_s0_episode``, ``run_s0_suite``.
+
+carla_adapter/scenario_verification.py
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Role (source summary)::
+
+    Live BL-B-06/07 checks: scenario placement, evaluation truth and event sensors.
+
+Why: Contain simulator ownership and coordinate conversion at the boundary; keep the core reusable.
+
+Declared public classes/functions: ``gap_cases``, ``Verification``, ``source_provenance``, ``collect``, ``main``.
+
+carla_adapter/scenario_world.py
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Role (source summary)::
+
+    Live S1-S5 obstacles, evaluation truth and event sensors (BL-B-06/07).
+
+Why: Contain simulator ownership and coordinate conversion at the boundary; keep the core reusable.
+
+Declared public classes/functions: ``core_xy``, ``route_z``, ``footprint_core``, ``ScenarioObstacle``, ``ego_front_offset``, ``ego_truth``, ``ScenarioEventSensors``, ``event_records``.
 
 carla_adapter/sensors.py
 ~~~~~~~~~~~~~~~~~~~~~~~~
@@ -493,6 +526,28 @@ Why: Keep recorded observations and metric analysis separate from controller inp
 
 Declared public classes/functions: ``evaluate_s0_run``, ``aggregate_s0_runs``.
 
+evaluation/scenario_events.py
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Role (source summary)::
+
+    Collision and lane-invasion event records for S0-S5 (BL-B-07). Simulator-free.
+
+Why: Keep recorded observations and metric analysis separate from controller inputs.
+
+Declared public classes/functions: ``CollisionContacts``, ``collision_record``, ``lane_invasion_record``, ``validate_exclusions``, ``legal_exclusion``, ``count_contacts``, ``count_unplanned_invasions``.
+
+evaluation/scenarios.py
+~~~~~~~~~~~~~~~~~~~~~~~
+
+Role (source summary)::
+
+    Deterministic S1-S5 obstacle scenarios (BL-B-06). Simulator-free and evaluation-only.
+
+Why: Keep recorded observations and metric analysis separate from controller inputs.
+
+Declared public classes/functions: ``Obstacle``, ``Removal``, ``ScenarioDefinition``, ``load_scenario``, ``load_scenarios``, ``route_heading``, ``placement_pose``, ``RemovalSchedule``.
+
 evaluation/steering_calibration.py
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -503,6 +558,17 @@ Role (source summary)::
 Why: Keep recorded observations and metric analysis separate from controller inputs.
 
 Declared public classes/functions: ``inferred_angle``, ``SpeedServo``, ``analyze``.
+
+evaluation/stop_truth.py
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+Role (source summary)::
+
+    Evaluation-only stop-margin truth and HOLD/resume metrics (BL-B-07). Simulator-free.
+
+Why: Keep recorded observations and metric analysis separate from controller inputs.
+
+Declared public classes/functions: ``ego_front_offset_m``, ``footprint_samples``, ``signed_lateral_m``, ``route_surface_gap``, ``hold_metrics``.
 
 geometry/__init__.py
 ~~~~~~~~~~~~~~~~~~~~
