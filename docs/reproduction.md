@@ -157,3 +157,14 @@ and commit the regenerated `docs/module_notes.rst`; CI checks for stale notes.
 A failed connected LFS pull is tolerated only when `check_reproduction.py
 --assets-only` verifies all existing local weights against the pinned manifest.
 Missing files, pointer stubs or incorrect size/hash still fail installation.
+
+## Preserved PR106 preflight interface
+
+The merged contributor interface also supports explicit read-only version/GPU
+checks through check_reproduction.py --live --host localhost --port 2000
+--require-cuda. This never starts a server, ticks, changes settings or spawns
+actors. CARLA must already have been explicitly authorized and started.
+The separate carla_adapter.environment_check entry point remains available.
+PR106's original generated notes are retained as
+[evidence](evidence/phase-j-88/pr106-module-notes.txt); current generated notes
+use the canonical Sphinx module_notes.rst generator.
