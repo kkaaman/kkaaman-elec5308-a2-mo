@@ -284,17 +284,25 @@ def _band_edges(xy, link):
     out_i.append(first[sure_a])
     out_j.append(first[sure_b])
     comp = _components(ncell, sure_a, sure_b)
-    for dx in range(0, m + 1):
-        for dy in range(-m, m + 1):
-            if (dx == 0 and dy <= 0) or (abs(dx) <= 1 and abs(dy) <= 1):
-                continue
-            if g * math.hypot(max(abs(dx) - 1, 0), max(abs(dy) - 1, 0)) > reach:
-                continue
-            a, b = neighbours(dx, dy)
-            apart = comp[a] != comp[b]
-            a, b = a[apart], b[apart]
-            if not len(a):
-                continue
+    # Every farther offset within the longest link, looked up at once (one search, not one
+    # per offset), offset by offset in the same order as a loop would.
+    offsets = np.array(
+        [
+            dx * width + dy
+            for dx in range(0, m + 1)
+            for dy in range(-m, m + 1)
+            if not ((dx == 0 and dy <= 0) or (abs(dx) <= 1 and abs(dy) <= 1)) and g * math.hypot(max(abs(dx) - 1, 0), max(abs(dy) - 1, 0)) <= reach
+        ],
+        dtype=np.int64,
+    )
+    if len(offsets):
+        target = (offsets[:, None] + ukey[None, :]).ravel()
+        pos = np.minimum(np.searchsorted(ukey, target), ncell - 1)
+        hit = ukey[pos] == target
+        a, b = np.tile(cells, len(offsets))[hit], pos[hit]
+        apart = comp[a] != comp[b]
+        a, b = a[apart], b[apart]
+        if len(a):
             na, nb = ucount[a], ucount[b]
             size = na * nb
             k = np.repeat(np.arange(len(a)), size)
@@ -404,7 +412,9 @@ def _structure_pieces(xy, pieces, config, height=None):
     for k, piece in enumerate(pieces):
         sliver = shapes[k][1] < c.split_sliver_width_m or (height is not None and shapes[k][1] < c.split_min_width_m and float(np.ptp(height[piece])) < c.split_sliver_height_m)
         sliver = sliver or (height is not None and float(height[piece].min()) > c.split_max_floor_m)
-        structure = oversized(xy[piece], c) or k in lines or sliver or (thin(shapes[k]) and continues(k))
+        # Still oversized, from the shape already measured (the same arithmetic as ``oversized``).
+        too_big = shapes[k][0] > c.max_object_length_m or shapes[k][1] > c.max_object_width_m
+        structure = too_big or k in lines or sliver or (thin(shapes[k]) and continues(k))
         out.append(structure)
     return out
 

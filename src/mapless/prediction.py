@@ -226,6 +226,28 @@ def boxes_overlap(a, b):
     return True
 
 
+def _corners_many(xs, ys, headings, along_min, along_max, across_half):
+    """``box_corners`` for K boxes at once (K x 4 x 2), the same corner order."""
+    c, s = np.cos(headings)[:, None], np.sin(headings)[:, None]
+    lx = np.array([along_min, along_max, along_max, along_min], dtype=float)[None, :]
+    ly = np.array([-across_half, -across_half, across_half, across_half], dtype=float)[None, :]
+    return np.stack((np.asarray(xs, dtype=float)[:, None] + lx * c - ly * s, np.asarray(ys, dtype=float)[:, None] + lx * s + ly * c), axis=2)
+
+
+def _overlap_any(cars, obstacle):
+    """``boxes_overlap(car, obstacle)`` for each of K car boxes (K x 4 x 2) against one
+    obstacle box (4 x 2): the same separating axes, all boxes at once (fifth review,
+    F5-05: the per-pose test was two fifths of the speed rules' time)."""
+    out = np.ones(len(cars), dtype=bool)
+    edges = [cars[:, 1] - cars[:, 0], cars[:, 3] - cars[:, 0], np.broadcast_to(obstacle[1] - obstacle[0], (len(cars), 2)), np.broadcast_to(obstacle[3] - obstacle[0], (len(cars), 2))]
+    for e in edges:
+        ax, ay = -e[:, 1:2], e[:, 0:1]
+        pa = cars[:, :, 0] * ax + cars[:, :, 1] * ay
+        pb = obstacle[None, :, 0] * ax + obstacle[None, :, 1] * ay
+        out &= ~((pa.max(axis=1) < pb.min(axis=1)) | (pb.max(axis=1) < pa.min(axis=1)))
+    return out
+
+
 def path_headings(path_xy):
     """Heading at each path sample from the segment leaving it (the last one keeps its
     predecessor's; a zero-length segment keeps the previous heading)."""
@@ -264,13 +286,17 @@ def first_occupied_arc(predictions, path_xy, body, from_arc_m=0.0, step_m=0.5, w
     xs, ys = np.interp(stations, arcs, path[:, 0]), np.interp(stations, arcs, path[:, 1])
     heads = path_headings(path)
     idx = np.clip(np.searchsorted(arcs, stations, side="right") - 1, 0, len(path) - 1)
-    boxes = [box_corners(o, h, body.rear_m, body.front_m, body.half_width_m) for o, h in zip(zip(xs, ys), heads[idx])]
+    cars = _corners_many(xs, ys, heads[idx], body.rear_m, body.front_m, body.half_width_m)
     regions = [(p.track_id, box_corners(p.centres[k], p.heading_rad, -p.half_extents[k][0], p.half_extents[k][0], p.half_extents[k][1])) for p in predictions for k in range(len(p.times_s))]
-    for station, car in zip(stations, boxes):
-        for track_id, region in regions:
-            if boxes_overlap(car, region):
-                return (float(station), track_id) if with_track else float(station)
-    return none
+    # Each region against every station at once; the first station any region meets, and
+    # of the regions there the first listed, as the station-by-station search found.
+    hits = np.array([_overlap_any(cars, region) for _, region in regions])
+    met = np.flatnonzero(hits.any(axis=0))
+    if not len(met):
+        return none
+    first = int(met[0])
+    track_id = regions[int(np.argmax(hits[:, first]))][0]
+    return (float(stations[first]), track_id) if with_track else float(stations[first])
 
 
 def pose_at(path, times, headings, t):
@@ -296,7 +322,9 @@ def first_footprint_conflict(predictions, path_xy, path_times_s, body):
     ``body`` has ``rear_m``, ``front_m`` and ``half_width_m`` (``VehicleBody``). Each
     prediction step covers the half-step window around its time; the car's footprint is
     tested at the window's ends and at every path sample inside it, so the swept region
-    between consecutive samples is covered to within the body's own length.
+    between consecutive samples is covered to within the body's own length. All of a
+    prediction's steps are tested at once (fifth review, F5-05); steps whose window opens
+    past the path's end are not tested, as before.
     """
     path = np.asarray(path_xy, dtype=float).reshape(-1, 2)
     times = np.asarray(path_times_s, dtype=float)
@@ -306,19 +334,63 @@ def first_footprint_conflict(predictions, path_xy, path_times_s, body):
     end = float(times[-1])
     best = None
     for pred in predictions:
-        step = float(pred.times_s[0]) if len(pred.times_s) == 1 else float(pred.times_s[1] - pred.times_s[0])
-        for k, t in enumerate(pred.times_s):
-            lo = 0.0 if k == 0 else max(0.0, t - step / 2)
-            hi = t + step / 2
-            if lo > end + step / 2:
-                break
-            hl, hw = pred.half_extents[k]
-            obstacle = box_corners(pred.centres[k], pred.heading_rad, -hl, hl, hw)
-            inside = np.flatnonzero((times > lo) & (times < hi))
-            poses = [pose_at(path, times, headings, lo), pose_at(path, times, headings, hi)]
-            poses += [(path[i, 0], path[i, 1], headings[i]) for i in inside]
-            if any(boxes_overlap(box_corners((x, y), yaw, body.rear_m, body.front_m, body.half_width_m), obstacle) for x, y, yaw in poses):
-                if best is None or t < best[0]:
-                    best = (float(t), pred.track_id)
-                break
+        tk = np.asarray(pred.times_s, dtype=float)
+        if not len(tk):
+            continue
+        step = float(tk[0]) if len(tk) == 1 else float(tk[1] - tk[0])
+        lo = np.maximum(0.0, tk - step / 2)
+        lo[0] = 0.0
+        hi = tk + step / 2
+        reach = lo <= end + step / 2
+        n = len(tk) if reach.all() else int(np.argmin(reach))  # the steps before the first past the end
+        if n == 0:
+            continue
+        lo, hi = lo[:n], hi[:n]
+        ks, samples = np.nonzero((times[None, :] > lo[:, None]) & (times[None, :] < hi[:, None]))
+        ends = np.concatenate((lo, hi))
+        ex, ey, eh = _poses_at(path, times, headings, ends)
+        step_of = np.concatenate((np.arange(n), np.arange(n), ks))
+        xs = np.concatenate((ex, path[samples, 0]))
+        ys = np.concatenate((ey, path[samples, 1]))
+        hs = np.concatenate((eh, headings[samples]))
+        cars = _corners_many(xs, ys, hs, body.rear_m, body.front_m, body.half_width_m)
+        half = np.asarray(pred.half_extents, dtype=float)[:n]
+        regions = np.stack([box_corners(pred.centres[k], pred.heading_rad, -half[k, 0], half[k, 0], half[k, 1]) for k in range(n)])
+        hit = _overlap_pairs(cars, regions[step_of])
+        if hit.any():
+            k = int(step_of[hit].min())
+            t = float(tk[k])
+            if best is None or t < best[0]:
+                best = (t, pred.track_id)
     return best
+
+
+def _poses_at(path, times, headings, t):
+    """``pose_at`` for an array of times: (x, y, yaw) arrays, the same interpolation."""
+    t = np.asarray(t, dtype=float)
+    n = len(times)
+    x, y, h = np.empty(len(t)), np.empty(len(t)), np.empty(len(t))
+    first, last = t <= times[0], t >= times[-1]
+    x[first], y[first], h[first] = path[0, 0], path[0, 1], headings[0]
+    x[last & ~first], y[last & ~first], h[last & ~first] = path[-1, 0], path[-1, 1], headings[-1]
+    mid = ~first & ~last
+    if mid.any():
+        tm = t[mid]
+        i = np.minimum(np.maximum(np.searchsorted(times, tm, side="right"), 1), n - 1)
+        span = times[i] - times[i - 1]
+        w = np.where(span <= 0, 0.0, (tm - times[i - 1]) / np.where(span <= 0, 1.0, span))
+        xy = path[i - 1] + w[:, None] * (path[i] - path[i - 1])
+        x[mid], y[mid], h[mid] = xy[:, 0], xy[:, 1], headings[i - 1]
+    return x, y, h
+
+
+def _overlap_pairs(a, b):
+    """``boxes_overlap`` for P pairs of boxes (P x 4 x 2 each), the same separating axes."""
+    out = np.ones(len(a), dtype=bool)
+    for poly in (a, b):
+        for e in (poly[:, 1] - poly[:, 0], poly[:, 3] - poly[:, 0]):
+            ax, ay = -e[:, 1:2], e[:, 0:1]
+            pa = a[:, :, 0] * ax + a[:, :, 1] * ay
+            pb = b[:, :, 0] * ax + b[:, :, 1] * ay
+            out &= ~((pa.max(axis=1) < pb.min(axis=1)) | (pb.max(axis=1) < pa.min(axis=1)))
+    return out

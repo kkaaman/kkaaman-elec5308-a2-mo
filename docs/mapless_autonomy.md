@@ -2074,8 +2074,26 @@ The whole stack on recorded frames, in this container (constant segmenter, no pr
 | Town05 braking lead (walls, 300 ticks) | 139 / 185 ms | 72 / 94 ms | 68 / 89 ms |
 
 The lab PC ran these stages 1.5–2.2 times faster, so live Town10HD should be well under
-50 ms, and Town05 near it. Town05's control path still has the driver's ground projection
-(11 000 ground points against the corridor: 15 ms here) and clustering (21 ms) to cut. The full
+50 ms, and Town05 near it.
+
+**Second pass (29 Oct), every change checked for the same output:**
+- The driver's ground points: a point is left out before the exact projection when a bound
+  shows it beyond the tube's widest reach (half the tube + 1 m), or not in the stretch past
+  the line's end. The bound is the distance to the line's chords less how far the line
+  strays from them. Identical observations on 2156 ticks of three runs; 12.0 → 6.9 ms.
+- Clustering: all of a band's farther offsets are looked up in one search instead of one
+  per offset, and a piece's size is taken from the shape already measured. Identical
+  clusters and structures; 18.4 → 10.1 ms.
+- The conflict geometry tests every pose of a prediction against its steps at once
+  (`first_footprint_conflict`, `first_occupied_arc`). Identical results on 3000 random
+  scenes and on every tick of the three replays (caps, reasons, causes, leads).
+
+| Frames, here | `fcac32a` p50 / p95 | now p50 / p95 | control path now, p50 / p95 |
+|---|---|---|---|
+| Town10HD right turn | 135 / 288 ms | 43 / 58 ms | 40 / 53 ms |
+| Town05 braking lead | 139 / 185 ms | 57 / 81 ms | 54 / 77 ms |
+
+The full
 configuration's cost is the v2 segmenter's paint (295 ms p95 live on Town05): see the ML
 section below.
 
