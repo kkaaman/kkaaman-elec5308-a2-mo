@@ -1901,6 +1901,26 @@ scipy is not on the lab PCs.
   face under 1.5 m deep) are now merged. A car queued 6.5 m behind keeps its own track.
   Recorded frames hold no radar, so this waits on a live run.
 
+**Live on `fcac32a` (PC 2, Town10HD site 1, constant segmenter), both MEASURED_PASS.**
+- **Slower cut-in:** no stop at the hand-over. The lowest speed was 0.92 m/s, then the car
+  settled behind the cut-in car at 1.33 m/s, the gap never under 5.4 m, nothing stopped
+  before the lead.
+- **Braking lead:**
+  - the lead stays the lead (539 ticks, from 1.1 s), so braking is seen in 0.15 s again;
+  - ticks with a radar-only second track on it: 125 → 30, and "outside its footprint"
+    131 → 1: the face-twin merge works.
+
+  The start is slower: the lead now counts while it stands at the start, so the ego pulls
+  away under following's 1 m/s² and jerk limits (0.26 m/s at 2 s, against 2.15 before).
+  That is 0.95 s lost, reported as 1.7 s "unjustified slow".
+- **Compute without the segmenter:** driver step 58–60 ms p50, 85–86 ms p95, 92–99 ms max
+  (was 69–72 / 96–98 ms; 75–79 / 254–267 ms with v2); 76–80 % of ticks over 50 ms. Clustering
+  (`detect`) is 10–11 ms p50, against 19–20. What is left, p50:
+  - drive 19–21 ms, of which obstacle observation 11–15 ms;
+  - road model 14 ms;
+  - tracking 13 ms;
+  - plan 5 ms.
+
 ## Running Phase 0 live
 
 Run with CARLA 0.9.16 and no other clients:
