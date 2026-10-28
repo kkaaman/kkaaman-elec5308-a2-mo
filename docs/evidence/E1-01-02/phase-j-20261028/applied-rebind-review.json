@@ -1,0 +1,43 @@
+{
+  "scope": "Explicitly preparation-only PR #108; #49 dataset/robustness remains open",
+  "classification": {
+    "configs/weather/robustness_v1.json": {
+      "category": "additional validated functionality",
+      "reason": "Explicit held-out 27-cell planned matrix; NOT_RUN statuses and no baseline config mutation"
+    },
+    "src/carla_adapter/weather_experiment.py": {
+      "category": "additional validated functionality",
+      "reason": "Read-only optional version/preset/light preflight; no weather writes, ticks, actor creation or baseline imports"
+    }
+  },
+  "other_diff_review": [
+    "scripts/prepare_weather_matrix.py validates explicit fields, pairing and night lights; exclusive output creation",
+    "test-only simulator import exemption is narrow; core boundary remains enforced",
+    "documentation/evidence explicitly excludes captured data and measured robustness"
+  ],
+  "safety_contract_change": false,
+  "status": "REVIEWED_LOADER_ONLY_REBIND_APPLIED",
+  "pr": 108,
+  "review_authority": "Explicit owner delegation in continuation request; Codex review, not a new human approval",
+  "reviewed_head": "0fc711c8e4203bd93a1d8ae05dad4576d8f23eeb",
+  "canonical_base": "7f0a80d35fd2288a8ee61a02c0c0f5bf56cf2b26",
+  "inventory_delta": {
+    "added": [
+      "configs/weather/robustness_v1.json",
+      "src/carla_adapter/weather_experiment.py"
+    ],
+    "removed": [],
+    "changed": []
+  },
+  "old_source_fingerprint": "b0f3edc49691ce9033bc85226a2473854122a9d386f2c822d161064903f40b90",
+  "new_source_fingerprint": "664c4d019ad385f1a6a6b360bf8a776ed4fa47c157230da3c751853f21984f5c",
+  "old_record_sha256": "da69d2449083fb80b22a5db3eff9ad921e846ebd2dae75ae2b18cd4c7d068d6d",
+  "new_record_sha256": "d0668d09bdf5f5a7c90feec50e98d51b4971824944d1ed8b60bccf95bf7211eb",
+  "configuration_semantic_sha256": "2903124878485c8030e160f3598c381bf0197329f79d74773d84048a96c2e9ef",
+  "configuration_file_sha256": "a4b5e669f9426db24d42d9a1d20114981c95bb15302af006b1196044696fe187",
+  "actual_model_asset_sha256": "9b09cc8bf347f0fc8a5f7657480587f25db09b34bf33b0652110fb03a8ad4fef",
+  "camera_rig_sha256": "05a325d4a957d938e02cced63f4968b376ca82cb0aa2d362a8da781c87b16677",
+  "depth_policy_sha256": "052aa8a5890ed0d17fb902f14616d9158c32851bbd9971826aa843d85ac79dc6",
+  "frozen_values_scope_model_sensor_and_runner_unchanged": true,
+  "live_or_extension_operation_admitted": false
+}
