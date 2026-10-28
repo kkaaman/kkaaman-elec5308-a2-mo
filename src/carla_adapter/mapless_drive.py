@@ -929,6 +929,7 @@ class MaplessDrive:
                     segmenter_sha256=_file_sha256(args.segmenter) if args.segmenter not in (None, "constant") else None,
                     detector=args.detector or "none",
                     stack_config_sha256=hashlib.sha256(json.dumps(dataclasses.asdict(stack_config), sort_keys=True, default=str).encode()).hexdigest(),
+                    segmenter_load=getattr(driver.segmenter, "load_mode", None),
                 )
                 f = stack_config.following
                 self.report["braking_assumptions"] = braking_assumptions(config.planner.decel_mps2, stack_config.conflict_decel_mps2, f.ego_brake_mps2, f.response_s)
