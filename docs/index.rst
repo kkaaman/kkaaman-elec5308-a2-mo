@@ -29,6 +29,7 @@ demonstration for the autonomous perception and navigation library.
    assets
    acceptance
    acceptance-logging
+   scenarios
    depth-association
    interfaces
    geometry
@@ -62,6 +63,7 @@ demonstration for the autonomous perception and navigation library.
    steering_calibration
    evidence/BL-E-03/README
    gates/G0
+   gates/G1
    evidence/BL-E-02/README
    evidence/baseline-batch/README
    evidence/TEST-13/README
