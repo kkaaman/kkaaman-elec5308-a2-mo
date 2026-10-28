@@ -15,6 +15,7 @@ from pathlib import Path
 
 from evaluation.braking_table import (
     against_assumptions,
+    default_assumptions,
     episodes,
     read_log,
     steps_from_calibration,
@@ -28,10 +29,21 @@ def main():
     parser.add_argument("--calibration", type=Path, help="BL-E-03 longitudinal.csv")
     parser.add_argument("--json", type=Path, help="write the episodes, table and comparison here")
     args = parser.parse_args()
-    eps = []
+    eps, recorded = [], {}
     for run in args.runs:
         for e in episodes(read_log(run)):
             eps.append(dict(e, source=str(run)))
+        report = (run if run.is_dir() else run.parent) / "drive_report.json"
+        rules = json.loads(report.read_text(encoding="utf-8")).get("braking_assumptions") if report.exists() else None
+        recorded[str(run)] = rules
+    known = [r for r in recorded.values() if r is not None]
+    if any(r != known[0] for r in known):
+        # The rules are checked against what the runs drove with: runs with different
+        # braking settings are not one analysis (fourth review).
+        raise SystemExit("the runs record different braking assumptions; analyse them separately: " + json.dumps(recorded, indent=1))
+    rules = known[0] if known else default_assumptions()
+    if len(known) < len(recorded):
+        print(f"{len(recorded) - len(known)} run(s) record no braking assumptions: the code's defaults stand in for them")
     if args.calibration is not None:
         eps += [dict(e, source="BL-E-03") for e in steps_from_calibration(args.calibration)]
     if not eps:
@@ -45,7 +57,7 @@ def main():
             f"{r['brake']:>10} {r['speed_mps']:>10} {r['episodes']:>4} {r['mean_decel_median_mps2']:>6.2f} {r['peak_decel_median_mps2']:>6.2f}"
             f" {r['peak_decel_p10_mps2']:>8.2f} {fmt(r['effective_decel_median_mps2'], 9)} {fmt(r['lag_median_s'], 6)} {fmt(r['lag_max_s'], 7)}"
         )
-    check = against_assumptions(eps)
+    check = against_assumptions(eps, rules)
     print(json.dumps(check, indent=2))
     if args.json is not None:
         args.json.write_text(json.dumps(dict(episodes=eps, table=rows, against_assumptions=check), indent=2), encoding="utf-8")

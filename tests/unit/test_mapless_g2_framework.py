@@ -621,8 +621,9 @@ def test_object_sized_clusters_are_untouched_by_the_split():
 
 
 def test_vectorised_clustering_matches_pairwise_single_linkage():
-    """The numpy clustering (26 Oct, 7x faster live) gives the same partition as a
-    brute-force pairwise single-linkage on random scenes with range-scaled links."""
+    """The numpy clustering (26 Oct, 7x faster live; range-banded cell search 28 Oct, 3x
+    again on Town05) gives the same pairs and partition as a brute-force pairwise
+    single-linkage on random scenes with range-scaled links."""
     from mapless.detections import _components, _link_pairs
 
     rng = np.random.default_rng(3)
@@ -630,10 +631,14 @@ def test_vectorised_clustering_matches_pairwise_single_linkage():
         n = int(rng.integers(1, 400))
         xy = np.column_stack((rng.uniform(-40, 40, n), rng.uniform(-15, 15, n)))
         link = 0.6 + 0.03 * np.hypot(xy[:, 0], xy[:, 1])
-        labels = _components(n, *_link_pairs(xy, link, block=37))
+        labels = _components(n, *_link_pairs(xy, link, bands=(3.0, 7.0, 20.0)))
         # Brute force: flood fill over the full pairwise adjacency.
         d = np.hypot(xy[:, None, 0] - xy[None, :, 0], xy[:, None, 1] - xy[None, :, 1])
         adj = d <= np.maximum(link[:, None], link[None, :])
+        # The pairs themselves, not only the partition: each linked pair once (fourth
+        # review, T11: the banded cell search must not change the clusters).
+        i, j = _link_pairs(xy, link)
+        assert sorted(zip(i.tolist(), j.tolist())) == sorted(zip(*np.nonzero(np.triu(adj, 1))))
         seen, truth = np.full(n, -1), 0
         for s in range(n):
             if seen[s] >= 0:

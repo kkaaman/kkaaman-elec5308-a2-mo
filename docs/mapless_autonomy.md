@@ -1768,6 +1768,105 @@ needs `tracks_near`, so it is not available for them.
   - the stack's plan: 16–19 ms;
   - road model: 12–13 ms.
 
+### Fourth technical review, of `6f2aec3` (28 Oct)
+
+**Live on `6f2aec3` (PC 2, Town10HD site 1), every run MEASURED_PASS.** With the lead
+logged, actor matching works on Town10HD too: the actor is tracked on 96–98 % of in-view
+ticks, with no false leads and no ID switches. The ~1 s miss is the start-up.
+- **Slower cut-in** (`--actor-param lead_mps=1.5`): R1 is now exercised live. The car became
+  the lead at 15.05 s under a 0.8 m/s cap, following started from it and nothing lifted;
+  separation stayed at 6.9 m or more. The run also showed two new defects, fixed below:
+  - the cut-in car (3.9 × 1.6 m at 1.4 m/s) read as a group on foot;
+  - the following stop-go behind it.
+- **Braking lead:** no restriction not from the actor. Brake detection was 0.65 s, because
+  the stopped lead was not taken as the lead for 0.55 s. The driver's obstacle stop held
+  it. Tracks are now logged with their status and support, so the next run shows why.
+- **Pedestrian:** no restriction after clearance, no near-stop.
+
+**PC 1, Town05 braking lead with frames recorded (`r3b_t05_B`).** It replays the false stop
+deterministically (same as `r3_t05_B`). Open loop through the stack, the restricted ticks
+fell from 56 to 20:
+- **Building faces 14–22 m right** (tracks 195, 526 and 557, which gave the 6.7 s
+  near-stop): CONFIRMED, LiDAR-only, 3–9 m long and 0.3–2.4 m across, "approaching" at
+  4–7 m/s. In a 6 × 6 m window round each, the grid had no ROAD cell; around 40 BARRIER,
+  20 OCCUPIED and 110 UNKNOWN. **Fix:** beyond the kerb's reach, a vehicle-sized track
+  counts only if the grid shows road (3 cells or more) within 3 m, or has seen too little
+  of the area (under 20 cells) to say (`road_near`). A car on a side road has its road
+  round it, while its own cells read OCCUPIED. Paired tests: T01, the face, is dropped;
+  T02, the same track with a side road round it, still gives cap 0; the same track in
+  unseen ground also still gives cap 0.
+- **Fence stretches** 5–6 m right, 4–8 m long, "oncoming" at 5 m/s along the road: beyond
+  reach they reached the path only through their envelopes. **Fix:** beyond reach, a vehicle
+  must be heading for the path (`approach_min_mps`). One turning towards it is kept the
+  tick it does.
+- **Left open:** two such fence tracks (119 and 129, 14 ticks) lie *within* reach, because
+  Town05's kerb is 5.7 m from the lane centre. Their signature is incoherence rather than
+  geometry:
+  - the footprint jumps between 0.3 and 7.9 m long from tick to tick;
+  - they are COASTING on most ticks (8–9 hits in 1.5 s);
+  - a 5–9 m/s velocity is built on two or three detections.
+
+  A coherence gate in the tracker is the fix the review asks for. It needs a paired
+  real-vehicle case first, so it is not done.
+
+**Following behind a slower car.** The target closed its error to the wanted speed in one
+tick, with only the jerk limit between them. It overshot into a limit cycle: 1.9 → 0.4 → 1.9
+m/s every 3 s behind a car at 1.4 m/s, made worse by CARLA's low-speed coasting drop
+(0.9 m/s in a tick at zero throttle). **Fix:** the target closes the error over
+`speed_tau_s` (1 s). Braking for the worst case is still immediate. Simulated with a 0.3 s
+vehicle lag:
+- behind 1.4 m/s: settles at 1.4 m/s and the desired 6.8 m gap (was 0.87–1.91 m/s);
+- a lead braking at 3 or 6 m/s²: the minimum gap is 4.0 m either way.
+
+**Groups on foot** are no wider than `group_max_width_m` (1.4 m): the cut-in car seen as
+3.9 × 1.6 m was yielded to at 0.8 m/s. A 2.4 × 1.0 m group is still yielded to.
+
+**Diagnostics and evaluation (the review's 5, 7.3, 7.4, 9.1):**
+- A cap's cause track carries `admitted`, the rule that let it through
+  (`plausible_crossers(..., why=)`): for example "vehicle beyond reach, road near".
+- The tracker logs every radar-only track it did not fold into a LiDAR one within 5 m,
+  with the gate that kept it (`radar_stats.twins_kept`). The evaluator reports, on ticks
+  with two tracks on the actor:
+  - those with a radar-only second track;
+  - the reasons the tracker gave;
+  - ticks where the second track, not the lead, set the cap.
+- `tracks_near` carries each track's status and support, keeps up to 40 tracks, and logs how
+  many it left out (`tracks_near_omitted`). A tick with no match while tracks were left out
+  is "not judged", not a miss.
+- The run report records its `braking_assumptions` (planner, conflict rule, following
+  deceleration and reaction). `scripts/braking_table.py` checks against them, refuses runs
+  that disagree, and lists the excluded implausible stops with the reason.
+- New REPORT check `exercised`: did the run reach the transition its scenario is for?
+  - braking lead: the lead slows within 50 m;
+  - pedestrian: the walker enters the band within 30 m;
+  - cut-in: the car became the lead under a conflict or yield cap, and the ego then closed
+    on it.
+
+  The `r3b_cutin_slow` run is exercised; the earlier cut-in, whose car drove off, is not.
+
+**Compute: LiDAR clustering** (the review's 6.1 and T11). Linking pairs of OBSTACLE points was
+the largest Town05 stage. It sorted the points by x and compared each block with every
+point in the same x-band, across the whole width of the street. It now:
+- hashes the points into squares no smaller than the largest link and compares each square
+  with its neighbours;
+- does this by range band, so near the car, where the points are densest and the links
+  shortest, the squares are small;
+- keeps each pair once, in the band of its nearer point; a farther point joins a band's
+  pass only if its own link reaches into it.
+
+On the 134 recorded Town05 sweeps (about 4900 OBSTACLE points each) the pair sets are
+identical, at 26 ms p50 and 35 ms p95, against 80 and 112 ms. The random-scene test now
+checks the pairs themselves against brute force, as well as the partition. Numpy only:
+scipy is not on the lab PCs.
+
+**Not yet:**
+- the tracker coherence gate (above);
+- arrival-time intervals in the conflict check (7.1);
+- radar-only protection before LiDAR confirmation (7.2, T08);
+- `weights_only` checkpoint loading (7.5);
+- the segmenter in shadow mode;
+- observability-limited speed.
+
 ## Running Phase 0 live
 
 Run with CARLA 0.9.16 and no other clients:

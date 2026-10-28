@@ -40,9 +40,15 @@ class FollowingConfig:
     standstill_m: float = 2.5
     uncertainty_m: float = 1.0
     lane_half_width_m: float = 1.75  # a track this far from the path centre is in the lane
+    # The target closes its error to the wanted speed over this time, not in one tick: with
+    # only the jerk limit between them, the target overshot and the car went stop-go behind
+    # a slower car (1.9 down to 0.4 m/s and back every 3 s behind one at 1.4 m/s: the first
+    # live cut-in with the car staying slower, 6f2aec3). Braking for the worst case is not
+    # slowed by it.
+    speed_tau_s: float = 1.0
 
     def __post_init__(self):
-        if min(self.gap0_m, self.headway_s, self.accel_mps2, self.jerk_mps3, self.ego_brake_mps2, self.lead_brake_mps2) <= 0:
+        if min(self.gap0_m, self.headway_s, self.accel_mps2, self.jerk_mps3, self.ego_brake_mps2, self.lead_brake_mps2, self.speed_tau_s) <= 0:
             raise ValueError("FollowingConfig: positive gaps, limits and decelerations")
 
 
@@ -120,14 +126,15 @@ class FollowingController:
         cap = worst_case_speed_cap(gap_m, lead_speed_mps, c)
         wanted = min(cruise_mps, gap_speed, cap)
         current = ego_speed_mps if self._target is None else self._target
-        accel = float(np.clip((wanted - current) / max(dt_s, 1e-3), -c.ego_brake_mps2, c.accel_mps2))
+        hard = wanted < current and (wanted >= cap - 1e-9 or current > cap + 1e-9)
+        accel = float(np.clip((wanted - current) / max(dt_s if hard else c.speed_tau_s, 1e-3), -c.ego_brake_mps2, c.accel_mps2))
         # Jerk limit applies to normal driving; braking harder than the comfort rate is
         # allowed when the worst case demands it, never when merely closing a gap. The worst
         # case demands it whenever the target is above the cap, whichever term is lowest:
         # with the gap term below the cap, the target came down at the jerk limit from far
         # above it (third review, R1: a car cutting in 6 m ahead at 6 m/s, cap 2.9 m/s, and
         # the target fell 0.005 m/s on the first tick).
-        if wanted < current and (wanted >= cap - 1e-9 or current > cap + 1e-9):
+        if hard:
             accel = float(np.clip(accel, -c.ego_brake_mps2, c.accel_mps2))
         else:
             accel = float(np.clip(accel, self._accel - c.jerk_mps3 * dt_s, self._accel + c.jerk_mps3 * dt_s))

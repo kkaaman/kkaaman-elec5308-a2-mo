@@ -317,3 +317,19 @@ def test_a_vehicles_run_to_the_path_is_blocked_only_by_a_persistent_uncovered_wa
     history = {}
     assert dropped(Grid(50.0), history=history, ticks=2) == []  # not yet persistent
     assert dropped(Grid(50.0), history=history) == [5]
+
+
+def test_the_tracker_says_why_a_radar_twin_was_kept():
+    """Fourth review (5): radar runs carried a second track on the actor on about half the
+    ticks. The tracker now logs each radar-only track it did not fold into a LiDAR one
+    within 5 m, and the gate that kept it: here the walker-sized LiDAR cluster (below
+    ``merge_min_extent_m``) beside a radar-held car."""
+    tr = Tracker(TrackerConfig())
+    for k in range(30):
+        tr.update(k * DT, ORIGIN, radar=[ret((35.0 + 8.0 * k * DT, 0.0), 8.0)])
+    kept = []
+    for k in range(30, 40):
+        x = 35.0 + 8.0 * k * DT
+        tr.update(k * DT, ORIGIN, lidar=[lid((x, 0.8), extent=(0.5, 0.5, 0.0))], radar=[ret((x, 0.0), 8.0)])
+        kept += tr.radar_stats.get("twins_kept") or []
+    assert kept and all(why == "the LiDAR track is smaller than merge_min_extent_m" for *_, why in kept)
