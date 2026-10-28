@@ -2130,12 +2130,29 @@ NOT_EXERCISED, not MEASURED_PASS.
   holds other objects still loads as before, and the run report says so
   (`stack.segmenter_load`).
 
+**Live scenarios for the rest of the matrix (29 Oct):**
+- `turn_left --oncoming stopped|parked` (M08). A car in the opposing lane, 12 m past the
+  junction straight across (`oncoming_m`):
+  - "stopped": it stands mid-lane and pulls away towards the junction at 6 m/s
+    (`oncoming_mps`), 2 s (`go_after_s`) after the ego first comes within 12 m of the entry.
+    The gate must hold the turn for it;
+  - "parked": it stands 0.9 m towards its own kerb (`parked_offset_m`) and never moves. The
+    gate may excuse it once it has been seen standing long enough.
+
+  `exercised` checks that the car pulled away while the ego stood within 40 m of it, or that
+  the ego came within 25 m of the parked one. The turn gates and separation judge the run.
+- `braking_lead --actor-param second_gap_m=G`: a second car G m ahead of the lead's front
+  holds its speed and brakes with it. These are two cars close along the radar's line of
+  sight; the twin merge must not fold them into one track.
+- The run report's `driver_step_time.response_budget` adds one tick, the control path's p99
+  and the 0.25 s brake lag, and compares the sum with the following rule's 0.5 s
+  `response_s`. Synchronous CARLA hides the processing time; this shows whether the
+  budget would hold in real time.
+
 **Still open:**
 - radar-only and twin behaviour need live radar runs (no radar in recorded frames);
-- the parked-evidence rule needs a live parked-versus-stopped pair;
-- the supported-speed envelope needs the stop runs per obstacle size;
-- no live scenario yet for an oncoming car moving off at a left turn, or for two cars close
-  along the radar's line of sight.
+- the parked-evidence rule and the stopped-car gate need the M08 runs;
+- the supported-speed envelope needs the stop runs per obstacle size.
 
 ## Running Phase 0 live
 
