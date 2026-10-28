@@ -14,3 +14,29 @@ proposal records the exact candidate inventory/delta for designated review; it
 does not grant admission. Issue #59 and PR #100 remain open pending that review
 and successful final integrated checks. Live parking qualification belongs to
 #60 and is not established by harness results.
+
+## Independent local rebind simulation — 28 October 2026
+
+The existing proposal was independently checked against the exact `210d81e`
+integration tree. Its complete source inventory and combined scope fingerprint
+match: seven additions, one changed file, no removals. Mission content matches
+canonical main after normalizing the archive export's line endings.
+
+With the trusted record unchanged, focused G1/freeze/freshness tests reproduced
+the same six failures: **51 passed, 6 failed**. In an isolated snapshot only,
+substituting `source_variants.canonical_loader_only` with the proposed variant
+produced **972 passed, 1 CARLA test deselected, 3 subtests passed**. This includes
+the negative source/configuration drift guards and all eight parking scenarios.
+No validator, tests, mission values or issue-41 runner binding were changed.
+
+See [machine-readable local validation](local-rebind-validation.json),
+[control-case failure log](local-control-pytest.log),
+[candidate simulation log](local-candidate-pytest.log) and
+[candidate simulation JUnit](local-candidate-regression.xml).
+
+Ruff and the simulator boundary smoke passed for the integrated snapshot. The
+first strict Sphinx build exposed this report's missing toctree entry; the
+documentation fix adds that entry, and the strict build then passed. This simulation is technical evidence for
+designated review, **not** an approved production rebind or a successful remote
+CI run. The production admission record remains unchanged and retains its
+source-inventory blocker until the designated review/publication step.

@@ -1,0 +1,62 @@
+{
+  "status": "SIMULATION_PASSED_PENDING_DESIGNATED_REVIEW",
+  "date_local": "2026-10-28",
+  "timezone": "Australia/Sydney",
+  "integration_revision": "210d81e860bf7ca6ee17a472c6533b424a59932a",
+  "proposal_inventory_verified": true,
+  "inventory_delta": {
+    "added": [
+      "configs/parking_p1.json",
+      "src/autonomy/parking.py",
+      "src/autonomy/parking_contracts.py",
+      "src/obstacle_perception/parking_clearance.py",
+      "src/planning/parking.py",
+      "src/planning/parking_geometry.py",
+      "src/sim_harness/parking.py"
+    ],
+    "removed": [],
+    "changed": [
+      "src/planning/__init__.py"
+    ]
+  },
+  "candidate_scope_sha256": "b0f3edc49691ce9033bc85226a2473854122a9d386f2c822d161064903f40b90",
+  "mutation_in_isolated_snapshot_only": "source_variants.canonical_loader_only",
+  "trusted_record_changed": false,
+  "production_validator_changed": false,
+  "tests_changed": false,
+  "mission_semantics_changed": false,
+  "issue41_runner_binding_changed": false,
+  "live_admission_granted": false,
+  "human_approval_claimed": false,
+  "remote_ci_success_claimed": false,
+  "control_focused_tests": {
+    "passed": 51,
+    "failed": 6,
+    "reason": "Admitted source inventory mismatch"
+  },
+  "candidate_full_offline_tests": {
+    "passed": 972,
+    "failed": 0,
+    "deselected_carla": 1,
+    "subtests_passed": 3,
+    "includes_negative_admission_guards": true,
+    "includes_p1_scenarios": 8
+  },
+  "ruff": "PASS",
+  "boundary_smoke": {
+    "status": "PASS",
+    "core_modules": 90
+  },
+  "strict_sphinx_before_doc_fix": {
+    "status": "FAIL",
+    "reason": "Phase J README missing toctree entry"
+  },
+  "retained_artifact_sha256": {
+    "local-control-pytest.log": "d689c5638cd80edce703b3fc3d41b1accc723e1d74868557e0d505188a7707e4",
+    "local-candidate-pytest.log": "112e79292a04b7a8f52764766f96dd20e44d6dccb7f1aefa5d86276ce4572136",
+    "local-candidate-regression.xml": "02a988a2b00edfb4d254a447a0cfe8c4afc11e71aecb1e8841c8a7cea18fadf3"
+  },
+  "strict_sphinx_after_doc_fix": "PASS",
+  "production_guard_rechecked": "Admitted source inventory mismatch (expected pending designated review)",
+  "actual_checkout_inventory_matches_proposal": true
+}
