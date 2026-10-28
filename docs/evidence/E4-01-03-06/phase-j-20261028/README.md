@@ -1,22 +1,27 @@
-# E4-01/02/03/06 service evidence, 28 October 2026
+# Issue56 offline inference service
 
-AI-assisted with OpenAI Codex. No simulator was started. The adjacent image build
-log, token-free container provenance, server log and black-image real-model smoke
-are actual local executions. Networking was disabled, root filesystem read-only,
-weights mounted read-only, memory capped at 4 GiB, CPUs at two, and PIDs at 128.
-The two-client, duplicate-rejection and repeated-episode smoke passed.
+Optional authenticated FastAPI service with strict protocol/timestamp identity,
+bounded per-session trackers, ordering checks, explicit reset/TTL, health and
+mounted hash-pinned weights. Original contributor history is preserved.
+Canonical client PR105 is included.
 
-Black images contain no labelled target: this is not an accuracy result,
-200-frame deployment benchmark, actual LAN/cloud measurement or CARLA evidence.
-Fake tracking/HTTP fixtures separately test isolation and faults. Full regression
-and exact source-admission proposal are recorded alongside this note before
-publication. The trusted G1 record remains unchanged; designated review/rebind is
-required. Server code is on #56's focused branch, dependent on #105's existing
-client implementation. Original contributor commits are preserved.
+Final validation: 55 focused server/client/control fixtures; 1055 full tests
+passed, 1 CARLA deselected, 3 subtests, one dependency deprecation warning.
+Production admission and 19 negative probes pass following complete production
+review and supported loader-only rebind. Ruff, simulator boundary, strict
+Sphinx and diff checks pass.
 
-Final validation: 45 combined focused server/client tests pass (18 server,
-27 existing-client cases), Ruff and simulator boundary pass (89 core modules),
-and strict Sphinx passes. Full integrated suite: 961 passed, 6 failed,
-1 CARLA deselected, 1 dependency deprecation warning, 3 subtests passed.
-All six failures are the exact-source G1 inventory checks, not waived code
-failures. The trusted record is unchanged; the adjacent proposal awaits review.
+Fresh real-model Docker replay smoke PASSED: two clients, duplicate rejection,
+repeated episode with a new session. Image/source/model/lock identities are
+recorded in final-container-provenance.json. Network disabled, read-only root
+and model mount, 4GiB, 2CPUs, 128PIDs, nonroot and no capabilities. The temporary
+container was stopped and removed. CPU wheels are fully hashed and installed
+offline. Black-image smoke is not accuracy, LAN latency or >=200-frame evidence.
+
+E4-06 failure/recovery and backend-switch fixtures retain HOLD across source/
+session ID changes, including empty detections; no track-ID change releases
+safety state. Issue56's offline criteria are satisfied; #57 real deployment
+comparisons and #58 extension operational acceptance remain open. CARLA stayed
+OFF. Earlier failed source-binding logs/proposals remain historical.
+
+AI-assisted with OpenAI Codex; delegated source review is not new human sign-off.
