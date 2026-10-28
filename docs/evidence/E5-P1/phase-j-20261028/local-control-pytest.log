@@ -31,14 +31,14 @@ __________ test_pr98_rebind_preserves_pr104_values_scope_and_runner ___________
 tests\unit\test_g1_admission.py:188: in test_pr98_rebind_preserves_pr104_values_scope_and_runner
     assert admission.source_inventory(ROOT) == current["source_variants"]["canonical_loader_only"]["source_hashes"]
 E   AssertionError: assert {'src/autodri...de39ee6', ...} == {'src/autodri...de39ee6', ...}
-E     
+E
 E     Omitting 116 identical items, use -vv to show
 E     Differing items:
 E     {'src/planning/__init__.py': '4d580cc8c127273d0d45ac0c71111f764b706e52523b87c12305eb9194b55ff5'} != {'src/planning/__init__.py': '35aac9b8e8e68ea7d66357537002c221dead7bef28a5fb27ffcb29de074b6d3d'}
 E     Left contains 7 more items:
 E     {'configs/parking_p1.json': 'ba4f08fb57cc3f186c990c0b215f0ded8c9992f8ea4957c1b5d9dd3bb4b47f07',
 E      'src/autonomy/parking.py': 'e546f76baa872f9d269f549146cb788d95145f96b32c211feaa7b9054d79f0e5',...
-E     
+E
 E     ...Full output truncated (6 lines hidden), use '-vv' to show
 _ test_warm_freeze_covers_the_full_admitted_age_not_only_the_observed_maximum _
 tests\unit\test_baseline_freeze_review.py:153: in test_warm_freeze_covers_the_full_admitted_age_not_only_the_observed_maximum
