@@ -230,3 +230,9 @@ Offline, 25 October 2026: `ruff check .` passed; `python
 scripts/check_simulator_boundary.py --smoke` passed (86 core modules);
 `python -m pytest` — 887 passed, 1 skipped, 3 subtests passed (55 new LiDAR
 tests); `sphinx-build -W` passed. No live CARLA evidence is claimed.
+
+```{toctree}
+:hidden:
+
+evidence/E2-01-04/phase-j-20261028/README
+```
