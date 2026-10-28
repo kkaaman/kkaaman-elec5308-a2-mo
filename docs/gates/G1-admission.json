@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
   "decision": "PASS",
-  "publication_state": "PR100_REVIEWED_LOADER_ONLY_SOURCE_REBIND",
+  "publication_state": "PR108_REVIEWED_LOADER_ONLY_SOURCE_REBIND",
   "review_process": "Issue38 designated reviewer/owner; final bytes published for team review; later objections tracked separately, not unanimous individual sign-off",
   "review_process_url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/38#issuecomment-6395116981",
   "scope_evidence_acknowledgement_url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/38#issuecomment-6394910845",
-  "final_change_review": "Owner-delegated Codex production-diff review under continuation instruction, 2026-10-28; existing PR100 human feature approval retained; no new human approval fabricated",
+  "final_change_review": "Codex complete production-diff review delegated by explicit continuation instruction, 2026-10-28; no new human sign-off claimed",
   "admitted_profile": "stationary_vehicle_g2_only",
   "operational_scope": "Stationary-vehicle obstacle profile for the G2 stationary-car baseline only; pedestrian operational first-admission range unestablished/deferred.",
   "frozen_values": {
@@ -45,7 +45,6 @@
   "source_variants": {
     "canonical_loader_only": {
       "kind": "loader_only",
-      "scope_sha256": "b0f3edc49691ce9033bc85226a2473854122a9d386f2c822d161064903f40b90",
       "source_hashes": {
         "src/autodrive/perception/lane_dataset.py": "571b6eccd88ab3c83280f852deb0afb4261c302d283b5f0a893354487debbf5f",
         "src/autodrive/perception/lane_inference.py": "5990fa15e3be89f161128bb709c36056aecb2f71417e9b3b6467d53611ecf471",
@@ -80,6 +79,7 @@
         "src/carla_adapter/topology.py": "2777a67403e9e8184e30431dfb0aa318add0b5bd90c9c9e2d86d02844812a372",
         "src/carla_adapter/vehicle.py": "1580fb5124b3bf7fa2d0e46b788e757da6566f17a551bbd24d85a29a23203493",
         "src/carla_adapter/vehicle_geometry.py": "575c7c6f3b0130641b17b2462270a1c2de11707720a3e3cee2ef87b3942b80d1",
+        "src/carla_adapter/weather_experiment.py": "1abe456462d23e83051b67f634f4b4f4ea2c1362950b55ab1591c4f48abfc97c",
         "src/carla_adapter/world.py": "2d844de3e9e8f8cd71023469094891ca4974eb72a008ffb9dc81f036e5561161",
         "src/cloud/__init__.py": "242f884c1c623f616510264091f6cea42351f5cf996467dfda8269063f753330",
         "src/demo_combined_perception.py": "02d2bcc6dabb7ad38fe83561a63962c7f161036a814ba99013e885630fe7139b",
@@ -170,8 +170,10 @@
         "configs/vehicle_steering_sweep.yaml": "5dcab8cba8db5128c203080eb2a4674934d2c95e01d3215cc40aaf5473667e0d",
         "configs/vehicles/tesla_model3.json": "38597106d6ef849f2cd3be31e36aa3fbc521e7b35e6daebd012c7a6fac17e94c",
         "configs/weather/.gitkeep": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "configs/weather/robustness_v1.json": "0bfc4770bfcdb6f5eff0276dd80d8ffbb9b4f296c383d5899e7e4eac87184874",
         "docs/evidence/BL-D-06/sources/depth-calibration.json": "89d64df2475790eea16a0fc2b862a9fcbafdf125c9f3fd5ef3f74453afc9cf5f"
-      }
+      },
+      "scope_sha256": "664c4d019ad385f1a6a6b360bf8a776ed4fa47c157230da3c751853f21984f5c"
     },
     "issue41_runner": {
       "kind": "issue41_runner",
