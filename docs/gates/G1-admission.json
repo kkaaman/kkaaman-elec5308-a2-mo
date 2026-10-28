@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "decision": "PASS",
-  "publication_state": "PR108_REVIEWED_LOADER_ONLY_SOURCE_REBIND",
+  "publication_state": "PR105_REVIEWED_LOADER_ONLY_SOURCE_REBIND",
   "review_process": "Issue38 designated reviewer/owner; final bytes published for team review; later objections tracked separately, not unanimous individual sign-off",
   "review_process_url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/38#issuecomment-6395116981",
   "scope_evidence_acknowledgement_url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/38#issuecomment-6394910845",
@@ -56,6 +56,7 @@
         "src/autonomy/baseline_operation.py": "fb8b4b03f8b03cb68656529d637cf60ad616c518c40cf4b7b67b3dac0a298da5",
         "src/autonomy/detector_contracts.py": "96ca1c33babb9eafd4dc8cf885ff15722f483b12d7b2bffeb10eb3c846a0aee2",
         "src/autonomy/freshness.py": "fd11d2ceda67eb9675031569a90c6abc1ed3f3e1f0e9ae78fe3f48394c2977f8",
+        "src/autonomy/hybrid_detector.py": "d0004950dbcedba73efbd55c0d95866334d930877aec5ae024bbbd4a47321d61",
         "src/autonomy/interfaces.py": "bb56919b50bee998fd3b39a451c857d8f5c9d333595c7633d8e14be483a14dd3",
         "src/autonomy/mission.py": "2fc7dfaeff3fad0893acb3a53d5a764b97d3e23cc6efb234b22896eabdc7c872",
         "src/autonomy/obstacle_policy.py": "03de571deee9fb1a73a18e534b9f9a65b8824050c49e22e8caafd5f0f8076012",
@@ -118,12 +119,16 @@
         "src/obstacle_perception/types.py": "bd4ee59bf6cc0f928e1c25028c0628aa3f3218118d1b054f19a1a36262c75794",
         "src/overlay_enhancements.py": "23959eb8982a18a8dee3ebfabf07a621165952eae846e4df067b62b45163a371",
         "src/perception/__init__.py": "6fa69230d78367ee0f5363e6964c332fd194f1be25d11e48c4d00074afb67fd5",
+        "src/perception/async_detector.py": "8d6051c459299be176c27f033d1fd32ca0645c0e57ff0d14e0c4a325a4aabc20",
         "src/perception/frame_detector.py": "acef9fa4cc86bf40d7fb90fb8df6ded6879966929dd2ad9f9804e8ee3354f65b",
+        "src/perception/hybrid_detector.py": "e3be66a61d5aae9b2b32f003ab47f55b0998d4f78906d882037d2b29230d9a89",
         "src/perception/lane_inference.py": "8b64f02d5406d2b8af6a44cb9d7ef316bc6ea531988a499e9cee6ce5fc5fc623",
         "src/perception/lane_path.py": "749fd408d9a004ee90b1826a6dc0594db30ef1ae4d7a47a97e686513e300c240",
         "src/perception/lane_segmentation.py": "5c1db7a69c4e7c3e1a76a62a50020075580bfe7e0cf63e1b73ed4094aa63bfb6",
         "src/perception/object_detection.py": "130b2fef40353c2ef36b58e1015e2b9cd2fbe5340df6d008049bada79c07b889",
         "src/perception/recorded_detector.py": "35eea3b4ccf94a29e4fc14e4b3ae2320ddfa6f85dbfb03fa19e0567236c5a599",
+        "src/perception/remote_detector.py": "71a53c3f28497b7d58ba8d20b2fd0f02c740a3a5a1ab5a71b0134115fb1c747c",
+        "src/perception/replay_accuracy.py": "88b3e924d71ee5c26fdb12d41a209a98b95d5372d9d865cde9d9582b354327bb",
         "src/perception/types.py": "245e6bb9f318228f1b730c88a38d8c13db7a3be087a4d5713f7b099647399394",
         "src/planning/__init__.py": "4d580cc8c127273d0d45ac0c71111f764b706e52523b87c12305eb9194b55ff5",
         "src/planning/baseline_mission.py": "cf98315d0c182450528da923df1d0acdb2e7333f74c8c368ba3a6d208a60c871",
@@ -173,7 +178,7 @@
         "configs/weather/robustness_v1.json": "0bfc4770bfcdb6f5eff0276dd80d8ffbb9b4f296c383d5899e7e4eac87184874",
         "docs/evidence/BL-D-06/sources/depth-calibration.json": "89d64df2475790eea16a0fc2b862a9fcbafdf125c9f3fd5ef3f74453afc9cf5f"
       },
-      "scope_sha256": "664c4d019ad385f1a6a6b360bf8a776ed4fa47c157230da3c751853f21984f5c"
+      "scope_sha256": "f34a21469f2207fdbefe53eee91b7d3913cb7e522081e25747bddd70021ffea3"
     },
     "issue41_runner": {
       "kind": "issue41_runner",
