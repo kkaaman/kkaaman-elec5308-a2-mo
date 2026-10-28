@@ -16,7 +16,7 @@
     {
       "baseRefName": "main",
       "headRefName": "codex/49-weather-matrix",
-      "headRefOid": "970e16a71817d40c099f18f005ae9d91121103d3",
+      "headRefOid": "dc155a632b224911180f4a636e810e7444f0d43c",
       "isDraft": true,
       "mergeable": "MERGEABLE",
       "number": 108,
@@ -56,7 +56,7 @@
     {
       "baseRefName": "main",
       "headRefName": "feat/E2-01-04-lidar-obstacle-path",
-      "headRefOid": "e4a5f2df5e90c85b6aaada57d5844f3c5c7abe22",
+      "headRefOid": "5991ced76a846c2e93bec67c87fdb059c750a3a9",
       "isDraft": false,
       "mergeable": "MERGEABLE",
       "number": 103,
@@ -76,7 +76,7 @@
     {
       "baseRefName": "main",
       "headRefName": "feat/RV-06-08-TEST-22-lane-monitor-sensor-docs-timing",
-      "headRefOid": "b71e9698c71566d305fb2462358062458d4012b3",
+      "headRefOid": "bc7820112b43107b1c40708229ed39753fe45326",
       "isDraft": false,
       "mergeable": "MERGEABLE",
       "number": 101,
@@ -86,7 +86,7 @@
     {
       "baseRefName": "main",
       "headRefName": "codex/e5-forward-parking",
-      "headRefOid": "f22ef76488b16ca752ac77529715b8747925887a",
+      "headRefOid": "526bf7019f17be23d30d2723a05016979cf12c65",
       "isDraft": false,
       "mergeable": "MERGEABLE",
       "number": 100,
@@ -106,7 +106,7 @@
     {
       "baseRefName": "main",
       "headRefName": "62-report-evidence-documentation",
-      "headRefOid": "e6eafcc46c4d80e332599a7950cfa3249dfd8693",
+      "headRefOid": "8fb688a65b44f6963ef91ab79e62890f20c8c005",
       "isDraft": true,
       "mergeable": "MERGEABLE",
       "number": 88,
@@ -1248,5 +1248,6 @@
       43
     ]
   ],
-  "textual_dependencies_require_manual_review": true
+  "textual_dependencies_require_manual_review": true,
+  "snapshot_note": "Final remote heads refreshed after documentation/concurrent-contributor preservation; this graph commit itself follows its recorded #88 head."
 }
