@@ -123,7 +123,12 @@ def paint(points_ego, cameras, segmentations, config=None, frame_id=None):
         idx = np.flatnonzero(keep)
         if idx.size == 0:
             continue
-        pix = seg.probabilities[v[idx].astype(int), u[idx].astype(int)]
+        sh, sw = seg.probabilities.shape[:2]
+        if (sh, sw) == (h, w):
+            pix = seg.probabilities[v[idx].astype(int), u[idx].astype(int)]
+        else:
+            # Probabilities at a lower resolution than the image: the cell covering the pixel.
+            pix = seg.probabilities[np.minimum((v[idx] * sh / h).astype(int), sh - 1), np.minimum((u[idx] * sw / w).astype(int), sw - 1)]
         probs[idx] += pix
         count[idx] += 1
     painted = count > 0

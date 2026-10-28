@@ -336,7 +336,7 @@ def test_stack_clears_its_spatial_state_when_the_driver_rebuilds_the_frame():
     probs[:, ROAD_CLASSES.index("road")] = 1.0
     stack.driver.grid.add(classified, pose, 0.0)
     stack.road_model.add(classified.xyz, PaintedPoints(probs, np.ones(len(probs), dtype=bool), np.ones(len(probs), dtype=int)), pose, 0.0)
-    stack.following.target_speed(4.0, 2.0, 20.0, 0.0, DT)
+    stack.following.target_speed(4.0, 2.0, 8.0, 0.0, DT)  # close enough to restrict
     stack._segmentations = SegmentedFrame(3, 0.15, [])
     stack.driver.speed_cap_mps = 1.0
     assert stack.tracker.tracks and stack.road_model.evidence["road"].sum() > 0 and stack.following._target is not None
@@ -697,3 +697,73 @@ def test_a_missed_lidar_sweep_keeps_the_cap_in_force():
         step = stack.step(world.frame())
         world.apply(step.command)
         assert stack.driver.speed_cap_mps is None
+
+
+def test_square_by_square_link_components_match_the_pairwise_partition():
+    """Fifth review, F5-05: the link graph's components without listing every linked pair
+    (``_link_components``: points in the same or touching squares joined unmeasured) are
+    those of the brute-force pairwise graph, on scenes with dense walls and blobs (where the
+    squares do the work), sparse far points, and the tight link."""
+    from mapless.detections import _components, _link_components
+
+    rng = np.random.default_rng(11)
+    for trial in range(30):
+        n_sparse = int(rng.integers(1, 250))
+        parts = [np.column_stack((rng.uniform(-40, 40, n_sparse), rng.uniform(-15, 15, n_sparse)))]
+        for _ in range(int(rng.integers(0, 4))):
+            centre = rng.uniform(-20, 20, 2)
+            m = int(rng.integers(20, 300))
+            if rng.random() < 0.5:  # a wall: a dense line
+                t = rng.uniform(0, rng.uniform(2, 12), m)
+                ang = rng.uniform(0, np.pi)
+                pts = centre + np.column_stack((t * np.cos(ang), t * np.sin(ang))) + rng.normal(0, 0.03, (m, 2))
+            else:  # a car-sized blob
+                pts = centre + rng.uniform(-1.0, 1.0, (m, 2)) * np.array([2.2, 0.9])
+            parts.append(pts)
+        xy = np.vstack(parts)
+        n = len(xy)
+        r = np.hypot(xy[:, 0], xy[:, 1])
+        for link in (0.6 + 0.03 * r, 0.3 + 0.01 * r):
+            d = np.hypot(xy[:, None, 0] - xy[None, :, 0], xy[:, None, 1] - xy[None, :, 1])
+            i, j = np.nonzero(np.triu(d <= np.maximum(link[:, None], link[None, :]), 1))
+            assert np.array_equal(_link_components(xy, link), _components(n, i, j)), trial
+
+
+def test_painting_from_probabilities_at_the_models_resolution():
+    """Fifth review, F5-05: the segmenter's probabilities may stay at the model's resolution
+    (no resize to the camera image); painting takes the cell covering each pixel. For an
+    image whose classes change only every 4 pixels the result is the full-resolution one."""
+    from mapless.road_segmentation import Segmentation
+
+    image = grey("front", forward_camera())
+    rng = np.random.default_rng(2)
+    low = rng.random((12, 16, len(ROAD_CLASSES))).astype(np.float32)
+    low /= low.sum(axis=2, keepdims=True)
+    full = np.repeat(np.repeat(low, 4, axis=0), 4, axis=1)
+    pts = np.column_stack((rng.uniform(3, 30, 400), rng.uniform(-6, 6, 400), rng.uniform(-1.5, 0.5, 400)))
+    a = paint(pts, [image], [Segmentation("front", full)])
+    b = paint(pts, [image], [Segmentation("front", low)])
+    assert a.painted.sum() > 50 and np.array_equal(a.painted, b.painted)
+    assert np.allclose(a.probabilities, b.probabilities)
+
+
+def test_semantic_shadow_measures_the_segmenters_agreement_with_the_path():
+    """Fifth review, ML stage 2 (shadow): the share of road among the road-model cells with
+    evidence in the lane band along the path; nothing reads it. Road under the path reads
+    1.0; pavement under the left half of the band reads about half pavement."""
+    from mapless.contracts import LocalRoadModel
+    from mapless.stack import semantic_tube_support
+
+    n, cell = 200, 0.25
+    origin = (-20.0, -25.0)
+    layers = {k: np.zeros((n, n), dtype=np.float32) for k in LocalRoadModel.REQUIRED}
+    layers["road"][:, :] = 2.0
+    model = LocalRoadModel(0.0, origin, cell, layers)
+    path = np.column_stack((np.arange(-2.0, 30.0, 0.5), np.zeros(64)))
+    c = StackConfig()
+    out = semantic_tube_support(model, Pose2D(0.0, 0.0, 0.0), path, c)
+    assert out["with_evidence"] == out["cells"] > 100 and out["road_share"] == 1.0 and out["pavement_share"] == 0.0
+    layers["pavement"][:, int((0.0 - origin[1]) / cell) + 1 :] = 5.0  # left of the path centre: pavement
+    out = semantic_tube_support(LocalRoadModel(0.0, origin, cell, layers), Pose2D(0.0, 0.0, 0.0), path, c)
+    assert 0.3 < out["pavement_share"] < 0.6 and abs(out["road_share"] + out["pavement_share"] - 1.0) < 1e-9
+    assert semantic_tube_support(None, Pose2D(0.0, 0.0, 0.0), path, c) is None

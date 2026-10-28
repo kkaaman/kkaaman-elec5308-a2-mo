@@ -338,6 +338,27 @@ class TerrainGrid:
         out[inside] = result
         return out
 
+    def labels_block(self, i0, i1, j0, j1, max_age_s=None):
+        """``labels`` for the cell block ``[i0:i1, j0:j1]`` (an (i1 - i0) x (j1 - j0) array),
+        on array slices rather than gathered points: the same rule, a quarter of the time
+        for the road model's 45 m window (fifth review, F5-05)."""
+        c = self.config
+        road, raised, obstacle, tall = (a[i0:i1, j0:j1] for a in (self.road, self.raised, self.obstacle, self.tall))
+        is_barrier = (raised >= c.barrier_min_evidence) & (raised >= 0.5 * road) & (tall < 0.5 * raised)
+        is_occupied = ~is_barrier & (obstacle >= c.barrier_min_evidence)
+        is_road = ~is_barrier & ~is_occupied & (road >= c.road_min_evidence)
+        result = np.full(road.shape, CellLabel.UNKNOWN, dtype=np.int8)
+        result[is_road] = CellLabel.ROAD
+        result[is_barrier] = CellLabel.BARRIER
+        result[is_occupied] = CellLabel.OCCUPIED
+        if max_age_s is not None and self.time_s is not None:
+            limit = self.time_s - max_age_s
+            stale = self.seen[i0:i1, j0:j1] < limit
+            stale |= is_barrier & (self.seen_by_class[PointClass.RAISED][i0:i1, j0:j1] < limit)
+            stale |= is_road & ~is_barrier & ~is_occupied & (self.seen_by_class[PointClass.ROAD][i0:i1, j0:j1] < limit)
+            result[stale] = CellLabel.UNKNOWN
+        return result
+
     def tall_evidence(self, xy, max_age_s=None):
         """Obstacle evidence kept as long as kerbs (``tall``) per odometry point, zero outside
         the grid or with no obstacle hit within ``max_age_s``: high where something has stood

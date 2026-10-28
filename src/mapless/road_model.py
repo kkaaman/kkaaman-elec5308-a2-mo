@@ -124,9 +124,7 @@ class RoadModelBuilder:
         i0, i1 = max(0, ci - half), min(n, ci + half + 1)
         j0, j1 = max(0, cj - half), min(n, cj + half + 1)
         if i1 > i0 and j1 > j0:
-            ii, jj = np.meshgrid(np.arange(i0, i1), np.arange(j0, j1), indexing="ij")
-            xy = g.origin + (np.column_stack((ii.ravel(), jj.ravel())) + 0.5) * g.config.cell_m
-            labels[i0:i1, j0:j1] = g.labels(xy, max_age_s=c.terrain_max_age_s).reshape(i1 - i0, j1 - j0)
+            labels[i0:i1, j0:j1] = g.labels_block(i0, i1, j0, j1, max_age_s=c.terrain_max_age_s)
         occupancy = ((labels == CellLabel.BARRIER) | (labels == CellLabel.OCCUPIED)).astype(np.float32)
         free = (labels == CellLabel.ROAD).astype(np.float32)
         unknown = (labels == CellLabel.UNKNOWN).astype(np.float32)

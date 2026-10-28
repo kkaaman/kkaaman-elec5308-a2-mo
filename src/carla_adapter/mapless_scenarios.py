@@ -145,6 +145,12 @@ class ScenarioParams:
     # cuts in once the ego has closed to cut_gap_m (about 8 m bumper to bumper).
     approach_mps: float = 1.0
     cut_gap_m: float = 14.0
+    # Crossing vehicle (M07): waits side_m right of the lane centre (beyond the pavement:
+    # a driveway; more: a side road), crosses at cross_mps, stops clear_beyond_m past the
+    # lane's left edge.
+    side_m: float = 6.0
+    cross_mps: float = 2.0
+    clear_beyond_m: float = 2.0
 
     def record(self):
         return asdict(self)
@@ -323,10 +329,77 @@ class CrossingPedestrian(ScriptedActor):
         return self.cleared()
 
 
+class CrossingVehicle(ScriptedActor):
+    """M07: a car crossing the ego lane from the right, out of a driveway, a car park or a
+    side road (fifth review: F5-02's driveway exit, F5-06's crossing target). It waits
+    ``side_m`` right of the lane centre at ``brake_at_m`` along the lane, facing across it,
+    and moves off at ``cross_mps`` once the ego is within ``trigger_m``. Its speed is held
+    by CARLA's constant-velocity mode, so its velocity (and the radar's Doppler) is real and
+    the kerb does not slow it. It stops once its whole body is ``clear_beyond_m`` past the
+    lane's left edge."""
+
+    def spawn(self, owner, library, waypoints):
+        p = self.params
+        wp = waypoints[min(len(waypoints) - 1, int(round(p.brake_at_m)))]
+        self.cross_wp = wp
+        self.lane_width_m = float(getattr(wp, "lane_width", 3.5))
+        t = wp.transform
+        yaw = math.radians(t.rotation.yaw)
+        right = (-math.sin(yaw), math.cos(yaw))  # CARLA frame: y to the right
+        self.cross_xy = self.core_xy(t.location)
+        rx, ry = self.core_xy(SimpleNamespace(x=t.location.x + right[0], y=t.location.y + right[1], z=t.location.z))
+        self.right_core = (rx - self.cross_xy[0], ry - self.cross_xy[1])
+        t.location.x += p.side_m * right[0]
+        t.location.y += p.side_m * right[1]
+        t.location.z += 0.5
+        t.rotation.yaw = t.rotation.yaw - 90.0  # facing left, across the lane
+        self.actor = owner.try_spawn(library.find(LEAD_CAR), t)
+        if self.actor is None:
+            raise RuntimeError(f"Could not place the crossing car {p.side_m:g} m right of the lane centre: try another --site or --actor-param side_m")
+        self.actor.apply_control(self.carla.VehicleControl(brake=1.0, hand_brake=True))
+        self.stopped = False
+        return self.actor
+
+    def _offset(self):
+        """The car's box centre right of the crossing point's lane centre (m; negative: left)."""
+        truth = _box_truth(self.actor, self.core_xy)
+        x, y = truth["centre_xy"]
+        return (x - self.cross_xy[0]) * self.right_core[0] + (y - self.cross_xy[1]) * self.right_core[1], truth["extent_m"][0]
+
+    def step(self, tick, ego_truth):
+        carla, p = self.carla, self.params
+        if self.stopped:
+            return
+        if not self.started and ego_truth is not None:
+            cx, cy = self.cross_xy
+            ex, ey = ego_truth["rear_axle_xy"]
+            if math.dist((cx, cy), (ex, ey)) <= p.trigger_m:
+                self.started = True
+                self.actor.apply_control(carla.VehicleControl(throttle=0.0, brake=0.0, hand_brake=False))
+                self.actor.enable_constant_velocity(carla.Vector3D(p.cross_mps, 0.0, 0.0))
+        if self.started:
+            offset, half_length = self._offset()
+            if offset <= -(self.lane_width_m / 2 + half_length + p.clear_beyond_m):
+                self.actor.disable_constant_velocity()
+                self.actor.apply_control(carla.VehicleControl(throttle=0.0, brake=1.0, hand_brake=True))
+                self.stopped = True
+
+    def cleared(self):
+        """The car's whole body is a metre past the lane's left edge."""
+        if self.actor is None or not self.started:
+            return False
+        offset, half_length = self._offset()
+        return offset <= -(self.lane_width_m / 2 + half_length + 1.0)
+
+    def hold_ends_run(self):
+        return self.cleared()
+
+
 SCENARIOS = {
     "crossing_pedestrian": (CrossingPedestrian, "M04"),
     "braking_lead": (BrakingLeadCar, "M05"),
     "cut_in": (CutInCar, "M06"),
+    "crossing_vehicle": (CrossingVehicle, "M07"),
 }
 
 
@@ -473,6 +546,7 @@ def score_lead_tracking(log, actor_truths, body, dt_s=0.05, match_m=1.0):
     """
     gaps = separations(log, actor_truths, body)
     errors, gap_errors, support = [], [], {}
+    nees, nis = {}, []
     first = None
     speeds = [a["speed_mps"] if a else None for a in actor_truths]
     cruise = max((v for v in speeds if v is not None), default=None)
@@ -506,6 +580,11 @@ def score_lead_tracking(log, actor_truths, body, dt_s=0.05, match_m=1.0):
             gap_errors.append(lead["gap_m"] - gaps[k])
         key = "+".join(lead.get("support") or ()) or "none"
         support[key] = support.get(key, 0) + 1
+        sigma = lead.get("speed_sigma_mps")
+        if sigma:
+            nees.setdefault(key, []).append(((lead["speed_mps"] - actor["speed_mps"]) / max(sigma, 1e-3)) ** 2)
+        if lead.get("lidar_nis") is not None:
+            nis.append(lead["lidar_nis"])
         if brake_tick is not None and seen_tick is None and k >= brake_tick and lead["speed_mps"] < cruise - 0.5:
             seen_tick = k
     e = np.abs(np.array(errors)) if errors else None
@@ -522,6 +601,12 @@ def score_lead_tracking(log, actor_truths, body, dt_s=0.05, match_m=1.0):
         brake_delay_s=None if brake_tick is None or seen_tick is None else round((seen_tick - brake_tick) * dt_s, 2),
         stopped_before_lead_s=round(stopped_ticks * dt_s, 2),
         support=support,
+        # Is the lead's speed as certain as the filter says (fifth review, F5-04)? The
+        # normalised estimation error squared against the truth, by the sensors behind it
+        # (one degree of freedom: mean about 1, 95% under 3.84 when consistent; much more is
+        # overconfidence), and the LiDAR innovations' (two: about 2).
+        speed_nees={k: dict(ticks=len(v), mean=round(float(np.mean(v)), 2), within_95=round(float(np.mean(np.array(v) <= 3.84)), 2)) for k, v in nees.items()},
+        lidar_nis_mean=round(float(np.mean(nis)), 2) if nis else None,
         ticks=len(errors),
         unmatched_lead_ticks=unmatched,
     )
@@ -656,18 +741,12 @@ def score_behaviour(name, log, actor_truths, body, cruise_mps, dt_s=0.05, gap0_m
             pre_brake_min_speed_after_lead_speed_mps=None if reached is None else round(min(speeds[reached:brake]), 2),
         )
         return out
-    if name == "crossing_pedestrian":
+    if name in ("crossing_pedestrian", "crossing_vehicle"):
+        vehicle = name == "crossing_vehicle"
         first = next((k for k, a in rows if _ahead_in_band(log[k]["truth"], a, body, 1.0)[0]), None)
         if first is None:
-            return out | dict(note="the walker never entered the path")
-        cleared = None
-        for k, a in rows:
-            if k < first:
-                continue
-            inside, dx, dy = _ahead_in_band(log[k]["truth"], a, body, 1.0)
-            if not inside and (dy > body.half_width_m + 1.0 or dx < body.rear_m):
-                cleared = k
-                break
+            return out | dict(note="the " + ("crossing car" if vehicle else "walker") + " never entered the path")
+        cleared = next((k for k, a in rows if k >= first and _cleared_left(log[k]["truth"], a, body, vehicle)), None)
         if cleared is None:
             return out | dict(note="the walker had not cleared the path when the run ended")
         resumed = next((k for k in range(cleared, len(log)) if speeds[k] >= 0.5), None)
@@ -722,6 +801,7 @@ EXERCISE_CONDITION = {
     "braking_lead": "the lead slows by 0.5 m/s or more while within 50 m ahead",
     "crossing_pedestrian": "the walker enters the ego's band (0.5 m margin) within 30 m ahead",
     "cut_in": "the cut-in car becomes the lead while a conflict or yield cap is in force, and the car then closes on it",
+    "crossing_vehicle": "the crossing car enters the ego's band (0.5 m margin) within 30 m ahead",
 }
 
 
@@ -743,12 +823,13 @@ def score_exercised(name, log, actor_truths, body, cruise_mps, dt_s=0.05, handov
             if 0.0 <= cx <= 50.0 and a["speed_mps"] <= top - 0.5:
                 return out | dict(exercised=True, at_s=round(log[k]["time_s"], 2))
         return out | dict(exercised=False, note="the lead did not slow within 50 m ahead")
-    if name == "crossing_pedestrian":
+    if name in ("crossing_pedestrian", "crossing_vehicle"):
         for k, a in rows:
             inside, dx, _ = _ahead_in_band(log[k]["truth"], a, body, 0.5)
             if inside and dx <= 30.0:
                 return out | dict(exercised=True, at_s=round(log[k]["time_s"], 2))
-        return out | dict(exercised=False, note="the walker never entered the ego's band within 30 m")
+        who = "walker" if name == "crossing_pedestrian" else "crossing car"
+        return out | dict(exercised=False, note=f"the {who} never entered the ego's band within 30 m")
     window = int(round(handover_window_s / dt_s))
     first = None
     slower = False
@@ -793,7 +874,16 @@ COMPLETION_REQUIRED = {
     "crossing_pedestrian": "yield while the walker is in the path, then resume and reach the goal",
     "braking_lead": "hold behind the stopped lead for --hold-s with the gap at or above the separation threshold, or reach the goal",
     "cut_in": "a gap at or above the separation threshold once the cut-in is complete, then reach the goal",
+    "crossing_vehicle": "yield while the crossing car is in the path, then resume and reach the goal",
 }
+
+
+def _cleared_left(truth, actor, body, vehicle):
+    """A crossing road user is past the ego's band to the left (its whole body, for a car)
+    or behind the ego."""
+    inside, dx, dy = _ahead_in_band(truth, actor, body, 1.0)
+    reach = body.half_width_m + 1.0 + (actor["extent_m"][0] if vehicle else 0.0)
+    return not inside and (dy > reach or dx < body.rear_m)
 
 
 def _ahead_in_band(truth, actor, body, margin_m):
@@ -815,10 +905,11 @@ def score_completion(name, log, actor_truths, body, end, held_s, min_separation_
     rows = [(row, actor, gap) for row, actor, gap in zip(log, actor_truths, gaps) if actor is not None]
     if not rows:
         return out | dict(passed=None, note="no actor measurements")
-    if name == "crossing_pedestrian":
+    if name in ("crossing_pedestrian", "crossing_vehicle"):
+        vehicle = name == "crossing_vehicle"
         in_path = [i for i, (row, actor, _) in enumerate(rows) if _ahead_in_band(row["truth"], actor, body, 1.0)[0]]
         if not in_path:
-            return out | dict(passed=None, note="the walker never entered the path")
+            return out | dict(passed=None, note="the " + ("crossing car" if vehicle else "walker") + " never entered the path")
         first = in_path[0]
         speeds = [rows[i][0]["truth"]["speed_mps"] for i in in_path]
         # The speed the car was making before it had to react: the fastest in the 3 s
@@ -830,18 +921,13 @@ def score_completion(name, log, actor_truths, body, end, held_s, min_separation_
         yield_speed = min(speeds)
         yielded = yield_speed <= max(0.5, 0.5 * entry_speed)
         # Cleared: left of the body's band after crossing, or already behind the ego.
-        cleared = None
-        for i in range(first, len(rows)):
-            inside, dx, dy = _ahead_in_band(rows[i][0]["truth"], rows[i][1], body, 1.0)
-            if not inside and (dy > body.half_width_m + 1.0 or dx < body.rear_m):
-                cleared = i
-                break
+        cleared = next((i for i in range(first, len(rows)) if _cleared_left(rows[i][0]["truth"], rows[i][1], body, vehicle)), None)
         resumed = cleared is not None and max(r["truth"]["speed_mps"] for r, _, _ in rows[cleared:]) >= 0.5
         out |= dict(entry_speed_mps=entry_speed, yield_speed_mps=yield_speed, yielded=yielded, walker_cleared=cleared is not None, resumed=resumed)
         if cleared is None and not yielded:
             return out | dict(passed=False)
         if cleared is None:
-            return out | dict(passed=None, note="the walker had not cleared the path when the run ended")
+            return out | dict(passed=None, note="the " + ("crossing car" if vehicle else "walker") + " had not cleared the path when the run ended")
         return out | dict(passed=yielded and resumed and reached)
     if name == "cut_in":
         cut = next((i for i, (row, actor, _) in enumerate(rows) if _ahead_in_band(row["truth"], actor, body, 0.5)[0]), None)

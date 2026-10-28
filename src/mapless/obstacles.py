@@ -68,24 +68,33 @@ class PathObstacle:
 
 
 def project_onto_polyline(points, polyline):
-    """Arc length and signed lateral offset (+left) of each point on its nearest segment."""
+    """Arc length and signed lateral offset (+left) of each point on its nearest segment.
+
+    Brute force over every segment, in separate x and y arrays (fifth review, F5-05: the
+    N x M x 2 temporaries cost 4 times as much for the driver's ground points against the
+    corridor line; the arithmetic, and so the result, is the same to the bit)."""
     p = np.asarray(points, dtype=float).reshape(-1, 2)
     line = np.asarray(polyline, dtype=float)
-    a, b = line[:-1], line[1:]
-    d = b - a
-    length2 = np.maximum((d**2).sum(axis=1), 1e-12)
-    rel = p[:, None, :] - a[None, :, :]
-    t = np.clip((rel * d[None]).sum(axis=2) / length2[None], 0.0, 1.0)
-    foot = a[None] + t[..., None] * d[None]
-    dist2 = ((p[:, None, :] - foot) ** 2).sum(axis=2)
+    ax, ay = line[:-1, 0], line[:-1, 1]
+    dx, dy = line[1:, 0] - ax, line[1:, 1] - ay
+    length2 = np.maximum(dx * dx + dy * dy, 1e-12)
+    px, py = p[:, 0:1], p[:, 1:2]
+    rx = px - ax[None, :]
+    ry = py - ay[None, :]
+    t = np.clip((rx * dx + ry * dy) / length2, 0.0, 1.0)
+    ex = px - (ax + t * dx)
+    ey = py - (ay + t * dy)
+    dist2 = ex * ex + ey * ey
     k = np.argmin(dist2, axis=1)
     rows = np.arange(len(p))
-    arcs = np.concatenate(([0.0], np.cumsum(np.sqrt(length2))))
-    s = arcs[k] + t[rows, k] * np.sqrt(length2[k])
-    cross = d[k, 0] * rel[rows, k, 1] - d[k, 1] * rel[rows, k, 0]
+    seg = np.sqrt(length2)
+    arcs = np.concatenate(([0.0], np.cumsum(seg)))
+    tk = t[rows, k]
+    s = arcs[k] + tk * seg[k]
+    cross = dx[k] * ry[rows, k] - dy[k] * rx[rows, k]
     lateral = np.sign(cross) * np.sqrt(dist2[rows, k])
-    beyond = (k == len(a) - 1) & (t[rows, k] >= 1.0)
-    before = (k == 0) & (t[rows, k] <= 0.0)
+    beyond = (k == len(ax) - 1) & (tk >= 1.0)
+    before = (k == 0) & (tk <= 0.0)
     return s, lateral, beyond | before
 
 

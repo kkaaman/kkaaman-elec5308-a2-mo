@@ -312,10 +312,17 @@ def test_worst_case_cap_and_rate_limits():
     assert worst_case_speed_cap(30.0, 0.0, c) > worst_case_speed_cap(10.0, 0.0, c) > 0.0
     assert worst_case_speed_cap(10.0, 5.0, c) > worst_case_speed_cap(10.0, 0.0, c)  # a moving lead leaves more room
     follow = FollowingController(c)
-    speeds = [follow.target_speed(4.0, 0.0, 40.0, 4.0, 0.05) for _ in range(40)]
-    accel = np.diff([0.0] + speeds) / 0.05
+    # Taken on under a stop (held cap 0): rate-limited from rest, and let go at cruise.
+    speeds = [follow.target_speed(4.0, 0.0, 40.0, 4.0, 0.05, held_cap_mps=0.0)]
+    while speeds[-1] is not None and len(speeds) < 400:
+        speeds.append(follow.target_speed(4.0, speeds[-1], 40.0, 4.0, 0.05, held_cap_mps=speeds[-1]))
+    assert speeds[-1] is None and follow.last["mode"] == "watching"
+    accel = np.diff([0.0] + speeds[:-1]) / 0.05
     assert accel.max() <= c.accel_mps2 + 1e-6
     assert np.abs(np.diff(accel)).max() / 0.05 <= c.jerk_mps3 + 1e-6
+    # Without a restriction in force, a lead 40 m ahead at 4 m/s restricts nothing.
+    follow.reset()
+    assert follow.target_speed(4.0, 0.0, 40.0, 4.0, 0.05) is None
     # A standing lead 6 m ahead: the target settles near zero.
     follow.reset()
     for _ in range(60):
@@ -840,6 +847,7 @@ def test_following_a_slower_car_settles_without_stop_go_and_still_brakes_for_the
         for k in range(int(seconds / dt)):
             u = lead(k * dt)
             target = follow.target_speed(6.0, v, gap, u, dt)
+            target = 6.0 if target is None else target
             v = max(0.0, v + (target - v) * dt / lag)
             gap += (u - v) * dt
             speeds.append(v)
@@ -863,6 +871,7 @@ def test_a_slower_car_cutting_in_close_is_slowed_for_not_stopped_for():
     v, gap, speeds, gaps = 1.97, 4.75, [], []
     for _ in range(300):
         target = follow.target_speed(2.0, v, gap, 1.34, 0.05)
+        target = 2.0 if target is None else target
         v = max(0.0, v + (target - v) * 0.05 / 0.3)
         gap += (1.34 - v) * 0.05
         speeds.append(v)
@@ -884,3 +893,56 @@ def test_a_lead_just_past_the_end_of_the_path_line_is_still_the_lead():
     assert lead is not None and lead[0] == pytest.approx(28.0, abs=0.05)
     assert follow.lead_ahead([car(37.0, 0.0)], ORIGIN, line, tube_half_m=1.3) is None
     assert follow.lead_ahead([car(29.0, 3.0)], ORIGIN, line, tube_half_m=1.3) is None
+
+
+def _arc(radius, length, left=True, step=0.5):
+    """A path straight for 10 m, then bending ``left`` (or right) on ``radius``; ``length``
+    of bend. Vehicle frame."""
+    straight = np.column_stack((np.arange(0.0, 10.0, step), np.zeros(int(10.0 / step))))
+    a = np.arange(0.0, length + 1e-9, step) / radius
+    sign = 1.0 if left else -1.0
+    bend = np.column_stack((10.0 + radius * np.sin(a), sign * radius * (1.0 - np.cos(a))))
+    return np.vstack((straight, bend))
+
+
+def _on_arc(radius, s_past_start, left=True):
+    a = s_past_start / radius
+    sign = 1.0 if left else -1.0
+    return 10.0 + radius * math.sin(a), sign * radius * (1.0 - math.cos(a)), sign * a
+
+
+def test_f5_03_the_lead_past_the_lines_end_is_judged_on_the_route_not_a_straight_line():
+    """Fifth review, F5-03: the line was continued straight past its end (8 m). Before a
+    bend the continuation now keeps the bend: the car on the bend 7.5 m past the end is the
+    lead and one straight on is not, either way round. Before a junction the route turns
+    off at, it stops at the turn: a car straight on past the junction is not the lead, one
+    that ended the line before it still is. A lead whose body begins past the end (not what
+    ended the line) is marked uncertain."""
+    follow = FollowingController()
+
+    def car(x, y, yaw=0.0):
+        return ObjectTrack(1, 0.0, [x, y, 0.0, 0.0], np.eye(4), {"car": 1.0}, TrackStatus.CONFIRMED, 20, 0, footprint=(4.5, 1.9, yaw))
+
+    for left in (True, False):
+        line = _arc(10.0, 8.0, left=left)
+        x, y, yaw = _on_arc(10.0, 15.5, left=left)  # 7.5 m past the end, on the bend
+        lead = follow.lead_ahead([car(x, y, yaw)], ORIGIN, line, tube_half_m=1.3)
+        assert lead is not None, left
+        assert follow.continuation["uncertain"] and follow.continuation["extra_m"] == pytest.approx(7.5, abs=0.3)
+        end, d = line[-1], line[-1] - line[-2]
+        u = d / np.hypot(*d)
+        straight_on = end + 7.5 * u
+        assert follow.lead_ahead([car(*straight_on, math.atan2(u[1], u[0]))], ORIGIN, line, tube_half_m=1.3) is None, left
+    # A straight road: the car that ended the line is the lead and not uncertain.
+    line = np.column_stack((np.arange(0.0, 20.5, 0.5), np.zeros(41)))
+    lead = follow.lead_ahead([car(22.0, 0.0)], ORIGIN, line, tube_half_m=1.3)
+    assert lead is not None and not follow.continuation["uncertain"]
+    # The route turns off 22 m ahead: straight on past it is not the car's way.
+    assert follow.lead_ahead([car(26.0, 0.0)], ORIGIN, line, tube_half_m=1.3) is not None
+    assert follow.lead_ahead([car(26.0, 0.0)], ORIGIN, line, tube_half_m=1.3, turn_entry_m=22.0) is None
+    lead = follow.lead_ahead([car(21.5, 0.0)], ORIGIN, line, tube_half_m=1.3, turn_entry_m=22.0)
+    assert lead is not None and not follow.continuation["uncertain"]
+    # The line already reaches the junction: nothing past its end is on the way.
+    assert follow.lead_ahead([car(21.5, 0.0)], ORIGIN, line, tube_half_m=1.3, turn_entry_m=18.0) is None
+    # On the line itself there is no continuation note.
+    assert follow.lead_ahead([car(15.0, 0.0)], ORIGIN, line, tube_half_m=1.3) is not None and follow.continuation is None

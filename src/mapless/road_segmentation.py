@@ -55,7 +55,9 @@ CARLA_TAG_TO_CLASS = {
 
 @dataclass(frozen=True)
 class Segmentation:
-    """Class probabilities for one image: H x W x C float32, C = len(ROAD_CLASSES)."""
+    """Class probabilities for one image: H x W x C float32, C = len(ROAD_CLASSES). They
+    may be at a lower resolution than the image (the model's own): each cell covers the
+    same share of the image, and ``paint`` maps pixel coordinates onto it."""
 
     camera: str
     probabilities: np.ndarray
@@ -195,8 +197,13 @@ class TorchRoadSegmenter(RoadSegmenter):
     to the image.
     """
 
-    def __init__(self, checkpoint_path, device=None, allow_label_mismatch=False):
+    def __init__(self, checkpoint_path, device=None, allow_label_mismatch=False, full_resolution=True):
         import torch  # noqa: PLC0415
+
+        # ``full_resolution=False``: the probabilities at the model's input size, not
+        # resized to the image (fifth review, F5-05: the resize, normalisation and checks
+        # at full camera resolution were most of a tick's painting on the CPU side).
+        self.full_resolution = bool(full_resolution)
 
         path = Path(checkpoint_path)
         if path.is_dir() or "labels" in path.parts:
@@ -228,16 +235,18 @@ class TorchRoadSegmenter(RoadSegmenter):
         with torch.no_grad():
             main, _ = logits(self.model, tensor, self.architecture)
             probs = torch.softmax(main, dim=1)[0].permute(1, 2, 0).cpu().numpy()
+        if not self.full_resolution:
+            return Segmentation(image.name, np.ascontiguousarray(probs, dtype=np.float32))
         probs = cv2.resize(probs, (w, h), interpolation=cv2.INTER_LINEAR)
         probs = probs / np.maximum(probs.sum(axis=2, keepdims=True), 1e-6)
         return Segmentation(image.name, probs.astype(np.float32))
 
 
-def load_segmenter(spec, device=None):
+def load_segmenter(spec, device=None, full_resolution=True):
     """``None`` or ``"constant"`` -> ConstantSegmenter; a path -> TorchRoadSegmenter."""
     if spec in (None, "constant"):
         return ConstantSegmenter()
-    return TorchRoadSegmenter(spec, device)
+    return TorchRoadSegmenter(spec, device, full_resolution=full_resolution)
 
 
 def write_provenance_sidecar(checkpoint_path, provenance):

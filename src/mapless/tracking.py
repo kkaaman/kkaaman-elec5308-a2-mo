@@ -80,6 +80,21 @@ class TrackerConfig:
     # speed once at least motion_min_span_s of history exists (ObjectTrack.recent_speed_mps).
     motion_window_s: float = 1.0
     motion_min_span_s: float = 0.5
+    # Motion coherence (fifth review, 4.3), over the last coherence_window updates once
+    # coherence_min_updates exist: incoherent when the position residual about a
+    # constant-acceleration fit through the measured positions exceeds
+    # coherence_max_residual_m, or when fewer than coherence_min_continuity of the updates
+    # measured it and the residual exceeds coherence_patchy_residual_m (or fewer than
+    # coherence_min_points were measured). Town05 recorded frames (c882389): the followed
+    # car's residual stayed under 0.08 m with every update measured; the building faces
+    # and fence stretches that stopped the car ran 0.1-0.9 m, measured 5-60% of the time.
+    coherence_window: int = 20
+    coherence_min_updates: int = 10
+    coherence_min_continuity: float = 0.6
+    coherence_max_residual_m: float = 0.25
+    coherence_patchy_residual_m: float = 0.1
+    coherence_min_points: int = 4
+    coherence_min_extent_m: float = 2.5  # judged only for tracks this long (StackConfig.vehicle_min_m is 3 m)
     # A sensor supports a track while it has updated it within this time; one LiDAR hit
     # long ago no longer makes a radar-held track "LiDAR-supported" (review of 405b056).
     support_max_age_s: float = 0.5
@@ -167,6 +182,8 @@ class _Track:
     confirmed: bool = False
     origin: np.ndarray | None = None  # first measured position (odometry frame)
     trail: deque = field(default_factory=lambda: deque(maxlen=64))  # (time, x, y) after each update
+    measured: deque = field(default_factory=lambda: deque(maxlen=64))  # (time, x, y, measured this update, footprint long side) after each update
+    nis: deque = field(default_factory=lambda: deque(maxlen=10))  # normalised innovation squared of the last LiDAR position updates
     seen: dict = field(default_factory=dict)  # sensor -> last time it updated the track
     doppler_rejects: int = 0  # consecutive radar updates with the radial speed rejected
     doppler_sign: float = 0.0  # the sign of the last rejected radial-speed innovation
@@ -188,6 +205,78 @@ def _recent_speed(trail, min_span_s):
     (t0, x0, y0), (t1, x1, y1) = trail[0], trail[-1]
     span = t1 - t0
     return None if span < min_span_s else float(math.hypot(x1 - x0, y1 - y0) / span)
+
+
+def covariance_intersection(a, Pa, b, Pb, steps=21):
+    """Fuse two estimates of one quantity whose correlation is unknown: ``P^-1 = w Pa^-1 +
+    (1 - w) Pb^-1`` with ``w`` in [0, 1] minimising ``trace(P)`` (a grid of ``steps``).
+    Never more confident than the evidence allows for any correlation (Julier and
+    Uhlmann, 1997); with ``w`` at 0 or 1 it is the better estimate alone."""
+    ia, ib = np.linalg.inv(Pa), np.linalg.inv(Pb)
+    best = None
+    for w in np.linspace(0.0, 1.0, steps):
+        info = w * ia + (1.0 - w) * ib
+        P = np.linalg.inv(info)
+        if best is None or np.trace(P) < best[0]:
+            best = (float(np.trace(P)), w, P)
+    _, w, P = best
+    x = P @ (w * ia @ np.asarray(a, dtype=float) + (1.0 - w) * ib @ np.asarray(b, dtype=float))
+    return x, P
+
+
+def _with_velocity_block(P, Pv):
+    """``P`` (4 x 4) with its velocity block replaced by ``Pv``, the cross terms kept, halved
+    as often as it takes for the result to stay positive definite (to zero at worst)."""
+    out = np.array(P, dtype=float)
+    out[2:, 2:] = Pv
+    cross = out[:2, 2:].copy()
+    for _ in range(8):
+        out[:2, 2:], out[2:, :2] = cross, cross.T
+        try:
+            np.linalg.cholesky(0.5 * (out + out.T))
+            return 0.5 * (out + out.T)
+        except np.linalg.LinAlgError:
+            cross = 0.5 * cross
+    out[:2, 2:] = out[2:, :2] = 0.0
+    return out
+
+
+def _coherence(measured, config, footprint=None, classes=None):
+    """``motion_coherent`` and ``coherence`` for ObjectTrack from a track's updates (see
+    ``TrackerConfig.coherence_*``). Only for a track that may be vehicle-sized (a footprint
+    ``coherence_min_extent_m`` long, or no footprint and a car or truck class at even
+    odds): the gate is for vehicles, and the fit is a third of tracking's time otherwise."""
+    c = config
+    if footprint is not None:
+        if max(footprint[0], footprint[1]) < c.coherence_min_extent_m:
+            return dict(motion_coherent=None, coherence=None)
+    elif classes is None or float(classes[CLASSES.index("car")] + classes[CLASSES.index("truck")]) < 0.5:
+        return dict(motion_coherent=None, coherence=None)
+    window = list(measured)[-c.coherence_window :]
+    if len(window) < c.coherence_min_updates:
+        return dict(motion_coherent=None, coherence=None)
+    hits = [(t, x, y) for t, x, y, m, _ in window if m]
+    continuity = len(hits) / len(window)
+    lengths = [ext for *_, ext in window if ext is not None]
+    spread = None if len(lengths) < c.coherence_min_points else round(float((max(lengths) - min(lengths)) / max(float(np.median(lengths)), 0.5)), 2)
+    residual = None
+    if len(hits) >= c.coherence_min_points:
+        arr = np.asarray(hits, dtype=float)
+        tt = arr[:, 0] - arr[0, 0]
+        A = np.column_stack((np.ones_like(tt), tt, 0.5 * tt * tt)) if len(hits) >= 5 else np.column_stack((np.ones_like(tt), tt))
+        # Least squares by the normal equations (3 x 3; over at most a second the columns
+        # are well conditioned), not an SVD per track per tick.
+        AtA = A.T @ A
+        try:
+            coef = np.linalg.solve(AtA, A.T @ arr[:, 1:])
+        except np.linalg.LinAlgError:
+            coef = np.linalg.lstsq(A, arr[:, 1:], rcond=None)[0]
+        residual = float(np.sqrt(np.sum((arr[:, 1:] - A @ coef) ** 2) / max(1, len(hits) - A.shape[1])))
+    if residual is None:
+        coherent = continuity >= c.coherence_min_continuity
+    else:
+        coherent = residual <= c.coherence_max_residual_m and (continuity >= c.coherence_min_continuity or residual <= c.coherence_patchy_residual_m)
+    return dict(motion_coherent=bool(coherent), coherence=(round(continuity, 2), None if residual is None else round(residual, 3), spread))
 
 
 def _normalised(probabilities):
@@ -318,6 +407,7 @@ class Tracker:
                     t.P[:2, :2] = np.eye(2) * m.sigma_m**2
                     t.P[:2, 2:] = t.P[2:, :2] = 0.0
                 else:
+                    t.nis.append(float(cost[i, j]))
                     self._kalman(t, z_odo[j] - t.x[:2], H, np.eye(2) * m.sigma_m**2)
                 self._absorb(t, m.class_probabilities, "lidar", time_s)
                 if m.extent is not None:
@@ -440,8 +530,9 @@ class Tracker:
                 t.confirmed = True
             if time_s - t.last_hit_s > c.delete_s:
                 del self.tracks[tid]
-        for track in self.tracks.values():
+        for tid, track in self.tracks.items():
             track.trail.append((time_s, float(track.x[0]), float(track.x[1])))
+            track.measured.append((time_s, float(track.x[0]), float(track.x[1]), tid in hit, max(track.footprint[0], track.footprint[1]) if tid in hit and track.footprint is not None else None))
             while track.trail and time_s - track.trail[0][0] > c.motion_window_s + 1e-9:
                 track.trail.popleft()
         return self.snapshot()
@@ -524,13 +615,15 @@ class Tracker:
 
             src = r if span(r) > span(lt) else lt
             offset = lt.x[:2] - src.x[:2]  # before keep.x is overwritten (keep may be src)
-            # Two estimates of one velocity, from independent measurements: combined.
-            info_r, info_l = np.linalg.inv(r.P[2:, 2:]), np.linalg.inv(lt.P[2:, 2:])
-            Pv = np.linalg.inv(info_r + info_l)
-            v = Pv @ (info_r @ r.x[2:] + info_l @ lt.x[2:])
-            P = np.zeros((4, 4))
-            P[:2, :2], P[2:, 2:] = lt.P[:2, :2], Pv
-            keep.x, keep.P = np.concatenate((lt.x[:2], v)), P
+            # Two estimates of one velocity, combined conservatively: the two tracks may
+            # share information (one object's motion through one filter model, a common
+            # ego-motion), so not as independent ones, which made the merged velocity
+            # look more certain than either (fifth review, F5-04), but by covariance
+            # intersection, consistent whatever their correlation. The LiDAR track's
+            # position and its position-velocity cross terms are kept, scaled down only as
+            # far as the new velocity block needs to stay a covariance.
+            v, Pv = covariance_intersection(r.x[2:], r.P[2:, 2:], lt.x[2:], lt.P[2:, 2:])
+            keep.x, keep.P = np.concatenate((lt.x[:2], v)), _with_velocity_block(lt.P, Pv)
             keep.footprint = lt.footprint
             # The longer history, moved to where the LiDAR has the object: the radar track's
             # trail and origin as they were, a return off its front 1.8 m away, made a parked
@@ -538,6 +631,7 @@ class Tracker:
             # (review of 3e9083a, M6); the fresh LiDAR twin's alone would be too short to show
             # it standing.
             keep.trail, keep.origin, keep.origin_time_s = deque(src.trail, maxlen=src.trail.maxlen), None if src.origin is None else src.origin.copy(), src.origin_time_s
+            keep.measured = deque(src.measured, maxlen=src.measured.maxlen)
             self._shift_history(keep, offset)
             if np.ptp(lt.classes) > np.ptp(keep.classes):
                 keep.classes = lt.classes.copy()
@@ -586,6 +680,7 @@ class Tracker:
         changed, the object did not move."""
         dx, dy = float(offset[0]), float(offset[1])
         track.trail = deque(((ts, x + dx, y + dy) for ts, x, y in track.trail), maxlen=track.trail.maxlen)
+        track.measured = deque(((ts, x + dx, y + dy, m, ext) for ts, x, y, m, ext in track.measured), maxlen=track.measured.maxlen)
         if track.origin is not None:
             track.origin = track.origin + np.array([dx, dy])
 
@@ -683,6 +778,8 @@ class Tracker:
                     travelled_m=None if t.origin is None else float(np.hypot(*(t.x[:2] - t.origin))),
                     recent_speed_mps=_recent_speed(t.trail, c.motion_min_span_s),
                     doppler_rejects=t.doppler_rejects,
+                    **_coherence(t.measured, c, t.footprint, t.classes),
+                    lidar_nis=round(float(np.mean(t.nis)), 2) if t.nis else None,
                 )
             )
         return out

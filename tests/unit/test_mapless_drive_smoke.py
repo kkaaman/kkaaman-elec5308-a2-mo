@@ -386,3 +386,43 @@ def test_step_time_report_gives_the_tail_the_deadline_share_and_each_stage():
     assert out["p50_ms"] == pytest.approx(30.0) and out["max_ms"] == pytest.approx(200.0)
     assert out["over_target_share"] == pytest.approx(0.10) and out["target_ms"] == 50.0
     assert out["stages_ms"]["track"]["p95"] == pytest.approx(9.0) and out["stages_ms"]["driver.classify"]["p50"] == pytest.approx(5.0)
+    # The control path without the optional semantic work (fifth review, F5-05).
+    log = [dict(driver=dict(stack_timing_ms=dict(drive=20.0, detect=10.0, track=8.0, plan=4.0, paint=30.0 if k % 2 else 0.0, **({"road_model": 6.0} if k % 4 == 1 else {})))) for k in range(100)]
+    out = step_time_report(times, log)
+    assert out["control_path_ms"]["p50"] == pytest.approx(42.0) and out["control_path_ms"]["over_target_share"] == 0.0
+    assert out["optional_ms"]["max"] == pytest.approx(36.0)
+
+
+def test_a_run_that_passes_every_gate_without_exercising_its_target_is_not_a_pass():
+    """Fifth review, testing: outcomes are PASS, FAIL or NOT_EXERCISED. Every gate passing
+    on a cut-in run whose car drove off is NOT_EXERCISED, not MEASURED_PASS; a failed gate
+    still fails the run, and an unmeasured one leaves it INCOMPLETE."""
+    from carla_adapter.mapless_drive import (  # noqa: PLC0415
+        FAIL,
+        INCOMPLETE,
+        NOT_EXERCISED,
+        PASS,
+        REPORT,
+        run_status,
+    )
+
+    def c(name, status):
+        return dict(check=name, status=status)
+
+    base = [c("no_collision", PASS), c("behaviour", REPORT)]
+    assert run_status(base + [c("exercised", PASS)]) == "MEASURED_PASS"
+    assert run_status(base + [c("exercised", NOT_EXERCISED)]) == NOT_EXERCISED
+    assert run_status(base + [c("exercised", REPORT)]) == "MEASURED_PASS"
+    assert run_status(base + [c("separation", FAIL), c("exercised", NOT_EXERCISED)]) == "MEASURED_FAIL"
+    assert run_status(base + [c("separation", INCOMPLETE), c("exercised", NOT_EXERCISED)]) == "INCOMPLETE"
+    assert run_status([c("behaviour", REPORT), c("exercised", NOT_EXERCISED)]) == "INCOMPLETE"
+
+
+def test_semantic_shadow_report_summarises_the_agreement_and_is_none_without_it():
+    from carla_adapter.mapless_drive import semantic_shadow_report  # noqa: PLC0415
+
+    log = [dict(driver=dict(semantic_shadow=dict(cells=100, with_evidence=80, road_share=0.9 if k % 10 else 0.2, pavement_share=0.1 if k % 10 else 0.8))) for k in range(40)]
+    log += [dict(driver=dict(semantic_shadow=None)) for _ in range(5)]
+    out = semantic_shadow_report(log)
+    assert out["ticks"] == 40 and out["road_share_median"] == pytest.approx(0.9) and out["mostly_pavement_ticks"] == 4
+    assert semantic_shadow_report([dict(driver={})]) is None
