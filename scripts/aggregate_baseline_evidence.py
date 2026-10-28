@@ -22,7 +22,15 @@ FAULTS = ("hold_occlusion", "hold_missing_depth", "hold_track_expiry",
 def read_json(path):
     def reject(value):
         raise ValueError(f"Nonfinite JSON: {value}")
-    return json.loads(Path(path).read_text(encoding="utf-8-sig"), parse_constant=reject)
+    def unique(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError(f"Duplicate JSON key: {key}")
+            result[key] = value
+        return result
+    return json.loads(Path(path).read_text(encoding="utf-8-sig"), parse_constant=reject,
+                      object_pairs_hook=unique)
 
 
 def artifact_errors(artifacts, base):
@@ -138,12 +146,20 @@ def aggregate(register, definitions, base):
                           "blocked": sum(r["state"] == "BLOCKED" for r in rows),
                           "metrics": metric_summary})
     faults = []
+    fault_ids = [f.get("run_id") for f in register["fault_tests"]]
+    supplied_fault_ids = [run_id for run_id in fault_ids if run_id]
+    if len(supplied_fault_ids) != len(set(supplied_fault_ids)) or set(supplied_fault_ids) & set(ids):
+        raise ValueError("Fault run IDs must be unique across the entire register")
     for name in FAULTS:
         rows = [f for f in register["fault_tests"] if f["test"] == name]
-        ready = bool(rows) and all(f.get("outcome") == "meets" and f.get("reviewer")
+        ready = bool(rows) and all(f.get("run_id") and f.get("outcome") == "meets" and f.get("reviewer")
                                   and f.get("review_record") and f.get("observations")
                                   and f.get("candidate_commit") == register.get("candidate_commit")
                                   and bool(register.get("candidate_commit"))
+                                  and f.get("configuration_sha256") == register.get("configuration_sha256")
+                                  and bool(register.get("configuration_sha256"))
+                                  and f.get("environment") == "live_carla"
+                                  and f.get("complete_stack") is True
                                   and not artifact_errors(f.get("artifacts"), base) for f in rows)
         faults.append({"test": name, "state": "READY_FOR_REVIEW" if ready else "BLOCKED",
                        "attempts": rows})

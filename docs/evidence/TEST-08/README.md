@@ -99,7 +99,8 @@ replace any of the 30 scenario trials:
   command reuse, and documented restart/goal behaviour.
 
 Append every fault attempt with `test` (one identifier above), unique `run_id`,
-`candidate_commit`, `outcome` (`meets`, `failed`, `aborted` or `blocked`),
+`candidate_commit`, `configuration_sha256`, `environment` (`live_carla`),
+`complete_stack` (`true`), `outcome` (`meets`, `failed`, `aborted` or `blocked`),
 `observations` (actual measured behaviour and limits), `reviewer`, `review_record`
 and `artifacts` in the same path/hash format. All attempts remain visible in the
 JSON and Markdown. Reviewers must validate fault-specific assertions from logs;
@@ -130,3 +131,21 @@ failures are resolved with retained history, and required reviews are recorded.
 
 AI assistance: ChatGPT/Codex prepared the aggregation scaffold and automated
 checks. The user and task owners must run and review actual acceptance trials.
+
+## Continuation provenance hardening
+
+The preparation scope is complete independently of collecting the live results.
+Fault records now require unique run IDs across the whole register, the same
+configuration identity and live complete-stack provenance. Missing/mixed fields
+block readiness; duplicate IDs and ambiguous duplicate JSON fields are refused.
+All original scenario thresholds, failed-attempt retention and S4 N/A remain
+unchanged. This does not fill any missing acceptance slot or close #47.
+
+Final scaffold validation: 16 focused tests and **1000 full-suite tests** pass
+(1 CARLA deselected, 3 subtests), as do production admission, 19 negative probes,
+Ruff, simulator boundary (90 core modules), strict Sphinx and diff checks. The
+actual empty register CLI returns BLOCKED with 30 missing slots. The production
+source inventory is identical to canonical main; no rebind or operational
+admission change is required. Logs/review are in `continuation-validation/`.
+AI-assisted with Codex under explicit continuation authority; no human or live
+acceptance evidence is fabricated.

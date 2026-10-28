@@ -121,11 +121,48 @@ class AggregationTests(unittest.TestCase):
     def test_complete_register_requires_fault_evidence_and_never_grants_pass(self):
         self.register["attempts"] = [self.attempt(s, t) for s in MODULE.SCENARIOS for t in range(1, 6)]
         self.assertEqual(self.report()["state"], "BLOCKED")
-        self.register["fault_tests"] = [dict(test=f, outcome="meets", reviewer="owner",
+        self.register["fault_tests"] = [dict(test=f, run_id=f"fault-{f}", outcome="meets", reviewer="owner",
+                                             configuration_sha256=self.register["configuration_sha256"],
+                                             environment="live_carla", complete_stack=True,
                                              review_record="review", observations="latched stop checked",
                                              candidate_commit=self.register["candidate_commit"],
                                              artifacts=self.artifacts) for f in MODULE.FAULTS]
         self.assertEqual(self.report()["state"], "READY_FOR_REVIEW")
+
+
+    def ready_register(self):
+        self.register["attempts"] = [self.attempt(s, t) for s in MODULE.SCENARIOS for t in range(1, 6)]
+        self.register["fault_tests"] = [dict(test=f,run_id=f"fault-{f}",outcome="meets",
+            reviewer="owner",review_record="review",observations="latched stop checked",
+            candidate_commit=self.register["candidate_commit"],
+            configuration_sha256=self.register["configuration_sha256"],
+            environment="live_carla",complete_stack=True,artifacts=self.artifacts) for f in MODULE.FAULTS]
+
+    def test_fault_missing_or_different_configuration_blocks(self):
+        for value in (None, "c"*64):
+            self.ready_register()
+            self.register["fault_tests"][0]["configuration_sha256"] = value
+            self.assertEqual(self.report()["state"], "BLOCKED")
+
+    def test_fault_missing_id_or_nonlive_stack_blocks(self):
+        for field, value in (("run_id", None), ("environment", "offline"), ("complete_stack", False)):
+            self.ready_register()
+            self.register["fault_tests"][0][field] = value
+            self.assertEqual(self.report()["state"], "BLOCKED")
+
+    def test_fault_run_ids_must_be_unique_and_not_alias_scenario_runs(self):
+        for alias_scenario in (False, True):
+            self.ready_register()
+            self.register["fault_tests"][1]["run_id"] = (self.register["attempts"][0]["run_id"]
+                if alias_scenario else self.register["fault_tests"][0]["run_id"])
+            with self.assertRaisesRegex(ValueError, "unique"):
+                self.report()
+
+    def test_duplicate_json_fields_are_not_silently_overwritten(self):
+        path = self.base / "ambiguous.json"
+        path.write_text('{"schema": 1, "schema": 2}')
+        with self.assertRaisesRegex(ValueError, "Duplicate"):
+            MODULE.read_json(path)
 
 
 if __name__ == "__main__":
