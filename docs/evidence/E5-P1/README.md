@@ -6,7 +6,7 @@ CARLA parking is **NOT RUN**; G1 admission is unchanged. See the
 
 The acceptance runner retains every case, streamed control samples, immutable
 plans, source/configuration hashes and summary metrics under `runs/P1/` and in
-the `offline-p1-acceptance` CI artifact. Human feature review remains pending.
+the `offline-p1-acceptance` CI artifact. Feature review was approved on PR #100; this evidence remains offline harness-scoped.
 
 ## Verified results — 25 October 2026
 
