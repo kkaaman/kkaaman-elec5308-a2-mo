@@ -50,9 +50,25 @@ class JpegHttpBackend:
             raise ValueError("Nonempty run_id required")
         self.last_timing = {}
 
+    def _release_session(self):
+        if self.session_id is None:
+            return
+        headers = {"Content-Type":"application/json", "X-Run-Id":self.run_id,
+                   "X-Session-Id":self.session_id}
+        if self.token:
+            headers["Authorization"] = "Bearer " + self.token
+        request = urllib.request.Request(self.endpoint.rsplit("/",1)[0]+"/reset", b"{}", headers)
+        try:
+            with urllib.request.urlopen(request, timeout=self.timeout_s) as response:
+                response.read(self.max_bytes + 1)
+        except (OSError, ValueError) as error:
+            self.last_reset_error = type(error).__name__
+
     def reset(self, *, episode_id):
+        self._release_session()
         self.episode_id = episode_id
         self.session_id = str(uuid.uuid4())
+        self.session_started = False
 
     def detect(self, frame):
         from PIL import Image
@@ -71,6 +87,8 @@ class JpegHttpBackend:
         encoded = time.monotonic()
         headers = {"Content-Type": "application/json", "X-Run-Id": self.run_id,
                    "X-Session-Id": self.session_id, "X-Send-Monotonic-S": str(encoded)}
+        headers["X-Session-Start"] = "false" if self.session_started else "true"
+        self.session_started = True
         if frame.capture_started_monotonic_s is not None:
             headers["X-Capture-Monotonic-S"] = str(frame.capture_started_monotonic_s)
         if self.token:
@@ -122,6 +140,8 @@ class JpegHttpBackend:
         return result
 
     def close(self):
+        self._release_session()
+        self.session_id = None
         self.episode_id = None
 
 

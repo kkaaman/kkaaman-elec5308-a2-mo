@@ -176,6 +176,15 @@ is sent as a bearer credential; never include it in URLs or evidence logs.
 `X-Capture-Monotonic-S` records the actual client capture start when available.
 These two clocks share a client domain. The server never subtracts either from
 its own monotonic clock. Server duration is measured entirely on the server.
-No legacy server that omits session echoes is silently accepted. Session reset
-is local/nonblocking: old server state expires independently rather than doing
-HTTP on the control thread. Service implementation/packaging belongs to #56.
+No legacy server that omits session echoes is silently accepted. `AsyncDetector.reset` remains nonblocking. Best-effort old-session cleanup
+HTTP occurs only when its worker applies the backend reset/close, with the
+configured transport timeout; failed cleanup leaves bounded TTL expiration.
+The initial request explicitly starts a session. Expired/failed server sessions
+cannot silently restart tracker IDs: they return unavailable until an explicit
+reset. No HTTP occurs on the control thread. Service implementation/packaging belongs to #56.
+
+```{toctree}
+:hidden:
+
+evidence/E4-04-05-07-09/phase-j-20261028/README
+```

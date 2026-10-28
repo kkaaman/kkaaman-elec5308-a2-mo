@@ -66,6 +66,11 @@ def server(monkeypatch):
     class Handler(BaseHTTPRequestHandler):
         def do_POST(self):
             request = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+            if self.path.endswith("/reset"):
+                self.send_response(200)
+                self.end_headers()
+                self.wfile.write(b'{}')
+                return
             state["requests"].append(request)
             image = Image.open(io.BytesIO(base64.b64decode(request.pop("jpeg_base64"))))
             assert image.size == (request["image_width"], request["image_height"])
