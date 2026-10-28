@@ -68,6 +68,12 @@ contents and task owners until the code lands.
 
 .. automodule:: cloud
 
+Optional inference service
+--------------------------
+
+.. automodule:: cloud.server
+   :members:
+
 Optional hybrid control adapter
 -------------------------------
 

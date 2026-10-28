@@ -1,13 +1,6 @@
-"""Optional hybrid inference backend (extension E4). Off by default.
+"""Optional inference service, separate from the local baseline.
 
-Planned modules:
-
-* ``remote_detector.py``: nonblocking HTTP/JPEG detector client
-  (E4-04 Saviour)
-* ``hybrid_detector.py``: concurrent local fallback and source selection
-  (E4-05 Saviour)
-* ``server/``: inference server with isolated tracker sessions and a
-  Dockerfile (E4-02, E4-03 Ricky)
-
-The local baseline must run with this package unused and no network.
+``cloud.server`` owns the bounded authenticated FastAPI service (issue #56).
+The existing client and arbitration live in ``perception.remote_detector`` and
+``perception.hybrid_detector`` (issue #57). Baseline use enables none of them.
 """

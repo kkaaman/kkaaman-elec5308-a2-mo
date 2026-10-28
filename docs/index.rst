@@ -74,4 +74,5 @@ demonstration for the autonomous perception and navigation library.
 .. toctree::
    :maxdepth: 1
 
+   inference_service
    weather_experiment

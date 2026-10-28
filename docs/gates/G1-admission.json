@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "decision": "PASS",
-  "publication_state": "PR105_REVIEWED_LOADER_ONLY_SOURCE_REBIND",
+  "publication_state": "PR109_REVIEWED_LOADER_ONLY_SOURCE_REBIND",
   "review_process": "Issue38 designated reviewer/owner; final bytes published for team review; later objections tracked separately, not unanimous individual sign-off",
   "review_process_url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/38#issuecomment-6395116981",
   "scope_evidence_acknowledgement_url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/38#issuecomment-6394910845",
@@ -82,7 +82,8 @@
         "src/carla_adapter/vehicle_geometry.py": "575c7c6f3b0130641b17b2462270a1c2de11707720a3e3cee2ef87b3942b80d1",
         "src/carla_adapter/weather_experiment.py": "1abe456462d23e83051b67f634f4b4f4ea2c1362950b55ab1591c4f48abfc97c",
         "src/carla_adapter/world.py": "2d844de3e9e8f8cd71023469094891ca4974eb72a008ffb9dc81f036e5561161",
-        "src/cloud/__init__.py": "242f884c1c623f616510264091f6cea42351f5cf996467dfda8269063f753330",
+        "src/cloud/__init__.py": "b5907b3e456935e8fc2553ce289f0254eba06df72e0f7bc17e1cb0fa2fb0c99b",
+        "src/cloud/server.py": "4e4089ee857b12c24f54ed56370da249e0f7d08822d1efa8ccd308019ea8820d",
         "src/demo_combined_perception.py": "02d2bcc6dabb7ad38fe83561a63962c7f161036a814ba99013e885630fe7139b",
         "src/demo_fused_lane_following.py": "4f722fa60c106e4f2dda0f28ffaddcf23d95ad2d9504a391fc7f42a53c5d426b",
         "src/evaluation/__init__.py": "28333b7196202e76ae1acf58a45275f2504700077a819926085791f2a5f161b7",
@@ -178,7 +179,7 @@
         "configs/weather/robustness_v1.json": "0bfc4770bfcdb6f5eff0276dd80d8ffbb9b4f296c383d5899e7e4eac87184874",
         "docs/evidence/BL-D-06/sources/depth-calibration.json": "89d64df2475790eea16a0fc2b862a9fcbafdf125c9f3fd5ef3f74453afc9cf5f"
       },
-      "scope_sha256": "f34a21469f2207fdbefe53eee91b7d3913cb7e522081e25747bddd70021ffea3"
+      "scope_sha256": "e036881ecd771d85698915075c3f6c5c7134a36de30d02f62cc3418ceff32924"
     },
     "issue41_runner": {
       "kind": "issue41_runner",
