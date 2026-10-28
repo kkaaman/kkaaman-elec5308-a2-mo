@@ -447,3 +447,82 @@ def test_a_hold_just_past_a_short_corridor_clears_when_its_region_is_seen_empty(
     for k in range(40, 80):  # gone: its strip shows ground, and the line is clear to its end
         plan = p.plan(corridor, PathObservation(None, 6.3, ground(along=(0.0, 12.0))), None, k * DT)
     assert plan.stop_reason != "obstacle_hold"
+
+
+# -- third review (e93154f): hold identity and explainability (F2) ----------------------
+def test_r2_two_obstacles_at_a_similar_distance_keep_their_own_holds():
+    """Third review, R2: an obstacle on each side of the tube, 1 m apart along it. Matched
+    by distance alone, the second was merged into the first's hold and the stop moved 1 m
+    on, towards the first, which was only missed and still stood there."""
+    corridor, p = straight(), planner()
+    first = PathObstacle(8.0, 0.6, 30, 0.4, 0.8)
+    second = PathObstacle(9.0, -0.6, 30, -0.8, -0.4)
+    p.plan(corridor, PathObservation(first, 8.0), None, 0.0)
+    # The first is missed (still there: its region in shadow), the second is seen.
+    plan = p.plan(corridor, PathObservation(second, 8.0, ground(hole=(8.0, 14.0, 0.2, 1.0))), None, DT)
+    assert len(plan.holds) == 2 and len({h["id"] for h in plan.holds}) == 2
+    assert abs(plan.stop_distance_m - held_stop(8.0)) < 0.05 and plan.stop_reason == "obstacle_hold"
+    held = next(h for h in plan.holds if h["near_m"] < 8.5)
+    assert held["state"] == "unknown" and held["waiting_for"] != "detected this tick"
+    # Both gone: each hold is cleared on its own region, and both are released.
+    for k in range(2, 60):
+        plan = p.plan(corridor, PathObservation(None, 15.0, ground()), None, k * DT)
+    assert plan.holds == () and plan.stop_reason == ""
+
+
+def test_r3_a_walker_gone_with_only_sparse_ground_in_view_stays_unknown():
+    """Third review, R3: the walker has crossed out, but the LiDAR's rings fall either side
+    of its region (3 m apart at range): no ground there is not clearance. The hold stays
+    UNKNOWN, says it is waiting for ground across its region, and releases once a ring
+    sweeps the region."""
+    corridor, p = straight(), planner()
+    p.plan(corridor, PathObservation(PathObstacle(12.0, 0.0, 20, -0.25, 0.25), 12.0), None, 0.0)
+    rings = np.vstack([ground(along=(a, a + 0.1)) for a in (6.0, 9.0, 15.0, 18.0)])
+    for k in range(1, 100):
+        plan = p.plan(corridor, PathObservation(None, 20.0, rings), None, k * DT)
+        assert plan.stop_reason == "obstacle_hold" and plan.hold_state == "unknown"
+    report = plan.holds[0]
+    assert report["waiting_for"] == "ground across its region" and report["region"].startswith("0/")
+    swept = np.vstack((rings, ground(along=(12.0, 12.8))))
+    released = None
+    for k in range(100, 140):
+        plan = p.plan(corridor, PathObservation(None, 20.0, swept), None, k * DT)
+        if plan.stop_reason == "" and released is None:
+            released = k * DT
+    assert released is not None and released - 100 * DT >= PlannerConfig().resume_clear_s - 1e-9
+
+
+def test_r7_a_refused_plan_still_limits_the_speed_of_the_kept_trajectory():
+    """Third review, R7: when this tick's plan is refused (here: its path starts 2.5 m off
+    the car), the controller keeps the last accepted trajectory, planned before whatever
+    this tick's plan stops for. That one is now driven no faster than the refused plan
+    allows where the car is: a refused stop brakes at once, not after the kept
+    trajectory's 0.5 s of validity."""
+    from mapless.planner import Plan
+    from navigation_control.local import LocalTrajectory, TrajectorySample
+
+    kerb = KerbLine([Straight(250)])
+    world = MaplessRoadWorld(RoadScene(kerb), SUITE)
+    driver = MaplessDriver(SUITE, world.route(120.0), DriverConfig(body=BODY, control=control(), corridor=CorridorConfig()), DT)
+    plan_now = driver.planner.plan
+
+    def refused_stop(*args, **kwargs):
+        plan = plan_now(*args, **kwargs)
+        if plan.trajectory is None:
+            return plan
+        moved = tuple(TrajectorySample(s.x_m, s.y_m + 2.5, 0.0) for s in plan.trajectory.samples)
+        return Plan(LocalTrajectory(moved, plan.trajectory.created_s, plan.trajectory.valid_until_s), "obstacle", 3.0, plan.curve_speed_mps, "blocked")
+
+    steps = []
+    for k in range(560):
+        if k == 500:
+            assert steps[-1].mode is DriveMode.DRIVING and world.truth().speed_mps > 1.0
+            driver.planner.plan = refused_stop
+        step = driver.step(world.frame())
+        steps.append(step)
+        world.apply(step.command)
+    after = steps[500:]
+    assert all(not s.diagnostics.get("trajectory_accepted", True) for s in after if s.mode is DriveMode.DRIVING or s.mode is DriveMode.STOPPING)
+    assert after[0].diagnostics["refused_plan_limit_mps"] == 0.0
+    assert all(s.command.throttle == 0.0 for s in after)
+    assert after[0].diagnostics["target_speed_mps"] == 0.0

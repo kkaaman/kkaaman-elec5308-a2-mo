@@ -374,3 +374,15 @@ def test_site_search_explains_why_nothing_fits():
     assert census["longest_rightmost_runs_m"][0]["length_m"] == 41  # 50 m run, 8 m clearance, 1 m steps
     sites, census = drive.find_sites(carla, fake_map, "straight", 30.0)
     assert len(sites) == 1 and sites[0]["kerb_source"] == "sidewalk" and sites[0]["kerb_distance_m"] == LANE_WIDTH / 2
+
+
+# Third external review (e93154f), section 6: p95, the worst case and each stage are first-class.
+def test_step_time_report_gives_the_tail_the_deadline_share_and_each_stage():
+    times = [0.03] * 90 + [0.08] * 9 + [0.2]
+    log = [dict(driver=dict(stack_timing_ms=dict(drive=20.0, track=float(k % 10)), driver_timing_ms=dict(classify=5.0))) for k in range(100)]
+    from carla_adapter.mapless_drive import step_time_report
+
+    out = step_time_report(times, log)
+    assert out["p50_ms"] == pytest.approx(30.0) and out["max_ms"] == pytest.approx(200.0)
+    assert out["over_target_share"] == pytest.approx(0.10) and out["target_ms"] == 50.0
+    assert out["stages_ms"]["track"]["p95"] == pytest.approx(9.0) and out["stages_ms"]["driver.classify"]["p50"] == pytest.approx(5.0)

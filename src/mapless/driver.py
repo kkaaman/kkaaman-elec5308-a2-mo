@@ -35,6 +35,7 @@ the route and the car's own body and controller geometry.
 """
 
 import math
+import time
 from dataclasses import dataclass, field
 from enum import Enum
 
@@ -111,6 +112,21 @@ class DriverStep:
 
 
 HOLD = 0.6  # brake while holding at standstill or faulted
+
+
+def refused_speed_limit(trajectory, state, lookahead_m=2.0):
+    """The speed a refused plan allows where the car is: its lowest sample speed from the
+    sample nearest the car to ``lookahead_m`` beyond it (a stop the plan holds near the
+    car reads 0). The controller drives a kept trajectory no faster (third review, R7)."""
+    samples = trajectory.samples
+    if not samples:
+        return 0.0
+    xy = np.array([[smp.x_m, smp.y_m] for smp in samples])
+    speeds = np.array([smp.speed_mps for smp in samples])
+    arcs = np.concatenate(([0.0], np.cumsum(np.hypot(*np.diff(xy, axis=0).T)))) if len(xy) > 1 else np.zeros(1)
+    nearest = int(np.argmin(np.hypot(xy[:, 0] - state.x_m, xy[:, 1] - state.y_m)))
+    window = (arcs >= arcs[nearest]) & (arcs <= arcs[nearest] + lookahead_m)
+    return float(speeds[window].min())
 
 
 class MaplessDriver:
@@ -201,17 +217,29 @@ class MaplessDriver:
         t = frame.sim_time_s
         dt = self.dt_s if self._last_time is None else max(1e-3, t - self._last_time)
         self._last_time = t
+        # Wall-clock per stage, for the run's timing report (third review: profile before
+        # optimising). Laps are kept in the diagnostics, early returns included.
+        timing, clock = {}, [time.perf_counter()]
+
+        def lap(name):
+            now = time.perf_counter()
+            timing[name] = round((now - clock[0]) * 1000, 2)
+            clock[0] = now
+
         self.health.update(frame)
         motion = self.ego.update(frame)
+        lap("ego")
         if not motion.stationary:
             self._moving_t = t  # before any early return: a fault while moving must not stretch a later standstill's freshness
         classified = None
         if frame.status_of(self.lidar).state is SensorState.OK:
             classified = classify_sweep(frame.lidar(self.lidar).xyz, c.body, c.terrain)
+        lap("classify")
         # For the stack around the driver (G2/G3): this tick's inputs, read after step().
         self.last_motion, self.last_classified, self.last_plan, self.last_corridor = motion, classified, None, None
         if classified is not None and motion.odometry_trusted and not self._rebuild:
             self.grid.add(classified, motion.odometry, t, stationary=motion.stationary)  # never placed with a broken frame
+        lap("grid")
         if not motion.odometry_trusted:
             if not self._rebuild:
                 self._rebuild_since = t
@@ -231,6 +259,7 @@ class MaplessDriver:
             rebuilding=self._rebuild,
             keep_right_m=self.corridor.keep_right_m,
             keep_right_source=self.corridor.keep_right_source,
+            driver_timing_ms=timing,
         )
         if self._finished:
             return self._brake(DriveMode.FINISHED, "goal reached", d)
@@ -262,6 +291,7 @@ class MaplessDriver:
             if self._still_odo is not None and float(np.hypot(*(here - self._still_odo))) > c.still_credit_m:
                 self._still_credit, self._still_odo = 0.0, None
         corridor = self.corridor.update(self.grid, motion.odometry, t)
+        lap("corridor")
         d.update(
             corridor_ok=corridor.ok,
             corridor_reason=corridor.reason,
@@ -526,14 +556,17 @@ class MaplessDriver:
                 else:
                     d.update(turn_gate=note)
                 d.update(turn_gate_entry_m=round(gate.entry_m, 2), turn_gate_required_s=round(gate.required_s, 1), turn_gate_cells=gate.cells)
+        lap("junction")
         if not corridor.ok:
             return self._fault(f"no corridor: {corridor.reason}", d, motion, t, dt)
         observation = None if classified is None else observe_path(classified, corridor, c.body, c.obstacles)
+        lap("obstacles")
         obstacle = None if observation is None else observation.obstacle
         goal_body = None
         if guidance.index == len(self.progress.xy) - 1 and guidance.goal_distance_m < corridor.valid_length_m + 5:
             goal_body = motion.odometry.to_body(motion.route_to_odometry(np.array([self.progress.xy[-1]])))[0]
         plan = self.planner.plan(corridor, observation, goal_body, t, hold_at_m=hold_at, speed_cap_mps=self.speed_cap_mps)
+        lap("plan")
         self.last_plan, self.last_corridor = plan, corridor  # the path planned along this tick (a turn's, in a turn)
         d.update(
             obstacle_m=None if obstacle is None else obstacle.distance_m,
@@ -543,6 +576,7 @@ class MaplessDriver:
             hold_state=plan.hold_state,
             hold_note=plan.hold_note or None,
             holds=self.planner.hold_count,
+            hold_reports=list(plan.holds) or None,  # each hold's id and release prerequisites (F2)
             stop_reason=plan.stop_reason,
             stop_distance_m=plan.stop_distance_m if math.isfinite(plan.stop_distance_m) else None,
         )
@@ -566,10 +600,19 @@ class MaplessDriver:
             return self._fault("no plan", d, motion, t, dt)
         state = VehicleState(motion.odometry.x_m, motion.odometry.y_m, motion.odometry.yaw_rad, motion.speed_mps)
         acceptance = self.controller.set_local_trajectory(plan.trajectory, state, t)
-        result = self.controller.update(state, t, dt)
+        limit = math.inf
+        if not acceptance.accepted:
+            # This tick's plan was refused (it starts off the car, or has expired), and the
+            # controller keeps the last one it accepted: planned before this tick's
+            # obstacles, holds and caps. That one is driven no faster than the refused plan
+            # allows where the car is (third review, R7).
+            limit = refused_speed_limit(plan.trajectory, state, self.controller.config.speed_lookahead_m)
+        result = self.controller.update(state, t, dt, speed_limit_mps=limit)
+        lap("control")
         d.update(
             trajectory_accepted=acceptance.accepted,
             trajectory_reason=acceptance.reason,
+            refused_plan_limit_mps=None if math.isinf(limit) else round(limit, 2),
             control_status=result.status.value,
             target_speed_mps=None if result.diagnostics is None else result.diagnostics.target_speed_mps,
             cross_track_m=None if result.diagnostics is None else result.diagnostics.cross_track_error_m,

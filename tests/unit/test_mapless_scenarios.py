@@ -279,3 +279,168 @@ def test_lead_tracking_reports_speed_error_brake_delay_and_false_stops():
     assert out["stopped_before_lead_s"] == pytest.approx(1.0, abs=0.06)
     assert out["gap_error_median_m"] == pytest.approx(-0.5, abs=0.05)
     assert out["support"] == {"lidar+radar": 280} and out["speed_error_rmse_mps"] < 0.5
+
+
+# -- third review (e93154f): actor matching and driving quality ------------------------------
+def following_run(false_lead=range(100, 141), missed=range(160, 170), switch_at=200, fragments=range(220, 230)):
+    """Ego at 3 m/s 15 m behind a lead at 3 m/s; the stack's tracks around the car as logged.
+    ``false_lead``: ticks whose lead was a roadside structure (5 m right, standing);
+    ``missed``: ticks with no track on the actor; ``switch_at``: the actor's track id changes
+    from 1 to 2; ``fragments``: a second track on the actor's rear."""
+    log, truths = [], []
+    for tick in range(300):
+        ego_s, lead_s = 3.0 * 0.05 * tick, 15.0 + 3.0 * 0.05 * tick
+        row = ego_row(tick, ego_s, 3.0)
+        row["mode"] = "driving"
+        truths.append(actor(lead_s, 0.0, speed=3.0))
+        rel = lead_s - 2.0 - ego_s  # the track sits on the actor's rear face
+        tid = 1 if tick < switch_at else 2
+        near = [] if tick in missed else [[tid, rel, 0.0, 3.0, 0.0, 4.4, 1.9]]
+        if tick in fragments:
+            near.append([9, rel + 0.6, 0.4, 2.0, 0.5, 0.4, 0.4])
+        near.append([50, 8.0, -5.0, 0.0, 0.0, 0.5, 0.5])  # the structure
+        if tick in false_lead:
+            lead = dict(track_id=50, gap_m=4.0, speed_mps=0.0, x_m=8.0, y_m=-5.0, support=["lidar"])
+        elif tick in missed:
+            lead = None
+        else:
+            lead = dict(track_id=tid, gap_m=round(rel - BODY.front_m, 2), speed_mps=3.05, x_m=rel, y_m=0.0, support=["lidar"])
+        row["driver"] = dict(lead=lead, tracks_near=near)
+        log.append(row)
+    return log, truths
+
+
+def test_actor_tracking_counts_misses_fragments_switches_and_false_leads():
+    """Third review, F1: the lead's errors were scored against the actor without asking
+    whether the lead was the actor. Tracks are matched to the actor's true box on the
+    evaluator's side, from the tracks the stack logs."""
+    log, truths = following_run()
+    out = sc.score_actor_tracking(log, truths, BODY)
+    assert out["available"] and out["in_view_ticks"] == 300
+    assert out["missed_ticks"] == 10 and out["longest_missed_s"] == pytest.approx(0.5)
+    assert out["fragmented_ticks"] == 10
+    assert out["track_ids"] == [1, 2] and out["id_switches"] == 1
+    assert out["false_lead_ticks"] == 41 and out["lead_is_actor_ticks"] == 300 - 41 - 10
+    assert out["actor_in_lane_not_lead_ticks"] == 41 + 10
+
+
+def test_lead_tracking_scores_only_ticks_whose_lead_was_the_actor():
+    log, truths = following_run()
+    out = sc.score_lead_tracking(log, truths, BODY)
+    assert out["unmatched_lead_ticks"] == 41 and out["ticks"] == 300 - 41 - 10
+    assert out["speed_error_rmse_mps"] == pytest.approx(0.05, abs=1e-6)  # the structure's 0 m/s is not the actor's error
+    assert out["matching"].startswith("lead matched")
+    # A log from before the lead's position was recorded is scored on every lead tick, and says so.
+    for row in log:
+        if row["driver"]["lead"]:
+            row["driver"]["lead"].pop("x_m")
+    assert sc.score_lead_tracking(log, truths, BODY)["matching"].startswith("unavailable")
+    assert sc.score_actor_tracking([dict(r, driver={"lead": None}) for r in log], truths, BODY)["available"] is False
+
+
+def test_behaviour_reports_slowing_before_the_lead_brakes_that_was_not_the_lead():
+    """Third review, F4: the braking-lead gate passed a run whose car slowed before the
+    lead braked. A cap from a track that was not the actor, with the gap ample, is the
+    unnecessary restriction, the time it cost and its cause."""
+    log, truths = [], []
+    ego_s, lead_s, lead_v = 0.0, 25.0, 3.0
+    for tick in range(300):
+        t = tick * 0.05
+        if t >= 10.0:
+            lead_v = max(0.0, lead_v - 3.0 * 0.05)
+        lead_s += lead_v * 0.05
+        phantom = 3.0 <= t < 4.0
+        ego_v = 1.0 if phantom else min(3.0, lead_v + 0.2)
+        ego_s += ego_v * 0.05
+        row = ego_row(tick, ego_s, ego_v)
+        row["mode"] = "driving"
+        row["command"] = [0.0, 0.0, 0.3 if phantom else 0.0]
+        truths.append(actor(lead_s, 0.0, speed=lead_v))
+        cause = dict(track_id=7, x_m=9.0, y_m=-4.0)
+        row["driver"] = dict(
+            speed_cap_mps=1.0 if phantom else None,
+            speed_cap_reason="predicted conflict on the path" if 2.95 <= t < 3.95 else "",
+            cap_track=cause if 2.95 <= t < 3.95 else None,
+            lead=None,
+        )
+        log.append(row)
+    out = sc.score_behaviour("braking_lead", log, truths, BODY, cruise_mps=3.0)
+    assert out["lead_brake_s"] == pytest.approx(10.0, abs=0.06)
+    assert out["pre_brake_restricted_other_s"] == pytest.approx(1.0, abs=0.06)
+    assert out["pre_brake_restricted_by_actor_s"] == 0.0
+    assert out["pre_brake_other_causes_s"] == {"cap: predicted conflict on the path": pytest.approx(1.0, abs=0.06)}
+    assert out["pre_brake_time_lost_other_s"] == pytest.approx(1.0 * (1 - 1.0 / 3.0), abs=0.05)
+    assert out["pre_brake_unjustified_slow_s"] == pytest.approx(1.0, abs=0.06)
+    assert out["brake_ticks"] == 20 and out["brake_ticks_actor_share"] == 0.0
+
+
+def test_behaviour_counts_a_second_near_stop_after_the_walker_has_cleared():
+    """Third review, F4: the pedestrian gate passed a run whose car nearly stopped again after
+    the walker had cleared and it had resumed."""
+    log, truths, end = crossing_run(0.0)
+    for tick, row in enumerate(log):
+        row["mode"] = "driving"
+        late = 180 <= tick < 200
+        row["driver"] = dict(speed_cap_mps=0.2 if late else None, speed_cap_reason="obstacle", stop_reason="")
+        if late:
+            row["truth"]["speed_mps"] = 0.2
+    out = sc.score_behaviour("crossing_pedestrian", log, truths, BODY, cruise_mps=4.0)
+    assert out["post_clear_near_stops"] == 1
+    assert out["post_clear_restricted_other_s"] == pytest.approx(1.0, abs=0.06)
+    assert 0.0 < out["post_clear_progress_mps"] < 4.0
+
+
+def test_behaviour_times_the_response_to_a_cut_in_and_the_least_time_to_collision():
+    log, truths = [], []
+    ego_s = 0.0
+    for tick in range(200):
+        t = tick * 0.05
+        y = 3.5 if t < 4.0 else max(0.0, 3.5 - 3.5 * (t - 4.0) / 2.0)  # into the lane over 2 s from 4 s
+        lead_s = 20.0 + 2.0 * t
+        braking = t >= 4.5
+        ego_v = 4.0 if not braking else max(2.0, 4.0 - 2.0 * (t - 4.5))
+        ego_s += ego_v * 0.05
+        row = ego_row(tick, ego_s, ego_v)
+        row["mode"] = "driving"
+        row["command"] = [0.0, 0.0, 0.4 if braking else 0.0]
+        truths.append(actor(lead_s, y, speed=2.0))
+        rel = lead_s - ego_s
+        row["driver"] = dict(speed_cap_mps=2.0 if braking else None, speed_cap_reason="following the lead", lead=dict(track_id=3, gap_m=rel - 6.0, speed_mps=2.0, x_m=rel - 2.0, y_m=y) if t >= 4.4 else None)
+        log.append(row)
+    out = sc.score_behaviour("cut_in", log, truths, BODY, cruise_mps=4.0)
+    cut = out["cut_in_s"]
+    assert 4.0 < cut < 6.0
+    assert out["first_brake_from_cut_in_s"] == pytest.approx(4.5 - cut, abs=0.06)
+    assert out["first_actor_restriction_from_cut_in_s"] == pytest.approx(4.5 - cut, abs=0.06)
+    assert out["min_ttc_s"] is not None and out["min_ttc_s"] > 0
+
+
+def test_behaviour_reads_old_logs_and_leaves_the_goal_stop_out():
+    """On a log without the lead's position (before the third review), following the lead
+    is the actor's when the actor is ahead in the band; below a cruise slower than the
+    lead, the car is not "unjustifiably" slow; and the stop at the goal is no near stop."""
+    log, truths = following_run(false_lead=(), missed=(), fragments=())
+    for row in log:
+        row["driver"]["lead"].pop("x_m")
+        row["driver"].update(speed_cap_mps=2.0, speed_cap_reason="following the lead")
+    out = sc.score_behaviour("cut_in", log, truths, BODY, cruise_mps=3.0)
+    assert out["restricted_s"] > 14.0 and out["restricted_other_s"] == 0.0
+    log, truths = [], []
+    ego_s, lead_s, lead_v = 0.0, 30.0, 3.0
+    for tick in range(300):
+        if tick * 0.05 >= 10.0:
+            lead_v = max(0.0, lead_v - 3.0 * 0.05)
+        lead_s += lead_v * 0.05
+        ego_s += 2.0 * 0.05
+        row = ego_row(tick, ego_s, 2.0)
+        row["mode"], row["driver"] = "driving", {}
+        truths.append(actor(lead_s, 0.0, speed=lead_v))
+        log.append(row)
+    assert sc.score_behaviour("braking_lead", log, truths, BODY, cruise_mps=2.2)["pre_brake_unjustified_slow_s"] == 0.0
+    assert sc.score_behaviour("braking_lead", log, truths, BODY, cruise_mps=6.0)["pre_brake_unjustified_slow_s"] > 5.0
+    log, truths, end = crossing_run(0.0)
+    for row in log:
+        row["mode"], row["driver"] = "driving", {}
+    for row in log[-10:]:
+        row["truth"].update(speed_mps=0.1, goal_distance_m=0.5)
+    assert sc.score_behaviour("crossing_pedestrian", log, truths, BODY, cruise_mps=4.0)["post_clear_near_stops"] == 0

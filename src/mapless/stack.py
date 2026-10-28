@@ -117,6 +117,12 @@ class StackConfig:
     yield_mps: float = 0.8
     yield_margin_m: float = 2.0
     vulnerable_max_m: float = 2.0
+    # A pedestrian standing at the roadside, its near edge more than roadside_clear_m beyond
+    # the car's tube: passed at roadside_mps at most, not stopped for. Its walking-pace
+    # envelope reached the path, so a walker waiting on the pavement held the car at a
+    # standstill for good (third review, R5). Once it moves it is a crosser again.
+    roadside_mps: float = 3.0
+    roadside_clear_m: float = 0.5
     # A pedestrian-sized moving track is a crossing candidate only within reach of the
     # road (the kerb, keep_right_m, plus vru_reach_m) and either in the path band or
     # heading for it at approach_min_mps or more. Long walls and fences beside the road
@@ -374,6 +380,8 @@ class MaplessStack:
             speed_cap_next_mps=cap,
             speed_cap_reason=cap_reason,  # logged every tick: a hold at a standstill never reaches the veto
             lead=self._lead,
+            # The live tracks around the car, for the evaluator's actor matching (F1).
+            tracks_near=near_tracks(live if perceived else (), motion.odometry if perceived else None),
             cap_track=self._cause,
             clearing_for=self._clearing,
             parked_beside=self._parked[:5],
@@ -422,12 +430,17 @@ class MaplessStack:
             along = float(v_body[0] * math.cos(tangent) + v_body[1] * math.sin(tangent))
             across = float(-v_body[0] * math.sin(tangent) + v_body[1] * math.cos(tangent))
             gap = s - self.driver.config.body.front_m - _rear_extent(track, pose.yaw_rad + tangent)
+            at = pose.to_body(track.position[None])[0]
             self._lead = dict(
                 track_id=track.track_id, gap_m=round(float(gap), 2), speed_mps=round(along, 2), across_mps=round(across, 2),
+                # Where the stack had it (vehicle frame): the evaluator matches the lead to the
+                # scenario's actor by position before it scores speeds (third review, F1).
+                x_m=round(float(at[0]), 2), y_m=round(float(at[1]), 2),
                 state=state, support=list(track.support), status=track.status.name, doppler_rejects=track.doppler_rejects,
                 footprint=None if track.footprint is None else [round(float(track.footprint[0]), 2), round(float(track.footprint[1]), 2)],
             )
             role = lead_role(track, along, across, c, wide=_across_width(track, pose.yaw_rad + tangent) >= c.lead_body_min_width_m)
+            self._lead["role"] = role
             if role == "crossing":
                 # In the lane but moving across it (a crossing walker reads ~0 m/s along the
                 # path, a diagonal one more): not a lead to follow or to hand to the
@@ -436,6 +449,12 @@ class MaplessStack:
                 lead_id = None
                 self._lead["crossing"] = True
             elif role == "follow":
+                if self.driver.speed_cap_mps is not None:
+                    # Taken on under a restriction (a conflict cap for the car cutting in):
+                    # following starts from it rather than from the car's speed (third
+                    # review, R1: a 1.4 m/s conflict cap became a 6 m/s following target the
+                    # tick the car crossing in reached the tube).
+                    self.following.start_from(min(motion.speed_mps, self.driver.speed_cap_mps))
                 cap = self.following.target_speed(self.driver.config.planner.cruise_mps, motion.speed_mps, gap, along, self.driver.dt_s)
                 reason = "lead at a standstill" if cap is not None and cap <= 0.0 else "following the lead"
                 if not vehicle:
@@ -455,6 +474,12 @@ class MaplessStack:
                 lead_id = None
         else:
             self.following.reset()
+        if self._lead is not None:
+            # What protects the car from the lead (third review, F3): the conflict check,
+            # unless another rule covers it, following (a vehicle moving along the path:
+            # its worst-case cap) or the driver's LiDAR obstacle stop (a lead not moving
+            # along, across or towards the car: ``lead_role``).
+            self._lead["checked_by"] = "conflict check" if lead_id is None else ("following" if role == "follow" else "obstacle stop")
         if predictions and plan is not None and plan.trajectory is not None:
             # Time the path at the speed the car would drive without any cap (the planned
             # speeds already carry this tick's cap, which fed back on itself: a cap of zero
@@ -504,8 +529,12 @@ class MaplessStack:
                     self._clearing = _track_note(tracks, p.track_id, pose)
                     continue
                 conflict_cap = conflict_speed_cap([p], xy, s_now, body, c)
+                why = "predicted conflict on the path"
+                passing = roadside_cap(track, xy, s_now, body, tube_half, c)
+                if passing is not None and passing > conflict_cap:
+                    conflict_cap, why = passing, "passing a road user standing at the roadside"
                 if cap is None or conflict_cap < cap:
-                    cap, reason = conflict_cap, "predicted conflict on the path"
+                    cap, reason = conflict_cap, why
                     self._cause = _track_note(tracks, p.track_id, pose)
             yield_cap, yield_id = crossing_yield(tracks, others, xy, s_now, self.driver.config.body, self.driver.config.planner.decel_mps2, c, self._yield_since, t)
             if yield_cap is not None and (cap is None or yield_cap < cap):
@@ -542,6 +571,30 @@ class MaplessStack:
     def reset(self):
         self.reset_spatial()
         self.frame_generation = 0
+
+
+def near_tracks(tracks, pose, ahead_m=60.0, behind_m=10.0, side_m=12.0, limit=24):
+    """The tracks around the car, nearest first, as [id, x, y, vx, vy, length, width]
+    (vehicle frame, m and m/s; the extent None when not measured): the log's compact view
+    for matching tracks to the scenario's actors on the evaluator's side (third review, F1)."""
+    if pose is None or not tracks:
+        return []
+    rows = []
+    for track in tracks:
+        at = pose.to_body(track.position[None])[0]
+        if not (-behind_m <= at[0] <= ahead_m and abs(at[1]) <= side_m):
+            continue
+        v = pose.to_body(np.array([track.position + track.velocity]))[0] - at
+        fp = track.footprint
+        rows.append(
+            (
+                float(np.hypot(*at)),
+                [int(track.track_id), round(float(at[0]), 2), round(float(at[1]), 2), round(float(v[0]), 2), round(float(v[1]), 2)]
+                + ([None, None] if fp is None else [round(float(fp[0]), 2), round(float(fp[1]), 2)]),
+            )
+        )
+    rows.sort(key=lambda r: r[0])
+    return [r[1] for r in rows[:limit]]
 
 
 def predictable_tracks(tracks):
@@ -997,6 +1050,25 @@ def is_group(track, config):
     if min(track.footprint[0], track.footprint[1]) < config.group_min_width_m:
         return False
     return max(track.footprint[0], track.footprint[1]) <= config.group_max_m and max(track.speed_mps, track.recent_speed_mps or 0.0) <= config.group_max_mps
+
+
+def roadside_cap(track, path_xy, s_now, body, tube_half_m, config):
+    """The cap for passing a pedestrian standing at the roadside, or None when the track is
+    not one: vulnerable (``is_vulnerable``), not moving (``motion_state``), its near edge
+    more than ``roadside_clear_m`` beyond the tube (``tube_half_m`` of the path) and ahead.
+    The car slows to ``roadside_mps`` by the time its front draws level, at
+    ``conflict_decel_mps2`` (third review, R5)."""
+    if track is None or not is_vulnerable(track, config) or motion_state(track, config.prediction) == "moving":
+        return None
+    path = np.asarray(path_xy, dtype=float)
+    s, lateral, outside = project_onto_polyline(track.position[None], path)
+    if outside[0]:
+        return None  # past the path's ends its "lateral" is the distance to an end point
+    half = 0.5 * min(track.footprint[0], track.footprint[1]) if track.footprint is not None else 0.3
+    if abs(float(lateral[0])) - half <= tube_half_m + config.roadside_clear_m:
+        return None
+    ahead = float(s[0]) - s_now - body.front_m
+    return math.sqrt(config.roadside_mps**2 + 2.0 * config.conflict_decel_mps2 * max(0.0, ahead))
 
 
 def conflict_speed_cap(predictions, path_xy, s_now, body, config):
