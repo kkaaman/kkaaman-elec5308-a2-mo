@@ -64,3 +64,8 @@ demonstration for the autonomous perception and navigation library.
    evidence/baseline-batch/README
    evidence/TEST-13/README
    remote_inference
+
+.. toctree::
+   :maxdepth: 1
+
+   inference_service
