@@ -1,0 +1,1252 @@
+{
+  "date": "2026-10-28 Australia/Sydney",
+  "source": "official GitHub issues and PR metadata",
+  "canonical_main": "ae6a83d",
+  "open_prs": [
+    {
+      "baseRefName": "feat/57-remote-fallback",
+      "headRefName": "codex/56-inference-server",
+      "headRefOid": "cf5225787785c384591bd566dbb7a9d3f6021ab7",
+      "isDraft": true,
+      "mergeable": "MERGEABLE",
+      "number": 109,
+      "reviewDecision": "",
+      "title": "feat(server): add isolated offline inference service for #56"
+    },
+    {
+      "baseRefName": "main",
+      "headRefName": "codex/49-weather-matrix",
+      "headRefOid": "970e16a71817d40c099f18f005ae9d91121103d3",
+      "isDraft": true,
+      "mergeable": "MERGEABLE",
+      "number": 108,
+      "reviewDecision": "",
+      "title": "feat(weather): specify paired experiment and installed preset checks for #49"
+    },
+    {
+      "baseRefName": "main",
+      "headRefName": "test/47-baseline-evidence",
+      "headRefOid": "8c3ea3c78184e04a2524ec541f0b29a42add4b53",
+      "isDraft": true,
+      "mergeable": "MERGEABLE",
+      "number": 107,
+      "reviewDecision": "",
+      "title": "test: add baseline evidence aggregation scaffold for #47"
+    },
+    {
+      "baseRefName": "main",
+      "headRefName": "docs/62-evidence-reproduction",
+      "headRefOid": "daf4b7584d8c8d1eae151d43fef7f0940d384e06",
+      "isDraft": true,
+      "mergeable": "MERGEABLE",
+      "number": 106,
+      "reviewDecision": "",
+      "title": "docs: add report evidence map and reproduction checks for #62"
+    },
+    {
+      "baseRefName": "main",
+      "headRefName": "feat/57-remote-fallback",
+      "headRefOid": "3ad9bb6d4d9fb4d9a72faa3f08d1e7c2e9f9cd12",
+      "isDraft": true,
+      "mergeable": "MERGEABLE",
+      "number": 105,
+      "reviewDecision": "",
+      "title": "Add remote detector and local fallback scaffold for issue 57"
+    },
+    {
+      "baseRefName": "main",
+      "headRefName": "feat/E2-01-04-lidar-obstacle-path",
+      "headRefOid": "e4a5f2df5e90c85b6aaada57d5844f3c5c7abe22",
+      "isDraft": false,
+      "mergeable": "MERGEABLE",
+      "number": 103,
+      "reviewDecision": "",
+      "title": "Feat/e2 01 04 lidar obstacle path"
+    },
+    {
+      "baseRefName": "main",
+      "headRefName": "feat/E3-01-03-wayfinder-v1",
+      "headRefOid": "bef859c5837987533057489d81211ca7a6f4dfa5",
+      "isDraft": false,
+      "mergeable": "MERGEABLE",
+      "number": 102,
+      "reviewDecision": "",
+      "title": "Feat/e3 01 03 wayfinder v1"
+    },
+    {
+      "baseRefName": "main",
+      "headRefName": "feat/RV-06-08-TEST-22-lane-monitor-sensor-docs-timing",
+      "headRefOid": "b71e9698c71566d305fb2462358062458d4012b3",
+      "isDraft": false,
+      "mergeable": "MERGEABLE",
+      "number": 101,
+      "reviewDecision": "CHANGES_REQUESTED",
+      "title": "Feat/rv 06 08 test 22 lane monitor sensor docs timing"
+    },
+    {
+      "baseRefName": "main",
+      "headRefName": "codex/e5-forward-parking",
+      "headRefOid": "f22ef76488b16ca752ac77529715b8747925887a",
+      "isDraft": false,
+      "mergeable": "MERGEABLE",
+      "number": 100,
+      "reviewDecision": "APPROVED",
+      "title": "E5-01\\u201303: Build the forward-parking capability "
+    },
+    {
+      "baseRefName": "main",
+      "headRefName": "feat/41-perception-control-integration",
+      "headRefOid": "3d643fce96a8c517b0a54da1e877740420af157a",
+      "isDraft": true,
+      "mergeable": "MERGEABLE",
+      "number": 99,
+      "reviewDecision": "",
+      "title": "[BL-F-06/07] Add shared perception-control cycle groundwork"
+    },
+    {
+      "baseRefName": "main",
+      "headRefName": "62-report-evidence-documentation",
+      "headRefOid": "e6eafcc46c4d80e332599a7950cfa3249dfd8693",
+      "isDraft": true,
+      "mergeable": "MERGEABLE",
+      "number": 88,
+      "reviewDecision": "CHANGES_REQUESTED",
+      "title": "[DOC-01/03/05] Add report evidence index and reproducible documentation"
+    }
+  ],
+  "open_issues": [
+    {
+      "number": 85,
+      "title": "IND-SAV: Complete private individual submission readiness",
+      "tasks": [
+        "IND-SAV-AI1",
+        "IND-SAV-AI2",
+        "IND-SAV-AI3",
+        "IND-SAV-REF",
+        "IND-SAV-PEER",
+        "IND-SAV-SPARK"
+      ],
+      "dependencies": [],
+      "prerequisite_text": "No additional upstream Task IDs are listed beyond work already represented inside this issue."
+    },
+    {
+      "number": 84,
+      "title": "IND-ZHA: Complete private individual submission readiness",
+      "tasks": [
+        "IND-ZHA-AI1",
+        "IND-ZHA-AI2",
+        "IND-ZHA-AI3",
+        "IND-ZHA-REF",
+        "IND-ZHA-PEER",
+        "IND-ZHA-SPARK"
+      ],
+      "dependencies": [],
+      "prerequisite_text": "No additional upstream Task IDs are listed beyond work already represented inside this issue."
+    },
+    {
+      "number": 83,
+      "title": "IND-ALA: Complete private individual submission readiness",
+      "tasks": [
+        "IND-ALA-AI1",
+        "IND-ALA-AI2",
+        "IND-ALA-AI3",
+        "IND-ALA-REF",
+        "IND-ALA-PEER",
+        "IND-ALA-SPARK"
+      ],
+      "dependencies": [],
+      "prerequisite_text": "No additional upstream Task IDs are listed beyond work already represented inside this issue."
+    },
+    {
+      "number": 82,
+      "title": "IND-RIC: Complete private individual submission readiness",
+      "tasks": [
+        "IND-RIC-AI1",
+        "IND-RIC-AI2",
+        "IND-RIC-AI3",
+        "IND-RIC-REF",
+        "IND-RIC-PEER",
+        "IND-RIC-SPARK"
+      ],
+      "dependencies": [],
+      "prerequisite_text": "No additional upstream Task IDs are listed beyond work already represented inside this issue."
+    },
+    {
+      "number": 81,
+      "title": "IND-ABD: Complete private individual submission readiness",
+      "tasks": [
+        "IND-ABD-AI1",
+        "IND-ABD-AI2",
+        "IND-ABD-AI3",
+        "IND-ABD-REF",
+        "IND-ABD-PEER",
+        "IND-ABD-SPARK"
+      ],
+      "dependencies": [],
+      "prerequisite_text": "No additional upstream Task IDs are listed beyond work already represented inside this issue."
+    },
+    {
+      "number": 80,
+      "title": "IND-MOH: Complete private individual submission readiness",
+      "tasks": [
+        "IND-MOH-AI1",
+        "IND-MOH-AI2",
+        "IND-MOH-AI3",
+        "IND-MOH-REF",
+        "IND-MOH-PEER",
+        "IND-MOH-SPARK"
+      ],
+      "dependencies": [],
+      "prerequisite_text": "No additional upstream Task IDs are listed beyond work already represented inside this issue."
+    },
+    {
+      "number": 79,
+      "title": "REV/COM Week 3: Complete peer review, integration and cross-training",
+      "tasks": [
+        "REV-MOH-3",
+        "COM-MOH-3",
+        "REV-ABD-3",
+        "COM-ABD-3",
+        "REV-RIC-3",
+        "COM-RIC-3",
+        "REV-ALA-3",
+        "COM-ALA-3",
+        "REV-ZHA-3",
+        "COM-ZHA-3",
+        "REV-SAV-3",
+        "COM-SAV-3"
+      ],
+      "dependencies": [
+        {
+          "task": "PROC-01",
+          "issue": null
+        }
+      ],
+      "prerequisite_text": "The source plan lists the following upstream Task IDs:\n\n- `PROC-01`"
+    },
+    {
+      "number": 78,
+      "title": "REV/COM Week 2: Complete peer review, integration and cross-training",
+      "tasks": [
+        "REV-MOH-2",
+        "COM-MOH-2",
+        "REV-ABD-2",
+        "COM-ABD-2",
+        "REV-RIC-2",
+        "COM-RIC-2",
+        "REV-ALA-2",
+        "COM-ALA-2",
+        "REV-ZHA-2",
+        "COM-ZHA-2",
+        "REV-SAV-2",
+        "COM-SAV-2"
+      ],
+      "dependencies": [
+        {
+          "task": "PROC-01",
+          "issue": null
+        }
+      ],
+      "prerequisite_text": "The source plan lists the following upstream Task IDs:\n\n- `PROC-01`"
+    },
+    {
+      "number": 76,
+      "title": "DEMO-04 / *-R2: Run rehearsal two and final cross-module Q&A",
+      "tasks": [
+        "DEMO-04",
+        "DEMO-MOH-R2",
+        "DEMO-ABD-R2",
+        "DEMO-RIC-R2",
+        "DEMO-ALA-R2",
+        "DEMO-SAV-R2"
+      ],
+      "dependencies": [
+        {
+          "task": "DEMO-03",
+          "issue": 75
+        },
+        {
+          "task": "DOC-10",
+          "issue": 72
+        }
+      ],
+      "prerequisite_text": "The source plan lists the following upstream Task IDs:\n\n- `DEMO-03`\n- `DOC-10`"
+    },
+    {
+      "number": 75,
+      "title": "DEMO-03 / *-R1: Run rehearsal one and random cross-module Q&A",
+      "tasks": [
+        "DEMO-03",
+        "DEMO-MOH-R1",
+        "DEMO-RIC-R1",
+        "DEMO-ALA-R1",
+        "DEMO-ZHA-R1",
+        "DEMO-SAV-R1"
+      ],
+      "dependencies": [
+        {
+          "task": "DEMO-02",
+          "issue": 68
+        },
+        {
+          "task": "TEST-12",
+          "issue": 71
+        }
+      ],
+      "prerequisite_text": "The source plan lists the following upstream Task IDs:\n\n- `DEMO-02`\n- `TEST-12`"
+    },
+    {
+      "number": 74,
+      "title": "DOC-13 / TEST-21: Package Wayfinder evidence and validate demo cold-start fallback",
+      "tasks": [
+        "DOC-13",
+        "TEST-21"
+      ],
+      "dependencies": [
+        {
+          "task": "G4-01",
+          "issue": 67
+        },
+        {
+          "task": "E3-04",
+          "issue": 55
+        },
+        {
+          "task": "DEMO-02",
+          "issue": 68
+        }
+      ],
+      "prerequisite_text": "The source plan lists the following upstream Task IDs:\n\n- `G4-01`\n- `E3-04`\n- `DEMO-02`"
+    },
+    {
+      "number": 73,
+      "title": "DEMO-01: Write the eight-minute live demonstration script",
+      "tasks": [
+        "DEMO-01"
+      ],
+      "dependencies": [
+        {
+          "task": "G4-01",
+          "issue": 67
+        }
+      ],
+      "prerequisite_text": "The source plan lists the following upstream Task IDs:\n\n- `G4-01`"
+    },
+    {
+      "number": 72,
+      "title": "DOC-10 / DOC-11 / DOC-16: Audit claims and package navigation/parking evidence",
+      "tasks": [
+        "DOC-10",
+        "DOC-11",
+        "DOC-16"
+      ],
+      "dependencies": [
+        {
+          "task": "DOC-09",
+          "issue": 66
+        },
+        {
+          "task": "TEST-16",
+          "issue": 46
+        },
+        {
+          "task": "RV-07",
+          "issue": 46
+        },
+        {
+          "task": "G4-01",
+          "issue": 67
+        },
+        {
+          "task": "E5-06",
+          "issue": 60
+        }
+      ],
+      "prerequisite_text": "The source plan lists the following upstream Task IDs:\n\n- `DOC-09`\n- `TEST-16`\n- `RV-07`\n- `G4-01`\n- `E5-06`"
+    },
+    {
+      "number": 71,
+      "title": "DOC-07 / TEST-12: Document design limitations and reproduce the demo on the backup machine",
+      "tasks": [
+        "DOC-07",
+        "TEST-12"
+      ],
+      "dependencies": [
+        {
+          "task": "G4-01",
+          "issue": 67
+        },
+        {
+          "task": "DOC-06",
+          "issue": 65
+        },
+        {
+          "task": "DOC-03",
+          "issue": 62
+        }
+      ],
+      "prerequisite_text": "The source plan lists the following upstream Task IDs:\n\n- `G4-01`\n- `DOC-06`\n- `DOC-03`"
+    },
+    {
+      "number": 70,
+      "title": "TEST-20: Validate final sensors and held-green mission constraints",
+      "tasks": [
+        "TEST-20"
+      ],
+      "dependencies": [
+        {
+          "task": "G4-01",
+          "issue": 67
+        }
+      ],
+      "prerequisite_text": "The source plan lists the following upstream Task IDs:\n\n- `G4-01`"
+    },
+    {
+      "number": 68,
+      "title": "DEMO-02 / DOC-14: Capture backup evidence and document LiDAR/segmentation results",
+      "tasks": [
+        "DEMO-02",
+        "DOC-14"
+      ],
+      "dependencies": [
+        {
+          "task": "DEMO-01",
+          "issue": 73
+        },
+        {
+          "task": "TEST-12",
+          "issue": 71
+        },
+        {
+          "task": "G4-01",
+          "issue": 67
+        },
+        {
+          "task": "E2-05",
+          "issue": 53
+        }
+      ],
+      "prerequisite_text": "The source plan lists the following upstream Task IDs:\n\n- `DEMO-01`\n- `TEST-12`\n- `G4-01`\n- `E2-05`"
+    },
+    {
+      "number": 67,
+      "title": "TEST-11 / G4-01: Regress combined extensions and freeze the demo configuration",
+      "tasks": [
+        "TEST-11",
+        "G4-01"
+      ],
+      "dependencies": [
+        {
+          "task": "G3-01",
+          "issue": 48
+        },
+        {
+          "task": "E1-04",
+          "issue": 51
+        },
+        {
+          "task": "E2-05",
+          "issue": 53
+        },
+        {
+          "task": "E3-04",
+          "issue": 55
+        },
+        {
+          "task": "E4-11",
+          "issue": 58
+        },
+        {
+          "task": "E5-06",
+          "issue": 60
+        },
+        {
+          "task": "E1-05",
+          "issue": 51
+        },
+        {
+          "task": "E2-06",
+          "issue": 53
+        },
+        {
+          "task": "E3-05",
+          "issue": 55
+        },
+        {
+          "task": "E4-12",
+          "issue": 58
+        },
+        {
+          "task": "E5-07",
+          "issue": 60
+        }
+      ],
+      "prerequisite_text": "The source plan lists the following upstream Task IDs:\n\n- `G3-01`\n- `E1-04`\n- `E2-05`\n- `E3-04`\n- `E4-11`\n- `E5-06`\n- `E1-05`\n- `E2-06`\n- `E3-05`\n- `E4-12`\n- `E5-07`"
+    },
+    {
+      "number": 66,
+      "title": "DOC-09 / DOC-15 / DOC-17 / DOC-18: Assemble the final report and Q&A release package",
+      "tasks": [
+        "DOC-09",
+        "DOC-15",
+        "DOC-17",
+        "DOC-18"
+      ],
+      "dependencies": [
+        {
+          "task": "DOC-07",
+          "issue": 71
+        },
+        {
+          "task": "DOC-06",
+          "issue": 65
+        },
+        {
+          "task": "DOC-05",
+          "issue": 62
+        },
+        {
+          "task": "TEST-09",
+          "issue": 43
+        },
+        {
+          "task": "DOC-10",
+          "issue": 72
+        },
+        {
+          "task": "DEMO-02",
+          "issue": 68
+        }
+      ],
+      "prerequisite_text": "The source plan lists the following upstream Task IDs:\n\n- `DOC-07`\n- `DOC-06`\n- `DOC-05`\n- `TEST-09`\n- `DOC-10`\n- `DEMO-02`"
+    },
+    {
+      "number": 65,
+      "title": "DOC-02 / DOC-04 / DOC-06: Draft the report scope, evidence and figures",
+      "tasks": [
+        "DOC-02",
+        "DOC-04",
+        "DOC-06"
+      ],
+      "dependencies": [
+        {
+          "task": "DOC-01",
+          "issue": 62
+        },
+        {
+          "task": "G1-01",
+          "issue": 38
+        },
+        {
+          "task": "TEST-08",
+          "issue": 47
+        },
+        {
+          "task": "TEST-09",
+          "issue": 43
+        },
+        {
+          "task": "E4-10",
+          "issue": 58
+        },
+        {
+          "task": "E1-03",
+          "issue": 50
+        }
+      ],
+      "prerequisite_text": "The source plan lists the following upstream Task IDs:\n\n- `DOC-01`\n- `G1-01`\n- `TEST-08`\n- `TEST-09`\n- `E4-10`\n- `E1-03`"
+    },
+    {
+      "number": 64,
+      "title": "DOC-08 / DOC-12 / TEST-19 / G5-01: Verify and prepare the final release",
+      "tasks": [
+        "DOC-08",
+        "DOC-12",
+        "TEST-19",
+        "G5-01"
+      ],
+      "dependencies": [
+        {
+          "task": "DOC-05",
+          "issue": 62
+        },
+        {
+          "task": "G4-01",
+          "issue": 67
+        },
+        {
+          "task": "DOC-06",
+          "issue": 65
+        },
+        {
+          "task": "TEST-18",
+          "issue": 63
+        },
+        {
+          "task": "DEMO-04",
+          "issue": 76
+        },
+        {
+          "task": "DOC-10",
+          "issue": 72
+        },
+        {
+          "task": "DEMO-02",
+          "issue": 68
+        }
+      ],
+      "prerequisite_text": "The source plan lists the following upstream Task IDs:\n\n- `DOC-05`\n- `G4-01`\n- `DOC-06`\n- `TEST-18`\n- `DEMO-04`\n- `DOC-10`\n- `DEMO-02`"
+    },
+    {
+      "number": 63,
+      "title": "TEST-18: Run the offline all-flags fault suite",
+      "tasks": [
+        "TEST-18"
+      ],
+      "dependencies": [
+        {
+          "task": "G3-01",
+          "issue": 48
+        },
+        {
+          "task": "E4-10",
+          "issue": 58
+        }
+      ],
+      "prerequisite_text": "The source plan lists the following upstream Task IDs:\n\n- `G3-01`\n- `E4-10`"
+    },
+    {
+      "number": 62,
+      "title": "DOC-01 / DOC-03 / DOC-05: Maintain the report evidence index and reproducible documentation",
+      "tasks": [
+        "DOC-01",
+        "DOC-03",
+        "DOC-05"
+      ],
+      "dependencies": [
+        {
+          "task": "PROC-01",
+          "issue": null
+        },
+        {
+          "task": "BL-C-01",
+          "issue": null
+        },
+        {
+          "task": "BL-F-07",
+          "issue": 41
+        },
+        {
+          "task": "E4-07",
+          "issue": 57
+        },
+        {
+          "task": "RV-07",
+          "issue": 46
+        },
+        {
+          "task": "RV-08",
+          "issue": 45
+        }
+      ],
+      "prerequisite_text": "The source plan lists the following upstream Task IDs:\n\n- `PROC-01`\n- `BL-C-01`\n- `BL-F-07`\n- `E4-07`\n- `RV-07`\n- `RV-08`"
+    },
+    {
+      "number": 61,
+      "title": "E5-04\\u201305 / E5-08\\u201309: Evaluate reverse parking or record the cut",
+      "tasks": [
+        "E5-04",
+        "E5-05",
+        "E5-08",
+        "E5-09"
+      ],
+      "dependencies": [
+        {
+          "task": "E5-03",
+          "issue": 59
+        },
+        {
+          "task": "BL-E-01",
+          "issue": null
+        },
+        {
+          "task": "E5-06",
+          "issue": 60
+        }
+      ],
+      "prerequisite_text": "The source plan lists the following upstream Task IDs:\n\n- `E5-03`\n- `BL-E-01`\n- `E5-06`"
+    },
+    {
+      "number": 60,
+      "title": "E5-06\\u201307: Validate and admit forward parking",
+      "tasks": [
+        "E5-06",
+        "E5-07"
+      ],
+      "dependencies": [
+        {
+          "task": "G3-01",
+          "issue": 48
+        },
+        {
+          "task": "E5-03",
+          "issue": 59
+        }
+      ],
+      "prerequisite_text": "The source plan lists the following upstream Task IDs:\n\n- `G3-01`\n- `E5-03`"
+    },
+    {
+      "number": 59,
+      "title": "E5-01\\u201303: Build the forward-parking capability",
+      "tasks": [
+        "E5-01",
+        "E5-02",
+        "E5-03"
+      ],
+      "dependencies": [
+        {
+          "task": "BL-A-05",
+          "issue": 32
+        },
+        {
+          "task": "BL-C-01",
+          "issue": null
+        },
+        {
+          "task": "BL-D-07",
+          "issue": 35
+        }
+      ],
+      "prerequisite_text": "The source plan lists the following upstream Task IDs:\n\n- `BL-A-05`\n- `BL-C-01`\n- `BL-D-07`"
+    },
+    {
+      "number": 58,
+      "title": "E4-08 / E4-10\\u201313: Validate failover and decide hybrid admission",
+      "tasks": [
+        "E4-08",
+        "E4-10",
+        "E4-11",
+        "E4-12",
+        "E4-13"
+      ],
+      "dependencies": [
+        {
+          "task": "E4-06",
+          "issue": 56
+        },
+        {
+          "task": "G3-01",
+          "issue": 48
+        },
+        {
+          "task": "E4-09",
+          "issue": 57
+        }
+      ],
+      "prerequisite_text": "The source plan lists the following upstream Task IDs:\n\n- `E4-06`\n- `G3-01`\n- `E4-09`"
+    },
+    {
+      "number": 57,
+      "title": "E4-04\\u201305 / E4-07 / E4-09: Build the nonblocking client, fallback and latency evidence",
+      "tasks": [
+        "E4-04",
+        "E4-05",
+        "E4-07",
+        "E4-09"
+      ],
+      "dependencies": [
+        {
+          "task": "E4-01",
+          "issue": 56
+        },
+        {
+          "task": "BL-F-04",
+          "issue": 37
+        },
+        {
+          "task": "BL-C-04",
+          "issue": 34
+        },
+        {
+          "task": "E4-06",
+          "issue": 56
+        },
+        {
+          "task": "E4-08",
+          "issue": 58
+        }
+      ],
+      "prerequisite_text": "The source plan lists the following upstream Task IDs:\n\n- `E4-01`\n- `BL-F-04`\n- `BL-C-04`\n- `E4-06`\n- `E4-08`"
+    },
+    {
+      "number": 56,
+      "title": "E4-01\\u201303 / E4-06: Build the isolated inference server and session model",
+      "tasks": [
+        "E4-01",
+        "E4-02",
+        "E4-03",
+        "E4-06"
+      ],
+      "dependencies": [
+        {
+          "task": "BL-C-02",
+          "issue": null
+        },
+        {
+          "task": "BL-F-01",
+          "issue": null
+        },
+        {
+          "task": "E4-05",
+          "issue": 57
+        }
+      ],
+      "prerequisite_text": "The source plan lists the following upstream Task IDs:\n\n- `BL-C-02`\n- `BL-F-01`\n- `E4-05`"
+    },
+    {
+      "number": 55,
+      "title": "E3-04\\u201306: Validate Wayfinder and decide deferred routing scope",
+      "tasks": [
+        "E3-04",
+        "E3-05",
+        "E3-06"
+      ],
+      "dependencies": [
+        {
+          "task": "G3-01",
+          "issue": 48
+        },
+        {
+          "task": "E3-03",
+          "issue": 54
+        }
+      ],
+      "prerequisite_text": "The source plan lists the following upstream Task IDs:\n\n- `G3-01`\n- `E3-03`"
+    },
+    {
+      "number": 54,
+      "title": "E3-01\\u201303: Build Wayfinder v1 on the exported lane graph",
+      "tasks": [
+        "E3-01",
+        "E3-02",
+        "E3-03"
+      ],
+      "dependencies": [
+        {
+          "task": "BL-A-02",
+          "issue": null
+        },
+        {
+          "task": "BL-A-03",
+          "issue": null
+        },
+        {
+          "task": "RV-06",
+          "issue": 42
+        }
+      ],
+      "prerequisite_text": "The source plan lists the following upstream Task IDs:\n\n- `BL-A-02`\n- `BL-A-03`\n- `RV-06`"
+    },
+    {
+      "number": 53,
+      "title": "E2-05\\u201306: Validate and admit the LiDAR extension",
+      "tasks": [
+        "E2-05",
+        "E2-06"
+      ],
+      "dependencies": [
+        {
+          "task": "G3-01",
+          "issue": 48
+        },
+        {
+          "task": "E2-04",
+          "issue": 52
+        }
+      ],
+      "prerequisite_text": "The source plan lists the following upstream Task IDs:\n\n- `G3-01`\n- `E2-04`"
+    },
+    {
+      "number": 52,
+      "title": "E2-01\\u201304: Build the LiDAR obstacle-perception path",
+      "tasks": [
+        "E2-01",
+        "E2-02",
+        "E2-03",
+        "E2-04"
+      ],
+      "dependencies": [
+        {
+          "task": "BL-B-02",
+          "issue": null
+        },
+        {
+          "task": "BL-C-01",
+          "issue": null
+        },
+        {
+          "task": "BL-B-03",
+          "issue": 33
+        },
+        {
+          "task": "BL-D-04",
+          "issue": 35
+        },
+        {
+          "task": "BL-C-06",
+          "issue": 34
+        }
+      ],
+      "prerequisite_text": "The source plan lists the following upstream Task IDs:\n\n- `BL-B-02`\n- `BL-C-01`\n- `BL-B-03`\n- `BL-D-04`\n- `BL-C-06`"
+    },
+    {
+      "number": 51,
+      "title": "E1-04\\u201305: Validate and admit the weather extension",
+      "tasks": [
+        "E1-04",
+        "E1-05"
+      ],
+      "dependencies": [
+        {
+          "task": "G3-01",
+          "issue": 48
+        },
+        {
+          "task": "E1-02",
+          "issue": 49
+        },
+        {
+          "task": "E1-03",
+          "issue": 50
+        }
+      ],
+      "prerequisite_text": "The source plan lists the following upstream Task IDs:\n\n- `G3-01`\n- `E1-02`\n- `E1-03`"
+    },
+    {
+      "number": 50,
+      "title": "E1-03: Measure detector robustness across weather conditions",
+      "tasks": [
+        "E1-03"
+      ],
+      "dependencies": [
+        {
+          "task": "E1-02",
+          "issue": 49
+        },
+        {
+          "task": "TEST-09",
+          "issue": 43
+        }
+      ],
+      "prerequisite_text": "The source plan lists the following upstream Task IDs:\n\n- `E1-02`\n- `TEST-09`"
+    },
+    {
+      "number": 49,
+      "title": "E1-01\\u201302: Establish the weather robustness test matrix",
+      "tasks": [
+        "E1-01",
+        "E1-02"
+      ],
+      "dependencies": [
+        {
+          "task": "BL-D-06",
+          "issue": 35
+        },
+        {
+          "task": "BL-B-06",
+          "issue": 39
+        }
+      ],
+      "prerequisite_text": "The source plan lists the following upstream Task IDs:\n\n- `BL-D-06`\n- `BL-B-06`"
+    },
+    {
+      "number": 48,
+      "title": "G3-01 / PROC-04: Freeze the baseline and record deferred behaviour scope",
+      "tasks": [
+        "G3-01",
+        "PROC-04"
+      ],
+      "dependencies": [
+        {
+          "task": "TEST-08",
+          "issue": 47
+        },
+        {
+          "task": "TEST-09",
+          "issue": 43
+        },
+        {
+          "task": "TEST-10",
+          "issue": 42
+        },
+        {
+          "task": "TEST-15",
+          "issue": 44
+        },
+        {
+          "task": "TEST-16",
+          "issue": 46
+        },
+        {
+          "task": "TEST-17",
+          "issue": 45
+        },
+        {
+          "task": "TEST-22",
+          "issue": 42
+        },
+        {
+          "task": "G1-01",
+          "issue": 38
+        },
+        {
+          "task": "TEST-04",
+          "issue": 44
+        }
+      ],
+      "prerequisite_text": "The source plan lists the following upstream Task IDs:\n\n- `TEST-08`\n- `TEST-09`\n- `TEST-10`\n- `TEST-15`\n- `TEST-16`\n- `TEST-17`\n- `TEST-22`\n- `G1-01`\n- `TEST-04`"
+    },
+    {
+      "number": 47,
+      "title": "TEST-08: Aggregate the complete baseline acceptance evidence",
+      "tasks": [
+        "TEST-08"
+      ],
+      "dependencies": [
+        {
+          "task": "TEST-04",
+          "issue": 44
+        },
+        {
+          "task": "TEST-05",
+          "issue": 45
+        },
+        {
+          "task": "TEST-06",
+          "issue": 46
+        },
+        {
+          "task": "TEST-07",
+          "issue": 42
+        }
+      ],
+      "prerequisite_text": "The source plan lists the following upstream Task IDs:\n\n- `TEST-04`\n- `TEST-05`\n- `TEST-06`\n- `TEST-07`"
+    },
+    {
+      "number": 46,
+      "title": "RV-07 / TEST-06 / TEST-16: Validate navigation and controller fail-safe behaviour",
+      "tasks": [
+        "RV-07",
+        "TEST-06",
+        "TEST-16"
+      ],
+      "dependencies": [
+        {
+          "task": "BL-A-06",
+          "issue": 32
+        },
+        {
+          "task": "BL-F-07",
+          "issue": 41
+        },
+        {
+          "task": "BL-B-07",
+          "issue": 39
+        }
+      ],
+      "prerequisite_text": "The source plan lists the following upstream Task IDs:\n\n- `BL-A-06`\n- `BL-F-07`\n- `BL-B-07`"
+    },
+    {
+      "number": 45,
+      "title": "RV-08 / TEST-05 / TEST-17: Validate sensor behaviour and runtime cost",
+      "tasks": [
+        "RV-08",
+        "TEST-05",
+        "TEST-17"
+      ],
+      "dependencies": [
+        {
+          "task": "BL-B-05",
+          "issue": null
+        },
+        {
+          "task": "BL-B-07",
+          "issue": 39
+        },
+        {
+          "task": "BL-D-09",
+          "issue": 40
+        },
+        {
+          "task": "BL-C-07",
+          "issue": 43
+        },
+        {
+          "task": "BL-F-07",
+          "issue": 41
+        }
+      ],
+      "prerequisite_text": "The source plan lists the following upstream Task IDs:\n\n- `BL-B-05`\n- `BL-B-07`\n- `BL-D-09`\n- `BL-C-07`\n- `BL-F-07`"
+    },
+    {
+      "number": 44,
+      "title": "TEST-04 / TEST-15: Validate stop-resume and HOLD fail-safe behaviour",
+      "tasks": [
+        "TEST-04",
+        "TEST-15"
+      ],
+      "dependencies": [
+        {
+          "task": "BL-D-09",
+          "issue": 40
+        },
+        {
+          "task": "BL-C-07",
+          "issue": 43
+        },
+        {
+          "task": "BL-F-07",
+          "issue": 41
+        },
+        {
+          "task": "BL-B-07",
+          "issue": 39
+        },
+        {
+          "task": "TEST-05",
+          "issue": 45
+        }
+      ],
+      "prerequisite_text": "The source plan lists the following upstream Task IDs:\n\n- `BL-D-09`\n- `BL-C-07`\n- `BL-F-07`\n- `BL-B-07`\n- `TEST-05`"
+    },
+    {
+      "number": 43,
+      "title": "BL-C-07 / TEST-09: Harden tracking and audit perception performance",
+      "tasks": [
+        "BL-C-07",
+        "TEST-09"
+      ],
+      "dependencies": [
+        {
+          "task": "G2-01",
+          "issue": 41
+        },
+        {
+          "task": "BL-C-06",
+          "issue": 34
+        },
+        {
+          "task": "TEST-04",
+          "issue": 44
+        },
+        {
+          "task": "TEST-05",
+          "issue": 45
+        },
+        {
+          "task": "TEST-06",
+          "issue": 46
+        },
+        {
+          "task": "TEST-07",
+          "issue": 42
+        }
+      ],
+      "prerequisite_text": "The source plan lists the following upstream Task IDs:\n\n- `G2-01`\n- `BL-C-06`\n- `TEST-04`\n- `TEST-05`\n- `TEST-06`\n- `TEST-07`"
+    },
+    {
+      "number": 42,
+      "title": "RV-06 / TEST-07 / TEST-10 / TEST-22: Finish lane-monitor and bend-obstacle integration",
+      "tasks": [
+        "RV-06",
+        "TEST-07",
+        "TEST-10",
+        "TEST-22"
+      ],
+      "dependencies": [
+        {
+          "task": "RV-03",
+          "issue": null
+        },
+        {
+          "task": "BL-A-04",
+          "issue": 32
+        },
+        {
+          "task": "BL-D-09",
+          "issue": 40
+        },
+        {
+          "task": "BL-C-07",
+          "issue": 43
+        },
+        {
+          "task": "BL-F-07",
+          "issue": 41
+        },
+        {
+          "task": "BL-B-07",
+          "issue": 39
+        },
+        {
+          "task": "TEST-06",
+          "issue": 46
+        },
+        {
+          "task": "TEST-17",
+          "issue": 45
+        }
+      ],
+      "prerequisite_text": "The source plan lists the following upstream Task IDs:\n\n- `RV-03`\n- `BL-A-04`\n- `BL-D-09`\n- `BL-C-07`\n- `BL-F-07`\n- `BL-B-07`\n- `TEST-06`\n- `TEST-17`"
+    },
+    {
+      "number": 41,
+      "title": "BL-F-06\u201307 / BL-E-04 / G2-01: Integrate perception-to-control in CARLA",
+      "tasks": [
+        "BL-F-06",
+        "BL-E-04",
+        "G2-01",
+        "BL-F-07"
+      ],
+      "dependencies": [],
+      "prerequisite_text": "Requires G1 PASS, stable obstacle tracks/depth joins, deterministic obstacle scenarios and validated stop-hold-resume behaviour."
+    },
+    {
+      "number": 40,
+      "title": "BL-D-08\u201309: Implement and validate stop-hold-resume behaviour",
+      "tasks": [
+        "BL-D-08",
+        "BL-D-09"
+      ],
+      "dependencies": [],
+      "prerequisite_text": "Requires G1 PASS, temporal-track filtering, route-corridor/governor logic and deterministic obstacle scenarios."
+    }
+  ],
+  "minimal_dependency_cycles": [
+    [
+      66,
+      72
+    ],
+    [
+      57,
+      58
+    ],
+    [
+      56,
+      57
+    ],
+    [
+      43,
+      45
+    ],
+    [
+      43,
+      44
+    ],
+    [
+      42,
+      43
+    ]
+  ],
+  "textual_dependencies_require_manual_review": true
+}
