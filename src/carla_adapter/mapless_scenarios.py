@@ -149,6 +149,19 @@ class ScenarioParams:
     # after the cut-in is complete (fifth review's matrix: a slow cut-in, then the actor
     # brakes). Negative: it never brakes.
     cut_brake_after_s: float = -1.0
+    # Oncoming car at a left turn (M08, ``--oncoming``): oncoming_m past the junction in the
+    # opposing lane, straight across; "stopped" pulls away at oncoming_mps go_after_s after
+    # the ego first comes within oncoming_trigger_m of the junction entry; "parked" stands at
+    # its lane's kerb side and never moves.
+    # Braking lead with a second car ahead of it in the lane, second_gap_m bumper to bumper
+    # (negative: none): two cars close along the radar's line of sight. The second holds
+    # the lead's speed and brakes when the lead does (fifth review's matrix).
+    second_gap_m: float = -1.0
+    oncoming_m: float = 12.0
+    oncoming_mps: float = 6.0
+    go_after_s: float = 2.0
+    oncoming_trigger_m: float = 12.0
+    parked_offset_m: float = 0.9
     # Crossing vehicle (M07): waits side_m right of the lane centre (beyond the pavement:
     # a driveway; more: a side road), crosses at cross_mps, stops clear_beyond_m past the
     # lane's left edge.
@@ -189,7 +202,8 @@ class ScriptedActor:
 
 
 class BrakingLeadCar(ScriptedActor):
-    """M05: a lead car that brakes to a stop at ``brake_at_m``."""
+    """M05: a lead car that brakes to a stop at ``brake_at_m``; with ``second_gap_m`` at 0
+    or more, a second car ahead of it in the lane that holds its speed and brakes with it."""
 
     def spawn(self, owner, library, waypoints):
         p = self.params
@@ -201,29 +215,54 @@ class BrakingLeadCar(ScriptedActor):
             raise RuntimeError("Could not place the lead car")
         self.waypoints = waypoints
         self.braking = False
+        self.second = None
+        if p.second_gap_m >= 0.0:
+            length = 2.0 * float(getattr(getattr(self.actor, "bounding_box", None), "extent", SimpleNamespace(x=2.2)).x)
+            wp2 = waypoints[min(len(waypoints) - 1, int(round(p.lead_start_m + p.second_gap_m + length)))]
+            t2 = wp2.transform
+            t2.location.z += 0.3
+            self.second = owner.try_spawn(library.find(LEAD_CAR), t2)
+            if self.second is None:
+                raise RuntimeError("Could not place the second car ahead of the lead: try another --actor-param second_gap_m")
         return self.actor
 
-    def step(self, tick, ego_truth):
+    def _drive(self, actor, braking):
+        """Hold lead_mps along the lane, or brake at brake_mps2 (CARLA's brake ~8 m/s^2 at 1)."""
         carla, p = self.carla, self.params
-        t = self.actor.get_transform()
+        if braking:
+            actor.apply_control(carla.VehicleControl(throttle=0.0, brake=min(1.0, p.brake_mps2 / 8.0)))
+            return
+        t = actor.get_transform()
         x, y = self.core_xy(t.location)
         lane = np.array([self.core_xy(w.transform.location) for w in self.waypoints])
         s = float(np.argmin(np.hypot(lane[:, 0] - x, lane[:, 1] - y)))
-        v = self.actor.get_velocity()
+        v = actor.get_velocity()
         speed = math.hypot(v.x, v.y)
+        # A plain speed loop along the lane: throttle to hold lead_mps, steer to the lane.
+        throttle = float(np.clip(0.35 + 0.3 * (p.lead_mps - speed), 0.0, 0.7))
+        ahead = self.waypoints[min(len(self.waypoints) - 1, int(s) + 4)]
+        ax, ay = self.core_xy(ahead.transform.location)
+        yaw = -math.radians(t.rotation.yaw)
+        bearing = math.atan2(ay - y, ax - x) - yaw
+        bearing = (bearing + math.pi) % (2 * math.pi) - math.pi
+        actor.apply_control(carla.VehicleControl(throttle=throttle, steer=float(np.clip(-bearing / math.radians(35), -1, 1))))
+
+    def step(self, tick, ego_truth):
+        p = self.params
+        x, y = self.core_xy(self.actor.get_transform().location)
+        lane = np.array([self.core_xy(w.transform.location) for w in self.waypoints])
+        s = float(np.argmin(np.hypot(lane[:, 0] - x, lane[:, 1] - y)))
         if s >= p.brake_at_m:
             self.braking = True
-        if self.braking:
-            self.actor.apply_control(carla.VehicleControl(throttle=0.0, brake=min(1.0, p.brake_mps2 / 8.0)))
-        else:
-            # A plain speed loop along the lane: throttle to hold lead_mps, steer to the lane.
-            throttle = float(np.clip(0.35 + 0.3 * (p.lead_mps - speed), 0.0, 0.7))
-            ahead = self.waypoints[min(len(self.waypoints) - 1, int(s) + 4)]
-            ax, ay = self.core_xy(ahead.transform.location)
-            yaw = -math.radians(t.rotation.yaw)
-            bearing = math.atan2(ay - y, ax - x) - yaw
-            bearing = (bearing + math.pi) % (2 * math.pi) - math.pi
-            self.actor.apply_control(carla.VehicleControl(throttle=throttle, steer=float(np.clip(-bearing / math.radians(35), -1, 1))))
+        self._drive(self.actor, self.braking)
+        if self.second is not None:
+            self._drive(self.second, self.braking)
+
+    def destroy(self):
+        if getattr(self, "second", None) is not None and self.second.is_alive:
+            self.second.destroy()
+        self.second = None
+        super().destroy()
 
 
 class CutInCar(BrakingLeadCar):
@@ -400,6 +439,111 @@ class CrossingVehicle(ScriptedActor):
 
     def hold_ends_run(self):
         return self.cleared()
+
+
+class OncomingCar(ScriptedActor):
+    """M08, for a left turn (fifth review, F5-07): a car in the opposing lane across the
+    junction. ``mode`` "stopped": standing in the middle of its lane, it pulls away towards
+    the junction and straight through it ``go_after_s`` after the ego first comes within
+    ``oncoming_trigger_m`` of the junction entry, so the left-turn gate must not have
+    excused it as static. "parked": standing at its lane's kerb side, it never moves, and
+    the gate may excuse it once it has been seen standing long enough."""
+
+    def __init__(self, carla, params, core_xy, mode):
+        super().__init__(carla, params, core_xy)
+        if mode not in ("stopped", "parked"):
+            raise ValueError("oncoming mode is 'stopped' or 'parked'")
+        self.mode = mode
+
+    @staticmethod
+    def _straight_on(carla, wp, yaw_deg, step_m):
+        """The next waypoint ``step_m`` on with the heading closest to ``yaw_deg``, or None."""
+        options = wp.next(step_m)
+        if not options:
+            return None
+        best = min(options, key=lambda w: abs((w.transform.rotation.yaw - yaw_deg + 180.0) % 360.0 - 180.0))
+        return best if abs((best.transform.rotation.yaw - yaw_deg + 180.0) % 360.0 - 180.0) < 25.0 else None
+
+    def spawn_at_turn(self, owner, library, site):
+        carla, p = self.carla, self.params
+        entry = site["approach"][-1]
+        self.entry_xy = self.core_xy(entry.transform.location)
+        yaw = entry.transform.rotation.yaw
+        # Straight across the junction, then oncoming_m beyond it.
+        wp, inside, beyond = entry, False, None
+        for _ in range(120):
+            wp = self._straight_on(carla, wp, yaw, 1.0)
+            if wp is None:
+                break
+            inside = inside or wp.is_junction
+            if inside and not wp.is_junction:
+                beyond = wp
+                break
+        if beyond is None:
+            raise RuntimeError("No road straight across this junction for an oncoming car: try another --site")
+        ahead = beyond.next(p.oncoming_m)
+        ahead = [w for w in ahead if not w.is_junction] or [beyond]
+        far = min(ahead, key=lambda w: abs((w.transform.rotation.yaw - yaw + 180.0) % 360.0 - 180.0))
+        lane = far.get_left_lane()
+        if lane is None or lane.lane_type != carla.LaneType.Driving or lane.lane_id * far.lane_id > 0:
+            raise RuntimeError("No opposing Driving lane across this junction: try another --site")
+        t = lane.transform
+        self.lane_wp = lane
+        if self.mode == "parked":
+            heading = math.radians(t.rotation.yaw)
+            right = (-math.sin(heading), math.cos(heading))  # its own right: the kerb side
+            t.location.x += p.parked_offset_m * right[0]
+            t.location.y += p.parked_offset_m * right[1]
+        t.location.z += 0.3
+        self.actor = owner.try_spawn(library.find(LEAD_CAR), t)
+        if self.actor is None:
+            raise RuntimeError("Could not place the oncoming car: try another --site or --actor-param oncoming_m")
+        self.actor.apply_control(carla.VehicleControl(brake=1.0, hand_brake=True))
+        # Its way: along its lane, straight through the junction, 60 m.
+        route, w = [lane], lane
+        for _ in range(60):
+            w = self._straight_on(carla, w, w.transform.rotation.yaw, 1.0)
+            if w is None:
+                break
+            route.append(w)
+        self.route = np.array([self.core_xy(w.transform.location) for w in route])
+        self.near_since = None
+        self.done = False
+        return self.actor
+
+    def spawn(self, owner, library, waypoints):
+        raise RuntimeError("the oncoming car is placed with spawn_at_turn (left turns only)")
+
+    def step(self, tick, ego_truth):
+        carla, p = self.carla, self.params
+        if self.mode == "parked" or self.done:
+            return
+        if self.near_since is None and ego_truth is not None and math.dist(ego_truth["rear_axle_xy"], self.entry_xy) <= p.oncoming_trigger_m:
+            self.near_since = tick
+        if not self.started and self.near_since is not None and (tick - self.near_since) * 0.05 >= p.go_after_s:
+            self.started = True
+        if not self.started:
+            return
+        t = self.actor.get_transform()
+        x, y = self.core_xy(t.location)
+        k = int(np.argmin(np.hypot(self.route[:, 0] - x, self.route[:, 1] - y)))
+        if k >= len(self.route) - 3:
+            self.actor.apply_control(carla.VehicleControl(throttle=0.0, brake=1.0))
+            self.done = True
+            return
+        ax, ay = self.route[min(len(self.route) - 1, k + 4)]
+        bearing = (math.atan2(ay - y, ax - x) - (-math.radians(t.rotation.yaw)) + math.pi) % (2 * math.pi) - math.pi
+        v = self.actor.get_velocity()
+        speed = math.hypot(v.x, v.y)
+        throttle = float(np.clip(0.45 + 0.3 * (p.oncoming_mps - speed), 0.0, 0.8))
+        self.actor.apply_control(carla.VehicleControl(throttle=throttle, hand_brake=False, steer=float(np.clip(-bearing / math.radians(35), -1, 1))))
+
+    def hold_ends_run(self):
+        return False  # waiting at the junction is the point; the turn gates judge the run
+
+
+def make_oncoming(carla, mode, core_xy, **overrides):
+    return OncomingCar(carla, ScenarioParams(f"oncoming_{mode}", **overrides), core_xy, mode)
 
 
 SCENARIOS = {
@@ -809,6 +953,8 @@ EXERCISE_CONDITION = {
     "crossing_pedestrian": "the walker enters the ego's band (0.5 m margin) within 30 m ahead",
     "cut_in": "the cut-in car becomes the lead while a conflict or yield cap is in force, and the car then closes on it",
     "crossing_vehicle": "the crossing car enters the ego's band (0.5 m margin) within 30 m ahead",
+    "oncoming_stopped": "the oncoming car pulls away while the ego stands within 40 m of it",
+    "oncoming_parked": "the ego comes within 25 m of the parked oncoming car",
 }
 
 
@@ -830,6 +976,17 @@ def score_exercised(name, log, actor_truths, body, cruise_mps, dt_s=0.05, handov
             if 0.0 <= cx <= 50.0 and a["speed_mps"] <= top - 0.5:
                 return out | dict(exercised=True, at_s=round(log[k]["time_s"], 2))
         return out | dict(exercised=False, note="the lead did not slow within 50 m ahead")
+    if name == "oncoming_stopped":
+        for k, a in rows:
+            ego = log[k]["truth"]
+            if a["speed_mps"] >= 1.0 and ego["speed_mps"] < 0.1 and math.dist(ego["rear_axle_xy"], a["centre_xy"]) <= 40.0:
+                return out | dict(exercised=True, at_s=round(log[k]["time_s"], 2))
+        return out | dict(exercised=False, note="the oncoming car did not pull away while the ego stood near it")
+    if name == "oncoming_parked":
+        for k, a in rows:
+            if math.dist(log[k]["truth"]["rear_axle_xy"], a["centre_xy"]) <= 25.0:
+                return out | dict(exercised=True, at_s=round(log[k]["time_s"], 2))
+        return out | dict(exercised=False, note="the ego never came within 25 m of the parked car")
     if name in ("crossing_pedestrian", "crossing_vehicle"):
         for k, a in rows:
             inside, dx, _ = _ahead_in_band(log[k]["truth"], a, body, 0.5)

@@ -73,6 +73,7 @@ from carla_adapter.frame_record import FrameRecorder
 from carla_adapter.mapless_capture import source_commit
 from carla_adapter.mapless_scenarios import SCENARIOS as ACTOR_SCENARIOS
 from carla_adapter.mapless_scenarios import (
+    make_oncoming,
     make_scenario,
     score_actor_tracking,
     score_behaviour,
@@ -703,6 +704,15 @@ class MaplessDrive:
     def actor_scenario(self):
         return self.args.scenario if self.args.scenario in ACTOR_SCENARIOS else None
 
+    @property
+    def actor_name(self):
+        """The scripted actor's scenario name for scoring: an actor scenario, or the
+        oncoming car of a left turn (``oncoming_stopped`` / ``oncoming_parked``)."""
+        if self.actor_scenario:
+            return self.actor_scenario
+        mode = getattr(self.args, "oncoming", "none")
+        return f"oncoming_{mode}" if mode != "none" else None
+
     def setup(self):
         carla, args = self.carla, self.args
         self.world.set_weather(carla.WeatherParameters.ClearNoon)
@@ -808,6 +818,11 @@ class MaplessDrive:
         self.offset = self.adapter.geometry.rear_axle_offset_m
         self.parked = None
         self.actor = None
+        if getattr(args, "oncoming", "none") != "none":
+            # An oncoming car across the junction for the left-turn gate (fifth review, F5-07).
+            self.actor = make_oncoming(carla, args.oncoming, core_xy, **(args.actor_params or {}))
+            self.actor.spawn_at_turn(self.owner, self.library, site)
+            self.report["actor"] = self.actor.params.record() | dict(mode=args.oncoming)
         self.route = make_turn_route(carla_map, site, command)
         self.route.save(args.output / "route.json")
         self.goal_xy = self.turn_site.exit[-1]
@@ -1124,10 +1139,10 @@ class MaplessDrive:
                     checks.append(check("lead_tracking", REPORT, **score_lead_tracking(log, actor_truths, self.body, DT_S)))
             # Driving quality beside the gates: what restricted the car, whether it was the
             # actor, and the time it cost (third review, F4).
-            checks.append(check("behaviour", REPORT, **score_behaviour(self.actor_scenario, log, actor_truths, self.body, args.speed, DT_S)))
+            checks.append(check("behaviour", REPORT, **score_behaviour(self.actor_name, log, actor_truths, self.body, args.speed, DT_S)))
             # Whether the run reached the transition its scenario is for (fourth review): a
             # pass on a cut-in car that drove off is no evidence for the hand-over.
-            exercised = score_exercised(self.actor_scenario, log, actor_truths, self.body, args.speed, DT_S)
+            exercised = score_exercised(self.actor_name, log, actor_truths, self.body, args.speed, DT_S)
             checks.append(check("exercised", {True: PASS, False: NOT_EXERCISED}.get(exercised.get("exercised"), REPORT), **exercised))
         last = log[-1]
         summary = last["driver"].get("calibration")
@@ -1148,7 +1163,7 @@ class MaplessDrive:
                     calibrating_ticks=sum(1 for r in log if r["mode"] == DriveMode.CALIBRATING.value),
                 )
             )
-        if self.actor is not None:
+        if self.actor_scenario is not None:
             # What completes the run depends on the scenario (review: a hold is only an
             # endpoint behind a lead that has stopped); the required outcome is reported.
             completion = score_completion(self.actor_scenario, log, actor_truths, self.body, self.report["end"], hold_ticks * DT_S)
@@ -1238,6 +1253,12 @@ def main(argv=None, stack=False):
     parser.add_argument("--max-kerb-mismatch", type=float, default=0.3, help="turns: exit kerb distance may differ from the approach's by this (m)")
     parser.add_argument("--junction-hold-s", type=float, default=25.0, help="turns: end the run after waiting this long at the junction mouth")
     parser.add_argument("--actor-param", action="append", default=[], metavar="NAME=VALUE", help="moving actors: scenario parameter override")
+    parser.add_argument(
+        "--oncoming",
+        choices=("none", "stopped", "parked"),
+        default="none",
+        help="turn_left: an oncoming car across the junction, stopped mid-lane and pulling away, or parked at its kerb (M08)",
+    )
     parser.add_argument("--admission", choices=("A", "B", "C"), default="A", help="stack: sensor admission preset (A camera+LiDAR, B +front radar, C +rear radars)")
     parser.add_argument("--segmenter", default=None, help="stack: road segmenter checkpoint (default: constant)")
     parser.add_argument("--detector", default=None, help="stack: 'yolo' or none")
@@ -1266,6 +1287,8 @@ def main(argv=None, stack=False):
         parser.error(f"--segmenter {args.segmenter} not found (checkpoints are not in git; copy it from the PC that trained it, or omit --segmenter)")
     if args.scenario == "stop" and not 15 <= args.obstacle_m <= args.goal_m - 10:
         parser.error("--obstacle-m must be at least 15 m and 10 m short of the goal")
+    if args.oncoming != "none" and args.scenario != "turn_left":
+        parser.error("--oncoming is for turn_left only (the oncoming lane a left turn crosses)")
     configured = load_sensor_suite(args.suite).with_overrides(parse_overrides(args.set))
     suite = configured.without_noise() if args.no_noise else configured
     import carla

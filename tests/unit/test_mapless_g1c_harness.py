@@ -335,3 +335,145 @@ def test_lane_heading_near_the_car_ignores_a_bend_far_ahead():
     )
     assert abs(math.degrees(corridor.heading_at(0.0))) > 1.0  # the whole-line fit is tilted at the car
     assert abs(math.degrees(corridor.heading_near())) < 0.05  # the near evidence is straight
+
+
+def test_oncoming_car_stands_across_the_junction_then_pulls_away_or_stays_parked():
+    """Fifth review, F5-07 (M08): an oncoming car in the opposing lane across a left turn's
+    junction. "stopped" stands mid-lane and pulls away towards the junction go_after_s
+    after the ego comes within oncoming_trigger_m of the entry; "parked" stands at its
+    kerb side and never moves."""
+    from types import SimpleNamespace
+
+    from carla_adapter.mapless_scenarios import make_oncoming
+
+    class Actor:
+        def __init__(self, t):
+            self.t, self.controls = t, []
+
+        def get_transform(self):
+            return self.t
+
+        def get_velocity(self):
+            return SimpleNamespace(x=0.0, y=0.0)
+
+        def apply_control(self, control):
+            self.controls.append(control)
+
+    class Owner:
+        def try_spawn(self, bp, t):
+            return Actor(t)
+
+    class Library:
+        def find(self, name):
+            return name
+
+    carla = SimpleNamespace(LaneType=FakeLaneType, VehicleControl=lambda **kw: SimpleNamespace(**kw))
+    approach = chain([(x, 0.0) for x in range(0, 31)], yaw_deg=0.0, lane_id=-1)
+    across = chain([(x, 0.0) for x in range(31, 41)], yaw_deg=0.0, lane_id=-1, is_junction=True)
+    beyond = chain([(x, 0.0) for x in range(41, 90)], yaw_deg=0.0, lane_id=-1)
+    approach[-1]._next, across[-1]._next = [across[0]], [beyond[0]]
+    # The opposing lane beyond the junction, heading back towards it (180 degrees).
+    opposing = chain([(x, 3.5) for x in range(89, 20, -1)], yaw_deg=180.0, lane_id=1)
+    by_x = {int(w.transform.location.x): w for w in opposing}
+    for w in beyond:
+        w._left = by_x.get(int(w.transform.location.x))
+    FakeWaypoint.get_left_lane = lambda self: getattr(self, "_left", None)
+    one_step = FakeWaypoint.next
+
+    def walk(self, step):  # waypoints 1 m apart: ``step`` metres on, as CARLA's next does
+        here = [self]
+        for _ in range(max(1, int(round(step)))):
+            here = one_step(here[0], 1.0)
+            if not here:
+                return []
+        return here
+
+    FakeWaypoint.next = walk
+    try:
+        site = dict(approach=approach)
+        for mode in ("stopped", "parked"):
+            car = make_oncoming(carla, mode, lambda loc: (loc.x, loc.y))
+            actor = car.spawn_at_turn(Owner(), Library(), site)
+            x, y = actor.t.location.x, actor.t.location.y
+            assert x == 41 + car.params.oncoming_m  # 12 m past the junction, in the opposing lane
+            # Parked: shifted to its own right (CARLA frame), the far kerb from the ego's lane.
+            assert y == (3.5 if mode == "stopped" else 3.5 + car.params.parked_offset_m * math.cos(math.radians(180.0)))
+            car.step(0, dict(rear_axle_xy=(0.0, 0.0)))  # far from the entry: waiting
+            near = 30.0 - car.params.oncoming_trigger_m + 1.0
+            for tick in range(1, 60):
+                car.step(tick, dict(rear_axle_xy=(near, 0.0)))
+            moved = [c for c in actor.controls if getattr(c, "throttle", 0.0) > 0.0]
+            if mode == "stopped":
+                assert car.started and moved and car.near_since == 1
+                # It pulled away go_after_s after the ego came near (tick 1): from tick 41 on.
+                assert len(moved) == 59 - 1 - int(round(car.params.go_after_s / 0.05)) + 1
+            else:
+                assert not car.started and not moved
+    finally:
+        FakeWaypoint.get_left_lane = lambda self: None
+        FakeWaypoint.next = one_step
+
+
+def test_oncoming_exercised_needs_the_car_to_pull_away_while_the_ego_waits():
+    from carla_adapter.mapless_scenarios import score_exercised
+    from mapless.terrain import VehicleBody
+
+    body = VehicleBody()
+    log = [dict(time_s=k * 0.05, truth=dict(rear_axle_xy=[20.0, 0.0], speed_mps=0.0)) for k in range(100)]
+    still = [dict(centre_xy=[50.0, 3.5], speed_mps=0.0, extent_m=[2.1, 0.9], yaw_rad=math.pi) for _ in range(100)]
+    going = [dict(a, speed_mps=0.0 if k < 50 else 3.0) for k, a in enumerate(still)]
+    assert score_exercised("oncoming_stopped", log, going, body, 2.0)["exercised"] is True
+    assert score_exercised("oncoming_stopped", log, still, body, 2.0)["exercised"] is False
+    assert score_exercised("oncoming_parked", log, still, body, 2.0)["exercised"] is False  # 30 m away
+    near = [dict(a, centre_xy=[40.0, 3.5]) for a in still]
+    assert score_exercised("oncoming_parked", log, near, body, 2.0)["exercised"] is True
+
+
+def test_braking_lead_with_a_second_car_ahead_brakes_both_together():
+    """The fifth review's matrix: two cars close along the radar's line of sight. The second
+    car stands second_gap_m ahead of the lead's front, holds its speed and brakes with it."""
+    from types import SimpleNamespace
+
+    from carla_adapter.mapless_scenarios import BrakingLeadCar, ScenarioParams
+
+    class Actor:
+        def __init__(self, t):
+            self.t, self.controls, self.is_alive = t, [], True
+
+        def get_transform(self):
+            return self.t
+
+        def get_velocity(self):
+            return SimpleNamespace(x=2.0, y=0.0)
+
+        def apply_control(self, control):
+            self.controls.append(control)
+
+        def destroy(self):
+            self.is_alive = False
+
+    class Owner:
+        def try_spawn(self, bp, t):
+            return Actor(t)
+
+    class Library:
+        def find(self, name):
+            return name
+
+    carla = SimpleNamespace(LaneType=FakeLaneType, VehicleControl=lambda **kw: SimpleNamespace(**kw))
+    lane = chain([(x, 0.0) for x in range(0, 120)], yaw_deg=0.0, lane_id=-1)
+    scenario = BrakingLeadCar(carla, ScenarioParams("braking_lead", lead_start_m=20.0, brake_at_m=45.0, second_gap_m=6.0), lambda loc: (loc.x, loc.y))
+    lead = scenario.spawn(Owner(), Library(), lane)
+    second = scenario.second
+    assert second.t.location.x - lead.t.location.x == round(6.0 + 4.4)
+    scenario.step(0, None)
+    assert lead.controls[-1].throttle > 0 and second.controls[-1].throttle > 0
+    lead.t = Transform(Location(46.0, 0.0), Rotation(0.0))  # past brake_at_m
+    scenario.step(1, None)
+    assert lead.controls[-1].brake > 0 and second.controls[-1].brake > 0
+    scenario.destroy()
+    assert not lead.is_alive and not second.is_alive
+    # Without second_gap_m there is no second car.
+    plain = BrakingLeadCar(carla, ScenarioParams("braking_lead"), lambda loc: (loc.x, loc.y))
+    plain.spawn(Owner(), Library(), lane)
+    assert plain.second is None
