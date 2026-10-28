@@ -17,9 +17,9 @@ Validity rules (all conservative):
 * A cluster is in the corridor when at least one of its points lies within the
   swept corridor; its gap is the front-bumper gap of those corridor points.
 * ``usable_for_clearance`` is always ``False`` on the batch. Not seeing an obstacle
-  is not the same as seeing the road clear; the autonomy wrapper asserts clearance
-  only from ``seen_clear_m`` reaching ``clear_start_m`` (positively observed clear
-  bins), and fusion still needs RGB-D to agree.
+  is not the same as seeing the road clear. ``seen_clear_m`` is descriptive road
+  return extent with permitted blind prefix/gaps; the autonomy wrapper therefore
+  withholds positive clearance until an independently supported contract exists.
 """
 
 from __future__ import annotations
@@ -374,6 +374,10 @@ def corridor_mask(route, xy_ego_m, *, ego_pose=None, ego_s_m=0.0, half_width_m, 
     return (distance <= half_width_m) & (s > ego_s_m) & (s <= ego_s_m + ahead_m)
 
 
+class ClusteringBudgetError(ValueError):
+    """Sweep needs more grid/association work than the bounded processor permits."""
+
+
 def cluster_points(xy_m, *, cell_m, min_points, merge_gap_m=None):
     """Group XY points (metres) by 8-connected occupancy cells of ``cell_m``.
 
@@ -391,9 +395,13 @@ def cluster_points(xy_m, *, cell_m, min_points, merge_gap_m=None):
     origin = cells.min(axis=0)
     cells -= origin
     shape = cells.max(axis=0) + 3
+    if int(shape[0]) * int(shape[1]) > 1_000_000:
+        raise ClusteringBudgetError("LiDAR occupancy grid exceeds cell budget")
     grid = np.zeros((int(shape[0]), int(shape[1])), np.uint8)
     grid[cells[:, 0] + 1, cells[:, 1] + 1] = 1
     count, labels = cv2.connectedComponents(grid, connectivity=8)
+    if count - 1 > 1024:
+        raise ClusteringBudgetError("LiDAR components exceed association budget")
     point_labels = labels[cells[:, 0] + 1, cells[:, 1] + 1]
     groups = [np.flatnonzero(point_labels == label) for label in range(1, count)]
     groups = [g for g in groups if len(g)]
@@ -435,7 +443,11 @@ def seen_clear_distance(
     half_width_m=None,
     ahead_m=None,
 ):
-    """Front-bumper distance (metres) to which the corridor road surface is positively seen.
+    """Descriptive far road-return extent in metres relative to the front bumper.
+
+    A blind prefix up to ``clear_start_m`` and range-dependent unsampled gaps are
+    permitted. This value is not continuous near-field/volume coverage and must
+    never independently authorize clearance or RESUME.
 
     Road-class points inside the corridor are binned along the route arc from the
     front bumper and across ``clear_strips`` lateral strips. A bin counts as seen
@@ -754,9 +766,12 @@ def extract_obstacles(
             minimum = c.min_cluster_points
         if len(points) == 0:
             continue
-        for members in cluster_points(
-            points[:, :2], cell_m=c.cell_m, min_points=minimum, merge_gap_m=c.cluster_merge_m
-        ):
+        try:
+            groups = cluster_points(points[:, :2], cell_m=c.cell_m, min_points=minimum,
+                                    merge_gap_m=c.cluster_merge_m)
+        except ClusteringBudgetError:
+            return invalid("clustering_budget_exceeded", segmentation)
+        for members in groups:
             cluster = _build_cluster(
                 points[members],
                 mask[members],
@@ -1049,6 +1064,7 @@ __all__ = [
     "CLASS_OBSTACLE",
     "CLASS_RAISED",
     "CLASS_ROAD",
+    "ClusteringBudgetError",
     "EgoBody",
     "EgoRoutePose",
     "GroundSegmentation",

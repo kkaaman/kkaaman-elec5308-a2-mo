@@ -146,9 +146,11 @@ combines one `SourceCorridorReport` per source:
   their source and identities repeated across sources raise. One object seen by
   both sensors yields one gap (the nearer), not two.
 - **Clearance needs every source.** `clearance_valid` requires every report to
-  assert it. LiDAR asserts it only from positive road coverage
-  (`seen_clear_m` reaching `clear_start_m`, 8 m by default, with no in-corridor
-  cluster); a single clear bin or an empty sweep never does.
+  assert it. The current LiDAR source withholds positive clearance: its
+  `seen_clear_m` is a descriptive far road-return extent that can begin up to
+  8 m ahead and bridge unsampled gaps. It cannot certify the near prefix or
+  traversed volume. No-cluster, empty-sweep and track-expiry conditions never
+  authorize RESUME. A separately supported clearance contract remains #40 work.
 
 `autonomy.lidar_fusion.LidarCorridorSource` binds the physical LiDAR stream to
 the `lidar` namespace and answers a report per frame (stale, missing or
@@ -236,3 +238,19 @@ tests); `sphinx-build -W` passed. No live CARLA evidence is claimed.
 
 evidence/E2-01-04/phase-j-20261028/README
 ```
+
+## Continuation review: road extent is not clearance
+
+An offline counterexample supplies road returns only 7.6–7.7 m beyond the bumper:
+the existing heuristic reports 8 m extent despite an entirely unobserved prefix.
+The former wrapper predicate could therefore mark clearance valid. It is removed;
+the LiDAR source now withholds positive clearance while retaining obstacle gaps,
+invalidity and descriptive road extent. This strengthens fail-closed behavior
+without changing any baseline contract/value or declaring a different physical
+rig mandatory. It does not solve #40 or #41. No live clearance is admitted.
+
+Clustering is resource-bounded before grid allocation and pairwise footprint
+association. Exceeding 1,000,000 grid cells or 1,024 connected components returns
+an invalid `clustering_budget_exceeded` sweep, never obstacle-free clearance.
+The live capture command returns success only when known-object checks and
+settings/actor cleanup all verify; incomplete captures return nonzero.

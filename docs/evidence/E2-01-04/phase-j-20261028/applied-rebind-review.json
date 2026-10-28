@@ -1,0 +1,76 @@
+{
+  "scope": "Offline-reviewed optional LiDAR implementation; live capture/recorded replay still required by #52, so no merge or live admission",
+  "classification": {
+    "src/autonomy/lidar_fusion.py": {
+      "category": "additional validated functionality",
+      "reason": "Opt-in conservative fusion; future sweeps rejected and unsupported positive-clearance output removed"
+    },
+    "src/autonomy/lidar_replay.py": {
+      "category": "additional validated functionality",
+      "reason": "Hash-checked recorded/synthetic replay; evaluation truth used only for scoring, never controller input"
+    },
+    "src/carla_adapter/lidar.py": {
+      "category": "additional validated functionality",
+      "reason": "Optional bounded callback queue, one handedness reflection/rigid transform and full-sweep configuration; live transforms remain unmeasured"
+    },
+    "src/obstacle_perception/fusion.py": {
+      "category": "additional validated functionality",
+      "reason": "Namespaced nearer-wins fusion; required missing/invalid sources remain invalid and clearance is withheld"
+    },
+    "src/obstacle_perception/lidar.py": {
+      "category": "additional validated functionality",
+      "reason": "Immutable float32 XYZI/rear-axle contract with finite/range/rigid-transform validation; no simulator dependency"
+    },
+    "src/obstacle_perception/lidar_obstacles.py": {
+      "category": "additional validated functionality",
+      "reason": "Ground/corridor/cluster/track implementation with explicit overload invalidity; road extent no longer authorizes clearance; no live performance/admission claim"
+    },
+    "src/obstacle_perception/lidar_synthetic.py": {
+      "category": "additional validated functionality",
+      "reason": "Deterministic ray-cast fixture generation and file-hash verification; synthetic truth isolated from operating source"
+    },
+    "src/obstacle_perception/__init__.py": {
+      "category": "documentation/evidence only",
+      "reason": "Package inventory docstring only; no changed existing baseline exports or imports"
+    }
+  },
+  "other_diff_review": [
+    "live capture checks cleanup before COMPLETE and returns nonzero for incomplete data",
+    "clustering memory and component/association work bounded; overflow produces invalid sweep",
+    "regressions reproduce unsupported 8m clearance from a wholly blind prefix; positive clearance now withheld",
+    "synthetic replay/fixture arrays checked; no actual LiDAR dataset claimed",
+    "narrow adapter/capture-test Ruff exemptions preserve core simulator boundary"
+  ],
+  "existing_baseline_safety_contract_change": false,
+  "status": "REVIEWED_LOADER_ONLY_REBIND_APPLIED",
+  "pr": 103,
+  "review_authority": "Explicit owner delegation in continuation request; Codex review, not a new human approval",
+  "reviewed_head": "d36b60785c3683b3a9d6a339194a754e38b7d6fa",
+  "canonical_base": "d0ceb4f2134b8b3a2eca4e422c1e42e532a29113",
+  "inventory_delta": {
+    "added": [
+      "src/autonomy/lidar_fusion.py",
+      "src/autonomy/lidar_replay.py",
+      "src/carla_adapter/lidar.py",
+      "src/obstacle_perception/fusion.py",
+      "src/obstacle_perception/lidar.py",
+      "src/obstacle_perception/lidar_obstacles.py",
+      "src/obstacle_perception/lidar_synthetic.py"
+    ],
+    "removed": [],
+    "changed": [
+      "src/obstacle_perception/__init__.py"
+    ]
+  },
+  "old_source_fingerprint": "664c4d019ad385f1a6a6b360bf8a776ed4fa47c157230da3c751853f21984f5c",
+  "new_source_fingerprint": "56ebccc4759d917aebfca8ccb7ab31740728d53922efb7b8d58469a38dee0548",
+  "old_record_sha256": "d0668d09bdf5f5a7c90feec50e98d51b4971824944d1ed8b60bccf95bf7211eb",
+  "new_record_sha256": "1581e144f052b16b33330cc9cbb02dac9dbbac059fe0f8141c8d9f1d8a9176d9",
+  "configuration_semantic_sha256": "2903124878485c8030e160f3598c381bf0197329f79d74773d84048a96c2e9ef",
+  "configuration_file_sha256": "a4b5e669f9426db24d42d9a1d20114981c95bb15302af006b1196044696fe187",
+  "actual_model_asset_sha256": "9b09cc8bf347f0fc8a5f7657480587f25db09b34bf33b0652110fb03a8ad4fef",
+  "camera_rig_sha256": "05a325d4a957d938e02cced63f4968b376ca82cb0aa2d362a8da781c87b16677",
+  "depth_policy_sha256": "052aa8a5890ed0d17fb902f14616d9158c32851bbd9971826aa843d85ac79dc6",
+  "frozen_values_scope_model_sensor_and_runner_unchanged": true,
+  "live_or_extension_operation_admitted": false
+}

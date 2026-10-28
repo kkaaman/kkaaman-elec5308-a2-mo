@@ -273,8 +273,8 @@ def test_lidar_source_rejects_wrong_episode_and_reports_frame_mismatch():
         LidarCorridorSource(ROUTE, max_age_s=-1)
 
 
-def test_lidar_clearance_needs_clear_bins_out_to_clear_start_not_one_bin():
-    """An open road sweep asserts clearance; a sweep whose clear bins stop short does not."""
+def test_lidar_road_extent_does_not_certify_positive_clearance():
+    """Even long road-return extent cannot certify the unobserved near prefix."""
     source = LidarCorridorSource(ROUTE)
     source.reset(episode_id="e")
     for index in range(3):
@@ -282,7 +282,8 @@ def test_lidar_clearance_needs_clear_bins_out_to_clear_start_not_one_bin():
     report = source.report(frame(2))
     assert report.valid and report.nearest_gap_m is None
     tracks = source.last_tracks
-    assert tracks.seen_clear_m >= source.policy.clear_start_m and report.clearance_valid
+    assert tracks.seen_clear_m >= source.policy.clear_start_m
+    assert not report.clearance_valid
     # The same tracks with the clear distance clipped to one bin: no clearance.
     object.__setattr__(tracks, "seen_clear_m", source.policy.clear_bin_m)
     assert not source.report(frame(2)).clearance_valid
@@ -307,3 +308,17 @@ def test_future_lidar_timestamp_cannot_supply_gap_or_clearance():
     assert result.invalid_reason == "stale_sweep"
     assert result.nearest_gap_m is None
     assert not result.clearance_valid
+
+
+
+def test_far_road_bins_can_reach_clear_threshold_with_entire_prefix_unobserved():
+    from obstacle_perception.lidar_obstacles import EgoBody, seen_clear_distance
+
+    policy = LidarObstaclePolicy()
+    body = EgoBody()
+    road = np.array([(body.front_m+x,y) for x in (7.6,7.7) for y in (-.8,0,.8)])
+    extent = seen_clear_distance(road,ROUTE,policy=policy,body=body)
+    assert extent == pytest.approx(policy.clear_start_m)
+    assert (road[:,0]-body.front_m > 7.5).all()
+    # This is the old wrapper's exact false-positive predicate, now prohibited.
+    assert extent >= policy.clear_start_m

@@ -304,3 +304,33 @@ def test_tracking_rejects_wrong_episode_and_non_monotonic_sweeps():
         LidarObstaclePolicy(ground_max_m=0.5)
     with pytest.raises(ValueError):
         EgoBody(rear_m=1.0)
+
+
+
+def test_clustering_rejects_unbounded_grid_before_allocation():
+    from obstacle_perception.lidar_obstacles import ClusteringBudgetError, cluster_points
+
+    with pytest.raises(ClusteringBudgetError,match="grid"):
+        cluster_points(np.array([[0.,0.],[40.,40.]]),cell_m=.0001,min_points=1)
+
+
+def test_clustering_rejects_excessive_components_before_quadratic_association():
+    from obstacle_perception.lidar_obstacles import ClusteringBudgetError, cluster_points
+
+    points = np.array([(x*2.,y*2.) for x in range(33) for y in range(33)])
+    with pytest.raises(ClusteringBudgetError,match="components"):
+        cluster_points(points,cell_m=.5,min_points=1)
+
+
+def test_extraction_cluster_overload_is_invalid_not_clear(monkeypatch):
+    import obstacle_perception.lidar_obstacles as module
+
+    def overloaded(*args,**kwargs):
+        raise module.ClusteringBudgetError("synthetic resource overload")
+    monkeypatch.setattr(module,"cluster_points",overloaded)
+    sweep = synthetic_sweep(Scene(boxes=(SceneBox(20.,0.,4.,2.,1.5),)),
+                            episode_id="budget",frame_id=0,sim_time_s=0.)
+    batch = module.extract_obstacles(sweep,RouteGeometry(((0.,0.),(50.,0.))))
+    assert not batch.valid
+    assert batch.invalid_reason == "clustering_budget_exceeded"
+    assert not batch.clusters and batch.seen_clear_m is None

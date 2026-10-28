@@ -255,3 +255,19 @@ def test_serialise_sweep_and_environment_validation(tmp_path):
         validate_environment("0.9.15", "0.9.16", "Town10HD_Opt")
     with pytest.raises(ValueError):
         validate_environment("0.9.16", "0.9.16", "Town01")
+
+
+
+def test_capture_completion_requires_verified_cleanup_and_all_measurements():
+    from scripts.capture_lidar_sweeps import final_capture_status
+
+    clean = {"settings_restored":True,"leaked_owned_ids":[]}
+    assert final_capture_status(None,[True],clean) == "COMPLETE"
+    for error, checks, cleanup in (
+        (None,[True],dict(clean,settings_restored=False)),
+        (None,[True],dict(clean,leaked_owned_ids=[42])),
+        (None,[True,False],clean),
+        (None,[],clean),
+        ("capture failure",[True],clean),
+    ):
+        assert final_capture_status(error,checks,cleanup) == "INCOMPLETE"

@@ -36,3 +36,26 @@ point counts/density/coverage, known-object coordinate/intensity results at
 10/20/30 m, cleanup/restoration status and replay rows. Preserve failures.
 This capture has no RGB-D channel: fused HOLD is expected and must not be
 reported as joint RGB-D/LiDAR clearance or stop/resume acceptance.
+
+## Continuation review and corrected clearance semantics
+
+Complete production diff reviewed after canonical PR100/108/107 integration.
+Fixed an unsupported draft clearance predicate: road points only 7.6–7.7 m
+beyond the bumper could report 8 m extent while the near prefix was unobserved.
+The source now withholds positive clearance; descriptive road extent cannot
+release HOLD. This strengthens the draft without altering baseline contracts
+or declaring a different physical rig mandatory. Clustering grid/component work
+is now explicitly bounded and overload invalidates the sweep. Capture COMPLETE
+requires all known-object checks and verified actor/settings cleanup; incomplete
+captures return nonzero. Regressions retain the counterexamples.
+
+Reviewed loader-only rebind is applied; frozen values/scope/model/sensor and
+historical #41 runner binding remain unchanged. Production admission and 19
+negative probes pass. **65 focused LiDAR tests and 1065 full-suite tests pass**
+(1 CARLA deselected, 3 subtests), along with Ruff, boundary smoke (96 modules),
+strict Sphinx, diff and fixture hashes/replay. No trusted validator/test was
+weakened to accept a hash. Source/config/model/record identities are adjacent.
+
+Status: **CARLA BLOCKED** for actual known-object capture and recorded replay;
+no physical clearance/resume certificate or #40/#41 acceptance is claimed.
+The earlier pending-inventory blocker is superseded; live criteria are not.

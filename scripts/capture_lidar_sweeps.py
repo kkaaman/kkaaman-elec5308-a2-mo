@@ -246,11 +246,18 @@ def collect(args):
         checks = [row["known_object_check"]["passed"] for row in document["sweeps"]]
         document["known_object_checks_passed"] = int(sum(checks))
         document["known_object_checks_total"] = len(checks)
-        document["capture_status"] = (
-            "COMPLETE" if error is None and checks and all(checks) else "INCOMPLETE"
-        )
+        document["capture_status"] = final_capture_status(error, checks, document["cleanup"])
         (args.output / "sweeps.json").write_text(json.dumps(document, indent=2) + "\n")
         print(f"Wrote {args.output / 'sweeps.json'} ({document['capture_status']})")
+    return document
+
+
+def final_capture_status(error, checks, cleanup):
+    """Acceptance data is complete only with all checks and clean restoration."""
+    complete = (error is None and bool(checks) and all(checks)
+                and cleanup.get("settings_restored") is True
+                and cleanup.get("leaked_owned_ids") == [])
+    return "COMPLETE" if complete else "INCOMPLETE"
 
 
 def main():
@@ -277,8 +284,9 @@ def main():
         help="LiDAR height above the actor origin (metres)",
     )
     parser.add_argument("--output", type=Path, required=True, help="new directory under runs/")
-    collect(parser.parse_args())
+    document = collect(parser.parse_args())
+    return 0 if document["capture_status"] == "COMPLETE" else 1
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
