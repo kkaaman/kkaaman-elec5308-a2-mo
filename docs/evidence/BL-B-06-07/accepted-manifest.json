@@ -1,0 +1,82 @@
+{
+  "archive": "accepted-20261025.zip",
+  "sha256": "df2076fc64f40b7abfc1057e8d6030705b3198c8abec732e1bcdba01c262dc5b",
+  "members": {
+    "merge-compatibility.txt": {
+      "bytes": 41,
+      "sha256": "2ba092f1bf8d71c2e082651ecb9b0fa178aa6272b7c5dd3185a5af6a8942102e"
+    },
+    "scenario_verification.json": {
+      "bytes": 108971,
+      "sha256": "237cd4a57b3940d375c4dae22c38883ab4befaa77ddf6a1c381478c3bf018f08"
+    },
+    "source/configs/mission_baseline.json": {
+      "bytes": 6963,
+      "sha256": "ab8755dd668f46fb16f14a0173ee6c072a7b0570b1c6815d9de21f087282a08d"
+    },
+    "source/configs/scenarios/S1.json": {
+      "bytes": 585,
+      "sha256": "938940c899d7236ca86b142d78a0490b471273ff357ea5fbc5a23df96be4cae9"
+    },
+    "source/configs/scenarios/S2.json": {
+      "bytes": 583,
+      "sha256": "f3cc2664153d0644568f13b0de053b609db56dc28772d361daa35f1bc9246e70"
+    },
+    "source/configs/scenarios/S3.json": {
+      "bytes": 576,
+      "sha256": "eb43303130c9b5810acf4d4fab12e3b2a8c45fad29ad245ff46f3ebc7edd9629"
+    },
+    "source/configs/scenarios/S4.json": {
+      "bytes": 558,
+      "sha256": "97694513184c68dddb6cdc43cba8993913244be71ebe3e62ce7ced051a6ec8fc"
+    },
+    "source/configs/scenarios/S5.json": {
+      "bytes": 592,
+      "sha256": "2f6fc530c76fcba71120c2d6ccf410951ede6779d1cbd3a84fc2f91d0301206c"
+    },
+    "source/packaging-working-tree.patch": {
+      "bytes": 33110,
+      "sha256": "6e3bca129be6c4bcc22deb74c0d6821209fb573711bdfd5a5bec94c9d10cea03"
+    },
+    "source/scripts/verify_scenarios.py": {
+      "bytes": 431,
+      "sha256": "cf939af637b94dc618cb8cc1918487be2e7c02f16188cc0a6960d2eb3e5cce0b"
+    },
+    "source/src/carla_adapter/scenario_verification.py": {
+      "bytes": 28738,
+      "sha256": "03a5e1b72105476a07c9007f34fb4b3c599fe66a21a56a132f34b579cde3bbd2"
+    },
+    "source/src/carla_adapter/scenario_world.py": {
+      "bytes": 11959,
+      "sha256": "f156f26e50725456322630dd2184f00e17aef3f5a43888d6f31497e30bc947d8"
+    },
+    "source/src/carla_adapter/vehicle.py": {
+      "bytes": 6334,
+      "sha256": "1580fb5124b3bf7fa2d0e46b788e757da6566f17a551bbd24d85a29a23203493"
+    },
+    "source/src/carla_adapter/world.py": {
+      "bytes": 11442,
+      "sha256": "2d844de3e9e8f8cd71023469094891ca4974eb72a008ffb9dc81f036e5561161"
+    },
+    "source/src/evaluation/scenario_events.py": {
+      "bytes": 4957,
+      "sha256": "672851c760b0b15c35b53071629bd86d18e9b45d04e28e9aad61e911084f8cdf"
+    },
+    "source/src/evaluation/scenarios.py": {
+      "bytes": 8757,
+      "sha256": "3c7e52061e05a0a60b28a0aae3d6adf7c1a089584bfa6b70f91b2324ac18bba4"
+    },
+    "source/src/evaluation/stop_truth.py": {
+      "bytes": 7375,
+      "sha256": "dddc4485a9f05a97ce450744c94f28eec146d56049f7877b7abe218c420b2fcc"
+    },
+    "stdout.log": {
+      "bytes": 1069,
+      "sha256": "0143e7b6be331b06441ed35ed13c3724be60ab87663d225d8bf6274b8c8517ab"
+    },
+    "topology-survey.json": {
+      "bytes": 142894,
+      "sha256": "96cd2a682129a95ed1af3703f00b755b4e97f048cdafb24f6741bcb09d4abd14"
+    }
+  }
+}
