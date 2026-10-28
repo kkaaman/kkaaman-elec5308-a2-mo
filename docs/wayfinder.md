@@ -152,3 +152,16 @@ summary reports monotonic progress and the number of paused steps.
   follows the route; a large `off_route_m` is reported, not acted on.
 - The mini-map is a frame renderer, not a HUD integration; the live HUD overlay
   and click-to-select destination are outside this change.
+
+## Continuation: recorded pose input
+
+The offline CLI now accepts --poses runs/wayfinder-poses.json with explicit
+schema_version=1, origin=recorded or synthetic, run_id and steps containing
+time_s, x_m, y_m, yaw_rad and speed_mps. Times must strictly increase. It writes
+one mini-map per supplied pose, preserves input/route SHA256 and does not invent
+a stopped sample. Origin is a capture claim requiring provenance review.
+Use a new output directory. Existing generated poses/PNGs remain synthetic.
+
+CARLA stayed off. Actual recorded route/pose/turn screenshots including a stop
+remain missing. No recorded input was found locally. This optional renderer
+does not alter control or admit a new route into the frozen baseline.

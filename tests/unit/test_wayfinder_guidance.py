@@ -164,3 +164,29 @@ def test_replay_script_writes_log_and_frames(tmp_path):
     assert any(frame["eta_state"] == "paused" for frame in summary["frames"])
     route = json.loads((output / "route.json").read_text(encoding="utf-8"))
     assert route["origin"]["name"] == "baseline_start" and len(route["maneuvers"]) == 3
+
+
+def test_recorded_pose_replay_retains_origin_and_stop_without_synthesis(baseline_route, tmp_path):
+    topology, route = baseline_route
+    x,y = route.points_xyz_m[0][:2]
+    source=tmp_path/"poses.json"
+    doc={"schema_version":1,"origin":"synthetic","run_id":"fixture",
+         "steps":[dict(time_s=0,x_m=x,y_m=y,yaw_rad=0,speed_mps=4),
+                  dict(time_s=1,x_m=x,y_m=y,yaw_rad=0,speed_mps=0)]}
+    source.write_text(json.dumps(doc))
+    result=wayfinder_replay.replay_recorded(route,topology,SpeedPolicy(),source,tmp_path/"out")
+    assert result["origin"]=="synthetic" and result["paused_steps"]==1
+    assert result["steps"]==2 and not result["live_acceptance"]
+    assert len(list((tmp_path/"out").glob("frame_*.png")))==2
+    doc["steps"][1]["time_s"]=0
+    source.write_text(json.dumps(doc))
+    with pytest.raises(ValueError,match="strictly increase"):
+        wayfinder_replay.replay_recorded(route,topology,SpeedPolicy(),source,tmp_path/"bad")
+
+
+def test_recorded_pose_replay_rejects_missing_provenance(baseline_route,tmp_path):
+    topology,route=baseline_route
+    source=tmp_path/"poses.json"
+    source.write_text('{"schema_version":1,"steps":[]}')
+    with pytest.raises(ValueError,match="Explicit pose"):
+        wayfinder_replay.replay_recorded(route,topology,SpeedPolicy(),source,tmp_path/"out")

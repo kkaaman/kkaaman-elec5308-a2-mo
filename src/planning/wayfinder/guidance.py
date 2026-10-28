@@ -4,7 +4,7 @@ Units are metres, metres per second and seconds throughout; display strings
 are produced only by :func:`format_distance` and :func:`format_eta`. ETA is
 derived from the remaining path length and a :class:`SpeedPolicy`:
 
-* ``reference="measured"`` divides by the current speed, clamped to at least
+* ``reference="measured"`` divides by the current speed, capped at
   the policy's ``cruise_speed_mps`` upper bound and never below the paused
   threshold, so no division by zero can occur;
 * ``reference="cruise"`` divides by the policy cruise speed, giving a
