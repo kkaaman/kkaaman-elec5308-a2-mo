@@ -1594,6 +1594,24 @@ Regression tests: `tests/unit/test_mapless_stage3_junctions.py`,
   Replaying the run's recorded frames through the fixed stack (open loop) cut the
   zero-cap ticks from 95 to 3. The 3 left are a new track at start-up.
 
+**Live on `7eaca3d` (28 Oct): stack right turn MEASURED_PASS, every gate** (PC 2,
+Town10HD site 0): footprint margin −0.43 m, exit-lane p95 0.17 m, approach p95 0.06 m;
+driver step 203 ms p50, 361 ms p95. It still had 104 ticks of zero cap from false
+triggers, and open-loop replay of its frames found four causes:
+
+- parked cars whose near side read 1.03–1.12 m from the path, inside the 0.1 m
+  clearance (their centroid sits on the face towards the car);
+- one-cell clusters at 6–10 m/s, 13–23 m off the path at the junction;
+- an 8.8 × 0.32 m stretch of wall sliding past, as a vehicle-length track;
+- blobs on the junction corners, kept because they might be people.
+
+Fixes: the parked-car clearance is −0.1 m (the near side may lie 0.1 m inside the swept
+body's side line, not outside it). Off-road non-vehicles beyond reach must be at least
+0.5 m across and no faster than `vru_max_speed_mps`. A thin vehicle-length track beyond
+reach, standing on tall evidence, is a wall. Replay: 114 zero-cap ticks down to 40, all
+from the junction-corner blobs (tracks 480 and 455). Those are kept, because they might
+be people.
+
 ## Running Phase 0 live
 
 Run with CARLA 0.9.16 and no other clients:
