@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "scenario_id": "S2",
+  "description": "Stationary adult pedestrian in the ego corridor on road 20; removed after a steady HOLD.",
+  "mission_config": "../mission_baseline.json",
+  "obstacle": {
+    "kind": "pedestrian",
+    "blueprint": "walker.pedestrian.0001",
+    "route_s_m": 40.0,
+    "lateral_m": 0.0,
+    "yaw_offset_deg": 90.0
+  },
+  "expected_behaviour": "stop_hold_resume",
+  "removal": {
+    "rule": "after_steady_hold",
+    "steady_hold_s": 2.0
+  },
+  "max_episode_s": 120.0,
+  "seeds": [
+    5308,
+    5309,
+    5310,
+    5311,
+    5312
+  ]
+}
