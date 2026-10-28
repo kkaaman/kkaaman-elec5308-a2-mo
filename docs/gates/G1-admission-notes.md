@@ -167,3 +167,23 @@ Preparation is not a claim of new human sign-off. The rebind and final bytes sti
 require designated review/publication; no unanimous team approval is claimed.
 No production validator, source inclusion rule, frozen mission value, guard or
 scope is changed. Negative probes continue to reject candidate/config/scope/source drift.
+
+## PR100 loader-only source advancement
+
+Under the explicit continuation instruction, Codex reviewed the complete opt-in
+parking production delta and applied a canonical-loader-only inventory rebind.
+Existing PR100 feature approval is retained; no new human approval is claimed.
+The earlier record is preserved in `history/G1-admission-before-pr100.json`.
+Frozen mission bytes/semantics, numeric values, stationary-vehicle scope, model/
+sensor and freshness/confirmation/all-track contracts and issue41 runner variant
+are unchanged. This admits the source inventory to the existing baseline loader,
+not live parking, LiDAR, general clearance or pedestrian operation.
+
+The old loader fingerprint was
+`bb8f19fedc92a330b90ee090a928bd836612390019104d823a44482ff242203d`;
+the reviewed new fingerprint is
+`b0f3edc49691ce9033bc85226a2473854122a9d386f2c822d161064903f40b90`.
+Review, model/config/record identities and final validation are retained in
+`docs/evidence/E5-P1/phase-j-20261028/applied-rebind-review.json`. The production
+checker and 19 independent negative probes pass; none of the validators or
+existing admission tests was changed to accept a new hash.

@@ -1,0 +1,50 @@
+{
+  "status": "REVIEWED_LOADER_ONLY_REBIND_APPLIED",
+  "review_authority": "Explicit continuation request delegates production diff review and supported source rebinding; Codex review, not new human sign-off",
+  "pr": 100,
+  "reviewed_head": "526bf7019f17be23d30d2723a05016979cf12c65",
+  "base_main": "ae6a83d6ba54cbc09121a326bb5e95f6740970d4",
+  "delta": {
+    "added": [
+      "configs/parking_p1.json",
+      "src/autonomy/parking.py",
+      "src/autonomy/parking_contracts.py",
+      "src/obstacle_perception/parking_clearance.py",
+      "src/planning/parking.py",
+      "src/planning/parking_geometry.py",
+      "src/sim_harness/parking.py"
+    ],
+    "removed": [],
+    "changed": [
+      "src/planning/__init__.py"
+    ]
+  },
+  "classification": {
+    "configs/parking_p1.json": "additional validated opt-in synthetic P1 functionality; not enabled in baseline",
+    "src/autonomy/parking.py": "additional validated opt-in synthetic P1 functionality; not enabled in baseline",
+    "src/autonomy/parking_contracts.py": "additional validated opt-in synthetic P1 functionality; not enabled in baseline",
+    "src/obstacle_perception/parking_clearance.py": "additional validated opt-in synthetic P1 functionality; not enabled in baseline",
+    "src/planning/parking.py": "additional validated opt-in synthetic P1 functionality; not enabled in baseline",
+    "src/planning/parking_geometry.py": "additional validated opt-in synthetic P1 functionality; not enabled in baseline",
+    "src/sim_harness/parking.py": "additional validated opt-in synthetic P1 functionality; not enabled in baseline",
+    "src/planning/__init__.py": "documentation/evidence only"
+  },
+  "unchanged_safety_contracts": [
+    "mission JSON bytes and semantics",
+    "4.0 m/s stationary G2 profile",
+    "deceleration/response/6m margin",
+    "pedestrian deferred",
+    "25m supported depth range",
+    "existing confirmation/freshness/all-track guards",
+    "historical issue41 runner variant and fingerprint",
+    "baseline sensor/model settings"
+  ],
+  "old_source_fingerprint": "bb8f19fedc92a330b90ee090a928bd836612390019104d823a44482ff242203d",
+  "new_source_fingerprint": "b0f3edc49691ce9033bc85226a2473854122a9d386f2c822d161064903f40b90",
+  "old_record_sha256": "f4ff536d7cb1918ac4f0db63165f5f686acd0a93d649b598bc50b7e8fc1e6a6a",
+  "new_record_sha256": "da69d2449083fb80b22a5db3eff9ad921e846ebd2dae75ae2b18cd4c7d068d6d",
+  "configuration_semantic_identity": "2903124878485c8030e160f3598c381bf0197329f79d74773d84048a96c2e9ef",
+  "configuration_file_sha256": "a4b5e669f9426db24d42d9a1d20114981c95bb15302af006b1196044696fe187",
+  "live_parking_admitted": false,
+  "runner_binding_changed": false
+}
