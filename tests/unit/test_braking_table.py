@@ -31,10 +31,16 @@ def test_a_braking_episode_reports_lag_deceleration_and_stopping_distance():
     assert row["brake"] == "0.90-1.01" and row["episodes"] == 1
 
 
-def test_assumed_decelerations_are_checked_against_the_achieved_peak_at_full_brake():
+def test_assumed_stops_are_checked_against_the_stops_full_brake_achieved():
+    """A 3 m/s^2 stop from 6 m/s after one tick of lag: 6.3 m. The 1 and 2 m/s^2 ramps
+    (18 m, 9 m) hold; the following rule's 4 m/s^2 after 0.5 s (7.5 m) holds too, by 1.2 m,
+    though its deceleration alone is not reached; at 1.5 m/s^2 it does not."""
     check = against_assumptions(episodes(braking_log(decel=3.0)))
-    rules = check["rules"]
-    assert check["achieved_peak_decel_p10_mps2"] == pytest.approx(3.0, abs=0.01)
-    assert [r["achieved"] for r in rules.values()] == [True, True, False]  # 1, 2 and 4 m/s^2 assumed
-    assert check["response_ok"] is True
+    rules = list(check["rules"].values())
+    assert [r["achieved"] for r in rules] == [True, True, True]
+    assert rules[2]["margin_m"] == pytest.approx(6.0 * 0.5 + 6.0**2 / 8.0 - 6.3, abs=0.1)
+    assert check["worst_effective_decel_mps2"] == pytest.approx(6.0**2 / (2 * 6.3), abs=0.05)
+    assert check["response_ok"] is True and check["implausible_excluded"] == 0
+    assert [r["achieved"] for r in against_assumptions(episodes(braking_log(decel=1.5)))["rules"].values()] == [True, False, False]
     assert "BL-E-03" in against_assumptions(episodes(braking_log(brake=0.5)))["note"]
+    assert against_assumptions(episodes(braking_log(decel=40.0)))["note"].startswith("no stop")  # over 1 g: implausible
