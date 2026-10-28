@@ -1,3 +1,34 @@
 *.pth filter=lfs diff=lfs merge=lfs -text
 # Keep checksum-pinned fixture bytes stable across Windows checkouts.
 tests/fixtures/detector_sequence.json text eol=lf
+# These files are byte-pinned by the BL-D-06 archived evidence review.
+configs/stack.yaml text eol=lf
+docs/evidence/BL-C-04-06/sensor-wait-timing-review.json text eol=lf
+docs/evidence/BL-C-05-refresh/sequences.json text eol=lf
+docs/evidence/BL-D-06/history/review-operational-range-before-sameframe.py.txt text eol=lf
+docs/evidence/BL-D-06/operational-approach/review.json text eol=lf
+docs/evidence/BL-D-06/operational-range-review.json text eol=lf
+docs/evidence/BL-D-06/sources/acceptance.json text eol=lf
+docs/evidence/BL-D-06/sources/benchmark.json text eol=lf
+docs/evidence/BL-D-06/sources/capture-summary.json text eol=lf
+docs/evidence/BL-D-06/sources/controller-timing.json text eol=lf
+docs/evidence/BL-D-06/sources/depth-analysis.json text eol=lf
+docs/evidence/BL-D-06/sources/depth-calibration.json text eol=lf
+docs/evidence/BL-D-06/sources/longitudinal.json text eol=lf
+docs/evidence/BL-D-06/sources/navigation-baseline.json text eol=lf
+docs/evidence/BL-D-06/warm-operational.json text eol=lf
+scripts/review_operational_range.py text eol=lf
+scripts/review_same_frame_capture.py text eol=lf
+src/autonomy/freshness.py text eol=lf
+src/autonomy/interfaces.py text eol=lf
+src/autonomy/obstacle_policy.py text eol=lf
+src/autonomy/operational.py text eol=lf
+src/autonomy/stack.py text eol=lf
+src/carla_adapter/sensors.py text eol=lf
+src/carla_adapter/vehicle.py text eol=lf
+src/carla_adapter/world.py text eol=lf
+src/obstacle_perception/box_depth.py text eol=lf
+src/obstacle_perception/tracking.py text eol=lf
+src/perception/frame_detector.py text eol=lf
+src/perception/object_detection.py text eol=lf
+src/planning/speed_governor.py text eol=lf

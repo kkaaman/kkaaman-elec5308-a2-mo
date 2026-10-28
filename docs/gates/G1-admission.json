@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
   "decision": "PASS",
-  "publication_state": "PR98_INVENTORY_REBIND_PREPARED_FOR_DESIGNATED_REVIEW",
+  "publication_state": "PR108_REVIEWED_LOADER_ONLY_SOURCE_REBIND",
   "review_process": "Issue38 designated reviewer/owner; final bytes published for team review; later objections tracked separately, not unanimous individual sign-off",
   "review_process_url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/38#issuecomment-6395116981",
   "scope_evidence_acknowledgement_url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/38#issuecomment-6394910845",
-  "final_change_review": "PR98_SOURCE_INVENTORY_REBIND_PENDING_DESIGNATED_REVIEW_AND_PUBLICATION",
+  "final_change_review": "Codex complete production-diff review delegated by explicit continuation instruction, 2026-10-28; no new human sign-off claimed",
   "admitted_profile": "stationary_vehicle_g2_only",
   "operational_scope": "Stationary-vehicle obstacle profile for the G2 stationary-car baseline only; pedestrian operational first-admission range unestablished/deferred.",
   "frozen_values": {
@@ -45,7 +45,6 @@
   "source_variants": {
     "canonical_loader_only": {
       "kind": "loader_only",
-      "scope_sha256": "bb8f19fedc92a330b90ee090a928bd836612390019104d823a44482ff242203d",
       "source_hashes": {
         "src/autodrive/perception/lane_dataset.py": "571b6eccd88ab3c83280f852deb0afb4261c302d283b5f0a893354487debbf5f",
         "src/autodrive/perception/lane_inference.py": "5990fa15e3be89f161128bb709c36056aecb2f71417e9b3b6467d53611ecf471",
@@ -61,6 +60,8 @@
         "src/autonomy/mission.py": "2fc7dfaeff3fad0893acb3a53d5a764b97d3e23cc6efb234b22896eabdc7c872",
         "src/autonomy/obstacle_policy.py": "03de571deee9fb1a73a18e534b9f9a65b8824050c49e22e8caafd5f0f8076012",
         "src/autonomy/operational.py": "5baaa7c347aa2ca3c0b63c5055d3ed71371f72218a8043abbe60f01b24a08877",
+        "src/autonomy/parking.py": "e546f76baa872f9d269f549146cb788d95145f96b32c211feaa7b9054d79f0e5",
+        "src/autonomy/parking_contracts.py": "ac7778f179cfaf8fc8a64be215f42e2ac893ed071bd3e0bd82b8ba7d98004426",
         "src/autonomy/paths.py": "6dc7c21873009e7b71ff8d0c39a64e2eb6c0e4a4a3abc26294dbf5a1af3dc320",
         "src/autonomy/stack.py": "73225409d124e10c60fddadb95568fd945d52834b939ffbfad02b2bb19026b95",
         "src/carla_adapter/__init__.py": "ad3ee3b5f4d02f113afba20882ae37cb9b260ae45b77a06c26290118c99a6db6",
@@ -78,6 +79,7 @@
         "src/carla_adapter/topology.py": "2777a67403e9e8184e30431dfb0aa318add0b5bd90c9c9e2d86d02844812a372",
         "src/carla_adapter/vehicle.py": "1580fb5124b3bf7fa2d0e46b788e757da6566f17a551bbd24d85a29a23203493",
         "src/carla_adapter/vehicle_geometry.py": "575c7c6f3b0130641b17b2462270a1c2de11707720a3e3cee2ef87b3942b80d1",
+        "src/carla_adapter/weather_experiment.py": "1abe456462d23e83051b67f634f4b4f4ea2c1362950b55ab1591c4f48abfc97c",
         "src/carla_adapter/world.py": "2d844de3e9e8f8cd71023469094891ca4974eb72a008ffb9dc81f036e5561161",
         "src/cloud/__init__.py": "242f884c1c623f616510264091f6cea42351f5cf996467dfda8269063f753330",
         "src/demo_combined_perception.py": "02d2bcc6dabb7ad38fe83561a63962c7f161036a814ba99013e885630fe7139b",
@@ -111,6 +113,7 @@
         "src/obstacle_perception/__init__.py": "6bf9470952c3db87811ac8dbe2cd31683dfa89f32dffc4d4dad63d6bf57230db",
         "src/obstacle_perception/box_depth.py": "d00ac5dcb4ca5a808f09bbed54a2bb541fffa8a030090983ae2ed3345bf3a897",
         "src/obstacle_perception/boxes.py": "8b37ba71cef5650176d3702dbb822ed57d357c717250d4ee455f18b439f1ba8b",
+        "src/obstacle_perception/parking_clearance.py": "dc06a4ffcfb9b6568aaf0123c02ebea4df18dfcb899f943b149c67008e3af789",
         "src/obstacle_perception/tracking.py": "c0a2781e4b5fde3080c8b2d0d18e697be46cc4ea0e4b22c18d57e0a5b58cef61",
         "src/obstacle_perception/types.py": "bd4ee59bf6cc0f928e1c25028c0628aa3f3218118d1b054f19a1a36262c75794",
         "src/overlay_enhancements.py": "23959eb8982a18a8dee3ebfabf07a621165952eae846e4df067b62b45163a371",
@@ -122,13 +125,15 @@
         "src/perception/object_detection.py": "130b2fef40353c2ef36b58e1015e2b9cd2fbe5340df6d008049bada79c07b889",
         "src/perception/recorded_detector.py": "35eea3b4ccf94a29e4fc14e4b3ae2320ddfa6f85dbfb03fa19e0567236c5a599",
         "src/perception/types.py": "245e6bb9f318228f1b730c88a38d8c13db7a3be087a4d5713f7b099647399394",
-        "src/planning/__init__.py": "35aac9b8e8e68ea7d66357537002c221dead7bef28a5fb27ffcb29de074b6d3d",
+        "src/planning/__init__.py": "4d580cc8c127273d0d45ac0c71111f764b706e52523b87c12305eb9194b55ff5",
         "src/planning/baseline_mission.py": "cf98315d0c182450528da923df1d0acdb2e7333f74c8c368ba3a6d208a60c871",
         "src/planning/behaviour.py": "2bf2e4ad19d8681d5937886edd0cc01738ffe45f7cc4cf7c8094fabe45d5f358",
         "src/planning/corridor.py": "cb207e4db86603617cb14cab03aa6b5b765886f98ce91e5d51d7ac70808a1f42",
         "src/planning/junction_planner.py": "91608be276573cfbc043b1350b6693aa2ad8977ad8bfdf4e03b106caf3790e3b",
         "src/planning/lane_graph.py": "13665409469612e72a56d8063ba958dc0ba65c610a05d2d683cb8718128a537f",
         "src/planning/lane_graph_audit.py": "e63cb40139c2a9288d50cc6475e78d00d6163fcf1ed43603ed2de7ad1bedfb0c",
+        "src/planning/parking.py": "75ae06f1e09d14465c1df58a7952a060c9f2fc19896e1ea106784acc76253547",
+        "src/planning/parking_geometry.py": "2e4d2d1a8c03e833394ca7e63c32fd3f0a174fba0fcf670455050bffc212a6f3",
         "src/planning/route_manager.py": "aaf4525f76a8171d37a82a7c54270f365d5d016a8b560d995ecc1a7d1a1adb4a",
         "src/planning/speed_governor.py": "41a1f518de445eb6c388fff8576e6d1bb4810fdf8a2c3c634717757254a258e2",
         "src/segmentation/__init__.py": "9850898e9d68f088c2a38169f8f4e9c202a101d012257d73c1a10f3b1a8c1e4e",
@@ -138,6 +143,7 @@
         "src/segmentation/segmentation.py": "10e47734ea4795cdcd689df5f51bf2a062fe702d74713cf5dbf8db690e57810c",
         "src/sim_harness/__init__.py": "e9dcd14ea30deb775dc64b06285bc85bec15b06a0192ed57f881370245fe01eb",
         "src/sim_harness/kinematic.py": "75bec9d9b89bd6eb827f3c70026ff88a441c2b3aa49129c651f7d8fca7b21897",
+        "src/sim_harness/parking.py": "f3fb75569cece19e47d8aba6d6c2250adc573a52a99562817d9afb029986efbd",
         "src/sim_harness/s0_acceptance.py": "5f2d2e5e45ad9847145873e2f7fc02157986f0f998cbbec160eaeabf61097800",
         "src/sim_harness/skeleton.py": "6c603cf438a59a36095c5f8c4152f7e29dbb2735602f672d55d6b139ecc504a1",
         "src/sim_harness/synthetic.py": "d500cf6efd97d75ad75091b5b1f2bf2d590cf325edd6d235a7010b3c98fea2d7",
@@ -152,6 +158,7 @@
         "configs/README.md": "377cd51aa55a02abc6de02b0af087bd38523825d39685be4a0335dda898c2ab1",
         "configs/acceptance.json": "9f8ba3cf712dedd6d0483eb228a6df8155e9f2e65880bd6a560ec07495c6c7d8",
         "configs/models.yaml": "a8e1a7956ed5646593167694264235dcd106c4d4eb4cb0cf97f4527191117533",
+        "configs/parking_p1.json": "ba4f08fb57cc3f186c990c0b215f0ded8c9992f8ea4957c1b5d9dd3bb4b47f07",
         "configs/routes/town10hd_baseline_v1.json": "ceb97ada3abef563c12bbcc15395f6fc272e0e4c90795a7e147eab0835325bf2",
         "configs/scenarios/S1.json": "938940c899d7236ca86b142d78a0490b471273ff357ea5fbc5a23df96be4cae9",
         "configs/scenarios/S2.json": "f3cc2664153d0644568f13b0de053b609db56dc28772d361daa35f1bc9246e70",
@@ -163,8 +170,10 @@
         "configs/vehicle_steering_sweep.yaml": "5dcab8cba8db5128c203080eb2a4674934d2c95e01d3215cc40aaf5473667e0d",
         "configs/vehicles/tesla_model3.json": "38597106d6ef849f2cd3be31e36aa3fbc521e7b35e6daebd012c7a6fac17e94c",
         "configs/weather/.gitkeep": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "configs/weather/robustness_v1.json": "0bfc4770bfcdb6f5eff0276dd80d8ffbb9b4f296c383d5899e7e4eac87184874",
         "docs/evidence/BL-D-06/sources/depth-calibration.json": "89d64df2475790eea16a0fc2b862a9fcbafdf125c9f3fd5ef3f74453afc9cf5f"
-      }
+      },
+      "scope_sha256": "664c4d019ad385f1a6a6b360bf8a776ed4fa47c157230da3c751853f21984f5c"
     },
     "issue41_runner": {
       "kind": "issue41_runner",
