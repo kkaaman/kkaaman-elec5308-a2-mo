@@ -71,6 +71,7 @@ from mapless.prediction import (
 from mapless.radar import RadarConfig, measure
 from mapless.road_model import RoadModelBuilder, RoadModelConfig
 from mapless.road_segmentation import RoadSegmenter, load_segmenter
+from mapless.terrain import CellLabel
 from mapless.tracking import Tracker, TrackerConfig
 
 
@@ -172,7 +173,19 @@ class StackConfig:
     group_max_m: float = 4.0
     offroad_min_size_m: float = 0.5  # beyond the kerb's reach a mover must be at least this long (not a one-cell cluster)
     group_min_width_m: float = 0.6
+    # ... and no wider than a car's width: a car cutting in slowly, seen as 3.9 x 1.6 m,
+    # was yielded to as a group at 0.8 m/s and the car slowed to 0.25 m/s (live cut-in
+    # with the car staying slower, 6f2aec3). It is the conflict check's.
+    group_max_width_m: float = 1.4
     group_max_mps: float = 2.0
+    # A vehicle-sized track beyond the kerb's reach stands on or beside road: within
+    # offroad_road_window_m of it the grid has seen at least offroad_road_min_cells points of
+    # ROAD, or too little of the area at all to say (offroad_known_min_cells). Building
+    # faces 14-22 m off a Town05 street, 3.5-9 m long and 0.3-2.4 m across, "approaching"
+    # at 4-7 m/s, had no road within 3 m and stopped the car (live, 6370b98).
+    offroad_road_window_m: float = 3.0
+    offroad_road_min_cells: int = 3
+    offroad_known_min_cells: int = 20
     # A vehicle beside the path slower than this, not coming towards it, is parked or
     # queueing: its drift is the car's changing view of it (see ``parked_beside``).
     parked_max_mps: float = 1.0
@@ -369,6 +382,7 @@ class MaplessStack:
             frame_generation=self.frame_generation,
         )
         self.records.append(record)
+        near = near_tracks(live if perceived else (), motion.odometry if perceived else None)
         diagnostics = dict(
             step.diagnostics,
             tracks=len(tracks),
@@ -381,7 +395,8 @@ class MaplessStack:
             speed_cap_reason=cap_reason,  # logged every tick: a hold at a standstill never reaches the veto
             lead=self._lead,
             # The live tracks around the car, for the evaluator's actor matching (F1).
-            tracks_near=near_tracks(live if perceived else (), motion.odometry if perceived else None),
+            tracks_near=near[0],
+            tracks_near_omitted=near[1],
             cap_track=self._cause,
             clearing_for=self._clearing,
             parked_beside=self._parked[:5],
@@ -494,9 +509,10 @@ class MaplessStack:
             times = (arcs - s_now) / speed
             # The car's whole oriented body along the path, not a disc about the rear axle.
             others = conflict_candidates(tracks, predictions, lead_id, c.prediction)
+            admitted = {}
             keep_right = self.driver.corridor.keep_right_m
             if keep_right is not None:
-                others = plausible_crossers(tracks, others, xy, keep_right, c, ego_speed_mps=motion.speed_mps, grid=self.driver.grid)
+                others = plausible_crossers(tracks, others, xy, keep_right, c, ego_speed_mps=motion.speed_mps, grid=self.driver.grid, why=admitted)
             if keep_right is not None:
                 others, self._unreachable = road_reachable(tracks, others, xy, self.driver.grid, keep_right, c, history=self._blocked_ticks)
             others, self._parked = parked_beside(tracks, others, xy, self.driver.config.body, c)
@@ -535,11 +551,11 @@ class MaplessStack:
                     conflict_cap, why = passing, "passing a road user standing at the roadside"
                 if cap is None or conflict_cap < cap:
                     cap, reason = conflict_cap, why
-                    self._cause = _track_note(tracks, p.track_id, pose)
+                    self._cause = dict(_track_note(tracks, p.track_id, pose), admitted=admitted.get(p.track_id, "not filtered"))
             yield_cap, yield_id = crossing_yield(tracks, others, xy, s_now, self.driver.config.body, self.driver.config.planner.decel_mps2, c, self._yield_since, t)
             if yield_cap is not None and (cap is None or yield_cap < cap):
                 cap, reason = yield_cap, "yielding to a road user crossing the path"
-                self._cause = _track_note(tracks, yield_id, pose)
+                self._cause = dict(_track_note(tracks, yield_id, pose), admitted=admitted.get(yield_id, "not filtered"))
         return cap, reason
 
     def _lidar_saw(self, xy_odo):
@@ -573,12 +589,17 @@ class MaplessStack:
         self.frame_generation = 0
 
 
-def near_tracks(tracks, pose, ahead_m=60.0, behind_m=10.0, side_m=12.0, limit=24):
-    """The tracks around the car, nearest first, as [id, x, y, vx, vy, length, width]
-    (vehicle frame, m and m/s; the extent None when not measured): the log's compact view
-    for matching tracks to the scenario's actors on the evaluator's side (third review, F1)."""
+def near_tracks(tracks, pose, ahead_m=60.0, behind_m=10.0, side_m=12.0, limit=40):
+    """The tracks around the car, nearest first, as [id, x, y, vx, vy, length, width,
+    status, support] (vehicle frame, m and m/s; the extent None when not measured; status C,
+    T or K for confirmed, tentative or coasting; support the sensors' initials, C camera,
+    L LiDAR, R radar): the log's compact view
+    for matching tracks to the scenario's actors on the evaluator's side (third review, F1).
+    Past ``limit`` the farthest are left out, and the log says how many
+    (``tracks_near_omitted``, fourth review: a crowded scene must not lose an actor
+    silently)."""
     if pose is None or not tracks:
-        return []
+        return [], 0
     rows = []
     for track in tracks:
         at = pose.to_body(track.position[None])[0]
@@ -590,11 +611,12 @@ def near_tracks(tracks, pose, ahead_m=60.0, behind_m=10.0, side_m=12.0, limit=24
             (
                 float(np.hypot(*at)),
                 [int(track.track_id), round(float(at[0]), 2), round(float(at[1]), 2), round(float(v[0]), 2), round(float(v[1]), 2)]
-                + ([None, None] if fp is None else [round(float(fp[0]), 2), round(float(fp[1]), 2)]),
+                + ([None, None] if fp is None else [round(float(fp[0]), 2), round(float(fp[1]), 2)])
+                + [track.status.name[0], "".join(sorted(s[0].upper() for s in track.support))],
             )
         )
     rows.sort(key=lambda r: r[0])
-    return [r[1] for r in rows[:limit]]
+    return [r[1] for r in rows[:limit]], max(0, len(rows) - limit)
 
 
 def predictable_tracks(tracks):
@@ -682,7 +704,7 @@ def oncoming_verdict(tracks, gate, junction, config):
 _AROUND = np.array([[0.0, 0.0], [0.25, 0.0], [-0.25, 0.0], [0.0, 0.25], [0.0, -0.25]])  # a cell and its neighbours
 
 
-def plausible_crossers(tracks, candidates, path_xy, keep_right_m, config, ego_speed_mps=0.0, grid=None):
+def plausible_crossers(tracks, candidates, path_xy, keep_right_m, config, ego_speed_mps=0.0, grid=None, why=None):
     """Drop candidates that are not clearly vehicles and cannot be crossing. Vehicles (a
     decided car/truck class, or a footprint ``vehicle_min_m`` or longer) are kept: the timed
     conflict check handles them. Of the rest, kept are:
@@ -702,8 +724,12 @@ def plausible_crossers(tracks, candidates, path_xy, keep_right_m, config, ego_sp
       the path, and the car hit it).
 
     A clipped wall segment can be any length under ``vehicle_min_m`` (2.19 m in the fourth
-    live M04 run)."""
+    live M04 run).
+
+    ``why`` (a dict, optional) gets each kept track's admitting rule, for the log (fourth
+    review: which gate let a track become a predicted conflict)."""
     by_id = {t.track_id: t for t in tracks}
+    why = {} if why is None else why
     path = np.asarray(path_xy, dtype=float)
     if len(path) < 2:
         return list(candidates)
@@ -718,6 +744,11 @@ def plausible_crossers(tracks, candidates, path_xy, keep_right_m, config, ego_sp
         s, lateral, _ = project_onto_polyline(track.position[None], path)
         lat = float(lateral[0])
         within = abs(lat) <= keep_right_m + config.vru_reach_m
+        seg = int(np.clip(np.searchsorted(arcs, float(s[0]), side="right") - 1, 0, len(path) - 1))
+        tangent = np.array([math.cos(heads[seg]), math.sin(heads[seg])])
+        normal = np.array([-tangent[1], tangent[0]])  # +left
+        towards = -math.copysign(1.0, lat) * float(track.velocity @ normal)  # speed towards the path line
+        along = float(track.velocity @ tangent)
         if is_vehicle(track, config):
             # A "vehicle" only by length, as thin as a wall and standing on persistent tall
             # evidence off the road, is a wall's visible stretch sliding (an 8.8 x 0.32 m
@@ -725,19 +756,25 @@ def plausible_crossers(tracks, candidates, path_xy, keep_right_m, config, ego_sp
             thin = track.footprint is not None and min(track.footprint[0], track.footprint[1]) < config.offroad_min_size_m and decided_class(track) is None
             if not within and thin and grid is not None and float(grid.tall_evidence(track.position[None] + _AROUND).max()) >= config.reach_wall_min_evidence:
                 continue
+            if not within and grid is not None and not road_near(grid, track.position, config):
+                continue  # beyond reach and nowhere near road: a building's face, not a car
+            if not within and towards < config.approach_min_mps:
+                # Beyond reach and not heading for the path: it can enter it only by turning
+                # first, and is kept the tick it does. Fence stretches 5-6 m right, 4-8 m long,
+                # "oncoming" at 5 m/s along the road, reached the path only through their
+                # envelopes and capped the car to 0 (Town05, 6370b98, recorded frames).
+                continue
+            why[p.track_id] = "vehicle " + ("within reach" if within else "beyond reach, road near")
             out.append(p)
             continue
         if within and (motion_state(track, config.prediction) == "uncertain" or decided_class(track) == "pedestrian"):
             # Within reach and motion unknown (its envelope is bounded), or a pedestrian,
             # who can step out from a standstill (review of 3e9083a, M5): keep it.
+            why[p.track_id] = "within reach, " + ("pedestrian" if decided_class(track) == "pedestrian" else "motion uncertain")
             out.append(p)
             continue
-        seg = int(np.clip(np.searchsorted(arcs, float(s[0]), side="right") - 1, 0, len(path) - 1))
-        tangent = np.array([math.cos(heads[seg]), math.sin(heads[seg])])
-        normal = np.array([-tangent[1], tangent[0]])  # +left
-        towards = -math.copysign(1.0, lat) * float(track.velocity @ normal)  # speed towards the path line
-        along = float(track.velocity @ tangent)
         if abs(lat) <= config.following.lane_half_width_m + 0.5:
+            why[p.track_id] = "in the lane band"
             out.append(p)
             continue
         if towards < config.approach_min_mps:
@@ -761,8 +798,23 @@ def plausible_crossers(tracks, candidates, path_xy, keep_right_m, config, ego_sp
             if grid is not None:
                 if float(grid.tall_evidence(track.position[None] + _AROUND).max()) >= config.reach_wall_min_evidence:
                     continue  # standing on a wall or a fence: its visible stretch, not a road user
+        why[p.track_id] = ("beyond reach" if not within else "within reach") + f", approaching at {towards:.1f} m/s"
         out.append(p)
     return out
+
+
+def road_near(grid, position, config):
+    """Whether the grid shows road within ``offroad_road_window_m`` of ``position``
+    (odometry), or has seen too little of the area to say: a vehicle beyond the kerb's reach
+    must stand on or beside a road (``plausible_crossers``). A car's own cells read
+    OCCUPIED, so it is the road around it that counts."""
+    half = config.offroad_road_window_m
+    steps = np.arange(-half, half + 1e-9, 0.5)
+    window = np.asarray(position, dtype=float).reshape(1, 2) + np.array([[dx, dy] for dx in steps for dy in steps])
+    labels = grid.labels(window)
+    if int((labels != CellLabel.UNKNOWN).sum()) < config.offroad_known_min_cells:
+        return True
+    return int((labels == CellLabel.ROAD).sum()) >= config.offroad_road_min_cells
 
 
 def parked_beside(tracks, candidates, path_xy, body, config):
@@ -1047,7 +1099,7 @@ def is_group(track, config):
         return False
     # A blob, not a line: a 3.4 x 0.37 m stretch of railing sliding past was yielded to as
     # a "group" on the first live stack turn (ff1910b).
-    if min(track.footprint[0], track.footprint[1]) < config.group_min_width_m:
+    if not config.group_min_width_m <= min(track.footprint[0], track.footprint[1]) <= config.group_max_width_m:
         return False
     return max(track.footprint[0], track.footprint[1]) <= config.group_max_m and max(track.speed_mps, track.recent_speed_mps or 0.0) <= config.group_max_mps
 

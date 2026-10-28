@@ -472,27 +472,42 @@ class Tracker:
             return
         sensor = np.array([pose.x_m, pose.y_m]) if pose is not None else None
         merges = 0
+        # Why a radar-only track next to a LiDAR one was not folded in, for the log (fourth
+        # review: duplicate tracks on one car survive the merge; which gate keeps them?).
+        blocked = []
         for r in twins:
-            best = None
+            best = nearest = None
             for cand in lidar_now:
-                if cand.track_id not in self.tracks or cand.footprint is None or max(cand.footprint[0], cand.footprint[1]) < c.merge_min_extent_m:
+                if cand.track_id not in self.tracks:
                     continue
                 rel = r.x[:2] - cand.x[:2]
-                length, width, yaw = cand.footprint
-                along = abs(rel[0] * math.cos(yaw) + rel[1] * math.sin(yaw)) - length / 2
-                across = abs(-rel[0] * math.sin(yaw) + rel[1] * math.cos(yaw)) - width / 2
-                if along > c.merge_margin_m or across > c.merge_margin_m or not self._speeds_agree(r, cand, sensor):
-                    continue
                 d = float(np.hypot(*rel))
-                if best is None or d < best[0]:
-                    best = (d, cand)
+                if cand.footprint is None or max(cand.footprint[0], cand.footprint[1]) < c.merge_min_extent_m:
+                    why = "the LiDAR track is smaller than merge_min_extent_m" if cand.footprint is not None else "the LiDAR track has no extent"
+                else:
+                    length, width, yaw = cand.footprint
+                    along = abs(rel[0] * math.cos(yaw) + rel[1] * math.sin(yaw)) - length / 2
+                    across = abs(-rel[0] * math.sin(yaw) + rel[1] * math.cos(yaw)) - width / 2
+                    if along > c.merge_margin_m or across > c.merge_margin_m:
+                        why = f"outside its footprint by {max(along, across) - c.merge_margin_m:.1f} m"
+                    elif not self._speeds_agree(r, cand, sensor):
+                        why = "radial speeds disagree"
+                    else:
+                        why = None
+                        if best is None or d < best[0]:
+                            best = (d, cand)
+                if why is not None and (nearest is None or d < nearest[0]):
+                    nearest = (d, cand, why)
             if best is None:
                 r.twin_of, r.twin_ticks = None, 0
+                if nearest is not None and nearest[0] <= 5.0:
+                    blocked.append([r.track_id, nearest[1].track_id, round(nearest[0], 1), nearest[2]])
                 continue
             lt = best[1]
             r.twin_ticks = r.twin_ticks + 1 if r.twin_of == lt.track_id else 1
             r.twin_of = lt.track_id
             if r.twin_ticks < c.merge_persist:
+                blocked.append([r.track_id, lt.track_id, round(best[0], 1), f"persisting ({r.twin_ticks} of {c.merge_persist} ticks)"])
                 continue
             keep, gone = (r, lt) if r.track_id < lt.track_id else (lt, r)
 
@@ -530,6 +545,8 @@ class Tracker:
             merges += 1
         if merges and self.radar_stats is not None:
             self.radar_stats = dict(self.radar_stats, merged=merges)
+        if blocked and self.radar_stats is not None:
+            self.radar_stats = dict(self.radar_stats, twins_kept=blocked[:8])  # [radar id, LiDAR id, distance, why]
 
     @staticmethod
     def _shift_history(track, offset):

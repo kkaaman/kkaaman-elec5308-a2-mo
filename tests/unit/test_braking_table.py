@@ -44,3 +44,16 @@ def test_assumed_stops_are_checked_against_the_stops_full_brake_achieved():
     assert [r["achieved"] for r in against_assumptions(episodes(braking_log(decel=1.5)))["rules"].values()] == [True, False, False]
     assert "BL-E-03" in against_assumptions(episodes(braking_log(brake=0.5)))["note"]
     assert against_assumptions(episodes(braking_log(decel=40.0)))["note"].startswith("no stop")  # over 1 g: implausible
+
+def test_the_rules_checked_are_the_ones_the_run_drove_with():
+    """Fourth review, 7.4: the assumptions come from the run report, not constants; a run
+    with a stronger assumed braking fails where the default holds."""
+    from evaluation.braking_table import assumptions  # noqa: PLC0415
+
+    eps = episodes(braking_log(decel=3.0))
+    strong = assumptions(1.0, 2.0, 8.0, 0.5)
+    rules = list(against_assumptions(eps, strong)["rules"].values())
+    assert [r["achieved"] for r in rules] == [True, True, False]
+    assert list(against_assumptions(eps, assumptions(1.0))["rules"]) == ["planner ramp (PlannerConfig.decel_mps2)"]
+    excluded = against_assumptions(episodes(braking_log(decel=40.0)))["excluded"]
+    assert len(excluded) == 1 and excluded[0]["why"].startswith("over 1 g")

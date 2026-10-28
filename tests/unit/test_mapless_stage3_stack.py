@@ -268,6 +268,9 @@ def test_the_second_live_stack_turn_false_triggers_are_dropped():
         def tall_evidence(self, xy, max_age_s=None):
             return np.full(len(np.asarray(xy).reshape(-1, 2)), 30.0)
 
+        def labels(self, xy, max_age_s=None):
+            return np.full(len(np.asarray(xy).reshape(-1, 2)), CellLabel.ROAD, dtype=np.int8)  # a road beside the wall
+
     slide = track(98, 9.0, -20.0, 0.0, 5.5, fp=(8.8, 0.32, math.pi / 2), travelled=4.0, recent=5.2)
     assert plausible_crossers([slide], predict_all(predictable_tracks([slide]), c.prediction), _path(), 1.75, c, ego_speed_mps=2.0, grid=Wall()) == []
     crossing_car = track(99, 9.0, -20.0, 0.0, 5.5, fp=(4.5, 1.9, math.pi / 2), travelled=4.0, recent=5.2)
@@ -362,3 +365,48 @@ def test_r5_a_pedestrian_standing_on_the_pavement_does_not_bring_the_car_to_a_st
     # Walking out of the pavement into the lane: yielded to.
     rows = _drive_past(make_stack(cruise=6.0), walker(-3.0, vy=1.4), seconds=8.0)
     assert min(v for _, v, _, _, _ in rows) <= StackConfig().yield_mps + 1e-6
+
+
+# -- fourth review (6f2aec3) ----------------------------------------------------------------
+def test_t01_t02_a_vehicle_length_track_off_the_road_counts_only_where_there_is_road():
+    """Fourth review, T01/T02 (Town05 on 6370b98, recorded frames): building faces 14-22 m
+    right of the street, 3.5-9 m long and 0.3-2.4 m across, "approached" at 4-7 m/s and
+    capped the car to 0, 38 m short of the lead; the grid had no road within 3 m of any of
+    them. The same track with road around it (a car coming out of a side road) still sets
+    the cap, and so does one where the grid has not seen the area."""
+    face = track(30, 20.0, -20.0, -3.0, 6.0, fp=(5.5, 0.8, math.pi / 2), travelled=4.0, recent=6.5)
+    pavement_and_buildings = (lambda xy: xy[:, 1] < -12.0, CellLabel.BARRIER)
+    assert cap([face], grid=Grid([pavement_and_buildings]), cruise=4.0, speed=4.0) is None
+    side_road = (lambda xy: (xy[:, 1] < -12.0) & (np.abs(xy[:, 0] - 20.0) > 4.0), CellLabel.BARRIER)
+    assert cap([face], grid=Grid([side_road]), cruise=4.0, speed=4.0) == 0.0
+    unseen = (lambda xy: xy[:, 1] < -12.0, CellLabel.UNKNOWN)
+    assert cap([face], grid=Grid([unseen]), cruise=4.0, speed=4.0) == 0.0
+    # Within the kerb's reach the rule does not apply: a car pulling out from the kerb.
+    pulling_out = track(31, 9.0, -3.5, 0.0, 1.0, fp=(4.5, 1.9, 0.0), travelled=1.0, recent=1.0)
+    assert cap([pulling_out], grid=Grid([(lambda xy: xy[:, 1] < -2.5, CellLabel.BARRIER)])) is not None
+
+
+def test_a_slow_car_cutting_in_is_not_a_group_on_foot():
+    """Live slower cut-in (6f2aec3): the car, seen as 3.9 x 1.6 m at 1.4 m/s, was yielded to
+    as a group of walkers at 0.8 m/s and the car slowed to 0.25 m/s. A group is no wider
+    than ``group_max_width_m``; the car is the conflict check's. A 2.4 x 1.0 m group is
+    still yielded to (M7)."""
+    from mapless.stack import is_group  # noqa: PLC0415
+
+    c = StackConfig()
+    assert not is_group(track(62, 12.0, 2.4, 1.3, -0.45, fp=(3.9, 1.6, -0.3), travelled=3.0, recent=1.4), c)
+    assert is_group(track(5, 12.0, -2.0, 0.0, 1.3, fp=(2.4, 1.0, math.pi / 2)), c)
+
+
+def test_a_vehicle_length_track_beyond_reach_moving_along_the_road_is_not_a_crosser():
+    """Town05 recorded frames (6370b98): fence stretches 5-6 m right of the path, 4-8 m long
+    and 0.3 m across, "oncoming" at 5 m/s along the road with no motion towards the path,
+    reached it only through their envelopes and capped the car to 0. Beyond the kerb's
+    reach a vehicle must be heading for the path; the same track turning towards it is
+    kept at once, and one within reach (the opposing lane) is kept as before (M4)."""
+    fence = track(119, 38.0, -5.5, -5.2, -0.2, fp=(6.2, 0.3, 0.0), travelled=1.0, recent=None)
+    assert cap([fence], cruise=4.0, speed=4.0) is None
+    turning = track(120, 20.0, -5.5, -3.0, 2.0, fp=(4.5, 1.9, -0.6), travelled=2.0, recent=3.6)
+    assert cap([turning], cruise=4.0, speed=4.0) is not None
+    oncoming = track(1, 20.0, 3.3, -4.0, 0.0, fp=(4.5, 1.9, 0.0))
+    assert cap([oncoming], cruise=4.0, speed=4.0) is not None

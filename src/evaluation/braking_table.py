@@ -26,12 +26,26 @@ from pathlib import Path
 
 import numpy as np
 
-ASSUMED = {
-    "planner ramp (PlannerConfig.decel_mps2)": 1.0,
-    "predicted conflict (StackConfig.conflict_decel_mps2)": 2.0,
-    "following worst case (FollowingConfig.ego_brake_mps2)": 4.0,
-}
-ASSUMED_RESPONSE_S = 0.5  # FollowingConfig.response_s
+
+def assumptions(planner_decel_mps2, conflict_decel_mps2=None, following_brake_mps2=None, following_response_s=None):
+    """The braking each speed rule assumes, as the run report records it: name ->
+    (assumed deceleration, reaction allowance). The stack's two rules only with the stack."""
+    out = {"planner ramp (PlannerConfig.decel_mps2)": dict(assumed_mps2=float(planner_decel_mps2), response_s=0.0)}
+    if conflict_decel_mps2 is not None:
+        out["predicted conflict (StackConfig.conflict_decel_mps2)"] = dict(assumed_mps2=float(conflict_decel_mps2), response_s=0.0)
+    if following_brake_mps2 is not None:
+        out["following worst case (FollowingConfig.ego_brake_mps2)"] = dict(assumed_mps2=float(following_brake_mps2), response_s=float(following_response_s or 0.0))
+    return out
+
+
+def default_assumptions():
+    """The code's defaults, for runs whose report does not record its own (before the
+    fourth review) and for BL-E-03, which has no stack."""
+    from mapless.planner import PlannerConfig  # noqa: PLC0415
+    from mapless.stack import StackConfig  # noqa: PLC0415
+
+    c = StackConfig()
+    return assumptions(PlannerConfig().decel_mps2, c.conflict_decel_mps2, c.following.ego_brake_mps2, c.following.response_s)
 
 
 def read_log(run):
@@ -133,33 +147,37 @@ def table(eps, brake_bands=((0.05, 0.3), (0.3, 0.6), (0.6, 0.9), (0.9, 1.01)), s
     return rows
 
 
-def against_assumptions(eps, full_brake=0.9, g_mps2=9.81):
+def against_assumptions(eps, rules=None, full_brake=0.9, g_mps2=9.81):
     """Each rule's assumed stop against the stops full brake achieved, from 2 m/s or more
     with a brake command of at least ``full_brake``: the rule's stopping distance
-    v x response + v^2 / (2 a) (the following rule's ``response_s``; none for the planner's
-    ramp and the conflict rule, which carry no reaction allowance) against the measured
-    one, lag included. ``margin_m`` is the least of (assumed - measured) over the stops; a
-    rule holds when it is not negative. Comparing distances, not a peak or an average
-    deceleration, keeps the lag and the end of the stop in. An effective deceleration
-    above 1 g is implausible and left out (counted)."""
+    v x response + v^2 / (2 a) against the measured one, lag included. ``rules`` is the run
+    report's ``braking_assumptions`` (``assumptions``), else the code's defaults. ``margin_m``
+    is the least of (assumed - measured) over the stops; a rule holds when it is not
+    negative. Distances, not a peak or an average deceleration, keep the lag and the end of
+    the stop in. A stop above 1 g is implausible and left out, and listed with why."""
+    rules = default_assumptions() if rules is None else rules
     strong = [e for e in eps if e["brake_max"] >= full_brake and e["speed_mps"] >= 2.0]
     stops = [e for e in strong if e.get("effective_decel_mps2") is not None]
     plausible = [e for e in stops if e["effective_decel_mps2"] <= g_mps2]
+    excluded = [
+        dict(source=e.get("source"), start_s=e["start_s"], speed_mps=e["speed_mps"], stopping_distance_m=e["stopping_distance_m"], effective_decel_mps2=e["effective_decel_mps2"], why="over 1 g: not a braking stop")
+        for e in stops if e["effective_decel_mps2"] > g_mps2
+    ]
     if not plausible:
-        return dict(note=f"no stop from 2 m/s or more with a brake command of {full_brake:g} or more: run BL-E-03 (scripts/calibrate_longitudinal.py)")
+        return dict(excluded=excluded, note=f"no stop from 2 m/s or more with a brake command of {full_brake:g} or more: run BL-E-03 (scripts/calibrate_longitudinal.py)")
     lags = [e["lag_s"] for e in strong if e["lag_s"] is not None]
-    rules = {}
-    for name, a in ASSUMED.items():
-        response = ASSUMED_RESPONSE_S if "following" in name else 0.0
+    checked = {}
+    for name, rule in rules.items():
+        a, response = rule["assumed_mps2"], rule["response_s"]
         margin = min(e["speed_mps"] * response + e["speed_mps"] ** 2 / (2 * a) - e["stopping_distance_m"] for e in plausible)
-        rules[name] = dict(assumed_mps2=a, response_s=response, margin_m=round(float(margin), 2), achieved=margin >= 0.0)
+        checked[name] = dict(assumed_mps2=a, response_s=response, margin_m=round(float(margin), 2), achieved=margin >= 0.0)
     return dict(
         stops=len(plausible),
-        implausible_excluded=len(stops) - len(plausible),
+        implausible_excluded=len(excluded),
+        excluded=excluded,
         worst_effective_decel_mps2=round(float(min(e["effective_decel_mps2"] for e in plausible)), 2),
         by_speed=[dict(speed_mps=e["speed_mps"], stopping_distance_m=e["stopping_distance_m"], effective_decel_mps2=e["effective_decel_mps2"]) for e in sorted(plausible, key=lambda e: e["speed_mps"])],
         measured_lag_max_s=round(float(max(lags)), 2) if lags else None,
-        assumed_response_s=ASSUMED_RESPONSE_S,
-        response_ok=None if not lags else max(lags) <= ASSUMED_RESPONSE_S,
-        rules=rules,
+        response_ok=None if not lags else all(max(lags) <= r["response_s"] for r in rules.values() if r["response_s"] > 0),
+        rules=checked,
     )

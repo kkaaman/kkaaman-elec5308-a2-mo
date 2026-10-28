@@ -367,8 +367,10 @@ def score_actor_tracking(log, actor_truths, body, dt_s=0.05, match_m=1.0, view_a
 
     Over ticks with the actor in view (centre within ``view_ahead_m`` ahead, 5 m behind, and
     ``view_side_m`` to the side): ``matched_ticks`` (a track within ``match_m`` of its box),
-    ``missed_ticks`` and the longest run of them, ``fragmented_ticks`` (two or more tracks
-    on it), ``track_ids`` (the nearest matched track's ids, in order) and ``id_switches``
+    ``missed_ticks`` and the longest run of them, ``not_judged_ticks`` (no match, but the
+    log left tracks out that tick), ``fragmented_ticks`` (two or more tracks on it;
+    of those, ticks with a radar-only one, the tracker's reasons for not merging it, and
+    ticks where the second track rather than the lead set the cap), ``track_ids`` (the nearest matched track's ids, in order) and ``id_switches``
     between consecutive matched ticks. Over ticks with a lead: ``lead_is_actor_ticks``,
     ``false_lead_ticks`` (a lead that was not the actor); and ``actor_in_lane_not_lead_ticks``
     (the actor ahead in the ego's lane, in view, and not the lead).
@@ -376,7 +378,9 @@ def score_actor_tracking(log, actor_truths, body, dt_s=0.05, match_m=1.0, view_a
     rows = [(row, actor) for row, actor in zip(log, actor_truths) if actor is not None]
     if not rows or "tracks_near" not in (rows[0][0].get("driver") or {}):
         return dict(available=False, note="the log has no tracks_near (recorded before the third review)")
-    in_view = matched = missed = fragmented = 0
+    in_view = matched = missed = fragmented = unknown = 0
+    radar_fragments = twin_caps = 0
+    twins_kept = {}
     run = longest = 0
     ids = []
     lead_ticks = lead_actor = false_lead = not_lead = 0
@@ -398,6 +402,11 @@ def score_actor_tracking(log, actor_truths, body, dt_s=0.05, match_m=1.0, view_a
         hits = sorted((ego_to_actor_distance(row["truth"], actor, (e[1], e[2])), e[0]) for e in d.get("tracks_near") or ())
         hits = [h for h in hits if h[0] <= match_m]
         if not hits:
+            if d.get("tracks_near_omitted"):
+                # The log left tracks out (a crowded tick): the actor's may be among them,
+                # so this is not counted as a miss (fourth review).
+                unknown += 1
+                continue
             missed += 1
             run += 1
             longest = max(longest, run)
@@ -406,6 +415,18 @@ def score_actor_tracking(log, actor_truths, body, dt_s=0.05, match_m=1.0, view_a
         matched += 1
         fragmented += len(hits) >= 2
         ids.append(hits[0][1])
+        if len(hits) >= 2:
+            # What the second track is, and why the tracker kept it (fourth review).
+            entries = {e[0]: e for e in d.get("tracks_near") or ()}
+            on_actor = {tid for _, tid in hits}
+            radar_fragments += any(len(entries[tid]) > 8 and "L" not in entries[tid][8] for _, tid in hits[1:])
+            for radar_id, lidar_id, _, why in (d.get("radar_stats") or {}).get("twins_kept") or ():
+                if radar_id in on_actor and lidar_id in on_actor:
+                    key = why.split(" by ")[0].split(" (")[0]
+                    twins_kept[key] = twins_kept.get(key, 0) + 1
+            cause, lead = d.get("cap_track") or {}, d.get("lead") or {}
+            if cause.get("track_id") in on_actor and lead.get("track_id") in on_actor and cause["track_id"] != lead["track_id"]:
+                twin_caps += 1  # a second track on the actor set the cap, not the lead
     order = [tid for k, tid in enumerate(ids) if k == 0 or tid != ids[k - 1]]
     return dict(
         available=True,
@@ -414,8 +435,12 @@ def score_actor_tracking(log, actor_truths, body, dt_s=0.05, match_m=1.0, view_a
         matched_ticks=matched,
         matched_share=round(matched / in_view, 3) if in_view else None,
         missed_ticks=missed,
+        not_judged_ticks=unknown,
         longest_missed_s=round(longest * dt_s, 2),
         fragmented_ticks=fragmented,
+        fragmented_with_radar_only_ticks=radar_fragments,
+        twins_kept_why=twins_kept,
+        second_track_set_cap_ticks=twin_caps,
         track_ids=order[:20],
         id_switches=len(order) - 1 if order else 0,
         lead_ticks=lead_ticks,
@@ -690,6 +715,65 @@ def score_behaviour(name, log, actor_truths, body, cruise_mps, dt_s=0.05, gap0_m
         )
         return out
     return out
+
+
+EXERCISE_CONDITION = {
+    "braking_lead": "the lead slows by 0.5 m/s or more while within 50 m ahead",
+    "crossing_pedestrian": "the walker enters the ego's band (0.5 m margin) within 30 m ahead",
+    "cut_in": "the cut-in car becomes the lead while a conflict or yield cap is in force, and the car then closes on it",
+}
+
+
+def score_exercised(name, log, actor_truths, body, cruise_mps, dt_s=0.05, handover_window_s=1.0):
+    """Whether the run exercised what its scenario is for (fourth review, 9.1): a pass on a
+    run that never reached the targeted transition is no evidence for it. The live cut-in
+    passed with the car pulling away, so the conflict-to-following hand-over (R1) never
+    happened. Reported as ``exercised`` with the condition and, when it was not met, what
+    was missing."""
+    out = dict(condition=EXERCISE_CONDITION.get(name, "none defined"))
+    rows = [(k, a) for k, a in enumerate(actor_truths) if a is not None]
+    if name not in EXERCISE_CONDITION or not rows:
+        return out | dict(exercised=None, note="no actor measurements" if name in EXERCISE_CONDITION else "no condition for this scenario")
+    if name == "braking_lead":
+        top = 0.0
+        for k, a in rows:
+            cx, _ = _ego_frame(log[k]["truth"], a["centre_xy"])
+            top = max(top, a["speed_mps"])
+            if 0.0 <= cx <= 50.0 and a["speed_mps"] <= top - 0.5:
+                return out | dict(exercised=True, at_s=round(log[k]["time_s"], 2))
+        return out | dict(exercised=False, note="the lead did not slow within 50 m ahead")
+    if name == "crossing_pedestrian":
+        for k, a in rows:
+            inside, dx, _ = _ahead_in_band(log[k]["truth"], a, body, 0.5)
+            if inside and dx <= 30.0:
+                return out | dict(exercised=True, at_s=round(log[k]["time_s"], 2))
+        return out | dict(exercised=False, note="the walker never entered the ego's band within 30 m")
+    window = int(round(handover_window_s / dt_s))
+    first = None
+    slower = False
+    for k, a in rows:
+        row = log[k]
+        if not (row.get("driver") or {}).get("lead"):
+            continue
+        is_actor = lead_is_actor(row, a)
+        if is_actor is None:
+            is_actor = _ahead_in_band(row["truth"], a, body, 0.5)[0]
+        if not is_actor:
+            continue
+        first = k if first is None else first
+        slower = slower or a["speed_mps"] < row["truth"]["speed_mps"] - 0.2
+    if first is None:
+        return out | dict(exercised=False, note="the cut-in car never became the lead")
+    before = [log[j].get("driver") or {} for j in range(max(0, first - window), first + 1)]
+    restricted = any(
+        d.get("speed_cap_mps") is not None and d["speed_cap_mps"] < cruise_mps - 0.25 and any(w in (d.get("speed_cap_reason") or "") for w in ("conflict", "yield"))
+        for d in before
+    )
+    out |= dict(lead_from_s=round(log[first]["time_s"], 2), restricted_at_hand_over=restricted, closing_on_it=slower)
+    if restricted and slower:
+        return out | dict(exercised=True)
+    missing = [m for m, ok in (("no conflict or yield cap was in force when it became the lead", restricted), ("the car never closed on it", slower)) if not ok]
+    return out | dict(exercised=False, note="; ".join(missing))
 
 
 def score_moving(log, actor_truths, body, min_separation_m=1.0):

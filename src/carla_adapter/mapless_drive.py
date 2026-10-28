@@ -75,6 +75,7 @@ from carla_adapter.mapless_scenarios import (
     score_actor_tracking,
     score_behaviour,
     score_completion,
+    score_exercised,
     score_lead_tracking,
     score_moving,
 )
@@ -82,6 +83,7 @@ from carla_adapter.sensor_rig import SensorRig, true_forward_speed
 from carla_adapter.sensor_rig_check import rear_axle_pose
 from carla_adapter.vehicle import FixedVehicleAdapter
 from carla_adapter.world import SynchronousWorldSession, WorldTiming, _settings_record, ensure_map
+from evaluation.braking_table import assumptions as braking_assumptions
 from evaluation.junction_truth import TurnSite, score_turn, truth_sample
 from mapless.corridor import CorridorConfig
 from mapless.driver import DriveMode, DriverConfig, MaplessDriver
@@ -868,8 +870,11 @@ class MaplessDrive:
                     detector=args.detector or "none",
                     stack_config_sha256=hashlib.sha256(json.dumps(dataclasses.asdict(stack_config), sort_keys=True, default=str).encode()).hexdigest(),
                 )
+                f = stack_config.following
+                self.report["braking_assumptions"] = braking_assumptions(config.planner.decel_mps2, stack_config.conflict_decel_mps2, f.ego_brake_mps2, f.response_s)
             else:
                 driver = MaplessDriver(self.suite, self.route, config, DT_S)
+                self.report["braking_assumptions"] = braking_assumptions(config.planner.decel_mps2)
             start_time = None
             actor_truths = []
             for tick in range(int(args.max_s / DT_S)):
@@ -1043,6 +1048,9 @@ class MaplessDrive:
             # Driving quality beside the gates: what restricted the car, whether it was the
             # actor, and the time it cost (third review, F4).
             checks.append(check("behaviour", REPORT, **score_behaviour(self.actor_scenario, log, actor_truths, self.body, args.speed, DT_S)))
+            # Whether the run reached the transition its scenario is for (fourth review): a
+            # pass on a cut-in car that drove off is no evidence for the hand-over.
+            checks.append(check("exercised", REPORT, **score_exercised(self.actor_scenario, log, actor_truths, self.body, args.speed, DT_S)))
         last = log[-1]
         summary = last["driver"].get("calibration")
         source = last["driver"].get("keep_right_source") or ""

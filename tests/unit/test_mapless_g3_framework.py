@@ -826,3 +826,29 @@ def test_yield_only_to_pedestrian_speed_crossers_that_persist():
     assert tid == 3 and cap == pytest.approx(c.yield_mps)
     crossing_yield([], [], path, 0.0, BODY, 1.0, c, since, 10.35)  # gone for a tick: restarts
     assert since == {}
+
+
+def test_following_a_slower_car_settles_without_stop_go_and_still_brakes_for_the_worst_case():
+    """Live slower cut-in (6f2aec3): behind a car at 1.4 m/s the target went 1.9 -> 0.4 ->
+    1.9 m/s every 3 s; with only the jerk limit between the target and the wanted speed it
+    overshot. The target now closes the error over ``speed_tau_s``. A car following it with
+    a 0.3 s lag settles at the lead's speed and gap, and a lead braking at 6 m/s^2 is still
+    stopped behind with the standstill gap."""
+    def run(lead, v, gap, seconds=40.0, dt=0.05, lag=0.3):
+        follow = FollowingController(FollowingConfig())
+        speeds, gaps = [], []
+        for k in range(int(seconds / dt)):
+            u = lead(k * dt)
+            target = follow.target_speed(6.0, v, gap, u, dt)
+            v = max(0.0, v + (target - v) * dt / lag)
+            gap += (u - v) * dt
+            speeds.append(v)
+            gaps.append(gap)
+        return np.array(speeds), np.array(gaps)
+
+    speeds, gaps = run(lambda t: 1.4, 1.9, 6.5)
+    late = speeds[len(speeds) // 2 :]
+    assert late.max() - late.min() < 0.05 and abs(late.mean() - 1.4) < 0.05
+    assert abs(gaps[-1] - (FollowingConfig().gap0_m + FollowingConfig().headway_s * 1.4)) < 0.2
+    speeds, gaps = run(lambda t: 3.0 if t < 10 else max(0.0, 3.0 - 6.0 * (t - 10)), 3.0, 10.0)
+    assert gaps.min() >= FollowingConfig().gap0_m - 0.1 and speeds[-1] < 0.05
