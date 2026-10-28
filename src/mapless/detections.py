@@ -23,6 +23,7 @@
   boxes with no cluster are passed on as camera-only class evidence (no range).
 """
 
+import math
 from dataclasses import dataclass
 
 import numpy as np
@@ -232,6 +233,103 @@ def _link_pairs(xy, link, bands=(5.0, 10.0, 15.0, 20.0, 30.0, 45.0)):
     return np.concatenate(out_i), np.concatenate(out_j)
 
 
+_SURE_OFFSETS = ((0, 1), (1, -1), (1, 0), (1, 1))  # the half of the 8-neighbourhood each cell looks at
+
+
+def _band_edges(xy, link):
+    """Edges (i, j) among these points with the components of the link graph (``i`` and
+    ``j`` joined when within the larger of their link distances), each one a link of it.
+
+    The points are hashed into squares of side ``g`` = the shortest link / (2 sqrt 2):
+    any two points in one square, or in two squares side by side or corner to corner,
+    are within the shortest link of each other, so those are joined without measuring
+    (a star per square, one edge per neighbouring pair of squares). Only squares farther
+    apart, still within the longest link, and not joined that way already, have their
+    points' distances measured. Dense walls and car sides are then joined square by
+    square instead of pair by pair: 130 000 linked pairs a sweep within 10 m of Town05's
+    walls (fifth review, F5-05)."""
+    n = len(xy)
+    empty = (np.zeros(0, dtype=np.int64), np.zeros(0, dtype=np.int64))
+    if n < 2:
+        return empty
+    g = float(link.min()) / (2.0 * math.sqrt(2.0)) * (1.0 - 1e-9)
+    reach = float(link.max())
+    m = int(math.ceil(reach / g)) + 1
+    cx = np.floor(xy[:, 0] / g).astype(np.int64)
+    cy = np.floor(xy[:, 1] / g).astype(np.int64)
+    cy -= cy.min() - (m + 1)
+    width = int(cy.max()) + m + 2
+    key = cx * width + cy
+    order = np.argsort(key, kind="stable")
+    ukey, ustart, ucount = np.unique(key[order], return_index=True, return_counts=True)
+    ncell = len(ukey)
+    first = order[ustart]
+    cell_of = np.empty(n, dtype=np.int64)
+    cell_of[order] = np.repeat(np.arange(ncell), ucount)
+    cells = np.arange(ncell)
+
+    def neighbours(dx, dy):
+        target = ukey + dx * width + dy
+        pos = np.minimum(np.searchsorted(ukey, target), ncell - 1)
+        hit = ukey[pos] == target
+        return cells[hit], pos[hit]
+
+    out_i, out_j = [np.arange(n)], [first[cell_of]]
+    sure_a, sure_b = [], []
+    for dx, dy in _SURE_OFFSETS:
+        a, b = neighbours(dx, dy)
+        sure_a.append(a)
+        sure_b.append(b)
+    sure_a, sure_b = np.concatenate(sure_a), np.concatenate(sure_b)
+    out_i.append(first[sure_a])
+    out_j.append(first[sure_b])
+    comp = _components(ncell, sure_a, sure_b)
+    for dx in range(0, m + 1):
+        for dy in range(-m, m + 1):
+            if (dx == 0 and dy <= 0) or (abs(dx) <= 1 and abs(dy) <= 1):
+                continue
+            if g * math.hypot(max(abs(dx) - 1, 0), max(abs(dy) - 1, 0)) > reach:
+                continue
+            a, b = neighbours(dx, dy)
+            apart = comp[a] != comp[b]
+            a, b = a[apart], b[apart]
+            if not len(a):
+                continue
+            na, nb = ucount[a], ucount[b]
+            size = na * nb
+            k = np.repeat(np.arange(len(a)), size)
+            local = np.arange(int(size.sum())) - np.repeat(np.cumsum(size) - size, size)
+            pa = order[ustart[a][k] + local // nb[k]]
+            pb = order[ustart[b][k] + local % nb[k]]
+            near = np.hypot(xy[pa, 0] - xy[pb, 0], xy[pa, 1] - xy[pb, 1]) <= np.maximum(link[pa], link[pb])
+            out_i.append(pa[near])
+            out_j.append(pb[near])
+    return np.concatenate(out_i), np.concatenate(out_j)
+
+
+def _link_components(xy, link, bands=(5.0, 10.0, 15.0, 20.0, 30.0, 45.0)):
+    """Connected-component labels of the link graph (points joined when within the larger
+    of their link distances): those of ``_link_pairs``' pairs, from ``_band_edges`` by the
+    same range bands, without listing every linked pair."""
+    n = len(xy)
+    if n < 2:
+        return np.arange(n)
+    rng = np.hypot(xy[:, 0], xy[:, 1])
+    edges = (0.0, *bands, np.inf)
+    out_i, out_j = [], []
+    for lo, hi in zip(edges[:-1], edges[1:]):
+        own = (rng >= lo) & (rng < hi)
+        if not own.any():
+            continue
+        part = np.flatnonzero(own | ((rng >= hi) & (rng - link < hi)))
+        i, j = _band_edges(xy[part], link[part])
+        out_i.append(part[i])
+        out_j.append(part[j])
+    if not out_i:
+        return np.arange(n)
+    return _components(n, np.concatenate(out_i), np.concatenate(out_j))
+
+
 def cluster_obstacles(sweep, config=None):
     """Range-tuned single-linkage clustering of the sweep's OBSTACLE points (vehicle frame).
 
@@ -245,7 +343,7 @@ def cluster_obstacles(sweep, config=None):
         return []
     xy = sweep.xyz[idx, :2].astype(float)
     link = c.link_m + c.link_per_m * np.hypot(xy[:, 0], xy[:, 1])
-    labels = _components(len(idx), *_link_pairs(xy, link))
+    labels = _link_components(xy, link)
     order = np.argsort(labels, kind="stable")
     groups = np.split(order, np.flatnonzero(np.diff(labels[order])) + 1)
     return [idx[np.sort(g)] for g in groups if len(g) >= c.min_points]
@@ -327,7 +425,7 @@ def split_oversized(sweep, clusters, config=None):
             objects.append(members)
             continue
         link = c.split_link_m + c.split_link_per_m * np.hypot(xy[:, 0], xy[:, 1])
-        labels = _components(len(members), *_link_pairs(xy, link))
+        labels = _link_components(xy, link)
         order = np.argsort(labels, kind="stable")
         pieces = [np.sort(g) for g in np.split(order, np.flatnonzero(np.diff(labels[order])) + 1) if len(g) >= c.min_points]
         for piece, structure in zip(pieces, _structure_pieces(xy, pieces, c, sweep.height_m[members])):
@@ -336,29 +434,34 @@ def split_oversized(sweep, clusters, config=None):
 
 
 def cluster_and_split(sweep, config=None):
-    """``split_oversized(sweep, cluster_obstacles(sweep))`` with one pass over the point
-    pairs: the tight link is never longer than the range-tuned one, so the tight pieces
-    are components of the same pairs, filtered by distance (the second linking pass cost
-    ~18 ms a tick on Town05's railings)."""
+    """``split_oversized(sweep, cluster_obstacles(sweep))``, with the tight link's pieces
+    found once for the points of every oversized cluster together: a tight link implies a
+    range-tuned one, so no piece spans two clusters (``_link_components`` for both; it no
+    longer lists the linked pairs a second pass could filter)."""
     c = config or DetectionsConfig()
     idx = np.flatnonzero(sweep.cls == PointClass.OBSTACLE)
     if idx.size == 0:
         return [], []
     xy = sweep.xyz[idx, :2].astype(float)
     rng = np.hypot(xy[:, 0], xy[:, 1])
-    i, j = _link_pairs(xy, c.link_m + c.link_per_m * rng)
-    labels = _components(len(idx), i, j)
+    labels = _link_components(xy, c.link_m + c.link_per_m * rng)
     order = np.argsort(labels, kind="stable")
     groups = [np.sort(g) for g in np.split(order, np.flatnonzero(np.diff(labels[order])) + 1) if len(g) >= c.min_points]
-    objects, structures, tight = [], [], None
+    big = [g for g in groups if oversized(xy[g], c)]
+    tight = None
+    if big:
+        # Tight components over the oversized clusters' points, labelled by the lowest
+        # sweep index in each (as ``_components`` labels the whole sweep).
+        pts = np.concatenate(big)
+        local = _link_components(xy[pts], c.split_link_m + c.split_link_per_m * rng[pts])
+        tight = np.full(len(idx), -1, dtype=np.int64)
+        tight[pts] = pts[local]
+    big_ids = {id(g) for g in big}
+    objects, structures = [], []
     for g in groups:
-        if not oversized(xy[g], c):
+        if id(g) not in big_ids:
             objects.append(idx[g])
             continue
-        if tight is None:
-            near = c.split_link_m + c.split_link_per_m * rng
-            keep = np.hypot(xy[i, 0] - xy[j, 0], xy[i, 1] - xy[j, 1]) <= np.maximum(near[i], near[j])
-            tight = _components(len(idx), i[keep], j[keep])
         sub = tight[g]
         o = np.argsort(sub, kind="stable")
         pieces = [g[np.sort(piece)] for piece in np.split(o, np.flatnonzero(np.diff(sub[o])) + 1) if len(piece) >= c.min_points]

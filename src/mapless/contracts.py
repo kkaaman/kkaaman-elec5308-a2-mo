@@ -68,6 +68,16 @@ class ObjectTrack:
     # (position used, speed rejected): an isolated outlier is 1, a persistent disagreement
     # between the radar and the track's (LiDAR-built) motion keeps counting.
     doppler_rejects: int = 0
+    # Whether the measured motion over the last second hangs together (tracker,
+    # ``TrackerConfig.coherence_*``): True, False, or None with too little history; and the
+    # (measured share of updates, position residual about a constant-acceleration fit, m,
+    # spread of the measured footprint's long side over its median) behind it. A wall's visible stretch jumps and is seen intermittently; a car does not
+    # (fifth review, 4.3).
+    motion_coherent: bool | None = None
+    coherence: tuple | None = None
+    # Mean normalised innovation squared of the last LiDAR position updates (2 degrees of
+    # freedom: about 2 when the filter's uncertainty matches its errors), or None.
+    lidar_nis: float | None = None
 
     def __post_init__(self):
         object.__setattr__(self, "state", _array(self.state, (4,), "state"))

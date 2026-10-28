@@ -18,6 +18,7 @@ a vehicle's run to the path is blocked only by a persistent wall no track covers
 import math
 
 import numpy as np
+import pytest
 
 from mapless.contracts import ObjectTrack, TrackStatus
 from mapless.detections import DetectionsConfig, cluster_and_split
@@ -350,3 +351,35 @@ def test_a_radar_twin_on_the_body_behind_a_lidar_rear_face_is_merged():
             tracks = tr.update(k * DT, ORIGIN, lidar=[lid((x, 0.0), extent=(1.8, 0.4, math.pi / 2))], radar=[ret((x + behind, 0.0), 2.0)])
             merged += tr.radar_stats.get("merged", 0)
         assert (merged > 0) == merges_expected, (behind, merged, [(t.track_id, t.support) for t in tracks])
+
+
+def test_f5_04_twin_fusion_stays_consistent_when_the_two_estimates_are_correlated():
+    """Fifth review, F5-04: the radar and LiDAR twins' velocities were fused as independent
+    (information added), and the cross terms dropped. With errors that share a common part
+    (correlation 0.8) that fusion is overconfident (NEES well above 2 for two dimensions);
+    covariance intersection is not, never claims more than the better estimate's
+    certainty allows for, and keeps the position-velocity cross terms."""
+    from mapless.tracking import _with_velocity_block, covariance_intersection  # noqa: PLC0415
+
+    rng = np.random.default_rng(5)
+    Pa, Pb = np.diag([0.09, 0.09]), np.diag([0.16, 0.04])
+    rho = 0.8
+    naive_nees, ci_nees = [], []
+    for _ in range(4000):
+        common = rng.normal(size=2)
+        ea = np.sqrt(np.diag(Pa)) * (math.sqrt(rho) * common + math.sqrt(1 - rho) * rng.normal(size=2))
+        eb = np.sqrt(np.diag(Pb)) * (math.sqrt(rho) * common + math.sqrt(1 - rho) * rng.normal(size=2))
+        info = np.linalg.inv(Pa) + np.linalg.inv(Pb)
+        Pn = np.linalg.inv(info)
+        xn = Pn @ (np.linalg.inv(Pa) @ ea + np.linalg.inv(Pb) @ eb)
+        naive_nees.append(float(xn @ np.linalg.solve(Pn, xn)))
+        xc, Pc = covariance_intersection(ea, Pa, eb, Pb)
+        ci_nees.append(float(xc @ np.linalg.solve(Pc, xc)))
+    assert np.mean(naive_nees) > 2.6 and np.mean(ci_nees) < 2.2
+    _, Pc = covariance_intersection(np.zeros(2), Pa, np.zeros(2), Pb)
+    assert np.trace(Pc) <= min(np.trace(Pa), np.trace(Pb)) + 1e-12
+    P = np.array([[0.09, 0, 0.05, 0], [0, 0.09, 0, 0.05], [0.05, 0, 0.3, 0], [0, 0.05, 0, 0.3]])
+    out = _with_velocity_block(P, np.diag([0.2, 0.2]))
+    assert out[0, 2] == pytest.approx(0.05) and np.all(np.linalg.eigvalsh(out) > 0)
+    shrunk = _with_velocity_block(P, np.diag([0.01, 0.01]))  # a much smaller velocity block: the cross terms give way
+    assert np.all(np.linalg.eigvalsh(shrunk) > 0) and abs(shrunk[0, 2]) < 0.05

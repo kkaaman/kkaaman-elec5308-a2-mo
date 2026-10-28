@@ -23,8 +23,9 @@ everything else:
 - **Stack** (``scripts/run_mapless_stack.py``): the same harness drives ``MaplessStack``
   (G2/G3 stages around the driver) with ``--admission A|B|C`` and the segmenter and
   detector by configuration; the log carries track counts and decision records.
-- **Moving actors** (``crossing_pedestrian``, ``braking_lead``, ``cut_in``; M04–M06,
-  framework): scripted by ``carla_adapter.mapless_scenarios``, scored on separation.
+- **Moving actors** (``crossing_pedestrian``, ``braking_lead``, ``cut_in``,
+  ``crossing_vehicle``; M04–M07, framework): scripted by ``carla_adapter.mapless_scenarios``,
+  scored on separation.
 - **Scoring** (truth): lane-centre offset of the rear axle, heading error, bumper gap to
   the parked car, collisions (collision sensor, harness only), goal distance, and the
   route-pose error of the car's GNSS/compass filter.
@@ -45,6 +46,7 @@ everything else:
 | Completion (moving actors) | Per scenario: walker yielded to then goal reached; cut-in gap ≥ 1 m then goal; braking lead held behind for ``--hold-s`` or goal |
 | Speed | Never above the cruise speed + 0.5 m/s |
 | Faults | Under 2% of driving ticks in FAULT |
+| Exercised (moving actors) | The run reached the transition its scenario is for (``score_exercised``); NOT_EXERCISED otherwise, and the run's status is NOT_EXERCISED rather than MEASURED_PASS |
 
 Reported, not gated: driver step time, the start-up route-pose error, and the kerb
 bias (where the LiDAR found the kerb against where the map has it).
@@ -85,6 +87,7 @@ from carla_adapter.vehicle import FixedVehicleAdapter
 from carla_adapter.world import SynchronousWorldSession, WorldTiming, _settings_record, ensure_map
 from evaluation.braking_table import assumptions as braking_assumptions
 from evaluation.junction_truth import TurnSite, score_turn, truth_sample
+from evaluation.observability import observability
 from mapless.corridor import CorridorConfig
 from mapless.driver import DriveMode, DriverConfig, MaplessDriver
 from mapless.obstacles import project_onto_polyline
@@ -101,6 +104,25 @@ PARKED_CAR = "vehicle.audi.a2"
 SETTLE_TICKS = 20  # brake and let the rig settle (IMU spike, spawn delay) before the car starts
 LANE_BACK_M = 15  # truth lane extended this far behind the start
 PASS, FAIL, INCOMPLETE, REPORT = "PASS", "FAIL", "INCOMPLETE", "REPORT"
+# A check that the run never reached what it is for (fifth review, testing: PASS, FAIL or
+# NOT_EXERCISED): a cut-in run whose car drove off passed every gate and showed nothing
+# about the hand-over it was meant to test.
+NOT_EXERCISED = "NOT_EXERCISED"
+
+
+def run_status(checks):
+    """The run's status from its checks: MEASURED_FAIL on any failed gate; INCOMPLETE when
+    a gate could not be measured (or there is none); NOT_EXERCISED when every gate passed
+    but the run did not reach the transition its scenario targets; else MEASURED_PASS.
+    REPORT checks are not gates."""
+    gated = [c for c in checks if c["status"] not in (REPORT, NOT_EXERCISED)]
+    if any(c["status"] == FAIL for c in gated):
+        return "MEASURED_FAIL"
+    if any(c["status"] == INCOMPLETE for c in gated) or not gated:
+        return "INCOMPLETE"
+    if any(c["status"] == NOT_EXERCISED for c in checks):
+        return NOT_EXERCISED
+    return "MEASURED_PASS"
 TURN_SCENARIOS = {"turn_left": "LEFT", "turn_right": "RIGHT"}
 LANE_SCENARIOS = ("straight", "curve", "stop")
 
@@ -610,7 +632,45 @@ def step_time_report(step_times_s, log, target_ms=STEP_TARGET_MS):
                 stages.setdefault(prefix + name, []).append(ms)
     if stages:
         out["stages_ms"] = {name: dict(p50=round(float(np.median(v)), 1), p95=round(float(np.percentile(v, 95)), 1), max=round(float(max(v)), 1), ticks=len(v)) for name, v in stages.items()}
+    # The control path apart from the optional semantic work (fifth review, F5-05): the
+    # driver (health, obstacle stop, plan, control), detection, tracking and the speed
+    # rules run every tick and must meet the deadline; segmentation, painting and the road
+    # model inform no command yet (``optional``).
+    control, optional = [], []
+    for row in log:
+        timing = (row.get("driver") or {}).get("stack_timing_ms")
+        if timing:
+            control.append(sum(timing.get(k, 0.0) for k in CONTROL_STAGES))
+            optional.append(sum(timing.get(k, 0.0) for k in OPTIONAL_STAGES))
+    if control:
+        c, o = np.array(control), np.array(optional)
+        out["control_path_ms"] = dict(p50=round(float(np.median(c)), 1), p95=round(float(np.percentile(c, 95)), 1), max=round(float(c.max()), 1), over_target_share=round(float(np.mean(c > target_ms)), 3), stages=list(CONTROL_STAGES))
+        out["optional_ms"] = dict(p50=round(float(np.median(o)), 1), p95=round(float(np.percentile(o, 95)), 1), max=round(float(o.max()), 1), stages=list(OPTIONAL_STAGES))
     return out
+
+
+def semantic_shadow_report(log):
+    """The segmenter in shadow (fifth review, ML stage 2), over the road-model ticks: how
+    often its evidence covered the lane band along the path, the median share of road in
+    it, and the ticks where most of it read pavement (where it disagrees with the kerb
+    corridor). None without a stack."""
+    rows = [s for s in ((r.get("driver") or {}).get("semantic_shadow") for r in log) if s]
+    if not rows:
+        return None
+    shares = [s["road_share"] for s in rows if s.get("road_share") is not None]
+    pavement = [s["pavement_share"] for s in rows if s.get("pavement_share") is not None]
+    return dict(
+        ticks=len(rows),
+        with_evidence_ticks=len(shares),
+        road_share_median=round(float(np.median(shares)), 2) if shares else None,
+        road_share_p10=round(float(np.percentile(shares, 10)), 2) if shares else None,
+        mostly_pavement_ticks=sum(1 for v in pavement if v > 0.5),
+        note="logged only: no rule reads the segmenter's output",
+    )
+
+
+CONTROL_STAGES = ("drive", "detect", "track", "plan")
+OPTIONAL_STAGES = ("paint", "road_model")
 
 
 class MaplessDrive:
@@ -679,7 +739,7 @@ class MaplessDrive:
             wp = wps[int(round(args.obstacle_m))]
             t = wp.transform
             t.location.z += 0.1
-            self.parked = self.owner.try_spawn(self.library.find(PARKED_CAR), t)
+            self.parked = self.owner.try_spawn(self.library.find(args.obstacle_blueprint), t)
             if self.parked is None:
                 raise RuntimeError("Could not place the parked car")
             self.parked.set_simulate_physics(False)
@@ -1050,7 +1110,8 @@ class MaplessDrive:
             checks.append(check("behaviour", REPORT, **score_behaviour(self.actor_scenario, log, actor_truths, self.body, args.speed, DT_S)))
             # Whether the run reached the transition its scenario is for (fourth review): a
             # pass on a cut-in car that drove off is no evidence for the hand-over.
-            checks.append(check("exercised", REPORT, **score_exercised(self.actor_scenario, log, actor_truths, self.body, args.speed, DT_S)))
+            exercised = score_exercised(self.actor_scenario, log, actor_truths, self.body, args.speed, DT_S)
+            checks.append(check("exercised", {True: PASS, False: NOT_EXERCISED}.get(exercised.get("exercised"), REPORT), **exercised))
         last = log[-1]
         summary = last["driver"].get("calibration")
         source = last["driver"].get("keep_right_source") or ""
@@ -1084,6 +1145,11 @@ class MaplessDrive:
             gap = last["truth"]["gap_m"]
             ok = self.report["end"] == "held at the obstacle" and gap is not None and 1.5 <= gap <= 5.0
             checks.append(check("obstacle_stop", PASS if ok else FAIL, end=self.report["end"], gap_m=gap, held_s=hold_ticks * DT_S))
+            # How far ahead the obstacle was first seen, and the speed that supports (fifth
+            # review, 4.2): the envelope per obstacle size comes from these runs.
+            planner = (self.report.get("driver_config") or {}).get("planner") or {}
+            seen = observability(log, self.body.front_m, args.speed, decel_mps2=planner.get("decel_mps2", 1.0), margin_m=planner.get("stop_gap_m", 2.5))
+            checks.append(check("observability", REPORT, obstacle=args.obstacle_blueprint, **seen))
         top = max(r["truth"]["speed_mps"] for r in log)
         checks.append(check("speed", PASS if top <= args.speed + 0.5 else FAIL, max_mps=top))
         driving = [m for m in modes if m not in (DriveMode.STARTUP, DriveMode.CALIBRATING)]
@@ -1095,6 +1161,9 @@ class MaplessDrive:
             reasons[key] = reasons.get(key, 0) + 1
         checks.append(check("faults", PASS if share <= 0.02 else FAIL, share=share, reasons=reasons))
         checks.append(check("driver_step_time", REPORT, **step_time_report(step_times, log)))
+        shadow = semantic_shadow_report(log)
+        if shadow is not None:
+            checks.append(check("semantic_shadow", REPORT, **shadow))
         edge_errors = []
         for r in startup:
             kerb = r["driver"].get("right_kerb_body")
@@ -1141,6 +1210,11 @@ def main(argv=None, stack=False):
     )
     parser.add_argument("--goal-m", type=float, default=60.0, help="Route length (m); the site needs this + 15 m without a junction")
     parser.add_argument("--obstacle-m", type=float, default=35.0, help="stop: parked car this far along the lane")
+    parser.add_argument(
+        "--obstacle-blueprint",
+        default=PARKED_CAR,
+        help="stop: what stands in the lane (a smaller one, e.g. static.prop.trafficcone01 or static.prop.box01, for the observability envelope)",
+    )
     parser.add_argument("--approach-m", type=float, default=40.0, help="turns: approach lane length before the junction")
     parser.add_argument("--exit-m", type=float, default=30.0, help="turns: exit lane length after the junction (the goal)")
     parser.add_argument("--max-kerb-mismatch", type=float, default=0.3, help="turns: exit kerb distance may differ from the approach's by this (m)")
@@ -1216,13 +1290,7 @@ def main(argv=None, stack=False):
         with SynchronousWorldSession(client, WorldTiming(fixed_delta_seconds=DT_S)) as owner:
             MaplessDrive(carla, owner, suite, args, report).run()
         report["settings_restored"] = _settings_record(client.get_world().get_settings()) == initial_settings
-        gated = [c for c in report["checks"] if c["status"] != REPORT]
-        if any(c["status"] == FAIL for c in gated):
-            report["status"] = "MEASURED_FAIL"
-        elif any(c["status"] == INCOMPLETE for c in gated) or not gated:
-            report["status"] = "INCOMPLETE"
-        else:
-            report["status"] = "MEASURED_PASS"
+        report["status"] = run_status(report["checks"])
     except Exception as error:
         report["error"] = f"{type(error).__name__}: {error}"
         if not report["checks"] and not any(args.output.iterdir()):

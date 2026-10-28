@@ -444,3 +444,57 @@ def test_behaviour_reads_old_logs_and_leaves_the_goal_stop_out():
     for row in log[-10:]:
         row["truth"].update(speed_mps=0.1, goal_distance_m=0.5)
     assert sc.score_behaviour("crossing_pedestrian", log, truths, BODY, cruise_mps=4.0)["post_clear_near_stops"] == 0
+
+
+def test_f5_04_lead_speed_nees_shows_an_overconfident_filter():
+    """Fifth review, F5-04: is the lead's speed as certain as the filter says? Scored on the
+    evaluator's side against the truth, by the sensors behind the lead: an error of 0.05
+    m/s with a 0.05 m/s sigma is consistent (NEES 1), the same error claimed at 0.01 m/s is
+    overconfident (25)."""
+    log, truths = following_run(false_lead=(), missed=(), fragments=())
+    for k, row in enumerate(log):
+        lead = row["driver"]["lead"]
+        lead.update(speed_sigma_mps=0.05 if k < 150 else 0.01, lidar_nis=2.1)
+        if k >= 150:
+            lead["support"] = ["lidar", "radar"]
+    out = sc.score_lead_tracking(log, truths, BODY)
+    assert out["speed_nees"]["lidar"]["mean"] == pytest.approx(1.0, abs=0.01) and out["speed_nees"]["lidar"]["within_95"] == 1.0
+    assert out["speed_nees"]["lidar+radar"]["mean"] == pytest.approx(25.0, abs=0.1) and out["speed_nees"]["lidar+radar"]["within_95"] == 0.0
+    assert out["lidar_nis_mean"] == pytest.approx(2.1)
+
+
+def crossing_car_run(yield_speed, cross_to=8.0):
+    """Ego cruises at 4 m/s; a car 30 m ahead, 6 m right, crosses right-to-left at 2 m/s
+    over ticks 20 on (fifth review: a driveway exit, M07), its 4.2 m length across the lane."""
+    log, truths = [], []
+    s, speed = 0.0, 4.0
+    for tick in range(320):
+        y = min(cross_to, -6.0 + 2.0 * 0.05 * max(0, tick - 20))
+        in_way = -6.0 + 2.1 < y + 2.1 and y - 2.1 < 3.0
+        if in_way and 30.0 - s > 6.0:
+            speed = yield_speed
+        elif not in_way and tick > 20:
+            speed = 4.0
+        s += speed * 0.05
+        log.append(ego_row(tick, s, speed))
+        truths.append(actor(30.0, y, yaw_rad=math.pi / 2, extent=(2.1, 0.9), speed=2.0 if y < cross_to else 0.0))
+    log[-1]["truth"]["goal_distance_m"] = 0.5
+    return log, truths
+
+
+def test_f5_crossing_vehicle_is_scored_on_its_whole_body_clearing_the_path():
+    """The crossing car (M07) is exercised once it enters the band within 30 m, the car
+    must yield while it is in the path, and the path is clear only when its whole body (not
+    its centre) is past the band."""
+    log, truths = crossing_car_run(0.3)
+    ex = sc.score_exercised("crossing_vehicle", log, truths, BODY, 4.0)
+    assert ex["exercised"] is True
+    done = sc.score_completion("crossing_vehicle", log, truths, BODY, "finished", 0.0)
+    assert done["yielded"] and done["walker_cleared"] and done["passed"] is True
+    # Cleared by its body: the centre past the band by only 1 m is not clear yet.
+    k = next(i for i, a in enumerate(truths) if a["centre_xy"][1] > BODY.half_width_m + 1.0)
+    assert not sc._cleared_left(log[k]["truth"], truths[k], BODY, vehicle=True)
+    assert sc._cleared_left(log[k]["truth"], truths[k], BODY, vehicle=False)
+    # Not yielding to it fails.
+    log, truths = crossing_car_run(4.0)
+    assert sc.score_completion("crossing_vehicle", log, truths, BODY, "finished", 0.0)["passed"] is False

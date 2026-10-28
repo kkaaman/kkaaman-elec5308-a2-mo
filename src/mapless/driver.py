@@ -165,6 +165,11 @@ class MaplessDriver:
         self._gate_frame = None  # a left turn's entry lane (odometry pose on its centre), latched as the approach begins
         self._zone_entered = False  # the body has entered the opposing lane: clear it, never stop in it for the gate
         self.last_gate = None  # this tick's OncomingGate (for the stack)
+        # How far ahead (vehicle x) the route turns off at a junction, while the path planned
+        # along is still the kerb corridor (not the turn's): past it the car leaves this road
+        # (fifth review, F5-03: a lead on the line continued straight may be on the branch the
+        # car does not take). None without a turn ahead, or on the turn's own path.
+        self.turn_entry_m = None
         # The stack's verdict on oncoming traffic for the next tick (None: the LiDAR grid
         # alone): dict(clear=bool, excused=[footprints], note=str); see ``oncoming_gate``.
         self.oncoming_override = None
@@ -237,6 +242,7 @@ class MaplessDriver:
         lap("classify")
         # For the stack around the driver (G2/G3): this tick's inputs, read after step().
         self.last_motion, self.last_classified, self.last_plan, self.last_corridor = motion, classified, None, None
+        self.turn_entry_m = None
         if classified is not None and motion.odometry_trusted and not self._rebuild:
             self.grid.add(classified, motion.odometry, t, stationary=motion.stationary)  # never placed with a broken frame
         lap("grid")
@@ -568,6 +574,7 @@ class MaplessDriver:
         plan = self.planner.plan(corridor, observation, goal_body, t, hold_at_m=hold_at, speed_cap_mps=self.speed_cap_mps)
         lap("plan")
         self.last_plan, self.last_corridor = plan, corridor  # the path planned along this tick (a turn's, in a turn)
+        self.turn_entry_m = float(junction[0][0]) if junction is not None and corridor is not self._turn_corridor else None
         d.update(
             obstacle_m=None if obstacle is None else obstacle.distance_m,
             obstacle_points=None if obstacle is None else obstacle.points,

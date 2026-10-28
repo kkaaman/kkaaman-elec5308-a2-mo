@@ -1921,6 +1921,186 @@ scipy is not on the lab PCs.
   - tracking 13 ms;
   - plan 5 ms.
 
+### Fifth technical review, of `fcac32a` (28 Oct)
+
+**F5-01, slow start behind a distant lead (live, P1).** The cause, from the `r5_brake` log: at
+1.45 s the lead, 16.7 m ahead and moving off at 2.1 m/s, became the followed lead. Following's
+target began at the car's measured 0.42 m/s while the car was lurching to 2.0 m/s, and the
+cap braked it back to 0.1 m/s. Following was not needed at all: the gap term asked 8 m/s and
+the worst case 8.6 m/s, against a 2 m/s cruise. **Fix:** watching a lead and restricting
+the car are now two decisions (`FollowingController.target_speed`):
+- while the gap term and the worst-case cap both allow cruise, and the car is within the
+  cap, there is no following cap: the driver accelerates as with no lead, and the lead's
+  numbers are logged (`lead.following`: mode, gap speed, worst-case cap);
+- following takes over the tick either falls below cruise, from the car's speed, or from the
+  cap in force if that cap was set for this same road user (R1: the car cutting in);
+- it lets go once its own target is back at cruise with both terms above it.
+
+A cap held for someone else is no longer inherited. On the Town05 frames, two ticks' cap
+for a fence stretch held following under 2 m/s for 4.5 s behind a lead 30 m ahead.
+
+Paired regression (`test_f5_01_*`): a lead standing or moving off 20, 40 or 60 m ahead, at
+the live 2 m/s cruise and at 6 m/s. The start is the same as with no lead until the gap or
+the worst case needs a cap; then following restricts and never lifts the cap. The same
+leads braking at 6 m/s² at 4 or 7 s: following takes over the tick it is needed, and the
+car stops at least 2.5 m behind (the obstacle stop's gap). Against the old controller on the
+same pairs:
+- speed at 2 s: 2.0 m/s instead of 1.56–1.78;
+- deceleration after the lead brakes begins at the same time or earlier, never later;
+- the minimum gap is unchanged.
+
+**F5-03, the lead past the line's end.** The line was continued straight for 8 m. Now:
+- the continuation keeps the curvature of the line's last 4 m (up to 0.15 1/m), so a car on
+  the bend is the lead and one straight on is not;
+- where the route turns off at a junction while the path is still the kerb corridor
+  (`MaplessDriver.turn_entry_m`), the continuation stops at the turn. A car straight on past
+  the junction is not the lead; one that ended the line before it still is;
+- a lead on the continuation is logged with `continuation` (its distance past the end, its
+  rear's, `uncertain`). One whose body begins more than 1.5 m past the end did not end the
+  line, so its place on the car's way is uncertain: it is followed for the worst case only,
+  not the gap.
+
+Tests: bends both ways, a junction ahead, a straight road, the stack's worst-case-only cap.
+
+**F5-02 and 4.3, motion coherence.** The tracker scores each vehicle-sized track's last
+second (`ObjectTrack.motion_coherent`, `coherence`):
+- the share of updates that measured it;
+- the position residual about a constant-acceleration fit through the measured positions;
+- the spread of its footprint's long side.
+
+On the Town05 recorded frames (c882389), the followed car's residual stayed at 0.073 m or
+under, with every update measured. The building faces and fence stretches ran 0.1–0.9 m,
+measured 5–60 % of the time. Incoherent means a residual over 0.25 m, or one over 0.1 m (or
+too few points) with under 60 % measured.
+- **4.3:** a vehicle-sized track with incoherent motion, outside the lane band, is predicted
+  standing where it is. Its motion is no basis for a 3 s prediction, and its occupancy is the
+  obstacle stop's, as any static object's. In the lane band its motion stands, coherent or
+  not. Walker-sized tracks are not judged.
+- **F5-02:** off the road (beyond the kerb's reach, no road in a well-seen 6 × 6 m window),
+  a vehicle-sized track now counts if it moves as a car leaving a driveway, a car park or a
+  verge does: coherent, 4 m/s or slower, tracked 30 updates or more as one object of one
+  size (footprint spread at most 0.5). Missing road alone is no longer enough to drop it.
+  The size-and-history test rejects a Town05 fragment that merged into an 8.5 × 3.5 m
+  cluster, jumped and then moved coherently; the relaxed rule first let it in.
+- Paired tests: a driveway exit (coherent, 3.5 m/s) counts; a building's face (incoherent,
+  too fast, or a merged fragment) does not. A car park at road level, an access road, a
+  side road at an odd angle and a partly hidden entrance count as before. An in-reach fence
+  (incoherent) gives no cap, while the same track moving coherently does. The tracker test
+  covers a jumping, intermittent track against a car.
+- **Town05 frames, open loop:** ticks restricted by a predicted conflict fell from 22 to 8
+  (head `fcac32a` against this commit). The two left are a 0.8 m object seen 8 times
+  (walking-pace envelope, cap 2.8–3.5 m/s) and a 12 m fence at 35 m, too young to judge
+  (2 ticks). Ticks capped below cruise overall: 144 → 129.
+
+**F5-04, twin fusion.** The radar and LiDAR twins' velocities were fused as independent and
+the cross terms dropped. **Fix:**
+- they are fused by covariance intersection (`tracking.covariance_intersection`), consistent
+  whatever their correlation;
+- the LiDAR track's position–velocity cross terms are kept, halved only as often as needed
+  to stay positive definite.
+
+Monte Carlo, two 2-D estimates (NEES 2 is consistent):
+
+| Correlation | Independent fusion | Covariance intersection |
+|---|---|---|
+| 0.0 | 1.97 | 1.04 |
+| 0.5 | 2.92 | 1.49 |
+| 0.8 | 3.45 | 1.74 |
+
+Live checking: the lead now logs its speed's own sigma (`speed_sigma_mps`) and the mean LiDAR
+NIS. `lead_tracking` reports the speed NEES against the truth by sensor set (mean, share
+under 3.84) and the NIS mean. A merged (`lidar+radar`) lead far above 1 would show
+overconfidence.
+
+**F5-06, radar-only crossing threats.** A radar-only track is predicted onto the path when:
+- it moves on corroborated motion: "moving", 1 m/s or faster, 2 m travelled;
+- its velocity explains its radial speed (no Doppler rejections);
+- it stands where the LiDAR has seen nothing (`_lidar_saw`). Where the LiDAR sees the place,
+  an object there would be its own LiDAR track, so the radar's is a twin or a ghost.
+
+It is predicted as a 4.5 × 2 m vehicle along its motion (`radar_threats` in the log).
+Clutter stays out: standing, barely travelled, Doppler-rejected and LiDAR-seen tracks are
+not predicted. Recorded frames carry no radar, so this needs a live radar-only crossing run.
+
+**F5-07, the left-turn gate and stopped cars.** A static track in the opposing lane was
+excused, so a car stopped at the junction could move off as the car crossed. Now every track
+in the lane is judged by the time it needs to reach the crossing, accelerating at
+`oncoming_accel_mps2` (2 m/s², stated) from its speed now (from rest when static) up to
+30 km/h. A static one is excused regardless only on parked evidence: never seen to move
+(under 1 m over 100 updates) and standing in the outer part of the lane (its centre past 60 %
+of the lane's width). A stopped car mid-lane, one that arrived and stopped, and one only just
+seen all block while they could still arrive in time. Paired tests: parked at the far kerb
+against stopped mid-lane; stopped near against too far to arrive; creeping off at 1 m/s
+(excused before, at its own speed plus 1 m/s) against driving away. The gap stays
+conservative: a stopped car within about 37–50 m of the crossing (`required_s` 6.5–8 s)
+holds the turn until it leaves or is seen parked.
+
+**4.1, arrival-time intervals.** The conflict check timed the path at one speed. It now also
+times it as the car is driving (`arrival_profiles`): accelerating from its speed to the
+nominal one at 1 m/s², or slowing at 2 m/s² to the cap in force, standing where it stops for
+the rest of the horizon. A conflict on any profile counts. The nominal profile is still the
+earliest arrival, so nothing it found is lost. Test: a car crossing 6 m ahead at 1.5 m/s
+from 10 m out has gone before a car holding 4 m/s arrives. It meets one moving off from rest,
+one speeding up from 1 m/s, and one slowing to 1 m/s or to a stop, and those now cap the car.
+
+**4.2, observability.** A run of the `stop` scenario now reports `observability`: the first
+held detection of the obstacle where the truth has it (true bumper gap, speed then), and the
+speed that distance supports, `d >= v*0.25 + v^2/(2*1) + 2.5` (the planner's 1 m/s², the
+measured brake lag, the stop gap). `--obstacle-blueprint` puts a smaller object in place of
+the parked car, so the envelope per size comes from runs (cone, box, car at 2, 3 and 4 m/s).
+Nothing sets the car's speed from it yet: that waits on the measured envelope.
+
+**F5-05, compute.** Profiled on the Town05 recorded frames (this container is about 1.5–2.2
+times slower than the lab PC, stage by stage):
+
+| Change | Before | After | Same result |
+|---|---|---|---|
+| Point-to-polyline projection (the driver's ground points against the corridor) | 17 ms | 4 ms | to the bit |
+| Clustering: squares joined unmeasured where every pair in them is linked | 52 ms | 20 ms | identical clusters and structures on 1452 sweeps from four runs (two Town05, two Town10HD) |
+| Road-model labels on array slices | 14.3 ms a build | 5.4 ms | identical labels |
+| Static tracks not predicted (never candidates) | 53 predictions a tick | movers only | same candidates |
+| Coherence fit only for vehicle-sized tracks, by normal equations | 3.4 s | 1.3 s | |
+
+Two scheduling changes:
+- segmentation and the road model no longer share a tick (`road_model_phase`);
+- the run report gives `control_path_ms` (drive, detect, track, plan: what must meet 50 ms)
+  apart from `optional_ms` (paint, road model).
+
+Whole stack on the Town05 frames, here: p50 187 → 124 ms, p95 253 → 182 ms. The full
+configuration's cost is the v2 segmenter's paint (295 ms p95 live on Town05): see the ML
+section below.
+
+**ML: the segmenter in shadow (the review's stages 1 and 2).**
+- **Resolution.** The segmenter's probabilities now stay at the model's own resolution
+  (`StackConfig.segment_full_resolution`, off). Painting takes the cell covering each pixel,
+  instead of resizing, normalising and checking a full-camera-size array per image every
+  segmented tick. For an image whose classes change every 4 pixels, the painted
+  probabilities match the full-resolution ones (test).
+- **Shadow measure.** Each road-model tick logs `semantic_shadow`: of the road-model cells
+  in the lane band along the path ahead (25 m) that carry semantic evidence, the share of
+  road and of pavement. The run report summarises it (`semantic_shadow`: median and p10
+  road share, ticks mostly pavement). No rule reads it. A path the segmenter calls
+  pavement is where it disagrees with the kerb corridor. That is the evidence a later
+  "controlled assistance" stage, at junction exits and occluded edges, needs first.
+
+**New scenario `crossing_vehicle` (M07).** A car waits `side_m` (6 m) right of the lane
+centre at `brake_at_m`, facing across the lane: a driveway, or with more `side_m` a side
+road. It crosses at `cross_mps` (2 m/s) once the ego is within `trigger_m`, held by
+CARLA's constant-velocity mode, so its velocity and radar Doppler are real, and stops past
+the lane's left edge. Scoring is the pedestrian's (yield, clear, resume, goal), with the path
+clear only when the car's whole body has left the band. It is the live pair for F5-02 (a
+driveway exit off the road) and, with a far trigger, for F5-06 (radar first).
+
+**Testing.** A run's status is now PASS, FAIL, INCOMPLETE or NOT_EXERCISED. A run whose
+gates all pass without the scenario's target transition (`exercised` false) is
+NOT_EXERCISED, not MEASURED_PASS.
+
+**Still open:**
+- radar-only and twin behaviour need live radar runs (no radar in recorded frames);
+- the parked-evidence rule needs a live parked-versus-stopped pair;
+- the supported-speed envelope needs the stop runs per obstacle size;
+- `weights_only` checkpoint loading.
+
 ## Running Phase 0 live
 
 Run with CARLA 0.9.16 and no other clients:
