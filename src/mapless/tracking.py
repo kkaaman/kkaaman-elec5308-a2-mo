@@ -100,6 +100,14 @@ class TrackerConfig:
     # crossing walker and stopped the car). A radar-only track inside a LiDAR track's
     # footprint grown by ``merge_margin_m`` is merged into it, the older id kept.
     merge_margin_m: float = 1.0
+    # ... or up to merge_depth_m beyond it along the line of sight, when the LiDAR has the
+    # object only as a face (its extent along the line of sight under merge_face_depth_m):
+    # the LiDAR sees a car's rear, the radar's return comes off its body behind it. On the
+    # Town05 braking lead (c882389) 177 of the 216 ticks a twin was kept, it lay outside the
+    # rear face's footprint. A car queued behind the lead starts at least ~5 m beyond its
+    # rear face and stays a track of its own.
+    merge_depth_m: float = 3.5
+    merge_face_depth_m: float = 1.5
     # A static radar-only track the LiDAR has not confirmed this close is clutter it has
     # carried in from beyond 30 m (B8: 148 tracks, 45 ms), once it is this old.
     radar_clutter_range_m: float = 25.0
@@ -488,7 +496,7 @@ class Tracker:
                     length, width, yaw = cand.footprint
                     along = abs(rel[0] * math.cos(yaw) + rel[1] * math.sin(yaw)) - length / 2
                     across = abs(-rel[0] * math.sin(yaw) + rel[1] * math.cos(yaw)) - width / 2
-                    if along > c.merge_margin_m or across > c.merge_margin_m:
+                    if (along > c.merge_margin_m or across > c.merge_margin_m) and not self._behind_face(r, cand, sensor):
                         why = f"outside its footprint by {max(along, across) - c.merge_margin_m:.1f} m"
                     elif not self._speeds_agree(r, cand, sensor):
                         why = "radial speeds disagree"
@@ -547,6 +555,30 @@ class Tracker:
             self.radar_stats = dict(self.radar_stats, merged=merges)
         if blocked and self.radar_stats is not None:
             self.radar_stats = dict(self.radar_stats, twins_kept=blocked[:8])  # [radar id, LiDAR id, distance, why]
+
+    def _behind_face(self, radar_track, lidar_track, sensor):
+        """Whether ``radar_track`` lies behind ``lidar_track``'s face as the sensor sees it:
+        the LiDAR track's extent along the line of sight is a face (under
+        ``merge_face_depth_m``), and the radar track is no more than ``merge_depth_m`` beyond
+        it along that line and within its half-extent across it plus ``merge_margin_m``."""
+        c = self.config
+        if sensor is None:
+            return False
+        los = lidar_track.x[:2] - sensor
+        dist = float(np.hypot(*los))
+        if dist < 1e-6:
+            return False
+        u = los / dist
+        length, width, yaw = lidar_track.footprint
+        rel = yaw - math.atan2(u[1], u[0])
+        deep = 0.5 * (length * abs(math.cos(rel)) + width * abs(math.sin(rel)))  # half-extent along the line of sight
+        wide = 0.5 * (length * abs(math.sin(rel)) + width * abs(math.cos(rel)))  # ... and across it
+        if 2.0 * deep > c.merge_face_depth_m:
+            return False
+        off = radar_track.x[:2] - lidar_track.x[:2]
+        beyond = float(off @ u) - deep
+        aside = abs(float(off @ np.array([-u[1], u[0]])))
+        return -c.merge_margin_m <= beyond <= c.merge_depth_m and aside <= wide + c.merge_margin_m
 
     @staticmethod
     def _shift_history(track, offset):

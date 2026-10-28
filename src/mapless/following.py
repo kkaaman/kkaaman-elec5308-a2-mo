@@ -40,6 +40,11 @@ class FollowingConfig:
     standstill_m: float = 2.5
     uncertainty_m: float = 1.0
     lane_half_width_m: float = 1.75  # a track this far from the path centre is in the lane
+    # A lead just past the end of the path line counts, on the line continued straight:
+    # the kerb a lead hides ends the corridor at about its rear, and its centre then lay
+    # past the end; it flickered in and out as the lead, and its braking was seen 1.15 s
+    # late (live braking lead, c882389).
+    beyond_end_m: float = 8.0
     # The target closes its error to the wanted speed over this time, not in one tick: with
     # only the jerk limit between them, the target overshot and the car went stop-go behind
     # a slower car (1.9 down to 0.4 m/s and back every 3 s behind one at 1.4 m/s: the first
@@ -97,7 +102,8 @@ class FollowingController:
         ``tube_half_m``: the track must also reach into the car's swept tube (its near edge,
         half its narrower footprint side inside the centre, within this of the path): a
         bollard or a waiting walker at the lane's edge is not the lead and must not displace
-        it (review of 3e9083a, M5)."""
+        it (review of 3e9083a, M5). A track up to ``beyond_end_m`` past the line's end is
+        judged on the line continued straight."""
         best = None
         line = np.asarray(path_body, dtype=float)
         for track in tracks:
@@ -106,7 +112,18 @@ class FollowingController:
             body = pose.to_body(track.position[None])
             s, lateral, outside = project_onto_polyline(body, line)
             ahead = float(s[0]) - s_from_m
-            if outside[0] or abs(lateral[0]) > self.config.lane_half_width_m or not 0.0 < ahead <= max_ahead_m:
+            if outside[0] and len(line) >= 2:
+                # Past the line's end: on the line continued straight (not before its start).
+                d = line[-1] - line[-2]
+                u = d / max(float(np.hypot(*d)), 1e-9)
+                rel = body[0] - line[-1]
+                extra = float(rel @ u)
+                if extra <= 0.0 or extra > self.config.beyond_end_m:
+                    continue
+                arcs = float(np.hypot(*np.diff(line, axis=0).T).sum())
+                ahead = arcs + extra - s_from_m
+                lateral = np.array([u[0] * rel[1] - u[1] * rel[0]])
+            if abs(lateral[0]) > self.config.lane_half_width_m or not 0.0 < ahead <= max_ahead_m:
                 continue
             if tube_half_m is not None:
                 half = 0.5 * min(track.footprint[0], track.footprint[1]) if track.footprint is not None else 0.5
@@ -126,18 +143,24 @@ class FollowingController:
         cap = worst_case_speed_cap(gap_m, lead_speed_mps, c)
         wanted = min(cruise_mps, gap_speed, cap)
         current = ego_speed_mps if self._target is None else self._target
-        hard = wanted < current and (wanted >= cap - 1e-9 or current > cap + 1e-9)
-        accel = float(np.clip((wanted - current) / max(dt_s if hard else c.speed_tau_s, 1e-3), -c.ego_brake_mps2, c.accel_mps2))
-        # Jerk limit applies to normal driving; braking harder than the comfort rate is
-        # allowed when the worst case demands it, never when merely closing a gap. The worst
-        # case demands it whenever the target is above the cap, whichever term is lowest:
-        # with the gap term below the cap, the target came down at the jerk limit from far
-        # above it (third review, R1: a car cutting in 6 m ahead at 6 m/s, cap 2.9 m/s, and
-        # the target fell 0.005 m/s on the first tick).
-        if hard:
-            accel = float(np.clip(accel, -c.ego_brake_mps2, c.accel_mps2))
+        tau_accel = float(np.clip((wanted - current) / c.speed_tau_s, -c.ego_brake_mps2, c.accel_mps2))
+        if current > cap + 1e-9:
+            # Above the worst case: down to the cap at once, at up to ego_brake_mps2 (third
+            # review, R1: jerk-limited, the target fell 0.005 m/s on the first tick, 6 m
+            # behind a car cutting in at 6 m/s). Only to the cap: below it, closing the gap
+            # is ordinary driving. Going on at ego_brake to the gap term's zero, and then
+            # unwinding the jerk limit from -4 m/s^2, stopped the car for 1.4 s behind a
+            # cut-in moving at 1.3 m/s (live slower cut-in, c882389). From the cap on, the
+            # ordinary approach picks up without a jerk to unwind.
+            target = max(cap, current - c.ego_brake_mps2 * dt_s)
+            accel = (target - current) / max(dt_s, 1e-3)
+            self._accel = min(0.0, tau_accel)
         else:
-            accel = float(np.clip(accel, self._accel - c.jerk_mps3 * dt_s, self._accel + c.jerk_mps3 * dt_s))
-        self._accel = accel
-        self._target = max(0.0, current + accel * dt_s)
+            # Jerk-limited, closing the error to the wanted speed over speed_tau_s.
+            accel = float(np.clip(tau_accel, self._accel - c.jerk_mps3 * dt_s, self._accel + c.jerk_mps3 * dt_s))
+            self._accel = accel
+            target = current + accel * dt_s
+        self._target = max(0.0, target)
+        if self._target <= 0.0:
+            self._accel = max(self._accel, 0.0)  # standing still: no deceleration wound up
         return self._target
