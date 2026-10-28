@@ -2055,7 +2055,7 @@ times slower than the lab PC, stage by stage):
 
 | Change | Before | After | Same result |
 |---|---|---|---|
-| Point-to-polyline projection (the driver's ground points against the corridor) | 17 ms | 4 ms | to the bit |
+| Point-to-polyline projection (the driver's ground points against the corridor), component-wise and in place | 17 ms | 3 ms | to the bit |
 | Clustering: squares joined unmeasured where every pair in them is linked | 52 ms | 20 ms | identical clusters and structures on 1452 sweeps from four runs (two Town05, two Town10HD) |
 | Road-model labels on array slices | 14.3 ms a build | 5.4 ms | identical labels |
 | Static tracks not predicted (never candidates) | 53 predictions a tick | movers only | same candidates |
@@ -2066,7 +2066,16 @@ Two scheduling changes:
 - the run report gives `control_path_ms` (drive, detect, track, plan: what must meet 50 ms)
   apart from `optional_ms` (paint, road model).
 
-Whole stack on the Town05 frames, here: p50 187 → 124 ms, p95 253 → 182 ms. The full
+The whole stack on recorded frames, in this container (constant segmenter, no profiler):
+
+| Frames | `fcac32a` p50 / p95 | now p50 / p95 | control path now, p50 / p95 |
+|---|---|---|---|
+| Town10HD right turn (junction, 300 ticks) | 135 / 288 ms | 52 / 68 ms | 48 / 65 ms |
+| Town05 braking lead (walls, 300 ticks) | 139 / 185 ms | 72 / 94 ms | 68 / 89 ms |
+
+The lab PC ran these stages 1.5–2.2 times faster, so live Town10HD should be well under
+50 ms, and Town05 near it. Town05's control path still has the driver's ground projection
+(11 000 ground points against the corridor: 15 ms here) and clustering (21 ms) to cut. The full
 configuration's cost is the v2 segmenter's paint (295 ms p95 live on Town05): see the ML
 section below.
 
