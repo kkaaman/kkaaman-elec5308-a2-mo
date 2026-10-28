@@ -196,3 +196,50 @@ def test_s5_in_the_opposing_lane_the_car_clears_it_rather_than_stopping_in_it():
     assert stack._clearing is not None and stack._clearing["track_id"] == 1
     walker = track(2, 4.5, -1.0, 0.0, 1.0, fp=(0.6, 0.6, 0.0))  # people on foot are never driven at
     assert cap([walker], clearing=True) <= 0.8 + 1e-9
+
+
+# -- the first live stack turn (ff1910b, Town10HD site 0) ---------------------------------
+
+
+def _path():
+    return np.column_stack((np.arange(-2.0, 40.0, 0.5), np.zeros(84)))
+
+
+def test_a_parked_car_beside_the_path_drifting_as_the_car_passes_does_not_stop_it():
+    """Live: a parked car 2.4 m to the right, its centroid drifting 0.3-0.46 m/s the car's
+    way as its visible part changed, read "uncertain" and stopped the car every 2 s."""
+    from mapless.stack import parked_beside  # noqa: PLC0415
+
+    parked = track(30, 3.5, -2.4, 0.35, 0.1, fp=(4.4, 1.8, 0.0), travelled=1.0, recent=0.35)
+    assert cap([parked]) is None
+    kept, dropped = parked_beside([parked], predict_all(predictable_tracks([parked]), StackConfig().prediction), _path(), BODY, StackConfig())
+    assert not kept and dropped == [30]
+    pulling_out = track(31, 6.0, -2.4, 0.3, 0.8, fp=(4.4, 1.8, 0.0), travelled=1.0, recent=0.85)
+    assert cap([pulling_out]) == 0.0  # coming across: a conflict at once
+    alongside = track(32, 6.0, -1.7, 0.3, 0.0, fp=(4.4, 1.8, 0.0), travelled=1.0, recent=0.35)
+    kept, _ = parked_beside([alongside], predict_all(predictable_tracks([alongside]), StackConfig().prediction), _path(), BODY, StackConfig())
+    assert kept  # its side within 0.1 m of the swept body: left to the conflict check
+
+
+def test_a_thin_stretch_of_railing_is_not_a_group_on_foot():
+    from mapless.stack import is_group  # noqa: PLC0415
+
+    c = StackConfig()
+    assert not is_group(track(15, 3.4, -8.0, -0.1, 0.4, fp=(3.4, 0.37, 0.0), travelled=1.1, recent=0.8), c)
+    assert is_group(track(5, 12.0, -2.0, 0.0, 1.3, fp=(2.4, 1.0, math.pi / 2)), c)
+
+
+def test_a_young_fragment_far_off_the_road_is_not_a_crosser_yet():
+    """Live: a 0.55 m fragment 18 m right of the path, a few ticks old, "heading for the
+    path" at 4.7 m/s, capped the car to 0. Off the road the motion must be sustained first."""
+    from dataclasses import replace  # noqa: PLC0415
+
+    from mapless.stack import plausible_crossers  # noqa: PLC0415
+
+    c = StackConfig()
+    young = replace(track(162, 1.0, -18.5, -0.2, 4.7, fp=(0.55, 0.3, 0.0), travelled=1.2), recent_speed_mps=None)
+    preds = predict_all(predictable_tracks([young]), c.prediction)
+    assert plausible_crossers([young], preds, _path(), 1.75, c, ego_speed_mps=2.0) == []
+    sustained = replace(young, recent_speed_mps=4.6)
+    preds = predict_all(predictable_tracks([sustained]), c.prediction)
+    assert [p.track_id for p in plausible_crossers([sustained], preds, _path(), 1.75, c, ego_speed_mps=2.0)] == [162]

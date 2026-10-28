@@ -415,3 +415,35 @@ def test_closed_loop_an_imu_outage_while_held_keeps_the_hold():
     assert not any(t.collision for t, _ in log)
     assert max(t.s_m for t, _ in log[at:]) - log[at][0].s_m < 0.05
     assert all(s.mode is not DriveMode.DRIVING for _, s in log[at:])
+
+
+# -- the first live stack turn (ff1910b): a hold just past a short corridor ----------------
+
+
+def test_held_regions_are_judged_past_the_lines_end():
+    """The tube continued straight past the line's end, for held regions only."""
+    xs = np.arange(-2.0, 6.81, 0.5)
+    corridor = line_corridor(np.column_stack((xs, np.zeros_like(xs))))
+    pts = ground(along=(0.0, 12.0))
+    xyz = np.column_stack((pts, np.zeros(len(pts))))
+    sweep = ClassifiedSweep(xyz, np.zeros(len(pts)), np.full(len(pts), PointClass.ROAD, dtype=np.int8), np.zeros(0), np.zeros(0))
+    obs = observe_path(sweep, corridor, BODY)
+    assert obs.clear_to_m <= 7.0  # clearance stays on the line
+    assert 10.0 < obs.ground[:, 0].max() <= 6.8 + ObstacleConfig().beyond_line_m + 0.1
+
+
+def test_a_hold_just_past_a_short_corridor_clears_when_its_region_is_seen_empty():
+    """Live: a one-tick detection 16 m out was held; the corridor shrank to 6.8 m (the kerb
+    hidden by parked cars, the junction mouth ahead), the hold lay 0.8 m past its end, and
+    "clear to 7.0 m of 9.6" could never be met: the car stood there for 45 s."""
+    xs = np.arange(-2.0, 6.81, 0.5)
+    corridor = line_corridor(np.column_stack((xs, np.zeros_like(xs))))
+    p = planner()
+    p.plan(straight(17.0), PathObservation(PathObstacle(7.6, 0.0, 6, -1.4, -1.1), 7.6), None, 0.0)  # seen on the long corridor
+    shadow = ground(along=(0.0, 12.0), hole=(7.6, 12.0, -1.6, -0.9))  # still there: its strip in shadow
+    for k in range(1, 40):
+        plan = p.plan(corridor, PathObservation(None, 6.3, shadow), None, k * DT)
+    assert plan.stop_reason == "obstacle_hold" and abs(plan.stop_distance_m - held_stop(7.6)) < 0.05
+    for k in range(40, 80):  # gone: its strip shows ground, and the line is clear to its end
+        plan = p.plan(corridor, PathObservation(None, 6.3, ground(along=(0.0, 12.0))), None, k * DT)
+    assert plan.stop_reason != "obstacle_hold"

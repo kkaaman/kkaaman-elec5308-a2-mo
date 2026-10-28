@@ -164,7 +164,15 @@ class StackConfig:
     # A slow cluster with no class up to group_max_m across is people on foot (a group),
     # yielded to and never a "vehicle" a wall can make unreachable (review of 3e9083a, M7).
     group_max_m: float = 4.0
+    group_min_width_m: float = 0.6
     group_max_mps: float = 2.0
+    # A vehicle beside the path slower than this, not coming towards it, is parked or
+    # queueing: its drift is the car's changing view of it (see ``parked_beside``).
+    parked_max_mps: float = 1.0
+    # ... and whose near side is this far outside the car's swept body. The driver's LiDAR
+    # obstacle stop (its tube 0.35 m wider than the body) is the check for a corner that
+    # pokes into the path; a parked car's corner sat 0.24 m outside the body (live, ff1910b).
+    parked_clearance_m: float = 0.1
     yield_persist_s: float = 0.3
     road_model_every: int = 4  # build the road model every this many ticks (5 Hz at 0.05 s; it is a slow product)
     segment_every: int = 2
@@ -208,6 +216,7 @@ class MaplessStack:
         self._lead = None  # the lead behind the last cap, for the log
         self._cause = None  # the track behind a conflict or yield cap, for the log
         self._clearing = None  # a vehicle not stopped for while clearing a left turn's opposing lane (S5)
+        self._parked = []  # vehicles beside the path whose only motion is the car's passing view of them
         self._oncoming = None  # the stack's verdict on a left turn's opposing lane, for the log
         self._structures = []  # clusters too big for a road user, this tick, for the log
         self._unreachable = []  # vehicle candidates a kerb or object separates from the path
@@ -249,6 +258,7 @@ class MaplessStack:
         tracks, predictions = (), ()
         cap, cap_reason = None, ""
         self._lead = self._cause = self._clearing = self._oncoming = None
+        self._parked = []
         self._structures = []
         self._unreachable = []
         coverage = {s.name: s.state.value for s in frame.status}
@@ -363,6 +373,7 @@ class MaplessStack:
             lead=self._lead,
             cap_track=self._cause,
             clearing_for=self._clearing,
+            parked_beside=self._parked[:5],
             oncoming=self._oncoming,
             frame_generation=self.frame_generation,
             stack_timing_ms=record.timing_ms,
@@ -460,6 +471,7 @@ class MaplessStack:
                 others = plausible_crossers(tracks, others, xy, keep_right, c, ego_speed_mps=motion.speed_mps, grid=self.driver.grid)
             if keep_right is not None:
                 others, self._unreachable = road_reachable(tracks, others, xy, self.driver.grid, keep_right, c, history=self._blocked_ticks)
+            others, self._parked = parked_beside(tracks, others, xy, self.driver.config.body, c)
             if lead is not None and role != "crossing":
                 # Also for a followed walker or cyclist, which stays in the crossing checks
                 # itself (review of 3e9083a, M9: pieces 2.7 m beyond a narrow followed lead
@@ -663,14 +675,72 @@ def plausible_crossers(tracks, candidates, path_xy, keep_right_m, config, ego_sp
         if towards < config.approach_min_mps:
             continue
         if not within:
+            if track.recent_speed_mps is None or track.recent_speed_mps < config.prediction.min_recent_speed_mps:
+                # Off the road, the motion must be sustained first: a 0.55 m fragment 18 m
+                # out, a few ticks old, "heading for the path" at 4.7 m/s capped the car to
+                # 0 on the first live stack turn (ff1910b). A cyclist at 5 m/s has 2.5 m of
+                # history half a second on, still metres before the old kerb + 2 m reach.
+                continue
             if ego_speed_mps > 0.5 and along >= 0.5 * ego_speed_mps and along > towards:
                 continue  # the sliding-wall signature
+            if (abs(lat) - (config.following.lane_half_width_m + 0.5)) / towards > config.conflict_horizon_s + 1.0:
+                continue  # cannot reach the lane within the horizon: a 0.3 m "runner" 23 m out (live, ff1910b)
             if grid is not None:
                 around = track.position[None] + np.array([[0.0, 0.0], [0.25, 0.0], [-0.25, 0.0], [0.0, 0.25], [0.0, -0.25]])
                 if float(grid.tall_evidence(around).max()) >= config.reach_wall_min_evidence:
                     continue  # standing on a wall or a fence: its visible stretch, not a road user
         out.append(p)
     return out
+
+
+def parked_beside(tracks, candidates, path_xy, body, config):
+    """``(kept, dropped_ids)``: drop vehicles beside the path whose only motion is the car's
+    passing view of them.
+
+    As the car drives past a parked car, the part of it the LiDAR sees changes and its
+    centroid drifts the car's way at a fraction of the car's speed (0.3-0.46 m/s on the
+    first live stack turn, on ff1910b). That reads as "uncertain" motion, whose envelope
+    reached the lane from 2.4 m beside it: the car stopped and went every 2 s past a row
+    of parked cars. Dropped here: a vehicle whose near side is more than
+    ``parked_clearance_m`` outside the car's swept body, slower than ``parked_max_mps``, not moving towards the path at
+    ``approach_min_mps`` and not against the car's direction. A car pulling out comes
+    across, and is kept the moment it does.
+    """
+    path = np.asarray(path_xy, dtype=float)
+    if len(path) < 2:
+        return list(candidates), []
+    by_id = {t.track_id: t for t in tracks}
+    heads = path_headings(path)
+    arcs = np.concatenate(([0.0], np.cumsum(np.hypot(*np.diff(path, axis=0).T))))
+    kept, dropped = [], []
+    for p in candidates:
+        track = by_id.get(p.track_id)
+        if track is None or not is_vehicle(track, config) or is_group(track, config) or track.footprint is None:
+            kept.append(p)
+            continue
+        s, lateral, _ = project_onto_polyline(track.position[None], path)
+        seg = int(np.clip(np.searchsorted(arcs, float(s[0]), side="right") - 1, 0, len(path) - 1))
+        tangent = np.array([math.cos(heads[seg]), math.sin(heads[seg])])
+        normal = np.array([-tangent[1], tangent[0]])
+        lat = float(lateral[0])
+        towards = -math.copysign(1.0, lat) * float(track.velocity @ normal)
+        along = float(track.velocity @ tangent)
+        # Parked along the road: the near side is its half-width in from its centre. The
+        # footprint's yaw from a partial view is not to be trusted here: an L of rear and
+        # side read 14 degrees off, a 2.9 m "across" extent, and a parked car 2.4 m beside
+        # the path seemed to reach into the car's own body (live, ff1910b). A corner that
+        # truly pokes out is the driver's LiDAR obstacle stop's (its tube 0.35 m wider).
+        near_side = abs(lat) - 0.5 * min(track.footprint[0], track.footprint[1])
+        if (
+            near_side > body.half_width_m + config.parked_clearance_m
+            and float(np.hypot(*track.velocity)) < config.parked_max_mps
+            and towards < config.approach_min_mps
+            and along > -config.prediction.stationary_mps
+        ):
+            dropped.append(p.track_id)
+            continue
+        kept.append(p)
+    return kept, dropped
 
 
 def road_reachable(tracks, candidates, path_xy, grid, keep_right_m, config, history=None):
@@ -902,6 +972,10 @@ def is_group(track, config):
     faster than ``group_max_mps`` (review of 3e9083a, M7: a 2.4 m group was not yielded to,
     and one of 3 m or more counted as a vehicle a wall could make unreachable)."""
     if decided_class(track) is not None or track.footprint is None:
+        return False
+    # A blob, not a line: a 3.4 x 0.37 m stretch of railing sliding past was yielded to as
+    # a "group" on the first live stack turn (ff1910b).
+    if min(track.footprint[0], track.footprint[1]) < config.group_min_width_m:
         return False
     return max(track.footprint[0], track.footprint[1]) <= config.group_max_m and max(track.speed_mps, track.recent_speed_mps or 0.0) <= config.group_max_mps
 
