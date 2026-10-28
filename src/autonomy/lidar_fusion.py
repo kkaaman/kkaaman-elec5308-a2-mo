@@ -21,6 +21,8 @@ No simulator import; callers deliver :class:`LidarSweep` objects from the adapte
 
 from __future__ import annotations
 
+import math
+
 from autonomy.obstacle_policy import CorridorObservation
 from obstacle_perception.fusion import SourceCorridorReport, fuse_corridor_reports
 from obstacle_perception.lidar import LidarSweep
@@ -58,8 +60,8 @@ class LidarCorridorSource:
         self.body = body or EgoBody()
         self.filter = LidarTrackFilter(source_id=source_id, policy=track_policy, gate_m=gate_m)
         self.source_id = source_id
-        if max_age_s < 0:
-            raise ValueError("max_age_s must be nonnegative")
+        if not math.isfinite(max_age_s) or max_age_s < 0:
+            raise ValueError("max_age_s must be finite and nonnegative")
         self.max_age_s = max_age_s
         self.ego_pose = None
         self.ego_s_m = 0.0
@@ -98,8 +100,8 @@ class LidarCorridorSource:
             invalid = "missing_sweep"
         elif tracks.metadata.episode_id != frame.episode_id:
             invalid = "episode_mismatch"
-        elif tracks.metadata.frame_id > frame.frame_id or (
-            frame.sim_time_s - tracks.metadata.sim_time_s > self.max_age_s + 1e-9
+        elif tracks.metadata.frame_id > frame.frame_id or not (
+            -1e-9 <= frame.sim_time_s - tracks.metadata.sim_time_s <= self.max_age_s + 1e-9
         ):
             invalid = "stale_sweep"
         elif not tracks.valid:

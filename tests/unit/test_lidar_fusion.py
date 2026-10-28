@@ -288,3 +288,22 @@ def test_lidar_clearance_needs_clear_bins_out_to_clear_start_not_one_bin():
     assert not source.report(frame(2)).clearance_valid
     object.__setattr__(tracks, "seen_clear_m", 0.0)
     assert not source.report(frame(2)).clearance_valid
+
+
+@pytest.mark.parametrize("age", [float("nan"), float("inf"), -float("inf")])
+def test_lidar_age_limit_must_be_finite(age):
+    with pytest.raises(ValueError, match="finite"):
+        LidarCorridorSource(ROUTE, max_age_s=age)
+
+
+def test_future_lidar_timestamp_cannot_supply_gap_or_clearance():
+    source = LidarCorridorSource(ROUTE)
+    source.reset(episode_id="e")
+    for index in range(3):
+        source.observe(synthetic_sweep(Scene(), episode_id="e", frame_id=index,
+                                      sim_time_s=index * 0.05 + 1))
+    result = source.report(frame(2))
+    assert not result.valid
+    assert result.invalid_reason == "stale_sweep"
+    assert result.nearest_gap_m is None
+    assert not result.clearance_valid
