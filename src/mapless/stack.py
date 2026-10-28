@@ -164,15 +164,18 @@ class StackConfig:
     # A slow cluster with no class up to group_max_m across is people on foot (a group),
     # yielded to and never a "vehicle" a wall can make unreachable (review of 3e9083a, M7).
     group_max_m: float = 4.0
+    offroad_min_size_m: float = 0.5  # beyond the kerb's reach a mover must be at least this long (not a one-cell cluster)
     group_min_width_m: float = 0.6
     group_max_mps: float = 2.0
     # A vehicle beside the path slower than this, not coming towards it, is parked or
     # queueing: its drift is the car's changing view of it (see ``parked_beside``).
     parked_max_mps: float = 1.0
-    # ... and whose near side is this far outside the car's swept body. The driver's LiDAR
-    # obstacle stop (its tube 0.35 m wider than the body) is the check for a corner that
-    # pokes into the path; a parked car's corner sat 0.24 m outside the body (live, ff1910b).
-    parked_clearance_m: float = 0.1
+    # ... and whose near side is this far outside the car's swept body. The track sits on
+    # the visible points' centroid, near the car's near face, so centre less half-width
+    # puts the near side up to a few decimetres too close: shoulder-parked cars about 1 m
+    # clear of the body read 0.0-0.1 m (live, 7eaca3d). The driver's LiDAR obstacle stop
+    # (its tube 0.35 m wider than the body) is the check for a corner that pokes in.
+    parked_clearance_m: float = -0.1  # (negative: the tracked near side may be 0.1 m inside the body's edge; see parked_beside)
     yield_persist_s: float = 0.3
     road_model_every: int = 4  # build the road model every this many ticks (5 Hz at 0.05 s; it is a slow product)
     segment_every: int = 2
@@ -623,6 +626,9 @@ def oncoming_verdict(tracks, gate, junction, config):
     return dict(clear=True, excused=excused, note=f"oncoming lane: {len(excused)} tracks excused")
 
 
+_AROUND = np.array([[0.0, 0.0], [0.25, 0.0], [-0.25, 0.0], [0.0, 0.25], [0.0, -0.25]])  # a cell and its neighbours
+
+
 def plausible_crossers(tracks, candidates, path_xy, keep_right_m, config, ego_speed_mps=0.0, grid=None):
     """Drop candidates that are not clearly vehicles and cannot be crossing. Vehicles (a
     decided car/truck class, or a footprint ``vehicle_min_m`` or longer) are kept: the timed
@@ -653,12 +659,21 @@ def plausible_crossers(tracks, candidates, path_xy, keep_right_m, config, ego_sp
     out = []
     for p in candidates:
         track = by_id.get(p.track_id)
-        if track is None or is_vehicle(track, config):
+        if track is None:
             out.append(p)
             continue
         s, lateral, _ = project_onto_polyline(track.position[None], path)
         lat = float(lateral[0])
         within = abs(lat) <= keep_right_m + config.vru_reach_m
+        if is_vehicle(track, config):
+            # A "vehicle" only by length, as thin as a wall and standing on persistent tall
+            # evidence off the road, is a wall's visible stretch sliding (an 8.8 x 0.32 m
+            # one 20 m out at 5.5 m/s stopped the car on the live stack turn, 7eaca3d).
+            thin = track.footprint is not None and min(track.footprint[0], track.footprint[1]) < config.offroad_min_size_m and decided_class(track) is None
+            if not within and thin and grid is not None and float(grid.tall_evidence(track.position[None] + _AROUND).max()) >= config.reach_wall_min_evidence:
+                continue
+            out.append(p)
+            continue
         if within and (motion_state(track, config.prediction) == "uncertain" or decided_class(track) == "pedestrian"):
             # Within reach and motion unknown (its envelope is bounded), or a pedestrian,
             # who can step out from a standstill (review of 3e9083a, M5): keep it.
@@ -675,6 +690,11 @@ def plausible_crossers(tracks, candidates, path_xy, keep_right_m, config, ego_sp
         if towards < config.approach_min_mps:
             continue
         if not within:
+            if track.footprint is None or max(track.footprint[0], track.footprint[1]) < config.offroad_min_size_m or track.speed_mps > config.vru_max_speed_mps:
+                # Off the road a road user on foot or on a bike is more than a point and no
+                # faster than a cyclist: one-cell clusters at 6-10 m/s, 13-23 m out at a
+                # junction, capped the car to 0 a dozen times on the live stack turn (7eaca3d).
+                continue
             if track.recent_speed_mps is None or track.recent_speed_mps < config.prediction.min_recent_speed_mps:
                 # Off the road, the motion must be sustained first: a 0.55 m fragment 18 m
                 # out, a few ticks old, "heading for the path" at 4.7 m/s capped the car to
@@ -686,8 +706,7 @@ def plausible_crossers(tracks, candidates, path_xy, keep_right_m, config, ego_sp
             if (abs(lat) - (config.following.lane_half_width_m + 0.5)) / towards > config.conflict_horizon_s + 1.0:
                 continue  # cannot reach the lane within the horizon: a 0.3 m "runner" 23 m out (live, ff1910b)
             if grid is not None:
-                around = track.position[None] + np.array([[0.0, 0.0], [0.25, 0.0], [-0.25, 0.0], [0.0, 0.25], [0.0, -0.25]])
-                if float(grid.tall_evidence(around).max()) >= config.reach_wall_min_evidence:
+                if float(grid.tall_evidence(track.position[None] + _AROUND).max()) >= config.reach_wall_min_evidence:
                     continue  # standing on a wall or a fence: its visible stretch, not a road user
         out.append(p)
     return out

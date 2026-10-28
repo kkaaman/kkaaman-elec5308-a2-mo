@@ -243,3 +243,32 @@ def test_a_young_fragment_far_off_the_road_is_not_a_crosser_yet():
     sustained = replace(young, recent_speed_mps=4.6)
     preds = predict_all(predictable_tracks([sustained]), c.prediction)
     assert [p.track_id for p in plausible_crossers([sustained], preds, _path(), 1.75, c, ego_speed_mps=2.0)] == [162]
+
+
+def test_the_second_live_stack_turn_false_triggers_are_dropped():
+    """7eaca3d, Town10HD site 0: shoulder-parked cars whose tracked centre sits near their
+    near face (centre less half-width 1.03-1.12 m from the path), one-cell clusters at
+    6-10 m/s 13-23 m out at the junction, and an 8.8 x 0.32 m "vehicle" sliding 20 m out
+    on a wall stopped the car 104 ticks. Recorded frames through the fixed stack: 40, of
+    which 33 are an unclassified blob standing on the junction's corner (kept: it may be
+    people)."""
+    from dataclasses import replace  # noqa: PLC0415
+
+    from mapless.stack import parked_beside, plausible_crossers  # noqa: PLC0415
+
+    c = StackConfig()
+    parked = track(60, 1.8, -2.1, 0.43, -0.03, fp=(4.8, 2.0, 0.0), travelled=2.3, recent=0.46)
+    assert parked_beside([parked], predict_all(predictable_tracks([parked]), c.prediction), _path(), BODY, c)[1] == [60]
+    blip = track(551, 2.0, -19.3, 0.0, 7.2, fp=(0.3, 0.3, 0.0), travelled=6.0, recent=6.5)
+    slow_blip = replace(blip, footprint=(0.3, 0.3, 0.0), state=np.array([2.0, -12.0, 0.0, 3.0]), recent_speed_mps=2.8)
+    for t in (blip, slow_blip):
+        assert plausible_crossers([t], predict_all(predictable_tracks([t]), c.prediction), _path(), 1.75, c, ego_speed_mps=2.0) == []
+
+    class Wall:
+        def tall_evidence(self, xy, max_age_s=None):
+            return np.full(len(np.asarray(xy).reshape(-1, 2)), 30.0)
+
+    slide = track(98, 9.0, -20.0, 0.0, 5.5, fp=(8.8, 0.32, math.pi / 2), travelled=4.0, recent=5.2)
+    assert plausible_crossers([slide], predict_all(predictable_tracks([slide]), c.prediction), _path(), 1.75, c, ego_speed_mps=2.0, grid=Wall()) == []
+    crossing_car = track(99, 9.0, -20.0, 0.0, 5.5, fp=(4.5, 1.9, math.pi / 2), travelled=4.0, recent=5.2)
+    assert len(plausible_crossers([crossing_car], predict_all(predictable_tracks([crossing_car]), c.prediction), _path(), 1.75, c, ego_speed_mps=2.0, grid=Wall())) == 1
