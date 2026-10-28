@@ -1612,6 +1612,110 @@ reach, standing on tall evidence, is a wall. Replay: 114 zero-cap ticks down to 
 from the junction-corner blobs (tracks 480 and 455). Those are kept, because they might
 be people.
 
+### Third external review, of `e93154f` (28 Oct): all taken
+
+Two of its suspected defects were real (R1 and R5 below). Each change has regression
+tests; those for R1, R2, R5 and R7 fail on the code before it.
+
+- **F3 / R1, the lead hand-over.** The source gap the review named was closed in `ff1910b`
+  (M4: a vehicle moving across or towards the car is a "crossing" role, kept in the
+  conflict check). The R1 sweep then found a second gap: a car cutting in that became the
+  followed lead lost its restriction. Following started from the car's own speed. Its
+  jerk limit also applied whenever the gap term, not the worst-case cap, was the lowest,
+  even with the target far above the cap. A 1.4 m/s conflict cap became a 6 m/s target that
+  fell 0.005 m/s per tick. Fixes:
+  - following brakes at up to `ego_brake_mps2` whenever its target is above the
+    worst-case cap;
+  - a lead taken on under a restriction starts from it (`FollowingController.start_from`);
+  - the log names what covers the lead (`lead.checked_by`: conflict check, following or
+    obstacle stop), its role and its position.
+
+  Test: `test_r1_...` sweeps a confirmed car diagonally into the lane at three speeds along
+  and three across, closed loop on the cap.
+- **R5, a pedestrian on the pavement.** A walker the segmenter classed as a pedestrian,
+  standing 2.5–3.5 m off the lane centre, stopped the car for good. Its walking-pace
+  envelope reached the path. A standing vulnerable road user whose near edge is more than
+  0.5 m beyond the tube is now passed at `roadside_mps` (3 m/s), slowed for at 2 m/s² as
+  the car draws level. Once it moves, it is a crosser and the yield applies. One standing
+  at the lane edge is still stopped for. Replay of the s3b turn: zero-cap ticks 40 → 4.
+  The junction-corner blobs are now passed slowly instead of stopped for.
+- **F1, actor identity.** The stack logs its tracks around the car (`tracks_near`: id,
+  position, velocity, extent) and the lead's position. The evaluator matches tracks to
+  the actor's true box within 1 m, on its own side. New REPORT check `actor_tracking`:
+  - matched, missed and fragmented ticks, and the longest miss;
+  - the actor's track ids, and ID switches;
+  - false-lead ticks, and ticks the actor was in the lane but not the lead.
+
+  `lead_tracking` now scores speed and gap errors, and brake detection, only on ticks
+  whose lead was the actor (`unmatched_lead_ticks` counts the rest). Logs from before
+  this change are scored as before, and the report says so.
+- **F2, holds.** Holds have ids. A detection joins a hold only within 2 m along it and
+  0.5 m beside its lateral span; another obstacle beside it gets its own hold. Merged, a
+  second obstacle 1 m on moved the stop 1 m towards a first that was only missed (R2).
+  Each tick's `hold_reports` gives every hold's state, place, detections and its release
+  prerequisites: region bins with ground, clear-to against needed, continuous-clear time,
+  and what it is `waiting_for`. R3: rings either side of a gone walker's region keep it
+  UNKNOWN, waiting for "ground across its region", and it releases once a ring sweeps the
+  region. No timeout was added.
+- **F4, driving quality.** New REPORT check `behaviour`, beside the unchanged gates.
+  Every tick's restriction (a cap below cruise, or a stop within braking range) is
+  attributed to the actor or not, and its time and the time it cost are summed. Per
+  scenario it adds:
+  - braking lead: restriction not from the actor, and unjustified slowing (0.5 m/s below
+    min(cruise, the lead) with an ample gap), before the lead brakes;
+  - pedestrian: near-stops, restriction and progress after the walker cleared;
+  - cut-in: the first restriction from the cut-in car and the first brake, both from the
+    cut-in, and the least time to collision.
+
+  **The two observed events, reconstructed** from the `e93154f` logs:
+  - Braking lead: the car slowed to 0.37 m/s at 8.6 s, before the lead braked at 9.95 s.
+    The cause was a hold made at the start on the lead itself while it stood, which
+    stayed UNKNOWN after it drove off (2.45 s of restriction not from the actor).
+  - Pedestrian: a near-stop after the walker cleared, from a hold on the walker's place,
+    UNKNOWN for 2.75 s.
+
+  Both were the hold-clearance defect that `e401188` fixed (ground gathered since last
+  seen). On the `e401188` runs, the restriction not from the actor was 0 s before the
+  brake, and 0 s with no near-stop after the walker cleared. The Town05 pair still shows 2.3 s of predicted
+  conflicts from scenery tracks (the known 11 s false stop).
+- **R7, refused plans.** When this tick's plan is refused (it starts over 2 m from the
+  car, or has expired), the controller keeps the last trajectory it accepted. That one is
+  now driven no faster than the refused plan allows within 1 m ahead of the car
+  (`refused_plan_limit_mps`). A refused stop now brakes at once, not after the 0.5 s of
+  validity left on the kept trajectory.
+- **Braking envelope.** `scripts/braking_table.py <runs> [--calibration
+  longitudinal.csv]` lists braking episodes from drive logs, with lag, mean and peak
+  deceleration, and stopping distance, and sets them against the assumed 1 / 2 / 4 m/s².
+  On the live stack logs (17 episodes), the peak at full brake from 2 m/s or more is
+  2.6 m/s² (p10, 9 episodes) and the lag 0.15 s at most. The planner's 1 m/s² and the
+  conflict rule's 2 m/s² hold. **Following's assumed 4 m/s² is not shown by this
+  closed-loop data**: the controller rarely held full brake. The clean measure is BL-E-03's
+  open-loop brake steps (`scripts/calibrate_longitudinal.py`, the same Tesla Model 3),
+  which the script reads.
+- **Compute.** `driver_step_time` now reports p50, p95, p99, max, the share over the
+  50 ms target, and each stage's p50 / p95 / max: the stack's (drive, paint, detect,
+  track, plan, road_model) and the driver's own (`driver.ego`, `classify`, `grid`,
+  `corridor`, `junction`, `obstacles`, `plan`, `control`).
+- **R4.** A lead holding 3 or 5 m/s, its velocity jittering across at 0.15 m/s as on the
+  live logs (p95 0.05–0.12 m/s), is followed with no conflict cap.
+- **R8**, sensor dropout, was already covered:
+  - `test_driver_brakes_when_the_lidar_goes_stale` and
+    `test_stale_ego_sensors_fault_and_recover` (G1b);
+  - `test_an_odometry_outage_does_not_poison_the_grid_or_the_hold` (G1b review);
+  - `test_a_missed_lidar_sweep_keeps_the_cap_in_force` (G2);
+  - `test_closed_loop_an_imu_outage_while_held_keeps_the_hold` and
+    `test_closed_loop_a_held_pedestrian_whose_returns_go_missing_keeps_the_car_stopped`
+    (Stage 1).
+- **R6, R9 and the ML A/B** are live runs: the radar A/B/C with actor matching, `--seed`
+  repeats, and constant against v2 segmenter on identical scenarios.
+- **The run report's three dimensions**, as the review proposes:
+  - safety: the existing gates, unchanged;
+  - mission: `behaviour`;
+  - perception and runtime: `actor_tracking`, `lead_tracking` and `driver_step_time`.
+- **Not done yet:** a speed limit from the range at which a small object is seen (the
+  review's observability point; Stage 5), and optimising the stages the profile shows
+  over budget.
+
 ## Running Phase 0 live
 
 Run with CARLA 0.9.16 and no other clients:

@@ -26,7 +26,10 @@ Each held obstacle keeps its own hold, and the stop is the nearest of them: an
 unresolved hold is never made less restrictive because something else was seen (full
 review of 73ae759: one sweep that missed the held obstacle 7 m ahead but saw another
 22 m ahead moved the stop to 15.7 m and forgot the first). A detection within
-``hold_match_m`` of a held obstacle is that obstacle (its stop follows it as it moves).
+``hold_match_m`` along the path of a held obstacle, and no more than
+``hold_lateral_match_m`` beside its lateral span, is that obstacle (its stop follows it as
+it moves); another beside it is held on its own (third review, F2). Each hold has an id,
+and ``Plan.holds`` reports every hold's release prerequisites for the log.
 A hold keeps the obstacle's own position (its near face, across its lateral span), and
 its stop is worked out from that on each tick's path; on a bend the tube and the region
 widen on the outside as ``obstacles.tube_bounds``.
@@ -68,7 +71,8 @@ class PlannerConfig:
     resume_clear_s: float = 1.0
     clear_beyond_m: float = 2.0
     clear_gap_s: float = 0.15  # clear observations further apart than this are not continuous
-    hold_match_m: float = 2.0  # a detection this close along the path to a held obstacle is that obstacle
+    hold_match_m: float = 2.0  # a detection this close along the path to a held obstacle is that obstacle ...
+    hold_lateral_match_m: float = 0.5  # ... unless its lateral span lies further than this beside the hold's
     clear_region_pad_m: float = 0.3  # beyond the held obstacle's lateral span
     clear_region_start_m: float = 0.1  # the region begins this far behind the near face ...
     clear_region_depth_m: float = 0.5  # ... and is this deep: where it stood, not the road in front of it
@@ -96,6 +100,9 @@ class Plan:
     # ground (seen/all), the ground points gathered since it was last seen, and the
     # clearance along the path against what it needs.
     hold_note: str = ""
+    # Every hold this tick, nearest first (``LanePlanner.hold_reports``): its id, state,
+    # place and each release prerequisite (third review, F2).
+    holds: tuple = ()
 
 
 def curvature(coefficients, x):
@@ -122,11 +129,18 @@ class _Hold:
     # that changes shape does not move the stop (a stop point kept on the bend's old
     # centreline projected 2.4 m behind the car on a straight refit, and released).
     span_xy: np.ndarray
+    hold_id: int = 0  # persistent while it is held, for the log
+    created_s: float = -math.inf
     seen_s: float = -math.inf  # when it was last detected
+    detections: int = 0  # detections matched to it
     ground_odo: np.ndarray | None = None  # ground points (odometry) on its region since then, one sweep per viewpoint
     ground_now: np.ndarray | None = None  # ... and this sweep's, from where the car stands
     gathered_at: np.ndarray | None = None  # where the car was (odometry) for the last sweep added to ground_odo
     note: str = ""  # why it is not clear (see Plan.hold_note)
+    # This tick's release prerequisites: the region's lateral bins with ground (seen, all),
+    # the tube seen clear to (m) against what it needs, None when not judged this tick.
+    region_bins: tuple | None = None
+    clear_to: tuple | None = None
     clear_since_s: float | None = None
     clear_last_s: float | None = None  # the last clear observation: continuity is judged against it
     state: str = "blocked"
@@ -141,6 +155,7 @@ class LanePlanner:
         # The obstacle tube's half-width: a held region is checked only inside it.
         self.tube_half_m = body.half_width_m + 0.35 if tube_half_m is None else float(tube_half_m)
         self._holds = []
+        self._next_id = 1
 
     @property
     def holding(self):
@@ -250,7 +265,8 @@ class LanePlanner:
         start = s_near + c.clear_region_start_m
         near = (along >= start) & (along <= start + c.clear_region_depth_m) & (lateral >= lo) & (lateral <= hi)
         counts = np.bincount(np.clip(((lateral[near] - lo) / (hi - lo) * bins).astype(int), 0, bins - 1), minlength=bins)
-        hold.note = f"region bins {int((counts >= c.clear_region_min_points).sum())}/{bins}, {int(near.sum())} ground points"
+        hold.region_bins = (int((counts >= c.clear_region_min_points).sum()), bins)
+        hold.note = f"region bins {hold.region_bins[0]}/{bins}, {int(near.sum())} ground points"
         return bool(np.all(counts >= c.clear_region_min_points))
 
     def plan(self, corridor, observation, goal_body, now_s, hold_at_m=None, speed_cap_mps=None):
@@ -282,10 +298,16 @@ class LanePlanner:
             near_s = s_car + obstacle.distance_m
             lat_lo = obstacle.lateral_m if obstacle.lateral_min_m is None else obstacle.lateral_min_m
             lat_hi = obstacle.lateral_m if obstacle.lateral_max_m is None else obstacle.lateral_max_m
-            # The same obstacle as a hold already kept (within hold_match_m along the path)?
+            # The same obstacle as a hold already kept: within hold_match_m along the path,
+            # and beside it across the path no further than hold_lateral_match_m (third
+            # review, F2: by distance along alone, a second obstacle at a similar distance
+            # was merged into the first and their clearance evidence with it). A walker
+            # crossing stays one hold: each sweep's span overlaps the one before.
             for hold in self._holds:
-                gap = abs(self._near(corridor, line, hold)[0] - near_s)
-                if gap <= c.hold_match_m and (seen is None or gap < seen[0]):
+                near_h, lo_h, hi_h = self._near(corridor, line, hold)
+                gap = abs(near_h - near_s)
+                beside = max(0.0, lat_lo - hi_h, lo_h - lat_hi)
+                if gap <= c.hold_match_m and beside <= c.hold_lateral_match_m and (seen is None or gap < seen[0]):
                     seen = (gap, hold)
             if seen is not None:
                 # While it is seen, its region is all it has covered (a walker crossing widens it).
@@ -293,12 +315,15 @@ class LanePlanner:
                 lat_lo, lat_hi = min(lat_lo, float(held_lat.min())), max(lat_hi, float(held_lat.max()))
             span = self._span_at(corridor, line, arcs, near_s, lat_lo, lat_hi)
             if seen is None:
-                hold = _Hold(span)
+                hold = _Hold(span, hold_id=self._next_id, created_s=now_s)
+                self._next_id += 1
                 self._holds.append(hold)
             else:
                 hold = seen[1]
                 hold.span_xy = span
             hold.seen_s = now_s
+            hold.detections += 1
+            hold.region_bins = hold.clear_to = None
             hold.ground_odo = hold.ground_now = hold.gathered_at = None
             hold.clear_since_s = hold.clear_last_s = None
             hold.state = "blocked"
@@ -324,7 +349,9 @@ class LanePlanner:
             if near - s_car > line_end - c.clear_region_start_m:
                 needed = min(needed, line_end - 0.5)
             self._gather(hold, observation, corridor, line, near, lat_lo, lat_hi)
+            hold.region_bins = None
             region = self._region_seen(observation, corridor, line, s_car, hold)
+            hold.clear_to = None if observation is None else (observation.clear_to_m, needed)
             if observation is not None:
                 hold.note += f"; clear to {observation.clear_to_m:.1f} m of {needed:.1f}"
             if observation is not None and observation.clear_to_m >= needed and region:
@@ -395,4 +422,46 @@ class LanePlanner:
             float(curve.min()),
             state,
             note,
+            self.hold_reports(corridor, line, s_car, now_s, seen),
         )
+
+    def hold_reports(self, corridor, line, s_car, now_s, seen=None, limit=4):
+        """Each hold, nearest first, with why it is still held (third review, F2): id,
+        state, near face from the rear axle and lateral span (m), seconds since it was last
+        detected and detections matched to it, and the release prerequisites as judged this
+        tick: ``region`` (lateral bins of its region with ground, seen/all), ``clear_to``
+        (tube seen clear to, of what it needs, m) and ``clear_for_s`` (continuous clear
+        time, of ``resume_clear_s``). ``waiting_for`` names what is missing."""
+        c = self.config
+        out = []
+        for hold in self._holds:
+            near, lo, hi = self._near(corridor, line, hold)
+            if hold is seen:
+                waiting = "detected this tick"
+            elif hold.clear_to is None:
+                waiting = "no sweep this tick"
+            elif hold.clear_to[0] < hold.clear_to[1]:
+                waiting = "the tube seen clear far enough"
+            elif hold.region_bins is not None and hold.region_bins[0] < hold.region_bins[1]:
+                waiting = "ground across its region"
+            elif hold.region_bins is None and hold.state != "clear":
+                waiting = "ground on its region"
+            else:
+                waiting = "continuous clearance"
+            out.append(
+                dict(
+                    id=hold.hold_id,
+                    state=hold.state,
+                    near_m=round(near - s_car, 2),
+                    lateral_m=[round(lo, 2), round(hi, 2)],
+                    seen_ago_s=round(now_s - hold.seen_s, 2),
+                    detections=hold.detections,
+                    region=None if hold.region_bins is None else f"{hold.region_bins[0]}/{hold.region_bins[1]}",
+                    clear_to=None if hold.clear_to is None else [round(hold.clear_to[0], 1), round(hold.clear_to[1], 1)],
+                    clear_for_s=None if hold.clear_since_s is None else round(now_s - hold.clear_since_s, 2),
+                    resume_after_s=c.resume_clear_s,
+                    waiting_for=waiting,
+                )
+            )
+        out.sort(key=lambda r: r["near_m"])
+        return tuple(out[:limit])

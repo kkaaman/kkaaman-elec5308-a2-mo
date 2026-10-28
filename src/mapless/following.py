@@ -75,6 +75,13 @@ class FollowingController:
     def reset(self):
         self._target, self._accel = None, 0.0
 
+    def start_from(self, speed_mps):
+        """Begin following from ``speed_mps`` rather than the car's speed: the restriction
+        already in force when the lead was taken on, so the hand-over from another rule does
+        not lift it (third review, R1)."""
+        if self._target is None:
+            self._target = max(0.0, float(speed_mps))
+
     def lead_ahead(self, tracks, pose, path_body, max_ahead_m=60.0, s_from_m=0.0, tube_half_m=None):
         """The nearest track within the lane along ``path_body`` (N x 2, vehicle frame), as
         (distance ahead of the rear axle, track). ``s_from_m``: the rear axle's own arc length
@@ -115,8 +122,12 @@ class FollowingController:
         current = ego_speed_mps if self._target is None else self._target
         accel = float(np.clip((wanted - current) / max(dt_s, 1e-3), -c.ego_brake_mps2, c.accel_mps2))
         # Jerk limit applies to normal driving; braking harder than the comfort rate is
-        # allowed when the worst case demands it (the cap), never when merely closing a gap.
-        if wanted >= cap - 1e-9 and wanted < current:
+        # allowed when the worst case demands it, never when merely closing a gap. The worst
+        # case demands it whenever the target is above the cap, whichever term is lowest:
+        # with the gap term below the cap, the target came down at the jerk limit from far
+        # above it (third review, R1: a car cutting in 6 m ahead at 6 m/s, cap 2.9 m/s, and
+        # the target fell 0.005 m/s on the first tick).
+        if wanted < current and (wanted >= cap - 1e-9 or current > cap + 1e-9):
             accel = float(np.clip(accel, -c.ego_brake_mps2, c.accel_mps2))
         else:
             accel = float(np.clip(accel, self._accel - c.jerk_mps3 * dt_s, self._accel + c.jerk_mps3 * dt_s))

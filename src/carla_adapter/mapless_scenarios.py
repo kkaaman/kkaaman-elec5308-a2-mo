@@ -335,21 +335,116 @@ def make_scenario(carla, name, core_xy, **overrides):
     return cls(carla, ScenarioParams(name, **overrides), core_xy)
 
 
-def score_lead_tracking(log, actor_truths, body, dt_s=0.05):
+def ego_to_actor_distance(truth, actor, point_ego):
+    """Distance from a point in the ego's rear-axle frame (x forward, y left) to the actor's
+    true box; 0 inside it."""
+    x, y = truth["rear_axle_xy"]
+    c, s = math.cos(truth["yaw_rad"]), math.sin(truth["yaw_rad"])
+    u, v = point_ego
+    px, py = x + c * u - s * v, y + s * u + c * v
+    ax, ay = actor["centre_xy"]
+    ca, sa = math.cos(actor["yaw_rad"]), math.sin(actor["yaw_rad"])
+    dx, dy = px - ax, py - ay
+    hl, hw = actor["extent_m"]
+    return math.hypot(max(abs(ca * dx + sa * dy) - hl, 0.0), max(abs(-sa * dx + ca * dy) - hw, 0.0))
+
+
+def lead_is_actor(row, actor, match_m=1.0):
+    """Whether the stack's lead this tick was the actor: its logged position within
+    ``match_m`` of the actor's box. ``None`` when the log has no lead position (before the
+    third review) or there was no lead."""
+    lead = (row.get("driver") or {}).get("lead")
+    if not lead or lead.get("x_m") is None or actor is None:
+        return None
+    return ego_to_actor_distance(row["truth"], actor, (lead["x_m"], lead["y_m"])) <= match_m
+
+
+def score_actor_tracking(log, actor_truths, body, dt_s=0.05, match_m=1.0, view_ahead_m=50.0, view_side_m=10.0):
+    """Which tracks were the scenario's actor, from the logged tracks around the car and the
+    actor's true box (third review, F1: the lead's errors were scored against the actor
+    without asking whether the lead was the actor). Truth stays on this side: the stack
+    logs its tracks, the evaluator matches them. Reported, not gated.
+
+    Over ticks with the actor in view (centre within ``view_ahead_m`` ahead, 5 m behind, and
+    ``view_side_m`` to the side): ``matched_ticks`` (a track within ``match_m`` of its box),
+    ``missed_ticks`` and the longest run of them, ``fragmented_ticks`` (two or more tracks
+    on it), ``track_ids`` (the nearest matched track's ids, in order) and ``id_switches``
+    between consecutive matched ticks. Over ticks with a lead: ``lead_is_actor_ticks``,
+    ``false_lead_ticks`` (a lead that was not the actor); and ``actor_in_lane_not_lead_ticks``
+    (the actor ahead in the ego's lane, in view, and not the lead).
+    """
+    rows = [(row, actor) for row, actor in zip(log, actor_truths) if actor is not None]
+    if not rows or "tracks_near" not in (rows[0][0].get("driver") or {}):
+        return dict(available=False, note="the log has no tracks_near (recorded before the third review)")
+    in_view = matched = missed = fragmented = 0
+    run = longest = 0
+    ids = []
+    lead_ticks = lead_actor = false_lead = not_lead = 0
+    for row, actor in rows:
+        d = row.get("driver") or {}
+        cx, cy = _ego_frame(row["truth"], actor["centre_xy"])
+        view = -5.0 <= cx <= view_ahead_m and abs(cy) <= view_side_m
+        is_actor = lead_is_actor(row, actor, match_m)
+        if d.get("lead"):
+            lead_ticks += 1
+            lead_actor += bool(is_actor)
+            false_lead += is_actor is False
+        if view and _ahead_in_band(row["truth"], actor, body, 0.5)[0] and not is_actor:
+            not_lead += 1
+        if not view:
+            run = 0
+            continue
+        in_view += 1
+        hits = sorted((ego_to_actor_distance(row["truth"], actor, (e[1], e[2])), e[0]) for e in d.get("tracks_near") or ())
+        hits = [h for h in hits if h[0] <= match_m]
+        if not hits:
+            missed += 1
+            run += 1
+            longest = max(longest, run)
+            continue
+        run = 0
+        matched += 1
+        fragmented += len(hits) >= 2
+        ids.append(hits[0][1])
+    order = [tid for k, tid in enumerate(ids) if k == 0 or tid != ids[k - 1]]
+    return dict(
+        available=True,
+        match_m=match_m,
+        in_view_ticks=in_view,
+        matched_ticks=matched,
+        matched_share=round(matched / in_view, 3) if in_view else None,
+        missed_ticks=missed,
+        longest_missed_s=round(longest * dt_s, 2),
+        fragmented_ticks=fragmented,
+        track_ids=order[:20],
+        id_switches=len(order) - 1 if order else 0,
+        lead_ticks=lead_ticks,
+        lead_is_actor_ticks=lead_actor,
+        false_lead_ticks=false_lead,
+        false_lead_s=round(false_lead * dt_s, 2),
+        actor_in_lane_not_lead_ticks=not_lead,
+    )
+
+
+def score_lead_tracking(log, actor_truths, body, dt_s=0.05, match_m=1.0):
     """What the stack knew about the lead, against the evaluator's truth (G3: radar must
     earn its place). Reported, not gated:
 
-    - ``first_lead_s`` / ``first_lead_truth_gap_m``: when a lead was first selected and the
-      true bumper gap then;
+    - ``first_lead_s`` / ``first_lead_truth_gap_m``: when the actor was first the lead and
+      the true bumper gap then;
     - ``speed_error_rmse_mps`` / ``speed_error_p95_mps``: the lead's speed along the path,
-      as the stack had it, against the actor's, over ticks with a lead;
+      as the stack had it, against the actor's, over ticks with the actor as the lead;
     - ``gap_error_median_m``: the stack's gap minus the true one (negative: conservative);
     - ``brake_s``: when the actor began to brake (the first tick below its cruise, of a
       drop past 0.3 m/s);
-      ``brake_seen_s``: the first tick after it with the stack's lead speed 0.5 m/s below
-      the actor's cruise, and ``brake_delay_s`` between them;
+      ``brake_seen_s``: the first tick after it with the actor as the lead and its speed
+      0.5 m/s below the actor's cruise, and ``brake_delay_s`` between them;
     - ``stopped_before_lead_s``: time the ego stood still while the lead still moved
       (false stops), and ``support``: ticks of each sensor set behind the lead.
+
+    Only ticks whose lead was the actor (``lead_is_actor``, the third review's F1) are
+    scored; ``unmatched_lead_ticks`` counts the others. A log without lead positions
+    (before the third review) is scored on every lead tick, as ``matching`` says.
     """
     gaps = separations(log, actor_truths, body)
     errors, gap_errors, support = [], [], {}
@@ -358,6 +453,7 @@ def score_lead_tracking(log, actor_truths, body, dt_s=0.05):
     cruise = max((v for v in speeds if v is not None), default=None)
     brake_tick = seen_tick = at_cruise = None
     stopped_ticks, moved = 0, False
+    unmatched, positions = 0, False
     for k, (row, actor) in enumerate(zip(log, actor_truths)):
         if actor is None:
             continue
@@ -372,6 +468,11 @@ def score_lead_tracking(log, actor_truths, body, dt_s=0.05):
             stopped_ticks += 1  # after the car first moved: the start-up wait is not a false stop
         if not lead or lead.get("crossing"):
             continue
+        is_actor = lead_is_actor(row, actor, match_m)
+        positions = positions or is_actor is not None
+        if is_actor is False:
+            unmatched += 1
+            continue
         if first is None:
             first = (row["time_s"], gaps[k])
         errors.append(lead["speed_mps"] - actor["speed_mps"])
@@ -384,6 +485,7 @@ def score_lead_tracking(log, actor_truths, body, dt_s=0.05):
     e = np.abs(np.array(errors)) if errors else None
     t = lambda k: None if k is None else round(log[k]["time_s"], 2)  # noqa: E731
     return dict(
+        matching="lead matched to the actor within %.1f m" % match_m if positions else "unavailable: the log has no lead positions",
         first_lead_s=None if first is None else round(first[0], 2),
         first_lead_truth_gap_m=None if first is None or first[1] is None else round(first[1], 2),
         speed_error_rmse_mps=None if e is None else round(float(np.sqrt(np.mean(e**2))), 3),
@@ -395,7 +497,199 @@ def score_lead_tracking(log, actor_truths, body, dt_s=0.05):
         stopped_before_lead_s=round(stopped_ticks * dt_s, 2),
         support=support,
         ticks=len(errors),
+        unmatched_lead_ticks=unmatched,
     )
+
+
+def _cause_stem(reason):
+    """A speed-cap reason without its "(held: ...)" suffix."""
+    return (reason or "speed cap").split(" (held")[0]
+
+
+def restrictions(log, actor_truths, body, cruise_mps, match_m=1.0):
+    """Per tick: what restricted the car's command (``None`` when nothing did), and whether
+    that was the scenario's actor (third review, F4: brake-reason attribution).
+
+    - A speed cap below cruise: it was computed on the tick before (the stack plans the
+      next tick under it), so its reason and its track are that tick's. It is the actor's
+      when the track behind it (``cap_track``), or the lead it follows, was the actor.
+    - A stop the planner holds (obstacle, hold, junction) within braking range: the
+      actor's when the actor is ahead in the ego's band (1 m margin) no further than the
+      stop point plus 6 m.
+    """
+    out = []
+    for k, (row, actor) in enumerate(zip(log, actor_truths)):
+        d = row.get("driver") or {}
+        prev = log[k - 1] if k else row  # the first row's cap was computed before the log began: its own stands in
+        pd = prev.get("driver") or {}
+        cap = d.get("speed_cap_mps")
+        cause, mine = None, False
+        v = row["truth"]["speed_mps"]
+        stop = d.get("stop_distance_m")
+        if d.get("stop_reason") in ("obstacle", "obstacle_hold", "junction") and stop is not None and stop <= v * v / 2.0 + 3.0:
+            cause = "stop: " + d["stop_reason"]
+            if actor is not None:
+                inside, _, _ = _ahead_in_band(row["truth"], actor, body, 1.0)
+                gap = polygon_distance(ego_vertices(row["truth"], body), box_vertices(actor["centre_xy"], actor["yaw_rad"], actor["extent_m"]))
+                mine = inside and gap <= stop + 6.0
+        elif cap is not None and cap < cruise_mps - 0.25:
+            cause = "cap: " + _cause_stem(pd.get("speed_cap_reason"))
+            prev_actor = actor_truths[k - 1] if k else actor
+            track = pd.get("cap_track")
+            if prev is not None and prev_actor is not None:
+                if track and track.get("x_m") is not None:
+                    mine = ego_to_actor_distance(prev["truth"], prev_actor, (track["x_m"], track["y_m"])) <= match_m
+                elif "lead" in cause:
+                    is_actor = lead_is_actor(prev, prev_actor, match_m)
+                    if is_actor is None:
+                        # A log without the lead's position (before the third review): the
+                        # actor ahead in the ego's band stands in for the match.
+                        is_actor = _ahead_in_band(prev["truth"], prev_actor, body, 1.0)[0]
+                    mine = bool(is_actor)
+        out.append((cause, mine))
+    return out
+
+
+def score_behaviour(name, log, actor_truths, body, cruise_mps, dt_s=0.05, gap0_m=4.0, headway_s=2.0, goal_stop_m=5.0):
+    """Driving quality beside the safety gates (third review, F4): what restricted the car,
+    whether it was the actor, and the time it cost. Reported, not gated: these make
+    unnecessary braking visible; thresholds wait for a baseline.
+
+    For every scenario, after the car first moved: ``restricted_s`` and ``time_lost_s``
+    (the sum of dt x (1 - v / cruise) over restricted ticks), each split into the actor's
+    and the rest, with the rest's causes; ``brake_ticks`` (brake commanded at 0.3 m/s or
+    more) and the share of them the actor's. Then:
+
+    - braking lead, before the actor began to brake: the restricted time not the actor's,
+      ``pre_brake_unjustified_slow_s`` (slower than the lead by 0.5 m/s with the gap at
+      least the following rule's desired gap plus 2 m; the lead's speed or cruise, whichever
+      is lower) and the lowest speed after the car first reached it;
+    - crossing pedestrian, once the walker had cleared and the car resumed: the near stops
+      (below 0.5 m/s after 1 m/s, short of the goal by ``goal_stop_m`` or more), the
+      restricted time not the walker's, and the progress
+      (distance over time to the end of the run);
+    - cut-in: the first restriction that was the cut-in car and the first brake command,
+      in seconds from the cut-in, and the least time to collision from 3 s before it to 5 s
+      after (bumper gap over closing speed, closing at 0.1 m/s or more).
+    """
+    causes = restrictions(log, actor_truths, body, cruise_mps)
+    speeds = [r["truth"]["speed_mps"] for r in log]
+    moved = next((k for k, v in enumerate(speeds) if v >= 0.5), None)
+    if moved is None:
+        return dict(note="the car never moved")
+
+    def summary(ticks, prefix=""):
+        restricted = [k for k in ticks if causes[k][0] is not None]
+        mine = [k for k in restricted if causes[k][1]]
+        other = [k for k in restricted if not causes[k][1]]
+        lost = lambda ks: round(sum(max(0.0, 1.0 - speeds[k] / cruise_mps) for k in ks) * dt_s, 2)  # noqa: E731
+        by = {}
+        for k in other:
+            by[causes[k][0]] = round(by.get(causes[k][0], 0.0) + dt_s, 2)
+        return {
+            f"{prefix}restricted_s": round(len(restricted) * dt_s, 2),
+            f"{prefix}restricted_by_actor_s": round(len(mine) * dt_s, 2),
+            f"{prefix}restricted_other_s": round(len(other) * dt_s, 2),
+            f"{prefix}time_lost_s": lost(restricted),
+            f"{prefix}time_lost_other_s": lost(other),
+            f"{prefix}other_causes_s": dict(sorted(by.items(), key=lambda kv: -kv[1])[:6]),
+        }
+
+    after = range(moved, len(log))
+    out = summary(after)
+    brakes = [k for k in after if (log[k].get("command") or [0, 0, 0])[2] >= 0.05 and speeds[k] >= 0.3]
+    out["brake_ticks"] = len(brakes)
+    out["brake_ticks_actor_share"] = round(sum(causes[k][1] for k in brakes) / len(brakes), 3) if brakes else None
+    rows = [(k, a) for k, a in enumerate(actor_truths) if a is not None]
+    if not rows:
+        return out | dict(note="no actor measurements")
+    t0 = lambda k: round(log[k]["time_s"], 2)  # noqa: E731
+    if name == "braking_lead":
+        lead_cruise = max(a["speed_mps"] for _, a in rows)
+        at_cruise = brake = None
+        for k, a in rows:
+            if a["speed_mps"] >= lead_cruise - 0.1:
+                at_cruise = k
+            elif at_cruise is not None and a["speed_mps"] < lead_cruise - 0.3:
+                brake = at_cruise + 1
+                break
+        if brake is None:
+            return out | dict(note="the lead never braked")
+        before = range(moved, brake)
+        gaps = separations(log, actor_truths, body)
+        unjustified = [
+            k for k in before
+            if actor_truths[k] is not None and gaps[k] is not None
+            and speeds[k] < min(cruise_mps, actor_truths[k]["speed_mps"]) - 0.5 and gaps[k] >= gap0_m + headway_s * speeds[k] + 2.0
+        ]
+        reached = next((k for k in before if actor_truths[k] is not None and speeds[k] >= min(cruise_mps, actor_truths[k]["speed_mps"]) - 0.3), None)
+        out |= summary(before, "pre_brake_")
+        out |= dict(
+            lead_brake_s=t0(brake),
+            pre_brake_unjustified_slow_s=round(len(unjustified) * dt_s, 2),
+            pre_brake_min_speed_after_lead_speed_mps=None if reached is None else round(min(speeds[reached:brake]), 2),
+        )
+        return out
+    if name == "crossing_pedestrian":
+        first = next((k for k, a in rows if _ahead_in_band(log[k]["truth"], a, body, 1.0)[0]), None)
+        if first is None:
+            return out | dict(note="the walker never entered the path")
+        cleared = None
+        for k, a in rows:
+            if k < first:
+                continue
+            inside, dx, dy = _ahead_in_band(log[k]["truth"], a, body, 1.0)
+            if not inside and (dy > body.half_width_m + 1.0 or dx < body.rear_m):
+                cleared = k
+                break
+        if cleared is None:
+            return out | dict(note="the walker had not cleared the path when the run ended")
+        resumed = next((k for k in range(cleared, len(log)) if speeds[k] >= 0.5), None)
+        if resumed is None:
+            return out | dict(walker_cleared_s=t0(cleared), note="the car did not resume")
+        near_stops, up = 0, False
+        for k in range(resumed, len(log)):
+            goal = log[k]["truth"].get("goal_distance_m")
+            if speeds[k] >= 1.0:
+                up = True
+            elif up and speeds[k] < 0.5 and (goal is None or goal > goal_stop_m):
+                near_stops, up = near_stops + 1, False  # the stop at the goal is not one
+        span = (len(log) - cleared) * dt_s
+        out |= summary(range(resumed, len(log)), "post_clear_")
+        out |= dict(
+            walker_cleared_s=t0(cleared),
+            resumed_s=t0(resumed),
+            post_clear_near_stops=near_stops,
+            post_clear_progress_mps=round(sum(speeds[cleared:]) * dt_s / span, 2) if span > 0 else None,
+        )
+        return out
+    if name == "cut_in":
+        cut = next((k for k, a in rows if _ahead_in_band(log[k]["truth"], a, body, 0.5)[0]), None)
+        if cut is None:
+            return out | dict(note="the cut-in car never entered the ego's lane")
+        window = range(max(moved, cut - int(3.0 / dt_s)), min(len(log), cut + int(5.0 / dt_s)))
+        response = next((k for k in window if causes[k][1]), None)
+        braked = next((k for k in window if (log[k].get("command") or [0, 0, 0])[2] >= 0.05), None)
+        gaps = separations(log, actor_truths, body)
+        ttc = []
+        for k in window:
+            a = actor_truths[k]
+            if a is None or gaps[k] is None:
+                continue
+            truth = log[k]["truth"]
+            heading = truth["yaw_rad"]
+            v_actor = a["speed_mps"] * math.cos(a["yaw_rad"] - heading)
+            closing = speeds[k] - v_actor
+            if closing >= 0.1:
+                ttc.append(gaps[k] / closing)
+        out |= dict(
+            cut_in_s=t0(cut),
+            first_actor_restriction_from_cut_in_s=None if response is None else round((response - cut) * dt_s, 2),
+            first_brake_from_cut_in_s=None if braked is None else round((braked - cut) * dt_s, 2),
+            min_ttc_s=round(min(ttc), 2) if ttc else None,
+        )
+        return out
+    return out
 
 
 def score_moving(log, actor_truths, body, min_separation_m=1.0):

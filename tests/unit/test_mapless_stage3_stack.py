@@ -272,3 +272,93 @@ def test_the_second_live_stack_turn_false_triggers_are_dropped():
     assert plausible_crossers([slide], predict_all(predictable_tracks([slide]), c.prediction), _path(), 1.75, c, ego_speed_mps=2.0, grid=Wall()) == []
     crossing_car = track(99, 9.0, -20.0, 0.0, 5.5, fp=(4.5, 1.9, math.pi / 2), travelled=4.0, recent=5.2)
     assert len(plausible_crossers([crossing_car], predict_all(predictable_tracks([crossing_car]), c.prediction), _path(), 1.75, c, ego_speed_mps=2.0, grid=Wall())) == 1
+
+
+# -- third review (e93154f) ---------------------------------------------------------------
+def _drive_past(stack, make_track, seconds=6.0, ego=6.0, cruise=6.0, dt=0.05):
+    """Closed loop on the cap alone: the car holds the origin and the scene moves past it at
+    the car's speed, which follows the cap (4 m/s^2 down, 1 m/s^2 up). ``make_track(t,
+    travelled)`` gives the track at time ``t`` with the car ``travelled`` metres on. Returns
+    one row per tick: (t, ego speed, cap, the stack's lead note, the cause's track id)."""
+    rows, travelled, v = [], 0.0, ego
+    for k in range(int(seconds / dt)):
+        t = 10.0 + k * dt
+        tracks = [make_track(k * dt, travelled)]
+        preds = tuple(predict_all(predictable_tracks(tracks), stack.config.prediction))
+        cap, _ = stack._speed_cap(SimpleNamespace(speed_mps=v), Pose2D(0, 0, 0), tracks, preds, t)
+        stack.driver.speed_cap_mps = cap
+        rows.append((t, v, cap, None if stack._lead is None else dict(stack._lead), None if stack._cause is None else stack._cause["track_id"]))
+        want = cruise if cap is None else min(cruise, cap)
+        v = max(0.0, v - 4.0 * dt) if want < v else min(want, v + 1.0 * dt)
+        travelled += v * dt
+    return rows
+
+
+def test_r1_a_vehicle_moving_diagonally_into_the_path_stays_covered_through_the_lead_hand_over():
+    """Third review, R1 (F3): a confirmed car crossing diagonally into the lane, swept
+    through the point where it becomes the lead. While it is the lead it may leave the
+    conflict check only for a rule that covers it, and the hand-over never lifts the
+    restriction in force (it did: a 1.4 m/s conflict cap became a 6 m/s following target
+    on the tick the car reached the tube), and the car never closes to the car's body."""
+    for along in (0.5, 2.0, 4.0):
+        for across in (0.5, 1.0, 2.0):
+            heading = math.atan2(-across, along)
+
+            def car(t, travelled, along=along, across=across, heading=heading):
+                return track(7, 14.0 + along * t - travelled, 4.0 - across * t, along, -across, fp=(4.5, 1.9, heading))
+
+            rows = _drive_past(make_stack(cruise=6.0), car)
+            before = None
+            for t, v, cap_now, lead, cause in rows:
+                case = f"along {along}, across {across}, t {t - 10:.2f}: cap {cap_now}, lead {lead}"
+                if lead is not None and lead["track_id"] == 7:
+                    if lead["checked_by"] == "following":
+                        assert lead["speed_mps"] > 0.3, case
+                    elif lead["checked_by"] == "obstacle stop":
+                        assert math.hypot(lead["speed_mps"], lead["across_mps"]) < 0.5, case
+                    if before is not None and before[1] == 7 and before[0] is not None:
+                        assert cap_now is not None and cap_now <= before[0] + 1.0 * 0.05 + 1e-6, case
+                    gap = lead["gap_m"]
+                    assert gap > 1.0, case
+                before = (cap_now, lead["track_id"] if lead is not None else cause)
+
+
+def test_r4_a_lead_at_a_steady_speed_is_followed_without_braking_below_it():
+    """Third review, R4: a lead holding 3 or 5 m/s, its velocity jittering across the lane
+    as a LiDAR track's does (0.15 m/s), with the car at the lead's speed and about the
+    following gap: no cap well below the lead's speed, and no conflict cap at all."""
+    for lead_mps, start_m in ((3.0, 16.0), (5.0, 20.0)):
+
+        def lead(t, travelled, v=lead_mps, x0=start_m):
+            return track(9, x0 + v * t - travelled, 0.1 * math.sin(3 * t), v, 0.15 * math.cos(5 * t), fp=(4.5, 1.9, 0.0))
+
+        rows = _drive_past(make_stack(cruise=6.0), lead, seconds=15.0, ego=lead_mps, cruise=6.0)
+        assert min(v for _, v, _, _, _ in rows) >= lead_mps - 2.0
+        assert all(cause is None for *_, cause in rows)
+        assert abs(rows[-1][1] - lead_mps) <= 0.3
+
+
+def test_r5_a_pedestrian_standing_on_the_pavement_does_not_bring_the_car_to_a_stop():
+    """Third review, R5: a walker (a decided pedestrian) standing on the pavement, either
+    side, 2.5 to 3.5 m off the lane's centre. Its walking-pace envelope reached the path
+    and the car stopped short of it for good; it is now passed at ``roadside_mps``. One
+    standing at the lane's edge is still stopped for, and one that walks out yielded to."""
+    pedestrian = {k: (0.9 if k == "pedestrian" else 0.025) for k in CLASSES}
+
+    def walker(y, vy=0.0):
+        def make(t, travelled):
+            return ObjectTrack(5, 0.0, [25.0 - travelled, y + vy * t, 0.0, vy], np.diag([0.05] * 4), pedestrian, TrackStatus.CONFIRMED, 60, 0,
+                               support=("lidar",), footprint=(0.5, 0.5, 0.0), travelled_m=abs(vy) * t, recent_speed_mps=abs(vy))
+        return make
+
+    roadside = StackConfig().roadside_mps
+    for y in (-2.5, -3.0, -3.5, 2.5):
+        for cruise in (3.0, 6.0):
+            rows = _drive_past(make_stack(cruise=cruise), walker(y), seconds=8.0, ego=cruise, cruise=cruise)
+            assert min(v for _, v, _, _, _ in rows) >= min(cruise, roadside) - 0.2, (y, cruise)
+    # At the lane's edge: the stop stays.
+    rows = _drive_past(make_stack(cruise=6.0), walker(-1.8), seconds=8.0)
+    assert min(v for _, v, _, _, _ in rows) < 0.5
+    # Walking out of the pavement into the lane: yielded to.
+    rows = _drive_past(make_stack(cruise=6.0), walker(-3.0, vy=1.4), seconds=8.0)
+    assert min(v for _, v, _, _, _ in rows) <= StackConfig().yield_mps + 1e-6

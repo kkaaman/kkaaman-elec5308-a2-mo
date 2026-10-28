@@ -72,6 +72,8 @@ from carla_adapter.mapless_capture import source_commit
 from carla_adapter.mapless_scenarios import SCENARIOS as ACTOR_SCENARIOS
 from carla_adapter.mapless_scenarios import (
     make_scenario,
+    score_actor_tracking,
+    score_behaviour,
     score_completion,
     score_lead_tracking,
     score_moving,
@@ -576,6 +578,39 @@ def check(name, status, **values):
 
 
 # -- the run -------------------------------------------------------------------------------
+STEP_TARGET_MS = 50.0  # the declared real-time budget: one 20 Hz tick
+
+
+def step_time_report(step_times_s, log, target_ms=STEP_TARGET_MS):
+    """The driver step's wall-clock time against the 50 ms tick (third review: p95 and the
+    worst case are first-class, so a passing drive cannot hide a missed deadline): p50,
+    p95, p99 and max, the share of ticks over the target, and each stage's p50, p95 and
+    max where they were logged (the stack's ``stack_timing_ms``, and the driver's own
+    ``driver_timing_ms`` as ``driver.<stage>``). Wall-clock in synchronous mode:
+    a slow tick slows the simulation's real-time rate, not the simulated car."""
+    times = np.array(step_times_s, dtype=float) * 1000
+    if not len(times):
+        return dict(note="no timed steps")
+    out = dict(
+        p50_ms=float(np.median(times)),
+        p95_ms=float(np.percentile(times, 95)),
+        p99_ms=float(np.percentile(times, 99)),
+        max_ms=float(times.max()),
+        target_ms=target_ms,
+        over_target_share=round(float(np.mean(times > target_ms)), 3),
+        ticks=len(times),
+    )
+    stages = {}
+    for row in log:
+        d = row.get("driver") or {}
+        for key, prefix in (("stack_timing_ms", ""), ("driver_timing_ms", "driver.")):
+            for name, ms in (d.get(key) or {}).items():
+                stages.setdefault(prefix + name, []).append(ms)
+    if stages:
+        out["stages_ms"] = {name: dict(p50=round(float(np.median(v)), 1), p95=round(float(np.percentile(v, 95)), 1), max=round(float(max(v)), 1), ticks=len(v)) for name, v in stages.items()}
+    return out
+
+
 class MaplessDrive:
     def __init__(self, carla, owner, suite, args, report):
         self.carla, self.owner, self.world = carla, owner, owner.world
@@ -999,8 +1034,15 @@ class MaplessDrive:
             moving = score_moving(log, actor_truths, self.body)
             ok = moving["separation_ok"]
             checks.append(check("separation", INCOMPLETE if ok is None else (PASS if ok else FAIL), **moving))
-            if getattr(args, "stack", False) and self.actor_scenario in ("braking_lead", "cut_in"):
-                checks.append(check("lead_tracking", REPORT, **score_lead_tracking(log, actor_truths, self.body, DT_S)))
+            if getattr(args, "stack", False):
+                # Which tracks were the actor, from the logged tracks (third review, F1);
+                # the lead's errors are scored only on ticks it was the actor.
+                checks.append(check("actor_tracking", REPORT, **score_actor_tracking(log, actor_truths, self.body, DT_S)))
+                if self.actor_scenario in ("braking_lead", "cut_in"):
+                    checks.append(check("lead_tracking", REPORT, **score_lead_tracking(log, actor_truths, self.body, DT_S)))
+            # Driving quality beside the gates: what restricted the car, whether it was the
+            # actor, and the time it cost (third review, F4).
+            checks.append(check("behaviour", REPORT, **score_behaviour(self.actor_scenario, log, actor_truths, self.body, args.speed, DT_S)))
         last = log[-1]
         summary = last["driver"].get("calibration")
         source = last["driver"].get("keep_right_source") or ""
@@ -1044,8 +1086,7 @@ class MaplessDrive:
             key = reason.split(":")[0]
             reasons[key] = reasons.get(key, 0) + 1
         checks.append(check("faults", PASS if share <= 0.02 else FAIL, share=share, reasons=reasons))
-        times = np.array(step_times) * 1000
-        checks.append(check("driver_step_time", REPORT, p50_ms=float(np.median(times)), p95_ms=float(np.percentile(times, 95))))
+        checks.append(check("driver_step_time", REPORT, **step_time_report(step_times, log)))
         edge_errors = []
         for r in startup:
             kerb = r["driver"].get("right_kerb_body")
