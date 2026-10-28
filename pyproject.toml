@@ -104,3 +104,5 @@ ignore = ["E501"]
 "scripts/verify_scenarios.py" = ["TID251"]
 "tests/unit/test_scenario_events.py" = ["TID251"]
 "tests/unit/test_scenario_world.py" = ["TID251"]
+
+"tests/unit/test_weather_matrix.py" = ["TID251"]
