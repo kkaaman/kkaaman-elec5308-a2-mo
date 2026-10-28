@@ -1,0 +1,43 @@
+DEPRECATED: The legacy builder is deprecated and will be removed in a future release.
+            Install the buildx component to build images with BuildKit:
+            https://docs.docker.com/go/buildx/
+
+Sending build context to Docker daemon  370.1MB
+
+Step 1/11 : FROM python:3.12-slim@sha256:6b25cbe6577518889d553cdd5a5da97d259348d8f6e45b527dd731caaba27a07
+ ---> 6b25cbe65775
+Step 2/11 : RUN apt-get update && apt-get install -y --no-install-recommends libgl1 libglib2.0-0 && rm -rf /var/lib/apt/lists/*
+ ---> Using cache
+ ---> d4ec6a2e6f3b
+Step 3/11 : WORKDIR /app
+ ---> Using cache
+ ---> 2ef0a9be4dfa
+Step 4/11 : COPY deploy/inference/requirements-cpu.lock /app/requirements-cpu.lock
+ ---> Using cache
+ ---> 7d56e0ad9bba
+Step 5/11 : COPY wheelhouse/ /wheelhouse/
+ ---> Using cache
+ ---> a50480bce61d
+Step 6/11 : RUN python -m pip install --no-cache-dir --no-index --find-links=/wheelhouse --require-hashes -r /app/requirements-cpu.lock && python -m pip check
+ ---> Using cache
+ ---> a2c5c1425f64
+Step 7/11 : COPY src/ /app/src/
+ ---> 423d262005b6
+Step 8/11 : ENV PYTHONPATH=/app/src HOME=/tmp YOLO_CONFIG_DIR=/tmp/ultralytics MPLCONFIGDIR=/tmp/matplotlib YOLO_OFFLINE=True
+ ---> Running in 062b3578d90e
+ ---> Removed intermediate container 062b3578d90e
+ ---> 30804f661084
+Step 9/11 : USER 10001:10001
+ ---> Running in ae24d33601b5
+ ---> Removed intermediate container ae24d33601b5
+ ---> 103c0a610385
+Step 10/11 : EXPOSE 8000
+ ---> Running in 77a8871a0ca0
+ ---> Removed intermediate container 77a8871a0ca0
+ ---> c2444ba39734
+Step 11/11 : CMD ["python", "-m", "uvicorn", "cloud.server:from_environment", "--factory", "--host", "0.0.0.0", "--port", "8000", "--workers", "1", "--limit-concurrency", "8", "--timeout-keep-alive", "2"]
+ ---> Running in f4956ebdae1c
+ ---> Removed intermediate container f4956ebdae1c
+ ---> 887e49a12154
+Successfully built 887e49a12154
+Successfully tagged group7-inference:issue56

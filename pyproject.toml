@@ -17,9 +17,12 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+remote = ["pillow", "matplotlib"]
 test = [
     "pytest",
     "ruff",
+    "fastapi==0.115.0",
+    "httpx>=0.27",
 ]
 docs = [
     "sphinx",
@@ -27,6 +30,10 @@ docs = [
 ]
 carla = [
     "carla==0.9.16",
+]
+server = [
+    "fastapi==0.115.0",
+    "uvicorn==0.30.6",
 ]
 training = [
     "pandas",
@@ -103,3 +110,5 @@ ignore = ["E501"]
 "scripts/verify_scenarios.py" = ["TID251"]
 "tests/unit/test_scenario_events.py" = ["TID251"]
 "tests/unit/test_scenario_world.py" = ["TID251"]
+
+"tests/unit/test_weather_matrix.py" = ["TID251"]

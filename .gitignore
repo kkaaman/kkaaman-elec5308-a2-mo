@@ -22,3 +22,6 @@ docs/_build/
 
 # Raw run outputs (runs/<scenario>/<run-id>/); curated evidence goes in docs/
 runs/
+
+# Prepared offline inference-service wheels (hashes tracked separately).
+/wheelhouse/
