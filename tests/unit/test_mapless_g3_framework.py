@@ -852,3 +852,35 @@ def test_following_a_slower_car_settles_without_stop_go_and_still_brakes_for_the
     assert abs(gaps[-1] - (FollowingConfig().gap0_m + FollowingConfig().headway_s * 1.4)) < 0.2
     speeds, gaps = run(lambda t: 3.0 if t < 10 else max(0.0, 3.0 - 6.0 * (t - 10)), 3.0, 10.0)
     assert gaps.min() >= FollowingConfig().gap0_m - 0.1 and speeds[-1] < 0.05
+
+
+def test_a_slower_car_cutting_in_close_is_slowed_for_not_stopped_for():
+    """Live slower cut-in (c882389): the car became the lead 4.75 m ahead at 1.34 m/s with
+    the ego at 1.97 m/s, just above the worst-case cap. The target was braked at 4 m/s^2 to
+    the gap term's zero and the jerk limit then held it there: the ego stood 1.4 s behind
+    a car moving off. It now brakes only to the cap, then closes the gap as usual."""
+    follow = FollowingController(FollowingConfig())
+    v, gap, speeds, gaps = 1.97, 4.75, [], []
+    for _ in range(300):
+        target = follow.target_speed(2.0, v, gap, 1.34, 0.05)
+        v = max(0.0, v + (target - v) * 0.05 / 0.3)
+        gap += (1.34 - v) * 0.05
+        speeds.append(v)
+        gaps.append(gap)
+    assert min(speeds) > 0.5 and min(gaps) > FollowingConfig().standstill_m + FollowingConfig().uncertainty_m
+    assert abs(speeds[-1] - 1.34) < 0.1
+
+
+def test_a_lead_just_past_the_end_of_the_path_line_is_still_the_lead():
+    """Live braking lead (c882389): the kerb the lead hid ended the corridor near its rear
+    face, its centre lay just past the line's end, and it flickered out of being the lead
+    (braking seen 1.15 s late). Within ``beyond_end_m`` it is judged on the line continued;
+    further out, or beside the continuation, it is not."""
+    follow = FollowingController()
+    line = np.column_stack((np.arange(0.0, 27.5, 0.5), np.zeros(55)))
+    def car(x, y):
+        return ObjectTrack(1, 0.0, [x, y, 0.0, 0.0], np.eye(4), {"car": 1.0}, TrackStatus.CONFIRMED, 20, 0, footprint=(1.7, 0.4, math.pi / 2))
+    lead = follow.lead_ahead([car(28.0, 0.5)], ORIGIN, line, tube_half_m=1.3)
+    assert lead is not None and lead[0] == pytest.approx(28.0, abs=0.05)
+    assert follow.lead_ahead([car(37.0, 0.0)], ORIGIN, line, tube_half_m=1.3) is None
+    assert follow.lead_ahead([car(29.0, 3.0)], ORIGIN, line, tube_half_m=1.3) is None

@@ -1867,6 +1867,40 @@ scipy is not on the lab PCs.
 - the segmenter in shadow mode;
 - observability-limited speed.
 
+**Live on `c882389` (28 Oct), every run MEASURED_PASS.**
+
+- **Town05 braking lead, radar (PC 1).** The fixes hold live:
+  - restriction not from the actor 1.55 s → 0.05 s; the 6.7 s near-stop is gone (lowest
+    speed before the lead braked 1.97 m/s, was 0.0);
+  - actor tracked on every in-view tick; lead speed RMSE 0.13 m/s; braking seen in 0.15 s;
+    no false leads;
+  - clustering (`detect`) 44 ms p50 against 74–82 ms.
+
+  The step is still 178 ms p50 and 469 ms p95: the v2 segmenter's paint is 295 ms at p95,
+  detect 95 ms and track 42 ms. The twins: 332 ticks with two tracks on the lead, 232 of
+  them a radar-only one; 177 of the 216 kept twins lay outside the LiDAR footprint; the
+  second track set the cap on no tick.
+- **Slower cut-in (PC 2).** The stop-go is gone: following settles at the lead's 1.35 m/s.
+  The cut-in car is no longer taken for a group. With the group yield gone, the car became
+  the lead under a 3.2 m/s conflict cap, above the 2 m/s cruise; `exercised` reports, rightly,
+  that the hand-over met no restriction (R1 was exercised on `6f2aec3`).
+
+  It still stood 1.4 s at the hand-over. Just above the worst-case cap, the target was braked
+  at 4 m/s² past the cap to the gap term's zero, and the jerk limit then held it at zero
+  while the car ahead moved off. **Fix:** above the cap the target comes down only to the
+  cap; there is no wind-up at a standstill. Simulated: lowest speed 0.8 m/s (was 1.95 s
+  below 0.3), gap at least 4.2 m.
+- **Braking lead (PC 2).** Brake detection was 1.15 s: the lead flickered in and out of being
+  the lead. The kerb it hides ends the corridor at about its rear, and its centre then lay
+  just past the line's end. **Fix:** a track up to 8 m past the end counts, on the line
+  continued straight (`beyond_end_m`).
+
+  In that run the second track set the cap on 4 ticks. `stopped_before_lead` no longer
+  counts the goal stop.
+- **Radar twins** that lie behind a LiDAR face along the line of sight (up to 3.5 m, the
+  face under 1.5 m deep) are now merged. A car queued 6.5 m behind keeps its own track.
+  Recorded frames hold no radar, so this waits on a live run.
+
 ## Running Phase 0 live
 
 Run with CARLA 0.9.16 and no other clients:

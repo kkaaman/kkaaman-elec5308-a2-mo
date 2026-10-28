@@ -333,3 +333,20 @@ def test_the_tracker_says_why_a_radar_twin_was_kept():
         tr.update(k * DT, ORIGIN, lidar=[lid((x, 0.8), extent=(0.5, 0.5, 0.0))], radar=[ret((x, 0.0), 8.0)])
         kept += tr.radar_stats.get("twins_kept") or []
     assert kept and all(why == "the LiDAR track is smaller than merge_min_extent_m" for *_, why in kept)
+
+
+def test_a_radar_twin_on_the_body_behind_a_lidar_rear_face_is_merged():
+    """Town05 braking lead (c882389): 177 of the 216 ticks a radar twin was kept, it lay
+    outside the LiDAR track's footprint: the LiDAR had the car's rear face (1.8 x 0.4 m),
+    the radar's return came off its body 2-3 m behind. It is now merged once it persists;
+    a car queued 6 m behind the lead's rear face keeps its own track."""
+    for behind, merges_expected in ((2.5, True), (6.5, False)):
+        tr = Tracker(TrackerConfig())
+        merged = 0
+        for k in range(40):  # radar only first, 36 m out
+            tr.update(k * DT, ORIGIN, radar=[ret((36.0 + behind + 2.0 * k * DT, 0.0), 2.0)])
+        for k in range(40, 80):
+            x = 36.0 + 2.0 * k * DT
+            tracks = tr.update(k * DT, ORIGIN, lidar=[lid((x, 0.0), extent=(1.8, 0.4, math.pi / 2))], radar=[ret((x + behind, 0.0), 2.0)])
+            merged += tr.radar_stats.get("merged", 0)
+        assert (merged > 0) == merges_expected, (behind, merged, [(t.track_id, t.support) for t in tracks])

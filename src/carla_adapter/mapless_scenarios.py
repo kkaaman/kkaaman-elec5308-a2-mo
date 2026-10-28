@@ -489,8 +489,9 @@ def score_lead_tracking(log, actor_truths, body, dt_s=0.05, match_m=1.0):
             elif at_cruise is not None and actor["speed_mps"] < cruise - 0.3:
                 brake_tick = at_cruise + 1  # the first tick below cruise
         moved = moved or row["truth"]["speed_mps"] >= 0.5
-        if moved and row["truth"]["speed_mps"] < 0.05 and actor["speed_mps"] > 0.5:
-            stopped_ticks += 1  # after the car first moved: the start-up wait is not a false stop
+        goal = row["truth"].get("goal_distance_m")
+        if moved and row["truth"]["speed_mps"] < 0.05 and actor["speed_mps"] > 0.5 and (goal is None or goal > 5.0):
+            stopped_ticks += 1  # after the car first moved, short of the goal: neither the start-up wait nor the goal stop is a false stop
         if not lead or lead.get("crossing"):
             continue
         is_actor = lead_is_actor(row, actor, match_m)
