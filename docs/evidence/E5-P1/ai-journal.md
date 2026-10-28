@@ -25,3 +25,14 @@ All numerical fixture assumptions and the lack of live CARLA parking evidence
 are documented in the interface guide. The user's approval authorized
 implementation, not a claim of human code review or G1 admission. Human review
 of this feature remains pending.
+
+28 October 2026 follow-up: Codex fetched the existing Phase J integration head
+without rewriting history, independently verified the proposed inventory delta
+and fingerprint, and reproduced six production G1 failures in an isolated
+snapshot. Substituting only the candidate canonical-loader variant in that
+snapshot yielded 972 passing offline tests, including negative admission guards.
+The trusted record, production validator, mission values and runner binding in
+the feature branch were left unchanged. A newly orphaned Phase J document was
+added to the Sphinx toctree; strict documentation then passed. Local evidence is
+explicitly labelled a simulation pending designated review, not human approval,
+live admission or successful remote CI.

@@ -179,9 +179,3 @@ The Windows baseline hash issue is fixed by explicit LF attributes for the 30
 existing files byte-pinned by the BL-D-06 evidence review. Their contents match
 Git's LF blobs. No checksum, evidence threshold or runtime baseline setting is
 changed to obtain a pass.
-
-```{toctree}
-:hidden:
-
-evidence/E5-P1/phase-j-20261028/README
-```
