@@ -79,12 +79,25 @@ def project_onto_polyline(points, polyline):
     dx, dy = line[1:, 0] - ax, line[1:, 1] - ay
     length2 = np.maximum(dx * dx + dy * dy, 1e-12)
     px, py = p[:, 0:1], p[:, 1:2]
-    rx = px - ax[None, :]
-    ry = py - ay[None, :]
-    t = np.clip((rx * dx + ry * dy) / length2, 0.0, 1.0)
-    ex = px - (ax + t * dx)
-    ey = py - (ay + t * dy)
-    dist2 = ex * ex + ey * ey
+    rx = np.subtract(px, ax[None, :])
+    ry = np.subtract(py, ay[None, :])
+    # In place, in the same order of operations: t = clip((rx dx + ry dy) / |d|^2, 0, 1),
+    # e = p - (a + t d), dist2 = ex^2 + ey^2 (half the time again; same to the bit).
+    t = np.multiply(rx, dx)
+    tmp = np.multiply(ry, dy)
+    t += tmp
+    t /= length2
+    np.clip(t, 0.0, 1.0, out=t)
+    np.multiply(t, dx, out=tmp)
+    tmp += ax
+    ex = np.subtract(px, tmp)
+    np.multiply(t, dy, out=tmp)
+    tmp += ay
+    ey = np.subtract(py, tmp, out=tmp)
+    ex *= ex
+    ey *= ey
+    ex += ey
+    dist2 = ex
     k = np.argmin(dist2, axis=1)
     rows = np.arange(len(p))
     seg = np.sqrt(length2)
