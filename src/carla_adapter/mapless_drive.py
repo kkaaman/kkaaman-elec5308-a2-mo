@@ -603,9 +603,10 @@ def check(name, status, **values):
 
 # -- the run -------------------------------------------------------------------------------
 STEP_TARGET_MS = 50.0  # the declared real-time budget: one 20 Hz tick
+BRAKE_LAG_S = 0.25  # the longest brake lag measured open loop (BL-E-03: 0.1-0.25 s)
 
 
-def step_time_report(step_times_s, log, target_ms=STEP_TARGET_MS):
+def step_time_report(step_times_s, log, target_ms=STEP_TARGET_MS, response_s=None, brake_lag_s=BRAKE_LAG_S, dt_s=0.05):
     """The driver step's wall-clock time against the 50 ms tick (third review: p95 and the
     worst case are first-class, so a passing drive cannot hide a missed deadline): p50,
     p95, p99 and max, the share of ticks over the target, and each stage's p50, p95 and
@@ -646,6 +647,21 @@ def step_time_report(step_times_s, log, target_ms=STEP_TARGET_MS):
         c, o = np.array(control), np.array(optional)
         out["control_path_ms"] = dict(p50=round(float(np.median(c)), 1), p95=round(float(np.percentile(c, 95)), 1), max=round(float(c.max()), 1), over_target_share=round(float(np.mean(c > target_ms)), 3), stages=list(CONTROL_STAGES))
         out["optional_ms"] = dict(p50=round(float(np.median(o)), 1), p95=round(float(np.percentile(o, 95)), 1), max=round(float(o.max()), 1), stages=list(OPTIONAL_STAGES))
+        if response_s:
+            # What the 50 ms is for (fifth review, F5-05): in real time, a road user's change
+            # reaches the brakes after the tick that sees it (the cap applies on the next),
+            # the control path's own time and the brake's lag. The following rule's worst
+            # case allows response_s for all of it. Synchronous CARLA hides the processing
+            # time; this says whether the budget would hold if it did not.
+            worst = dt_s + float(np.percentile(c, 99)) / 1000.0 + brake_lag_s
+            out["response_budget"] = dict(
+                tick_s=dt_s,
+                control_path_p99_s=round(float(np.percentile(c, 99)) / 1000.0, 3),
+                brake_lag_s=brake_lag_s,
+                worst_s=round(worst, 3),
+                allowed_s=response_s,
+                within=bool(worst <= response_s),
+            )
     return out
 
 
@@ -1161,7 +1177,8 @@ class MaplessDrive:
             key = reason.split(":")[0]
             reasons[key] = reasons.get(key, 0) + 1
         checks.append(check("faults", PASS if share <= 0.02 else FAIL, share=share, reasons=reasons))
-        checks.append(check("driver_step_time", REPORT, **step_time_report(step_times, log)))
+        following = next((r for name, r in (self.report.get("braking_assumptions") or {}).items() if name.startswith("following")), None)
+        checks.append(check("driver_step_time", REPORT, **step_time_report(step_times, log, response_s=None if following is None else following["response_s"])))
         shadow = semantic_shadow_report(log)
         if shadow is not None:
             checks.append(check("semantic_shadow", REPORT, **shadow))

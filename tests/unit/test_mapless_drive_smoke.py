@@ -391,6 +391,11 @@ def test_step_time_report_gives_the_tail_the_deadline_share_and_each_stage():
     out = step_time_report(times, log)
     assert out["control_path_ms"]["p50"] == pytest.approx(42.0) and out["control_path_ms"]["over_target_share"] == 0.0
     assert out["optional_ms"]["max"] == pytest.approx(36.0)
+    # The reaction budget: a tick, the control path's p99 and the brake lag within response_s.
+    out = step_time_report(times, log, response_s=0.5)
+    assert out["response_budget"]["worst_s"] == pytest.approx(0.05 + 0.042 + 0.25) and out["response_budget"]["within"] is True
+    slow = [dict(driver=dict(stack_timing_ms=dict(drive=150.0, detect=50.0, track=20.0, plan=10.0))) for _ in range(100)]
+    assert step_time_report(times, slow, response_s=0.5)["response_budget"]["within"] is False
 
 
 def test_a_run_that_passes_every_gate_without_exercising_its_target_is_not_a_pass():

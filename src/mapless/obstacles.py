@@ -111,6 +111,36 @@ def project_onto_polyline(points, polyline):
     return s, lateral, beyond | before
 
 
+def _segment_distance(p, a, b):
+    """Distance from each point ``p`` (N x 2) to its own segment ``a``-``b`` (N x 2 each)."""
+    d = b - a
+    t = np.clip(np.sum((p - a) * d, axis=1) / np.maximum(np.sum(d * d, axis=1), 1e-12), 0.0, 1.0)
+    return np.hypot(*(p - (a + t[:, None] * d)).T)
+
+
+def _beyond_reach(points, line, reach_m, step=4):
+    """Points certainly farther than ``reach_m`` from the polyline ``line``, by a bound.
+
+    The distance to the line is at least the distance to its chords (every ``step``-th
+    vertex) less the farthest the line strays from its own chord. Along each segment the
+    distance to the chord over it is convex, so that is the largest over the vertices of
+    each chord's stretch; a point the bound puts beyond ``reach_m`` is beyond it. A
+    quarter of the segments are projected onto, for every point; the exact projection is
+    left for the points that may be within reach."""
+    line = np.asarray(line, dtype=float)
+    n = len(line)
+    if n < 2 * step:
+        return np.zeros(len(points), dtype=bool)
+    idx = np.arange(0, n, step)
+    if idx[-1] != n - 1:
+        idx = np.append(idx, n - 1)
+    chords = line[idx]
+    owner = np.minimum(np.arange(n) // step, len(idx) - 2)  # the chord whose stretch holds each vertex
+    stray = float(_segment_distance(line, chords[owner], chords[owner + 1]).max())
+    _, lateral, _ = project_onto_polyline(points, chords)
+    return np.abs(lateral) - stray > reach_m + 1e-9
+
+
 def _arcs(line):
     return np.concatenate(([0.0], np.cumsum(np.hypot(*np.diff(line, axis=0).T))))
 
@@ -232,6 +262,16 @@ def observe_path(sweep, corridor, body, config=None):
     half = body.half_width_m + c.margin_m
     lo, hi = line.min(axis=0) - half - 1.0 - c.beyond_line_m, line.max(axis=0) + half + 1.0 + c.beyond_line_m
     ground = ground[np.all((ground >= lo) & (ground <= hi), axis=1)]
+    if len(ground) and len(line) >= 2:
+        # Only points within the tube's widest reach (half + 1 m on a bend) of the line, or
+        # in the stretch straight past its end, can count below: the rest are left out
+        # before the exact projection, on a bound that never leaves out one that counts
+        # (``_beyond_reach``; fifth review, F5-05: 11 000 ground points a sweep on Town05).
+        u_end = (line[-1] - line[-2]) / max(float(np.hypot(*(line[-1] - line[-2]))), 1e-9)
+        rel_end = ground - line[-1]
+        ahead_end = rel_end @ u_end
+        past_end = (ahead_end > 0) & (ahead_end <= c.beyond_line_m) & (np.abs(u_end[0] * rel_end[:, 1] - u_end[1] * rel_end[:, 0]) <= half + 1e-6)
+        ground = ground[past_end | ~_beyond_reach(ground, line, half + 1.0)]
     clear = 0.0
     in_tube = in_tube_body = np.zeros((0, 2))
     if len(ground):
