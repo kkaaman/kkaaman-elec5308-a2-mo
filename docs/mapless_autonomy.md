@@ -1563,6 +1563,37 @@ Regression tests: `tests/unit/test_mapless_stage3_junctions.py`,
 `tests/unit/test_mapless_stage3_stack.py`, and the evaluator test in
 `tests/unit/test_mapless_g1c_harness.py`.
 
+**Live on `ff1910b` (28 Oct).** Two of the three runs passed:
+
+| Run | Result | Footprint margin | Exit-lane p95 |
+|---|---|---|---|
+| Right turn, driver only (PC 2, Town10HD site 0) | MEASURED_PASS, every gate | −0.50 m, on the full body outline | 0.12 m |
+| Left turn, driver only (PC 1, Town03) | MEASURED_PASS, every gate | −0.43 m (−0.18 m on 25 Oct) | 0.04 m |
+| Right turn, stack (PC 2) | INCOMPLETE | — | — |
+
+- **Left turn.** The oncoming gate found the opposing lane clear (0 occupied cells) and
+  the car entered it at 14.3 s. The exit kerb was read close by.
+- **Stack right turn.** It went stop-go every 2 s past a row of parked cars. Their
+  centroids drift 0.3–0.46 m/s the car's way as the visible part changes, which read as
+  "uncertain" motion, and that envelope reached the lane from 2.4 m beside it. It then
+  stood 45 s at the junction mouth: a one-tick detection of a parked car's corner was
+  held 0.8 m past a corridor that had shrunk to 6.8 m (the kerb hidden by the parked
+  cars), so "clear to 7.0 of 9.6" could never be met.
+- **Fixes.**
+  - A vehicle beside the path slower than 1 m/s, not coming towards it, whose near side
+    (centre less half its width; a partial view's yaw is not trusted) lies 0.1 m or more
+    outside the swept body, is not a conflict.
+  - Held regions are judged on ground straight past the line's end. Past the end, the
+    path need only be clear to the line's end, and a hold's span is placed past the end,
+    no longer clamped to it.
+  - Groups on foot must be at least 0.6 m across: a 3.4 × 0.37 m railing stretch was
+    yielded to.
+  - Off-road movers need a sustained recent speed and must reach the lane within the
+    horizon plus 1 s. A 0.3 m "runner" 23 m out set a zero cap.
+
+  Replaying the run's recorded frames through the fixed stack (open loop) cut the
+  zero-cap ticks from 95 to 3. The 3 left are a new track at start-up.
+
 ## Running Phase 0 live
 
 Run with CARLA 0.9.16 and no other clients:

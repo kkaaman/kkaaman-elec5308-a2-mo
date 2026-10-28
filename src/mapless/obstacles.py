@@ -47,6 +47,7 @@ class ObstacleConfig:
     clear_start_m: float = 8.0  # seen ground must begin within this distance of the rear axle
     gap_m: float = 1.0
     gap_per_m: float = 0.3
+    beyond_line_m: float = 6.0  # held regions may be judged this far past the line's end (straight on)
 
     def __post_init__(self):
         if not math.isfinite(self.margin_m) or self.margin_m < -0.5:
@@ -207,7 +208,7 @@ def observe_path(sweep, corridor, body, config=None):
     line = corridor.centre_body
     ground = sweep.of(PointClass.ROAD)[:, :2]
     half = body.half_width_m + c.margin_m
-    lo, hi = line.min(axis=0) - half - 1.0, line.max(axis=0) + half + 1.0
+    lo, hi = line.min(axis=0) - half - 1.0 - c.beyond_line_m, line.max(axis=0) + half + 1.0 + c.beyond_line_m
     ground = ground[np.all((ground >= lo) & (ground <= hi), axis=1)]
     clear = 0.0
     in_tube = in_tube_body = np.zeros((0, 2))
@@ -216,6 +217,18 @@ def observe_path(sweep, corridor, body, config=None):
         s_car, _, _ = project_onto_polyline(np.zeros((1, 2)), line)
         right, left = tube_bounds(line, s, half, body)
         wide = (lateral >= right) & (lateral <= left) & ~outside & (s >= s_car[0])
+        # The tube continued straight past the line's end, for the held regions only: a
+        # hold just beyond a short corridor (the kerb hidden by parked cars, the car near
+        # a junction mouth) could never see ground in its region and stopped the car for
+        # good (live stack turn on ff1910b). Clearance along the path stays on the line.
+        if len(line) >= 2:
+            u = (line[-1] - line[-2]) / max(float(np.hypot(*(line[-1] - line[-2]))), 1e-9)
+            rel = ground - line[-1]
+            ahead = rel @ u
+            past = outside & (ahead > 0) & (ahead <= c.beyond_line_m)
+            s = np.where(past, s + ahead, s)
+            lateral = np.where(past, u[0] * rel[:, 1] - u[1] * rel[:, 0], lateral)
+            wide |= past & (np.abs(lateral) <= half)
         in_tube = np.column_stack((s[wide] - s_car[0], lateral[wide]))
         in_tube_body = ground[wide]
         inside = (np.abs(lateral) <= half) & ~outside

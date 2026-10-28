@@ -213,6 +213,10 @@ class LanePlanner:
         d = line[k + 1] - line[k]
         normal = np.array([-d[1], d[0]]) / max(float(np.hypot(*d)), 1e-9)
         foot = np.array([np.interp(s, arcs, line[:, 0]), np.interp(s, arcs, line[:, 1])])
+        if s > arcs[-1]:
+            # Past the line's end, straight on (as ``_along`` reads it back): interpolation
+            # clamped the span to the end, and a hold beyond it was placed short of itself.
+            foot = line[-1] + (s - arcs[-1]) * np.array([normal[1], -normal[0]])
         return corridor.pose.to_world(np.array([foot + lat_lo * normal, foot + lat_hi * normal]))
 
     def _region_seen(self, observation, corridor, line, s_car, hold):
@@ -311,6 +315,14 @@ class LanePlanner:
                 self._holds.remove(hold)
                 continue
             needed = near - s_car + c.clear_beyond_m
+            # Past the line's end the path is not known yet: it is seen clear as far as it
+            # goes, and the held region itself, straight on, must show ground. The car
+            # cannot drive beyond the line; when it grows, its obstacle check looks again.
+            # Before, a hold 0.8 m past a 6.8 m corridor could never be cleared and the car
+            # stood at a junction mouth for good (live stack turn on ff1910b).
+            line_end = float(np.hypot(*np.diff(line, axis=0).T).sum()) - s_car
+            if near - s_car > line_end - c.clear_region_start_m:
+                needed = min(needed, line_end - 0.5)
             self._gather(hold, observation, corridor, line, near, lat_lo, lat_hi)
             region = self._region_seen(observation, corridor, line, s_car, hold)
             if observation is not None:
