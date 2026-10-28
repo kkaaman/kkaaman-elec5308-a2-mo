@@ -208,10 +208,19 @@ class TorchRoadSegmenter(RoadSegmenter):
         path = Path(checkpoint_path)
         if path.is_dir() or "labels" in path.parts:
             raise ValueError("a checkpoint is a file outside any labels folder")
-        payload = torch.load(path, map_location="cpu", weights_only=False)
+        # Tensors and plain containers only (third review, 7.5: a pickled checkpoint can
+        # run code). One written with other objects in it still loads, as before, and says
+        # so in its provenance.
+        try:
+            payload = torch.load(path, map_location="cpu", weights_only=True)
+            load_mode = "weights_only"
+        except Exception as error:  # noqa: BLE001 - torch raises UnpicklingError or RuntimeError
+            payload = torch.load(path, map_location="cpu", weights_only=False)
+            load_mode = f"full pickle (weights_only refused: {type(error).__name__})"
         if not isinstance(payload, dict) or "state_dict" not in payload or "provenance" not in payload:
             raise ValueError("checkpoint must hold state_dict and provenance")
         self._provenance = check_provenance(dict(payload["provenance"]), allow_label_mismatch=allow_label_mismatch)
+        self.load_mode = load_mode
         self.architecture = self._provenance.get("architecture", "bisenetv2")
         self.input_size = tuple(int(v) for v in payload.get("input_size", (512, 256)))
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")

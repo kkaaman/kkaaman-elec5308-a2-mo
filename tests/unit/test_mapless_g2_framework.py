@@ -420,6 +420,8 @@ def test_training_loop_writes_a_loadable_checkpoint(tmp_path):
     assert saved[0] is True and saved[-1] is False and (tmp_path / "two_last.pt").exists()
     assert "iou" in info["history"][-1]["validation"]
     segmenter = TorchRoadSegmenter(path, device="cpu")
+    # What training writes loads without unpickling code (third review, 7.5).
+    assert segmenter.load_mode == "weights_only"
     image = grey("front", forward_camera(), 64, 32)
     seg = segmenter.segment(image)
     assert seg.probabilities.shape == (32, 64, len(ROAD_CLASSES))

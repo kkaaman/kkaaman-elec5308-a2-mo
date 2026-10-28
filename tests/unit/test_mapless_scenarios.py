@@ -498,3 +498,16 @@ def test_f5_crossing_vehicle_is_scored_on_its_whole_body_clearing_the_path():
     # Not yielding to it fails.
     log, truths = crossing_car_run(4.0)
     assert sc.score_completion("crossing_vehicle", log, truths, BODY, "finished", 0.0)["passed"] is False
+
+
+def test_a_cut_in_car_that_brakes_to_a_stop_may_be_held_behind():
+    """Fifth review's matrix: a slow cut-in, then the car brakes (``cut_brake_after_s``).
+    Holding behind it, stopped, at a safe gap completes the run; holding behind a car still
+    moving does not."""
+    log, truths, _ = cut_in_run(3.0, finish=False)
+    for k in range(120, 200):
+        truths[k]["speed_mps"] = 0.0
+    done = sc.score_completion("cut_in", log, truths, BODY, "held at the obstacle", 5.0)
+    assert done["passed"] is True and done["lead_stopped"] is True
+    log, truths, _ = cut_in_run(3.0, finish=False)
+    assert sc.score_completion("cut_in", log, truths, BODY, "held at the obstacle", 5.0)["passed"] is False

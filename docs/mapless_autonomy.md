@@ -2095,11 +2095,20 @@ driveway exit off the road) and, with a far trigger, for F5-06 (radar first).
 gates all pass without the scenario's target transition (`exercised` false) is
 NOT_EXERCISED, not MEASURED_PASS.
 
+**Also:**
+- `cut_in` takes `--actor-param cut_brake_after_s=S`: the cut-in car brakes to a stop S
+  seconds after cutting in (the matrix's "slow cut-in, then the actor brakes"). Holding
+  behind it, stopped, at a safe gap completes the run.
+- Segmenter checkpoints load with `weights_only=True` (the third review's 7.5). One that
+  holds other objects still loads as before, and the run report says so
+  (`stack.segmenter_load`).
+
 **Still open:**
 - radar-only and twin behaviour need live radar runs (no radar in recorded frames);
 - the parked-evidence rule needs a live parked-versus-stopped pair;
 - the supported-speed envelope needs the stop runs per obstacle size;
-- `weights_only` checkpoint loading.
+- no live scenario yet for an oncoming car moving off at a left turn, or for two cars close
+  along the radar's line of sight.
 
 ## Running Phase 0 live
 

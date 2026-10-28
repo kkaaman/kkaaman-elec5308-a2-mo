@@ -145,6 +145,10 @@ class ScenarioParams:
     # cuts in once the ego has closed to cut_gap_m (about 8 m bumper to bumper).
     approach_mps: float = 1.0
     cut_gap_m: float = 14.0
+    # ... and, with cut_brake_after_s at 0 or more, brakes at brake_mps2 to a stop that long
+    # after the cut-in is complete (fifth review's matrix: a slow cut-in, then the actor
+    # brakes). Negative: it never brakes.
+    cut_brake_after_s: float = -1.0
     # Crossing vehicle (M07): waits side_m right of the lane centre (beyond the pavement:
     # a driveway; more: a side road), crosses at cross_mps, stops clear_beyond_m past the
     # lane's left edge.
@@ -276,6 +280,9 @@ class CutInCar(BrakingLeadCar):
         speed, target = math.hypot(v.x, v.y), (p.approach_mps if self.cut_start is None else p.lead_mps)
         throttle = float(np.clip(0.35 + 0.3 * (target - speed), 0.0, 0.7)) if speed < target + 0.3 else 0.0
         brake = 0.0 if speed < target + 0.5 else 0.3
+        if self.cut_start is not None and p.cut_brake_after_s >= 0.0 and (tick - self.cut_start) * 0.05 >= p.cut_in_s + p.cut_brake_after_s:
+            self.braking = True
+            throttle, brake = 0.0, min(1.0, p.brake_mps2 / 8.0)
         self.actor.apply_control(carla.VehicleControl(throttle=throttle, brake=brake, steer=float(np.clip(-bearing / math.radians(35), -1, 1))))
 
 
@@ -873,7 +880,7 @@ def score_moving(log, actor_truths, body, min_separation_m=1.0):
 COMPLETION_REQUIRED = {
     "crossing_pedestrian": "yield while the walker is in the path, then resume and reach the goal",
     "braking_lead": "hold behind the stopped lead for --hold-s with the gap at or above the separation threshold, or reach the goal",
-    "cut_in": "a gap at or above the separation threshold once the cut-in is complete, then reach the goal",
+    "cut_in": "a gap at or above the separation threshold once the cut-in is complete, then reach the goal (or, if the car braked to a stop, hold behind it)",
     "crossing_vehicle": "yield while the crossing car is in the path, then resume and reach the goal",
 }
 
@@ -938,6 +945,11 @@ def score_completion(name, log, actor_truths, body, end, held_s, min_separation_
         out |= dict(cut_in_time_s=t_cut, settled_ticks=len(settled), min_gap_after_cut_in_m=min(settled) if settled else None)
         if not settled:
             return out | dict(passed=None, note=f"the run ended within {settle_s:g} s of the cut-in")
+        if end == "held at the obstacle":
+            # A cut-in car that braked to a stop (``cut_brake_after_s``): holding behind it is the result.
+            lead_stopped = rows[-1][1]["speed_mps"] < 0.05
+            out |= dict(lead_stopped=lead_stopped, held_s=held_s)
+            return out | dict(passed=lead_stopped and min(settled) >= min_separation_m)
         return out | dict(passed=min(settled) >= min_separation_m and reached)
     if name == "braking_lead":
         _, last_actor, final_gap = rows[-1]
