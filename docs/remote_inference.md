@@ -180,11 +180,48 @@ No legacy server that omits session echoes is silently accepted. `AsyncDetector.
 HTTP occurs only when its worker applies the backend reset/close, with the
 configured transport timeout; failed cleanup leaves bounded TTL expiration.
 The initial request explicitly starts a session. Expired/failed server sessions
-cannot silently restart tracker IDs: they return unavailable until an explicit
-reset. No HTTP occurs on the control thread. Service implementation/packaging belongs to #56.
+return unavailable; the worker then explicitly resets/reopens with a new UUID.
+Recovery remains subject to the existing distinct-frame hysteresis, and session
+identity changes require control reconfirmation. A reset is never clearance. No HTTP occurs on the control thread. Service implementation/packaging belongs to #56.
 
 ```{toctree}
 :hidden:
 
 evidence/E4-04-05-07-09/phase-j-20261028/README
 ```
+
+## Optional integration with the existing control stack
+
+`autonomy.hybrid_detector.hybrid_control_stack` reuses the canonical
+`OperationalFreshnessGate`, `SkeletonStack`, packet expiry and
+`TrackedGovernancePolicy`. It does not enable a remote path in the frozen G2
+entry point. Build a local `FrameDetector` with the same explicitly reviewed
+model/confidence/class/tracker settings as the server and wrap it in
+`LocalTrackingBackend`; ordinary `detect()` would supply no stable tracker IDs.
+Supply that backend and the existing `RemoteDetector` to `HybridDetector`, then
+construct the optional stack with the tracked policy, model identity, actual
+simulation clock and reviewed StackConfig. For each aligned frame:
+
+```python
+stack.detector.submit(frame)   # start workers as soon as the frame is available
+# perform optional work; never wait on HTTP in this control path
+packet = stack.step(frame)    # pending, expired or failed results give full brake
+# apply with both existing simulation and monotonic expiry checks
+```
+
+Worker output is namespaced by local/remote source and actual remote session UUID.
+A source/session change preserves the previous HOLD latch, discards only temporal
+track history and emits a HOLD frame before fresh confirmation. Empty output,
+expired tracks, ID reuse and model drift cannot release that latch. Configured
+model mismatch latches the existing stack emergency until reset.
+`last_decision` retains source/session/episode/frame/reason for runner logs.
+Nine control-adapter tests include real bounded-worker fallback while remote
+work stalls, source/session reset, dual failure, expiry and model/frame mismatch.
+
+HTTP 410/503 causes a worker-side explicit fresh-session recovery, not silent
+server tracker recreation. `session_reset_s` records this client-local setup
+cost separately from encoding; total latency includes it. Neither this harness
+integration nor a black-image Docker smoke establishes real LAN/deployment
+accuracy, the 100 ms budget or #41 acceptance. Comparable labelled >=200-frame
+local/LAN evidence remains a separate #57 deliverable; unavailable cloud stays
+NOT_RUN. No baseline threshold/config or safety guard is weakened.

@@ -6,6 +6,7 @@ import io
 import json
 import os
 import time
+import urllib.error
 import urllib.request
 import uuid
 from urllib.parse import urlsplit
@@ -49,6 +50,7 @@ class JpegHttpBackend:
         if not isinstance(self.run_id, str) or not self.run_id.strip():
             raise ValueError("Nonempty run_id required")
         self.last_timing = {}
+        self._reset_required = False
 
     def _release_session(self):
         if self.session_id is None:
@@ -69,6 +71,7 @@ class JpegHttpBackend:
         self.episode_id = episode_id
         self.session_id = str(uuid.uuid4())
         self.session_started = False
+        self._reset_required = False
 
     def detect(self, frame):
         from PIL import Image
@@ -76,6 +79,9 @@ class JpegHttpBackend:
         if frame.episode_id != self.episode_id:
             raise ValueError("Episode mismatch")
         start = time.monotonic()
+        if self._reset_required:
+            self.reset(episode_id=frame.episode_id)
+        prepared = time.monotonic()
         buffer = io.BytesIO()
         Image.fromarray(frame.rgb).save(buffer, format="JPEG", quality=self.quality)
         identity = dict(schema_version=1, episode_id=frame.episode_id, frame_id=frame.frame_id,
@@ -94,11 +100,16 @@ class JpegHttpBackend:
         if self.token:
             headers["Authorization"] = "Bearer " + self.token
         request = urllib.request.Request(self.endpoint, payload, headers)
-        with urllib.request.urlopen(request, timeout=self.timeout_s) as response:
-            if (response.headers.get("X-Run-Id") != self.run_id
-                    or response.headers.get("X-Session-Id") != self.session_id):
-                raise ValueError("Response run/session identity mismatch")
-            raw = response.read(self.max_bytes + 1)
+        try:
+            with urllib.request.urlopen(request, timeout=self.timeout_s) as response:
+                if (response.headers.get("X-Run-Id") != self.run_id
+                        or response.headers.get("X-Session-Id") != self.session_id):
+                    raise ValueError("Response run/session identity mismatch")
+                raw = response.read(self.max_bytes + 1)
+        except urllib.error.HTTPError as error:
+            if error.code in (410, 503):
+                self._reset_required = True
+            raise
         received = time.monotonic()
         if len(raw) > self.max_bytes:
             raise ValueError("Response size limit exceeded")
@@ -134,7 +145,7 @@ class JpegHttpBackend:
             frame.rgb.shape[1], frame.rgb.shape[0], CallTiming(end-start, duration),
             doc["valid"], doc["invalid_reason"],
         )
-        self.last_timing = dict(encode_s=encoded-start, http_round_trip_s=received-encoded,
+        self.last_timing = dict(session_reset_s=prepared-start, encode_s=encoded-prepared, http_round_trip_s=received-encoded,
                                decode_s=end-received, server_duration_s=duration,
                                rtt_residual_s=received-encoded-duration, total_s=end-start)
         return result

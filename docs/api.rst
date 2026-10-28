@@ -67,3 +67,9 @@ contents and task owners until the code lands.
 .. automodule:: visualisation
 
 .. automodule:: cloud
+
+Optional hybrid control adapter
+-------------------------------
+
+.. automodule:: autonomy.hybrid_detector
+   :members:
