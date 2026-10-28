@@ -11,6 +11,10 @@ demonstration for the autonomous perception and navigation library.
    :caption: Contents
 
    getting_started
+   reproduction
+   module_notes
+   report_outline
+   evidence_index
    api
    examples
    carla_demo
@@ -74,5 +78,11 @@ demonstration for the autonomous perception and navigation library.
 .. toctree::
    :maxdepth: 1
 
+   phase_j_execution
    inference_service
    weather_experiment
+
+.. toctree::
+   :hidden:
+
+   evidence/phase-j-88/README

@@ -1,0 +1,1089 @@
+{
+  "captured": "2026-10-28",
+  "canonical_base": "deeefde82fee14257d5b9e4dd0cf915f89ec99fe",
+  "issues": [
+    {
+      "assignees": [
+        {
+          "id": "U_kgDOEqR89w",
+          "login": "skwo0237",
+          "name": "Saviour Kwofie"
+        }
+      ],
+      "body": "<!-- source-tasks: IND-SAV-AI1,IND-SAV-AI2,IND-SAV-AI3,IND-SAV-REF,IND-SAV-PEER,IND-SAV-SPARK -->\n\n## Context\n\nTrack only the readiness checkpoints here. Do not paste private self-reflection, peer-assessment, SparkPLUS, or AI Journal content into the shared repository.\n\nThis issue consolidates **6 master-plan tasks** into one outcome-based GitHub issue while preserving the original Task IDs for traceability.\n\n## Scope\n\n- [ ] **IND-SAV-AI1 \u2014 Check Week 1 AI Journal and commit disclosures**\n  - Privately reconcile significant VSCode AI Journal entries with commits and reviews.\n- [ ] **IND-SAV-AI2 \u2014 Check Week 2 AI Journal and commit disclosures**\n  - Privately reconcile significant VSCode AI Journal entries with commits and reviews.\n- [ ] **IND-SAV-AI3 \u2014 Check Week 3 AI Journal and commit disclosures**\n  - Privately reconcile significant VSCode AI Journal entries with commits and reviews.\n- [ ] **IND-SAV-REF \u2014 Draft and privately check individual self-reflection**\n  - Address contribution links, challenge/learning and specific AI Journal entries; this is readiness, not assumed submission.\n- [ ] **IND-SAV-PEER \u2014 Prepare peer-reflection forms and verify lab attendance**\n  - Arrange attendance and two-other-team forms for actual Week 13 lab; completion occurs at the lab.\n- [ ] **IND-SAV-SPARK \u2014 Verify SparkPLUS deadline and personal submission reminder**\n  - Check Canvas portal deadline and availability; schedule own reminder; never submit another member's assessment.\n\n## Acceptance criteria\n\n- **IND-SAV-AI1:** All significant interactions recorded; AI-assisted footer names actual reviewer; journal content stays private.\n- **IND-SAV-AI2:** All significant interactions recorded; AI-assisted footer names actual reviewer; journal content stays private.\n- **IND-SAV-AI3:** All significant interactions recorded; AI-assisted footer names actual reviewer; journal content stays private.\n- **IND-SAV-REF:** At most 1 page and 400 words; private file ready for actual Canvas deadline.\n- **IND-SAV-PEER:** Lab slot and at least two-team peer-reflection obligation recorded privately; actual lab task remains pending.\n- **IND-SAV-SPARK:** Actual deadline copied privately and reminder set by member; readiness is distinct from completed assessment.\n\n## Evidence / definition of done\n\n- Private completion confirmation only\n- Prepared confirmation only\n- Deadline verified confirmation only\n\n## Dependencies\n\nNo additional upstream Task IDs are listed beyond work already represented inside this issue.\n\n## Ownership\n\n- **GitHub assignee(s):** @skwo0237\n- **Original task owner(s):** Saviour\n- **Reviewer(s):** Everyone\n- **Target gate:** G5 \u2014 2026-10-31\n\n> Keep failed or cut work visible. Do not mark the issue complete by weakening the frozen baseline criteria or by omitting failed evidence.\n",
+      "number": 85,
+      "state": "OPEN",
+      "title": "IND-SAV: Complete private individual submission readiness",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/85"
+    },
+    {
+      "assignees": [
+        {
+          "id": "U_kgDOEqyNXQ",
+          "login": "Zhaolin-Huang",
+          "name": "Zhaolin"
+        }
+      ],
+      "body": "<!-- source-tasks: IND-ZHA-AI1,IND-ZHA-AI2,IND-ZHA-AI3,IND-ZHA-REF,IND-ZHA-PEER,IND-ZHA-SPARK -->\n\n## Context\n\nTrack only the readiness checkpoints here. Do not paste private self-reflection, peer-assessment, SparkPLUS, or AI Journal content into the shared repository.\n\nThis issue consolidates **6 master-plan tasks** into one outcome-based GitHub issue while preserving the original Task IDs for traceability.\n\n## Scope\n\n- [ ] **IND-ZHA-AI1 \u2014 Check Week 1 AI Journal and commit disclosures**\n  - Privately reconcile significant VSCode AI Journal entries with commits and reviews.\n- [ ] **IND-ZHA-AI2 \u2014 Check Week 2 AI Journal and commit disclosures**\n  - Privately reconcile significant VSCode AI Journal entries with commits and reviews.\n- [ ] **IND-ZHA-AI3 \u2014 Check Week 3 AI Journal and commit disclosures**\n  - Privately reconcile significant VSCode AI Journal entries with commits and reviews.\n- [ ] **IND-ZHA-REF \u2014 Draft and privately check individual self-reflection**\n  - Address contribution links, challenge/learning and specific AI Journal entries; this is readiness, not assumed submission.\n- [ ] **IND-ZHA-PEER \u2014 Prepare peer-reflection forms and verify lab attendance**\n  - Arrange attendance and two-other-team forms for actual Week 13 lab; completion occurs at the lab.\n- [ ] **IND-ZHA-SPARK \u2014 Verify SparkPLUS deadline and personal submission reminder**\n  - Check Canvas portal deadline and availability; schedule own reminder; never submit another member's assessment.\n\n## Acceptance criteria\n\n- **IND-ZHA-AI1:** All significant interactions recorded; AI-assisted footer names actual reviewer; journal content stays private.\n- **IND-ZHA-AI2:** All significant interactions recorded; AI-assisted footer names actual reviewer; journal content stays private.\n- **IND-ZHA-AI3:** All significant interactions recorded; AI-assisted footer names actual reviewer; journal content stays private.\n- **IND-ZHA-REF:** At most 1 page and 400 words; private file ready for actual Canvas deadline.\n- **IND-ZHA-PEER:** Lab slot and at least two-team peer-reflection obligation recorded privately; actual lab task remains pending.\n- **IND-ZHA-SPARK:** Actual deadline copied privately and reminder set by member; readiness is distinct from completed assessment.\n\n## Evidence / definition of done\n\n- Private completion confirmation only\n- Prepared confirmation only\n- Deadline verified confirmation only\n\n## Dependencies\n\nNo additional upstream Task IDs are listed beyond work already represented inside this issue.\n\n## Ownership\n\n- **GitHub assignee(s):** @Zhaolin-Huang\n- **Original task owner(s):** Zhaolin\n- **Reviewer(s):** Everyone\n- **Target gate:** G5 \u2014 2026-10-31\n\n> Keep failed or cut work visible. Do not mark the issue complete by weakening the frozen baseline criteria or by omitting failed evidence.\n",
+      "number": 84,
+      "state": "OPEN",
+      "title": "IND-ZHA: Complete private individual submission readiness",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/84"
+    },
+    {
+      "assignees": [
+        {
+          "id": "U_kgDOCaMNGQ",
+          "login": "at0941",
+          "name": "Alan Tran"
+        }
+      ],
+      "body": "<!-- source-tasks: IND-ALA-AI1,IND-ALA-AI2,IND-ALA-AI3,IND-ALA-REF,IND-ALA-PEER,IND-ALA-SPARK -->\n\n## Context\n\nTrack only the readiness checkpoints here. Do not paste private self-reflection, peer-assessment, SparkPLUS, or AI Journal content into the shared repository.\n\nThis issue consolidates **6 master-plan tasks** into one outcome-based GitHub issue while preserving the original Task IDs for traceability.\n\n## Scope\n\n- [ ] **IND-ALA-AI1 \u2014 Check Week 1 AI Journal and commit disclosures**\n  - Privately reconcile significant VSCode AI Journal entries with commits and reviews.\n- [ ] **IND-ALA-AI2 \u2014 Check Week 2 AI Journal and commit disclosures**\n  - Privately reconcile significant VSCode AI Journal entries with commits and reviews.\n- [ ] **IND-ALA-AI3 \u2014 Check Week 3 AI Journal and commit disclosures**\n  - Privately reconcile significant VSCode AI Journal entries with commits and reviews.\n- [ ] **IND-ALA-REF \u2014 Draft and privately check individual self-reflection**\n  - Address contribution links, challenge/learning and specific AI Journal entries; this is readiness, not assumed submission.\n- [ ] **IND-ALA-PEER \u2014 Prepare peer-reflection forms and verify lab attendance**\n  - Arrange attendance and two-other-team forms for actual Week 13 lab; completion occurs at the lab.\n- [ ] **IND-ALA-SPARK \u2014 Verify SparkPLUS deadline and personal submission reminder**\n  - Check Canvas portal deadline and availability; schedule own reminder; never submit another member's assessment.\n\n## Acceptance criteria\n\n- **IND-ALA-AI1:** All significant interactions recorded; AI-assisted footer names actual reviewer; journal content stays private.\n- **IND-ALA-AI2:** All significant interactions recorded; AI-assisted footer names actual reviewer; journal content stays private.\n- **IND-ALA-AI3:** All significant interactions recorded; AI-assisted footer names actual reviewer; journal content stays private.\n- **IND-ALA-REF:** At most 1 page and 400 words; private file ready for actual Canvas deadline.\n- **IND-ALA-PEER:** Lab slot and at least two-team peer-reflection obligation recorded privately; actual lab task remains pending.\n- **IND-ALA-SPARK:** Actual deadline copied privately and reminder set by member; readiness is distinct from completed assessment.\n\n## Evidence / definition of done\n\n- Private completion confirmation only\n- Prepared confirmation only\n- Deadline verified confirmation only\n\n## Dependencies\n\nNo additional upstream Task IDs are listed beyond work already represented inside this issue.\n\n## Ownership\n\n- **GitHub assignee(s):** @at0941\n- **Original task owner(s):** Alan\n- **Reviewer(s):** Everyone\n- **Target gate:** G5 \u2014 2026-10-31\n\n> Keep failed or cut work visible. Do not mark the issue complete by weakening the frozen baseline criteria or by omitting failed evidence.\n",
+      "number": 83,
+      "state": "OPEN",
+      "title": "IND-ALA: Complete private individual submission readiness",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/83"
+    },
+    {
+      "assignees": [
+        {
+          "id": "U_kgDOChYpqA",
+          "login": "RickyPurani",
+          "name": ""
+        }
+      ],
+      "body": "<!-- source-tasks: IND-RIC-AI1,IND-RIC-AI2,IND-RIC-AI3,IND-RIC-REF,IND-RIC-PEER,IND-RIC-SPARK -->\n\n## Context\n\nTrack only the readiness checkpoints here. Do not paste private self-reflection, peer-assessment, SparkPLUS, or AI Journal content into the shared repository.\n\nThis issue consolidates **6 master-plan tasks** into one outcome-based GitHub issue while preserving the original Task IDs for traceability.\n\n## Scope\n\n- [ ] **IND-RIC-AI1 \u2014 Check Week 1 AI Journal and commit disclosures**\n  - Privately reconcile significant VSCode AI Journal entries with commits and reviews.\n- [ ] **IND-RIC-AI2 \u2014 Check Week 2 AI Journal and commit disclosures**\n  - Privately reconcile significant VSCode AI Journal entries with commits and reviews.\n- [ ] **IND-RIC-AI3 \u2014 Check Week 3 AI Journal and commit disclosures**\n  - Privately reconcile significant VSCode AI Journal entries with commits and reviews.\n- [ ] **IND-RIC-REF \u2014 Draft and privately check individual self-reflection**\n  - Address contribution links, challenge/learning and specific AI Journal entries; this is readiness, not assumed submission.\n- [ ] **IND-RIC-PEER \u2014 Prepare peer-reflection forms and verify lab attendance**\n  - Arrange attendance and two-other-team forms for actual Week 13 lab; completion occurs at the lab.\n- [ ] **IND-RIC-SPARK \u2014 Verify SparkPLUS deadline and personal submission reminder**\n  - Check Canvas portal deadline and availability; schedule own reminder; never submit another member's assessment.\n\n## Acceptance criteria\n\n- **IND-RIC-AI1:** All significant interactions recorded; AI-assisted footer names actual reviewer; journal content stays private.\n- **IND-RIC-AI2:** All significant interactions recorded; AI-assisted footer names actual reviewer; journal content stays private.\n- **IND-RIC-AI3:** All significant interactions recorded; AI-assisted footer names actual reviewer; journal content stays private.\n- **IND-RIC-REF:** At most 1 page and 400 words; private file ready for actual Canvas deadline.\n- **IND-RIC-PEER:** Lab slot and at least two-team peer-reflection obligation recorded privately; actual lab task remains pending.\n- **IND-RIC-SPARK:** Actual deadline copied privately and reminder set by member; readiness is distinct from completed assessment.\n\n## Evidence / definition of done\n\n- Private completion confirmation only\n- Prepared confirmation only\n- Deadline verified confirmation only\n\n## Dependencies\n\nNo additional upstream Task IDs are listed beyond work already represented inside this issue.\n\n## Ownership\n\n- **GitHub assignee(s):** @RickyPurani\n- **Original task owner(s):** Ricky\n- **Reviewer(s):** Everyone\n- **Target gate:** G5 \u2014 2026-10-31\n\n> Keep failed or cut work visible. Do not mark the issue complete by weakening the frozen baseline criteria or by omitting failed evidence.\n",
+      "number": 82,
+      "state": "OPEN",
+      "title": "IND-RIC: Complete private individual submission readiness",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/82"
+    },
+    {
+      "assignees": [
+        {
+          "id": "U_kgDOEquMDw",
+          "login": "Abdullah-Almutairi-uni",
+          "name": "Abdullah S M SH Almutairi"
+        }
+      ],
+      "body": "<!-- source-tasks: IND-ABD-AI1,IND-ABD-AI2,IND-ABD-AI3,IND-ABD-REF,IND-ABD-PEER,IND-ABD-SPARK -->\n\n## Context\n\nTrack only the readiness checkpoints here. Do not paste private self-reflection, peer-assessment, SparkPLUS, or AI Journal content into the shared repository.\n\nThis issue consolidates **6 master-plan tasks** into one outcome-based GitHub issue while preserving the original Task IDs for traceability.\n\n## Scope\n\n- [ ] **IND-ABD-AI1 \u2014 Check Week 1 AI Journal and commit disclosures**\n  - Privately reconcile significant VSCode AI Journal entries with commits and reviews.\n- [ ] **IND-ABD-AI2 \u2014 Check Week 2 AI Journal and commit disclosures**\n  - Privately reconcile significant VSCode AI Journal entries with commits and reviews.\n- [ ] **IND-ABD-AI3 \u2014 Check Week 3 AI Journal and commit disclosures**\n  - Privately reconcile significant VSCode AI Journal entries with commits and reviews.\n- [ ] **IND-ABD-REF \u2014 Draft and privately check individual self-reflection**\n  - Address contribution links, challenge/learning and specific AI Journal entries; this is readiness, not assumed submission.\n- [ ] **IND-ABD-PEER \u2014 Prepare peer-reflection forms and verify lab attendance**\n  - Arrange attendance and two-other-team forms for actual Week 13 lab; completion occurs at the lab.\n- [ ] **IND-ABD-SPARK \u2014 Verify SparkPLUS deadline and personal submission reminder**\n  - Check Canvas portal deadline and availability; schedule own reminder; never submit another member's assessment.\n\n## Acceptance criteria\n\n- **IND-ABD-AI1:** All significant interactions recorded; AI-assisted footer names actual reviewer; journal content stays private.\n- **IND-ABD-AI2:** All significant interactions recorded; AI-assisted footer names actual reviewer; journal content stays private.\n- **IND-ABD-AI3:** All significant interactions recorded; AI-assisted footer names actual reviewer; journal content stays private.\n- **IND-ABD-REF:** At most 1 page and 400 words; private file ready for actual Canvas deadline.\n- **IND-ABD-PEER:** Lab slot and at least two-team peer-reflection obligation recorded privately; actual lab task remains pending.\n- **IND-ABD-SPARK:** Actual deadline copied privately and reminder set by member; readiness is distinct from completed assessment.\n\n## Evidence / definition of done\n\n- Private completion confirmation only\n- Prepared confirmation only\n- Deadline verified confirmation only\n\n## Dependencies\n\nNo additional upstream Task IDs are listed beyond work already represented inside this issue.\n\n## Ownership\n\n- **GitHub assignee(s):** @Abdullah-Almutairi-uni\n- **Original task owner(s):** Abdullah\n- **Reviewer(s):** Everyone\n- **Target gate:** G5 \u2014 2026-10-31\n\n> Keep failed or cut work visible. Do not mark the issue complete by weakening the frozen baseline criteria or by omitting failed evidence.\n",
+      "number": 81,
+      "state": "OPEN",
+      "title": "IND-ABD: Complete private individual submission readiness",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/81"
+    },
+    {
+      "assignees": [
+        {
+          "id": "U_kgDOB81AvA",
+          "login": "kkaaman",
+          "name": "Mohammad-Judeh"
+        }
+      ],
+      "body": "<!-- source-tasks: IND-MOH-AI1,IND-MOH-AI2,IND-MOH-AI3,IND-MOH-REF,IND-MOH-PEER,IND-MOH-SPARK -->\n\n## Context\n\nTrack only the readiness checkpoints here. Do not paste private self-reflection, peer-assessment, SparkPLUS, or AI Journal content into the shared repository.\n\nThis issue consolidates **6 master-plan tasks** into one outcome-based GitHub issue while preserving the original Task IDs for traceability.\n\n## Scope\n\n- [ ] **IND-MOH-AI1 \u2014 Check Week 1 AI Journal and commit disclosures**\n  - Privately reconcile significant VSCode AI Journal entries with commits and reviews.\n- [ ] **IND-MOH-AI2 \u2014 Check Week 2 AI Journal and commit disclosures**\n  - Privately reconcile significant VSCode AI Journal entries with commits and reviews.\n- [ ] **IND-MOH-AI3 \u2014 Check Week 3 AI Journal and commit disclosures**\n  - Privately reconcile significant VSCode AI Journal entries with commits and reviews.\n- [ ] **IND-MOH-REF \u2014 Draft and privately check individual self-reflection**\n  - Address contribution links, challenge/learning and specific AI Journal entries; this is readiness, not assumed submission.\n- [ ] **IND-MOH-PEER \u2014 Prepare peer-reflection forms and verify lab attendance**\n  - Arrange attendance and two-other-team forms for actual Week 13 lab; completion occurs at the lab.\n- [ ] **IND-MOH-SPARK \u2014 Verify SparkPLUS deadline and personal submission reminder**\n  - Check Canvas portal deadline and availability; schedule own reminder; never submit another member's assessment.\n\n## Acceptance criteria\n\n- **IND-MOH-AI1:** All significant interactions recorded; AI-assisted footer names actual reviewer; journal content stays private.\n- **IND-MOH-AI2:** All significant interactions recorded; AI-assisted footer names actual reviewer; journal content stays private.\n- **IND-MOH-AI3:** All significant interactions recorded; AI-assisted footer names actual reviewer; journal content stays private.\n- **IND-MOH-REF:** At most 1 page and 400 words; private file ready for actual Canvas deadline.\n- **IND-MOH-PEER:** Lab slot and at least two-team peer-reflection obligation recorded privately; actual lab task remains pending.\n- **IND-MOH-SPARK:** Actual deadline copied privately and reminder set by member; readiness is distinct from completed assessment.\n\n## Evidence / definition of done\n\n- Private completion confirmation only\n- Prepared confirmation only\n- Deadline verified confirmation only\n\n## Dependencies\n\nNo additional upstream Task IDs are listed beyond work already represented inside this issue.\n\n## Ownership\n\n- **GitHub assignee(s):** @kkaaman\n- **Original task owner(s):** Mohammad\n- **Reviewer(s):** Everyone\n- **Target gate:** G5 \u2014 2026-10-31\n\n> Keep failed or cut work visible. Do not mark the issue complete by weakening the frozen baseline criteria or by omitting failed evidence.\n",
+      "number": 80,
+      "state": "OPEN",
+      "title": "IND-MOH: Complete private individual submission readiness",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/80"
+    },
+    {
+      "assignees": [
+        {
+          "id": "U_kgDOB81AvA",
+          "login": "kkaaman",
+          "name": "Mohammad-Judeh"
+        },
+        {
+          "id": "U_kgDOCaMNGQ",
+          "login": "at0941",
+          "name": "Alan Tran"
+        },
+        {
+          "id": "U_kgDOChYpqA",
+          "login": "RickyPurani",
+          "name": ""
+        },
+        {
+          "id": "U_kgDOEqR89w",
+          "login": "skwo0237",
+          "name": "Saviour Kwofie"
+        },
+        {
+          "id": "U_kgDOEquMDw",
+          "login": "Abdullah-Almutairi-uni",
+          "name": "Abdullah S M SH Almutairi"
+        },
+        {
+          "id": "U_kgDOEqyNXQ",
+          "login": "Zhaolin-Huang",
+          "name": "Zhaolin"
+        }
+      ],
+      "body": "<!-- source-tasks: REV-MOH-3,COM-MOH-3,REV-ABD-3,COM-ABD-3,REV-RIC-3,COM-RIC-3,REV-ALA-3,COM-ALA-3,REV-ZHA-3,COM-ZHA-3,REV-SAV-3,COM-SAV-3 -->\n\n## Context\n\nComplete the Week 3 review pairings and integration/cross-training sessions so changes are reviewed and every member understands relevant interfaces and failure modes.\n\nThis issue consolidates **12 master-plan tasks** into one outcome-based GitHub issue while preserving the original Task IDs for traceability.\n\n## Scope\n\n- [ ] **REV-MOH-3 \u2014 Review Alan work for Week 3**\n  - Review partner PRs throughout the week, check interfaces and evidence; this row reserves total reviewer time.\n- [ ] **COM-MOH-3 \u2014 Attend Week 3 integration and cross-training sessions**\n  - Budget kickoff/check-ins and a paired explanation of one unfamiliar module; distribute time through the week.\n- [ ] **REV-ABD-3 \u2014 Review Zhaolin work for Week 3**\n  - Review partner PRs throughout the week, check interfaces and evidence; this row reserves total reviewer time.\n- [ ] **COM-ABD-3 \u2014 Attend Week 3 integration and cross-training sessions**\n  - Budget kickoff/check-ins and a paired explanation of one unfamiliar module; distribute time through the week.\n- [ ] **REV-RIC-3 \u2014 Review Saviour work for Week 3**\n  - Review partner PRs throughout the week, check interfaces and evidence; this row reserves total reviewer time.\n- [ ] **COM-RIC-3 \u2014 Attend Week 3 integration and cross-training sessions**\n  - Budget kickoff/check-ins and a paired explanation of one unfamiliar module; distribute time through the week.\n- [ ] **REV-ALA-3 \u2014 Review Mohammad work for Week 3**\n  - Review partner PRs throughout the week, check interfaces and evidence; this row reserves total reviewer time.\n- [ ] **COM-ALA-3 \u2014 Attend Week 3 integration and cross-training sessions**\n  - Budget kickoff/check-ins and a paired explanation of one unfamiliar module; distribute time through the week.\n- [ ] **REV-ZHA-3 \u2014 Review Abdullah work for Week 3**\n  - Review partner PRs throughout the week, check interfaces and evidence; this row reserves total reviewer time.\n- [ ] **COM-ZHA-3 \u2014 Attend Week 3 integration and cross-training sessions**\n  - Budget kickoff/check-ins and a paired explanation of one unfamiliar module; distribute time through the week.\n- [ ] **REV-SAV-3 \u2014 Review Ricky work for Week 3**\n  - Review partner PRs throughout the week, check interfaces and evidence; this row reserves total reviewer time.\n- [ ] **COM-SAV-3 \u2014 Attend Week 3 integration and cross-training sessions**\n  - Budget kickoff/check-ins and a paired explanation of one unfamiliar module; distribute time through the week.\n\n## Acceptance criteria\n\n- **REV-MOH-3:** Focused reviews include reproducible checks and a recorded disposition; review backlog zero at gate.\n- **COM-MOH-3:** Decisions/blockers recorded; member can explain inputs, failure mode and test of partner module.\n- **REV-ABD-3:** Focused reviews include reproducible checks and a recorded disposition; review backlog zero at gate.\n- **COM-ABD-3:** Decisions/blockers recorded; member can explain inputs, failure mode and test of partner module.\n- **REV-RIC-3:** Focused reviews include reproducible checks and a recorded disposition; review backlog zero at gate.\n- **COM-RIC-3:** Decisions/blockers recorded; member can explain inputs, failure mode and test of partner module.\n- **REV-ALA-3:** Focused reviews include reproducible checks and a recorded disposition; review backlog zero at gate.\n- **COM-ALA-3:** Decisions/blockers recorded; member can explain inputs, failure mode and test of partner module.\n- **REV-ZHA-3:** Focused reviews include reproducible checks and a recorded disposition; review backlog zero at gate.\n- **COM-ZHA-3:** Decisions/blockers recorded; member can explain inputs, failure mode and test of partner module.\n- **REV-SAV-3:** Focused reviews include reproducible checks and a recorded disposition; review backlog zero at gate.\n- **COM-SAV-3:** Decisions/blockers recorded; member can explain inputs, failure mode and test of partner module.\n\n## Evidence / definition of done\n\n- Week 3 review links\n- Week 3 cross-training record\n\n## Dependencies\n\nThe source plan lists the following upstream Task IDs:\n\n- `PROC-01`\n\n## Ownership\n\n- **GitHub assignee(s):** @kkaaman, @Abdullah-Almutairi-uni, @RickyPurani, @at0941, @Zhaolin-Huang, @skwo0237\n- **Original task owner(s):** Mohammad, Abdullah, Ricky, Alan, Zhaolin, Saviour\n- **Reviewer(s):** Everyone\n- **Target gate:** G5 \u2014 2026-10-31\n\n> Keep failed or cut work visible. Do not mark the issue complete by weakening the frozen baseline criteria or by omitting failed evidence.\n",
+      "number": 79,
+      "state": "OPEN",
+      "title": "REV/COM Week 3: Complete peer review, integration and cross-training",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/79"
+    },
+    {
+      "assignees": [
+        {
+          "id": "U_kgDOB81AvA",
+          "login": "kkaaman",
+          "name": "Mohammad-Judeh"
+        },
+        {
+          "id": "U_kgDOCaMNGQ",
+          "login": "at0941",
+          "name": "Alan Tran"
+        },
+        {
+          "id": "U_kgDOChYpqA",
+          "login": "RickyPurani",
+          "name": ""
+        },
+        {
+          "id": "U_kgDOEqR89w",
+          "login": "skwo0237",
+          "name": "Saviour Kwofie"
+        },
+        {
+          "id": "U_kgDOEquMDw",
+          "login": "Abdullah-Almutairi-uni",
+          "name": "Abdullah S M SH Almutairi"
+        },
+        {
+          "id": "U_kgDOEqyNXQ",
+          "login": "Zhaolin-Huang",
+          "name": "Zhaolin"
+        }
+      ],
+      "body": "<!-- source-tasks: REV-MOH-2,COM-MOH-2,REV-ABD-2,COM-ABD-2,REV-RIC-2,COM-RIC-2,REV-ALA-2,COM-ALA-2,REV-ZHA-2,COM-ZHA-2,REV-SAV-2,COM-SAV-2 -->\n\n## Context\n\nComplete the Week 2 review pairings and integration/cross-training sessions so changes are reviewed and every member understands relevant interfaces and failure modes.\n\nThis issue consolidates **12 master-plan tasks** into one outcome-based GitHub issue while preserving the original Task IDs for traceability.\n\n## Scope\n\n- [ ] **REV-MOH-2 \u2014 Review Alan work for Week 2**\n  - Review partner PRs throughout the week, check interfaces and evidence; this row reserves total reviewer time.\n- [ ] **COM-MOH-2 \u2014 Attend Week 2 integration and cross-training sessions**\n  - Budget kickoff/check-ins and a paired explanation of one unfamiliar module; distribute time through the week.\n- [ ] **REV-ABD-2 \u2014 Review Zhaolin work for Week 2**\n  - Review partner PRs throughout the week, check interfaces and evidence; this row reserves total reviewer time.\n- [ ] **COM-ABD-2 \u2014 Attend Week 2 integration and cross-training sessions**\n  - Budget kickoff/check-ins and a paired explanation of one unfamiliar module; distribute time through the week.\n- [ ] **REV-RIC-2 \u2014 Review Saviour work for Week 2**\n  - Review partner PRs throughout the week, check interfaces and evidence; this row reserves total reviewer time.\n- [ ] **COM-RIC-2 \u2014 Attend Week 2 integration and cross-training sessions**\n  - Budget kickoff/check-ins and a paired explanation of one unfamiliar module; distribute time through the week.\n- [ ] **REV-ALA-2 \u2014 Review Mohammad work for Week 2**\n  - Review partner PRs throughout the week, check interfaces and evidence; this row reserves total reviewer time.\n- [ ] **COM-ALA-2 \u2014 Attend Week 2 integration and cross-training sessions**\n  - Budget kickoff/check-ins and a paired explanation of one unfamiliar module; distribute time through the week.\n- [ ] **REV-ZHA-2 \u2014 Review Abdullah work for Week 2**\n  - Review partner PRs throughout the week, check interfaces and evidence; this row reserves total reviewer time.\n- [ ] **COM-ZHA-2 \u2014 Attend Week 2 integration and cross-training sessions**\n  - Budget kickoff/check-ins and a paired explanation of one unfamiliar module; distribute time through the week.\n- [ ] **REV-SAV-2 \u2014 Review Ricky work for Week 2**\n  - Review partner PRs throughout the week, check interfaces and evidence; this row reserves total reviewer time.\n- [ ] **COM-SAV-2 \u2014 Attend Week 2 integration and cross-training sessions**\n  - Budget kickoff/check-ins and a paired explanation of one unfamiliar module; distribute time through the week.\n\n## Acceptance criteria\n\n- **REV-MOH-2:** Focused reviews include reproducible checks and a recorded disposition; review backlog zero at gate.\n- **COM-MOH-2:** Decisions/blockers recorded; member can explain inputs, failure mode and test of partner module.\n- **REV-ABD-2:** Focused reviews include reproducible checks and a recorded disposition; review backlog zero at gate.\n- **COM-ABD-2:** Decisions/blockers recorded; member can explain inputs, failure mode and test of partner module.\n- **REV-RIC-2:** Focused reviews include reproducible checks and a recorded disposition; review backlog zero at gate.\n- **COM-RIC-2:** Decisions/blockers recorded; member can explain inputs, failure mode and test of partner module.\n- **REV-ALA-2:** Focused reviews include reproducible checks and a recorded disposition; review backlog zero at gate.\n- **COM-ALA-2:** Decisions/blockers recorded; member can explain inputs, failure mode and test of partner module.\n- **REV-ZHA-2:** Focused reviews include reproducible checks and a recorded disposition; review backlog zero at gate.\n- **COM-ZHA-2:** Decisions/blockers recorded; member can explain inputs, failure mode and test of partner module.\n- **REV-SAV-2:** Focused reviews include reproducible checks and a recorded disposition; review backlog zero at gate.\n- **COM-SAV-2:** Decisions/blockers recorded; member can explain inputs, failure mode and test of partner module.\n\n## Evidence / definition of done\n\n- Week 2 review links\n- Week 2 cross-training record\n\n## Dependencies\n\nThe source plan lists the following upstream Task IDs:\n\n- `PROC-01`\n\n## Ownership\n\n- **GitHub assignee(s):** @kkaaman, @Abdullah-Almutairi-uni, @RickyPurani, @at0941, @Zhaolin-Huang, @skwo0237\n- **Original task owner(s):** Mohammad, Abdullah, Ricky, Alan, Zhaolin, Saviour\n- **Reviewer(s):** Everyone\n- **Target gate:** G3 \u2014 2026-10-25\n\n> Keep failed or cut work visible. Do not mark the issue complete by weakening the frozen baseline criteria or by omitting failed evidence.\n",
+      "number": 78,
+      "state": "OPEN",
+      "title": "REV/COM Week 2: Complete peer review, integration and cross-training",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/78"
+    },
+    {
+      "assignees": [
+        {
+          "id": "U_kgDOB81AvA",
+          "login": "kkaaman",
+          "name": "Mohammad-Judeh"
+        },
+        {
+          "id": "U_kgDOCaMNGQ",
+          "login": "at0941",
+          "name": "Alan Tran"
+        },
+        {
+          "id": "U_kgDOChYpqA",
+          "login": "RickyPurani",
+          "name": ""
+        },
+        {
+          "id": "U_kgDOEqR89w",
+          "login": "skwo0237",
+          "name": "Saviour Kwofie"
+        },
+        {
+          "id": "U_kgDOEquMDw",
+          "login": "Abdullah-Almutairi-uni",
+          "name": "Abdullah S M SH Almutairi"
+        },
+        {
+          "id": "U_kgDOEqyNXQ",
+          "login": "Zhaolin-Huang",
+          "name": "Zhaolin"
+        }
+      ],
+      "body": "<!-- source-tasks: REV-MOH-1,COM-MOH-1,REV-ABD-1,COM-ABD-1,REV-RIC-1,COM-RIC-1,REV-ALA-1,COM-ALA-1,REV-ZHA-1,COM-ZHA-1,REV-SAV-1,COM-SAV-1 -->\n\n## Context\n\nComplete the Week 1 review pairings and integration/cross-training sessions so changes are reviewed and every member understands relevant interfaces and failure modes.\n\nThis issue consolidates **12 master-plan tasks** into one outcome-based GitHub issue while preserving the original Task IDs for traceability.\n\n## Scope\n\n- [ ] **REV-MOH-1 \u2014 Review Alan work for Week 1**\n  - Review partner PRs throughout the week, check interfaces and evidence; this row reserves total reviewer time.\n- [ ] **COM-MOH-1 \u2014 Attend Week 1 integration and cross-training sessions**\n  - Budget kickoff/check-ins and a paired explanation of one unfamiliar module; distribute time through the week.\n- [ ] **REV-ABD-1 \u2014 Review Zhaolin work for Week 1**\n  - Review partner PRs throughout the week, check interfaces and evidence; this row reserves total reviewer time.\n- [ ] **COM-ABD-1 \u2014 Attend Week 1 integration and cross-training sessions**\n  - Budget kickoff/check-ins and a paired explanation of one unfamiliar module; distribute time through the week.\n- [ ] **REV-RIC-1 \u2014 Review Saviour work for Week 1**\n  - Review partner PRs throughout the week, check interfaces and evidence; this row reserves total reviewer time.\n- [ ] **COM-RIC-1 \u2014 Attend Week 1 integration and cross-training sessions**\n  - Budget kickoff/check-ins and a paired explanation of one unfamiliar module; distribute time through the week.\n- [ ] **REV-ALA-1 \u2014 Review Mohammad work for Week 1**\n  - Review partner PRs throughout the week, check interfaces and evidence; this row reserves total reviewer time.\n- [ ] **COM-ALA-1 \u2014 Attend Week 1 integration and cross-training sessions**\n  - Budget kickoff/check-ins and a paired explanation of one unfamiliar module; distribute time through the week.\n- [ ] **REV-ZHA-1 \u2014 Review Abdullah work for Week 1**\n  - Review partner PRs throughout the week, check interfaces and evidence; this row reserves total reviewer time.\n- [ ] **COM-ZHA-1 \u2014 Attend Week 1 integration and cross-training sessions**\n  - Budget kickoff/check-ins and a paired explanation of one unfamiliar module; distribute time through the week.\n- [ ] **REV-SAV-1 \u2014 Review Ricky work for Week 1**\n  - Review partner PRs throughout the week, check interfaces and evidence; this row reserves total reviewer time.\n- [ ] **COM-SAV-1 \u2014 Attend Week 1 integration and cross-training sessions**\n  - Budget kickoff/check-ins and a paired explanation of one unfamiliar module; distribute time through the week.\n\n## Acceptance criteria\n\n- **REV-MOH-1:** Focused reviews include reproducible checks and a recorded disposition; review backlog zero at gate.\n- **COM-MOH-1:** Decisions/blockers recorded; member can explain inputs, failure mode and test of partner module.\n- **REV-ABD-1:** Focused reviews include reproducible checks and a recorded disposition; review backlog zero at gate.\n- **COM-ABD-1:** Decisions/blockers recorded; member can explain inputs, failure mode and test of partner module.\n- **REV-RIC-1:** Focused reviews include reproducible checks and a recorded disposition; review backlog zero at gate.\n- **COM-RIC-1:** Decisions/blockers recorded; member can explain inputs, failure mode and test of partner module.\n- **REV-ALA-1:** Focused reviews include reproducible checks and a recorded disposition; review backlog zero at gate.\n- **COM-ALA-1:** Decisions/blockers recorded; member can explain inputs, failure mode and test of partner module.\n- **REV-ZHA-1:** Focused reviews include reproducible checks and a recorded disposition; review backlog zero at gate.\n- **COM-ZHA-1:** Decisions/blockers recorded; member can explain inputs, failure mode and test of partner module.\n- **REV-SAV-1:** Focused reviews include reproducible checks and a recorded disposition; review backlog zero at gate.\n- **COM-SAV-1:** Decisions/blockers recorded; member can explain inputs, failure mode and test of partner module.\n\n## Evidence / definition of done\n\n- Week 1 review links\n- Week 1 cross-training record\n\n## Dependencies\n\nThe source plan lists the following upstream Task IDs:\n\n- `PROC-01`\n\n## Ownership\n\n- **GitHub assignee(s):** @kkaaman, @Abdullah-Almutairi-uni, @RickyPurani, @at0941, @Zhaolin-Huang, @skwo0237\n- **Original task owner(s):** Mohammad, Abdullah, Ricky, Alan, Zhaolin, Saviour\n- **Reviewer(s):** Everyone\n- **Target gate:** G1 \u2014 2026-10-18\n\n> Keep failed or cut work visible. Do not mark the issue complete by weakening the frozen baseline criteria or by omitting failed evidence.\n",
+      "number": 77,
+      "state": "CLOSED",
+      "title": "REV/COM Week 1: Complete peer review, integration and cross-training",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/77"
+    },
+    {
+      "assignees": [
+        {
+          "id": "U_kgDOB81AvA",
+          "login": "kkaaman",
+          "name": "Mohammad-Judeh"
+        },
+        {
+          "id": "U_kgDOCaMNGQ",
+          "login": "at0941",
+          "name": "Alan Tran"
+        },
+        {
+          "id": "U_kgDOChYpqA",
+          "login": "RickyPurani",
+          "name": ""
+        },
+        {
+          "id": "U_kgDOEqR89w",
+          "login": "skwo0237",
+          "name": "Saviour Kwofie"
+        },
+        {
+          "id": "U_kgDOEquMDw",
+          "login": "Abdullah-Almutairi-uni",
+          "name": "Abdullah S M SH Almutairi"
+        },
+        {
+          "id": "U_kgDOEqyNXQ",
+          "login": "Zhaolin-Huang",
+          "name": "Zhaolin"
+        }
+      ],
+      "body": "<!-- source-tasks: DEMO-04,DEMO-MOH-R2,DEMO-ABD-R2,DEMO-RIC-R2,DEMO-ALA-R2,DEMO-SAV-R2 -->\n\n## Context\n\nRun the final timed rehearsal with the frozen configuration and close remaining explanation, handoff, or fallback gaps.\n\nThis issue consolidates **6 master-plan tasks** into one outcome-based GitHub issue while preserving the original Task IDs for traceability.\n\n## Scope\n\n- [ ] **DEMO-04 \u2014 Lead rehearsal two and cross-module Q&A**\n  - Use final script and random member selection; verify backup laptop and power/display setup.\n- [ ] **DEMO-MOH-R2 \u2014 Participate in rehearsal two and cross-module Q&A**\n  - Attend final run and answer questions outside own workstream.\n- [ ] **DEMO-ABD-R2 \u2014 Participate in rehearsal two and cross-module Q&A**\n  - Attend final run and answer questions outside own workstream.\n- [ ] **DEMO-RIC-R2 \u2014 Participate in rehearsal two and cross-module Q&A**\n  - Attend final run and answer questions outside own workstream.\n- [ ] **DEMO-ALA-R2 \u2014 Participate in rehearsal two and cross-module Q&A**\n  - Attend final run and answer questions outside own workstream.\n- [ ] **DEMO-SAV-R2 \u2014 Participate in rehearsal two and cross-module Q&A**\n  - Attend final run and answer questions outside own workstream.\n\n## Acceptance criteria\n\n- **DEMO-04:** All six explain any module; two timed rehearsals complete; final defects resolved or release flag cut.\n- **DEMO-MOH-R2:** All assigned speaking and random Q&A tasks completed; final checklist acknowledged.\n- **DEMO-ABD-R2:** All assigned speaking and random Q&A tasks completed; final checklist acknowledged.\n- **DEMO-RIC-R2:** All assigned speaking and random Q&A tasks completed; final checklist acknowledged.\n- **DEMO-ALA-R2:** All assigned speaking and random Q&A tasks completed; final checklist acknowledged.\n- **DEMO-SAV-R2:** All assigned speaking and random Q&A tasks completed; final checklist acknowledged.\n\n## Evidence / definition of done\n\n- Rehearsal two log\n- Final rehearsal attendance\n\n## Dependencies\n\nThe source plan lists the following upstream Task IDs:\n\n- `DEMO-03`\n- `DOC-10`\n\n## Ownership\n\n- **GitHub assignee(s):** @Zhaolin-Huang, @kkaaman, @Abdullah-Almutairi-uni, @RickyPurani, @at0941, @skwo0237\n- **Original task owner(s):** Zhaolin, Mohammad, Abdullah, Ricky, Alan, Saviour\n- **Reviewer(s):** Everyone\n- **Target gate:** G5 \u2014 2026-10-31\n\n> Keep failed or cut work visible. Do not mark the issue complete by weakening the frozen baseline criteria or by omitting failed evidence.\n",
+      "number": 76,
+      "state": "OPEN",
+      "title": "DEMO-04 / *-R2: Run rehearsal two and final cross-module Q&A",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/76"
+    },
+    {
+      "assignees": [
+        {
+          "id": "U_kgDOB81AvA",
+          "login": "kkaaman",
+          "name": "Mohammad-Judeh"
+        },
+        {
+          "id": "U_kgDOCaMNGQ",
+          "login": "at0941",
+          "name": "Alan Tran"
+        },
+        {
+          "id": "U_kgDOChYpqA",
+          "login": "RickyPurani",
+          "name": ""
+        },
+        {
+          "id": "U_kgDOEqR89w",
+          "login": "skwo0237",
+          "name": "Saviour Kwofie"
+        },
+        {
+          "id": "U_kgDOEquMDw",
+          "login": "Abdullah-Almutairi-uni",
+          "name": "Abdullah S M SH Almutairi"
+        },
+        {
+          "id": "U_kgDOEqyNXQ",
+          "login": "Zhaolin-Huang",
+          "name": "Zhaolin"
+        }
+      ],
+      "body": "<!-- source-tasks: DEMO-03,DEMO-MOH-R1,DEMO-RIC-R1,DEMO-ALA-R1,DEMO-ZHA-R1,DEMO-SAV-R1 -->\n\n## Context\n\nRun the first full rehearsal on the demo laptop and test whether every member can answer questions outside their own module.\n\nThis issue consolidates **6 master-plan tasks** into one outcome-based GitHub issue while preserving the original Task IDs for traceability.\n\n## Scope\n\n- [ ] **DEMO-03 \u2014 Lead rehearsal one on the demo laptop**\n  - Run full 8-minute show and 2-minute random Q&A with all six present.\n- [ ] **DEMO-MOH-R1 \u2014 Participate in rehearsal one and random Q&A**\n  - Attend the full timed demo; driver runs CARLA while other members present and answer.\n- [ ] **DEMO-RIC-R1 \u2014 Participate in rehearsal one and random Q&A**\n  - Attend the full timed demo; driver runs CARLA while other members present and answer.\n- [ ] **DEMO-ALA-R1 \u2014 Participate in rehearsal one and random Q&A**\n  - Attend the full timed demo; driver runs CARLA while other members present and answer.\n- [ ] **DEMO-ZHA-R1 \u2014 Participate in rehearsal one and random Q&A**\n  - Attend the full timed demo; driver runs CARLA while other members present and answer.\n- [ ] **DEMO-SAV-R1 \u2014 Participate in rehearsal one and random Q&A**\n  - Attend the full timed demo; driver runs CARLA while other members present and answer.\n\n## Acceptance criteria\n\n- **DEMO-03:** Time, failures and every member's knowledge gaps recorded; offline backup launch practiced.\n- **DEMO-MOH-R1:** Attendance and own timing/knowledge gaps recorded; backup playback practised.\n- **DEMO-RIC-R1:** Attendance and own timing/knowledge gaps recorded; backup playback practised.\n- **DEMO-ALA-R1:** Attendance and own timing/knowledge gaps recorded; backup playback practised.\n- **DEMO-ZHA-R1:** Attendance and own timing/knowledge gaps recorded; backup playback practised.\n- **DEMO-SAV-R1:** Attendance and own timing/knowledge gaps recorded; backup playback practised.\n\n## Evidence / definition of done\n\n- Rehearsal one log\n- Rehearsal attendance\n\n## Dependencies\n\nThe source plan lists the following upstream Task IDs:\n\n- `DEMO-02`\n- `TEST-12`\n\n## Ownership\n\n- **GitHub assignee(s):** @Abdullah-Almutairi-uni, @kkaaman, @RickyPurani, @at0941, @Zhaolin-Huang, @skwo0237\n- **Original task owner(s):** Abdullah, Mohammad, Ricky, Alan, Zhaolin, Saviour\n- **Reviewer(s):** Everyone\n- **Target gate:** G5 \u2014 2026-10-31\n\n> Keep failed or cut work visible. Do not mark the issue complete by weakening the frozen baseline criteria or by omitting failed evidence.\n",
+      "number": 75,
+      "state": "OPEN",
+      "title": "DEMO-03 / *-R1: Run rehearsal one and random cross-module Q&A",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/75"
+    },
+    {
+      "assignees": [
+        {
+          "id": "U_kgDOEquMDw",
+          "login": "Abdullah-Almutairi-uni",
+          "name": "Abdullah S M SH Almutairi"
+        }
+      ],
+      "body": "<!-- source-tasks: DOC-13,TEST-21 -->\n\n## Context\n\nDocument the Wayfinder/lane-monitor architecture and verify the demo laptop plus submitted video fallback work from a cold start.\n\nThis issue consolidates **2 master-plan tasks** into one outcome-based GitHub issue while preserving the original Task IDs for traceability.\n\n## Scope\n\n- [ ] **DOC-13 \u2014 Document Wayfinder and lane-monitor architecture**\n  - Record graph assumptions, route/corridor consistency, mini-map and image-monitor limitations.\n- [ ] **TEST-21 \u2014 Validate video fallback and demo laptop cold start**\n  - Restart laptop/server using runbook, unplug external network and load local assets.\n\n## Acceptance criteria\n\n- **DOC-13:** Core explanation and architecture figure trace to actual files; no claimed lane-changing in v1.\n- **TEST-21:** Cold start reaches ready state; keyboard stop works; backup video and all displays readable.\n\n## Evidence / definition of done\n\n- Wayfinder/module documentation\n- Cold-start checklist\n\n## Dependencies\n\nThe source plan lists the following upstream Task IDs:\n\n- `G4-01`\n- `E3-04`\n- `DEMO-02`\n\n## Ownership\n\n- **GitHub assignee(s):** @Abdullah-Almutairi-uni\n- **Original task owner(s):** Abdullah\n- **Reviewer(s):** Everyone\n- **Target gate:** G5 \u2014 2026-10-31\n\n> Keep failed or cut work visible. Do not mark the issue complete by weakening the frozen baseline criteria or by omitting failed evidence.\n",
+      "number": 74,
+      "state": "OPEN",
+      "title": "DOC-13 / TEST-21: Package Wayfinder evidence and validate demo cold-start fallback",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/74"
+    },
+    {
+      "assignees": [
+        {
+          "id": "U_kgDOEquMDw",
+          "login": "Abdullah-Almutairi-uni",
+          "name": "Abdullah S M SH Almutairi"
+        }
+      ],
+      "body": "<!-- source-tasks: DEMO-01 -->\n\n## Context\n\nCreate the timed live-demo runbook with named speakers, fallback points, and a sequence that demonstrates the selected release.\n\nThis issue consolidates **1 master-plan task** into one outcome-based GitHub issue while preserving the original Task IDs for traceability.\n\n## Scope\n\n- [ ] **DEMO-01 \u2014 Write an eight-minute demo script with named speakers**\n  - Allocate six speaking roles, live S1/S2 proof, evidence screens and extension segment; reserve Q&A two minutes.\n\n## Acceptance criteria\n\n- **DEMO-01:** Timed run-of-show fits 8 min; commands and recovery-to-video steps copied into demo checklist.\n\n## Evidence / definition of done\n\n- Demo script and handover cues\n\n## Dependencies\n\nThe source plan lists the following upstream Task IDs:\n\n- `G4-01`\n\n## Ownership\n\n- **GitHub assignee(s):** @Abdullah-Almutairi-uni\n- **Original task owner(s):** Abdullah\n- **Reviewer(s):** Everyone\n- **Target gate:** G4 \u2014 2026-10-28\n\n> Keep failed or cut work visible. Do not mark the issue complete by weakening the frozen baseline criteria or by omitting failed evidence.\n",
+      "number": 73,
+      "state": "OPEN",
+      "title": "DEMO-01: Write the eight-minute live demonstration script",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/73"
+    },
+    {
+      "assignees": [
+        {
+          "id": "U_kgDOEqyNXQ",
+          "login": "Zhaolin-Huang",
+          "name": "Zhaolin"
+        }
+      ],
+      "body": "<!-- source-tasks: DOC-10,DOC-11,DOC-16 -->\n\n## Context\n\nCross-check report claims against source and raw evidence, then package navigation calibration and parking evidence with explicit cut features.\n\nThis issue consolidates **3 master-plan tasks** into one outcome-based GitHub issue while preserving the original Task IDs for traceability.\n\n## Scope\n\n- [ ] **DOC-10 \u2014 Review report claims against raw runs and source code**\n  - A reviewer checks metric definitions, comparison fairness, extension statuses and controller explanation.\n- [ ] **DOC-11 \u2014 Write navigation calibration and parking design evidence**\n  - Explain geometry repair, measured gain choices, forward-only API and separate reverse design.\n- [ ] **DOC-16 \u2014 Package parking evidence and explain cut reverse features**\n  - Show P1 final position/heading plots and path visualization; record P2 status accurately.\n\n## Acceptance criteria\n\n- **DOC-10:** Every numeric claim traces to data; incorrect/unsupported claims fixed before final handoff.\n- **DOC-11:** Design record includes alternatives, measured calibration and exact missing P2 evidence.\n- **DOC-16:** Every parking claim maps to five trials or is explicitly experimental; reverse is never inferred from harness alone.\n\n## Evidence / definition of done\n\n- Report review checklist\n- Control design and calibration note\n- Parking result figure and limitations\n\n## Dependencies\n\nThe source plan lists the following upstream Task IDs:\n\n- `DOC-09`\n- `TEST-16`\n- `RV-07`\n- `G4-01`\n- `E5-06`\n\n## Ownership\n\n- **GitHub assignee(s):** @Zhaolin-Huang\n- **Original task owner(s):** Zhaolin\n- **Reviewer(s):** Everyone\n- **Target gate:** G5 \u2014 2026-10-31\n\n> Keep failed or cut work visible. Do not mark the issue complete by weakening the frozen baseline criteria or by omitting failed evidence.\n",
+      "number": 72,
+      "state": "OPEN",
+      "title": "DOC-10 / DOC-11 / DOC-16: Audit claims and package navigation/parking evidence",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/72"
+    },
+    {
+      "assignees": [
+        {
+          "id": "U_kgDOCaMNGQ",
+          "login": "at0941",
+          "name": "Alan Tran"
+        }
+      ],
+      "body": "<!-- source-tasks: DOC-07,TEST-12 -->\n\n## Context\n\nWrite the final design-choice/limitation section and independently reproduce the complete demo from a fresh clone on the backup machine.\n\nThis issue consolidates **2 master-plan tasks** into one outcome-based GitHub issue while preserving the original Task IDs for traceability.\n\n## Scope\n\n- [ ] **DOC-07 \u2014 Write design choices and limitations for selected release**\n  - Compare map path versus noisy per-frame route, depth versus pinhole, local versus cloud and cut features.\n- [ ] **TEST-12 \u2014 Reproduce complete demo from a fresh clone on backup machine**\n  - Alan follows docs for adapter/planner modules primarily authored by others; use local weights and network-off mode.\n\n## Acceptance criteria\n\n- **DOC-07:** Text states actual final flags, simulator pose/topology allowance, green lights and stationary-obstacle limit.\n- **TEST-12:** Entire mission and required sensors work from fresh checkout; capture hardware differences and final hash.\n\n## Evidence / definition of done\n\n- Design decisions and limitations text\n- Independent CARLA reproduction log\n\n## Dependencies\n\nThe source plan lists the following upstream Task IDs:\n\n- `G4-01`\n- `DOC-06`\n- `DOC-03`\n\n## Ownership\n\n- **GitHub assignee(s):** @at0941\n- **Original task owner(s):** Alan\n- **Reviewer(s):** Everyone\n- **Target gate:** G5 \u2014 2026-10-31\n\n> Keep failed or cut work visible. Do not mark the issue complete by weakening the frozen baseline criteria or by omitting failed evidence.\n",
+      "number": 71,
+      "state": "OPEN",
+      "title": "DOC-07 / TEST-12: Document design limitations and reproduce the demo on the backup machine",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/71"
+    },
+    {
+      "assignees": [
+        {
+          "id": "U_kgDOCaMNGQ",
+          "login": "at0941",
+          "name": "Alan Tran"
+        }
+      ],
+      "body": "<!-- source-tasks: TEST-20 -->\n\n## Context\n\nSmoke-test the frozen CARLA release configuration and verify the final sensor setup, scenario cleanup, and held-green mission assumptions.\n\nThis issue consolidates **1 master-plan task** into one outcome-based GitHub issue while preserving the original Task IDs for traceability.\n\n## Scope\n\n- [ ] **TEST-20 \u2014 Verify release sensors and held-green mission constraints**\n  - Run final config on primary or backup laptop; verify weather lights, scenario cleanup and route spawn.\n\n## Acceptance criteria\n\n- **TEST-20:** Release smoke passes; limits visible in HUD/runbook; no late untested config change.\n\n## Evidence / definition of done\n\n- Release smoke log\n\n## Dependencies\n\nThe source plan lists the following upstream Task IDs:\n\n- `G4-01`\n\n## Ownership\n\n- **GitHub assignee(s):** @at0941\n- **Original task owner(s):** Alan\n- **Reviewer(s):** Everyone\n- **Target gate:** G4 \u2014 2026-10-28\n\n> Keep failed or cut work visible. Do not mark the issue complete by weakening the frozen baseline criteria or by omitting failed evidence.\n",
+      "number": 70,
+      "state": "OPEN",
+      "title": "TEST-20: Validate final sensors and held-green mission constraints",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/70"
+    },
+    {
+      "assignees": [
+        {
+          "id": "U_kgDOB81AvA",
+          "login": "kkaaman",
+          "name": "Mohammad-Judeh"
+        }
+      ],
+      "body": "<!-- source-tasks: DEMO-02,DOC-14 -->\n\n## Context\n\nRecord the backup demonstration evidence and package LiDAR/segmentation results and limitations for the final report and demo.\n\nThis issue consolidates **2 master-plan tasks** into one outcome-based GitHub issue while preserving the original Task IDs for traceability.\n\n## Scope\n\n- [ ] **DEMO-02 \u2014 Record backup demonstration and evidence screenshots**\n  - Capture complete baseline and admitted extension snippets on final release hash; include readable metrics.\n- [ ] **DOC-14 \u2014 Document LiDAR and segmentation results with limitations**\n  - Explain point-frame transform, ground filter, clustering and why optional masking was kept or cut.\n\n## Acceptance criteria\n\n- **DEMO-02:** Video plays offline on both laptops with audio/captions as needed; file ready for Canvas submission.\n- **DOC-14:** Distance/latency ablations linked; weather-specific depth/LiDAR behavior presented as measured/model-specific.\n\n## Evidence / definition of done\n\n- Backup video and screenshots\n- LiDAR design and limitations note\n\n## Dependencies\n\nThe source plan lists the following upstream Task IDs:\n\n- `DEMO-01`\n- `TEST-12`\n- `G4-01`\n- `E2-05`\n\n## Ownership\n\n- **GitHub assignee(s):** @kkaaman\n- **Original task owner(s):** Mohammad\n- **Reviewer(s):** Everyone\n- **Target gate:** G5 \u2014 2026-10-31\n\n> Keep failed or cut work visible. Do not mark the issue complete by weakening the frozen baseline criteria or by omitting failed evidence.\n",
+      "number": 68,
+      "state": "OPEN",
+      "title": "DEMO-02 / DOC-14: Capture backup evidence and document LiDAR/segmentation results",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/68"
+    },
+    {
+      "assignees": [
+        {
+          "id": "U_kgDOB81AvA",
+          "login": "kkaaman",
+          "name": "Mohammad-Judeh"
+        }
+      ],
+      "body": "<!-- source-tasks: TEST-11,G4-01 -->\n\n## Context\n\nRun admitted extensions together, cut combinations that break the baseline, and freeze the exact release/demo configuration with evidence.\n\nThis issue consolidates **2 master-plan tasks** into one outcome-based GitHub issue while preserving the original Task IDs for traceability.\n\n## Scope\n\n- [ ] **TEST-11 \u2014 Run combined extension configuration regression**\n  - Run all admitted v1 flags together, not only in isolation; profile resource contention.\n- [ ] **G4-01 \u2014 Freeze admitted extensions and the live demo configuration**\n  - Use conditional tasks only as evidence; cut failed flags without weakening baseline thresholds.\n\n## Acceptance criteria\n\n- **TEST-11:** S0-S5 five trials each pass, or identify which flag is disabled; selected config recorded for G4.\n- **G4-01:** Each flag has pass/cut reason and evidence; baseline rerun after final change; no feature merge after freeze except fixes.\n\n## Evidence / definition of done\n\n- Combined-flags regression report\n- Release configuration and cut list\n\n## Dependencies\n\nThe source plan lists the following upstream Task IDs:\n\n- `G3-01`\n- `E1-04`\n- `E2-05`\n- `E3-04`\n- `E4-11`\n- `E5-06`\n- `E1-05`\n- `E2-06`\n- `E3-05`\n- `E4-12`\n- `E5-07`\n\n## Ownership\n\n- **GitHub assignee(s):** @kkaaman\n- **Original task owner(s):** Mohammad\n- **Reviewer(s):** Everyone\n- **Target gate:** G4 \u2014 2026-10-28\n\n> Keep failed or cut work visible. Do not mark the issue complete by weakening the frozen baseline criteria or by omitting failed evidence.\n",
+      "number": 67,
+      "state": "OPEN",
+      "title": "TEST-11 / G4-01: Regress combined extensions and freeze the demo configuration",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/67"
+    },
+    {
+      "assignees": [
+        {
+          "id": "U_kgDOChYpqA",
+          "login": "RickyPurani",
+          "name": ""
+        }
+      ],
+      "body": "<!-- source-tasks: DOC-09,DOC-15,DOC-17,DOC-18 -->\n\n## Context\n\nAssemble the final report, hybrid-inference limitations, cross-module Q&A material, video links, and release manifest without overstating unmeasured results.\n\nThis issue consolidates **4 master-plan tasks** into one outcome-based GitHub issue while preserving the original Task IDs for traceability.\n\n## Scope\n\n- [ ] **DOC-09 \u2014 Assemble report PDF and check both length limits**\n  - Target 900-950 words across four sections; verify <=1000 words and <=3 pages conservatively.\n- [ ] **DOC-15 \u2014 Document cloud sessions, failover limits and measured costs**\n  - Explain readiness of local/LAN/cloud modes, deadlines, local compute duplication and clock domains.\n- [ ] **DOC-17 \u2014 Prepare cross-module Q&A prompts and traceable answers**\n  - Collect one data-flow, failure-mode and design-alternative question per module for random assignment.\n- [ ] **DOC-18 \u2014 Package final report, video links and release manifest**\n  - Check all filenames/URLs, final hash and model checksums; team owner uses bundle at actual submission date.\n\n## Acceptance criteria\n\n- **DOC-09:** All required sections, citations and limitations present; figures/captions excluded from word count; PDF visually checked.\n- **DOC-15:** Generated docs and report agree on what ran; no latency-speedup or upload/download precision overclaim.\n- **DOC-17:** Answers link to docs/tests and include limitations; no member restricted to their own module.\n- **DOC-18:** Manifest contains report, video, repository/tag and docs; private individual documents excluded.\n\n## Evidence / definition of done\n\n- Final draft PDF and count log\n- Cloud results and interface guide\n- Q&A practice sheet\n- Final submission bundle manifest\n\n## Dependencies\n\nThe source plan lists the following upstream Task IDs:\n\n- `DOC-07`\n- `DOC-06`\n- `DOC-05`\n- `TEST-09`\n- `DOC-10`\n- `DEMO-02`\n\n## Ownership\n\n- **GitHub assignee(s):** @RickyPurani\n- **Original task owner(s):** Ricky\n- **Reviewer(s):** Everyone\n- **Target gate:** G5 \u2014 2026-10-31\n\n> Keep failed or cut work visible. Do not mark the issue complete by weakening the frozen baseline criteria or by omitting failed evidence.\n",
+      "number": 66,
+      "state": "OPEN",
+      "title": "DOC-09 / DOC-15 / DOC-17 / DOC-18: Assemble the final report and Q&A release package",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/66"
+    },
+    {
+      "assignees": [
+        {
+          "id": "U_kgDOChYpqA",
+          "login": "RickyPurani",
+          "name": ""
+        }
+      ],
+      "body": "<!-- source-tasks: DOC-02,DOC-04,DOC-06 -->\n\n## Context\n\nBuild the report's core narrative and quantitative evidence from traceable repository changes and measured runs.\n\nThis issue consolidates **3 master-plan tasks** into one outcome-based GitHub issue while preserving the original Task IDs for traceability.\n\n## Scope\n\n- [ ] **DOC-02 \u2014 Draft scope and A1 reuse sections with cited changes**\n  - Explain reduced scope, retained controllers, revamped APIs and why map route is appropriate.\n- [ ] **DOC-04 \u2014 Draft quantitative evidence and honest limitations**\n  - Use all baseline trial counts; add range, depth, navigation and latency figures; failures remain visible.\n- [ ] **DOC-06 \u2014 Produce final metrics table and report figures**\n  - Create compact architecture, before/after CTE and stop timeline plus selective extension result table.\n\n## Acceptance criteria\n\n- **DOC-02:** Draft distinguishes approved baseline, pending extensions and simulator localization limitation; claims link to commits.\n- **DOC-04:** No fabricated results; four sections have source run IDs and evidence-to-claim mapping.\n- **DOC-06:** Figures legible at report size, correct units/denominators, captions explain conditions and all claims reproducible.\n\n## Evidence / definition of done\n\n- Scope and extension draft\n- Evidence draft and figure captions\n- Publication-ready figures\n\n## Dependencies\n\nThe source plan lists the following upstream Task IDs:\n\n- `DOC-01`\n- `G1-01`\n- `TEST-08`\n- `TEST-09`\n- `E4-10`\n- `E1-03`\n\n## Ownership\n\n- **GitHub assignee(s):** @RickyPurani\n- **Original task owner(s):** Ricky\n- **Reviewer(s):** Everyone\n- **Target gate:** G4 \u2014 2026-10-28\n\n> Keep failed or cut work visible. Do not mark the issue complete by weakening the frozen baseline criteria or by omitting failed evidence.\n",
+      "number": 65,
+      "state": "OPEN",
+      "title": "DOC-02 / DOC-04 / DOC-06: Draft the report scope, evidence and figures",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/65"
+    },
+    {
+      "assignees": [
+        {
+          "id": "U_kgDOEqR89w",
+          "login": "skwo0237",
+          "name": "Saviour Kwofie"
+        }
+      ],
+      "body": "<!-- source-tasks: DOC-08,DOC-12,TEST-19,G5-01 -->\n\n## Context\n\nPerform the final non-author reproduction, evidence audit, offline startup check, and release-readiness gate for the submission candidate.\n\nThis issue consolidates **4 master-plan tasks** into one outcome-based GitHub issue while preserving the original Task IDs for traceability.\n\n## Scope\n\n- [ ] **DOC-08 \u2014 Verify core fresh clone as a non-author of application modules**\n  - Clone new directory, fetch LFS, install, run lint/tests/docs and harness; use only README instructions.\n- [ ] **DOC-12 \u2014 Audit evidence files, hashes and missing-result labels**\n  - Check links from report/workbook to all run summaries; ensure screenshots and plots are on final release hash.\n- [ ] **TEST-19 \u2014 Verify release offline startup and importer handoff**\n  - Audit no hidden downloads/secrets and retryable task import on local fixtures; synchronize final issue map by Task ID.\n- [ ] **G5-01 \u2014 Check submission readiness and prepare final release**\n  - Verify report, repo URL, final tag, backup video, docs and known real deadlines; distribute checklist privately.\n\n## Acceptance criteria\n\n- **DOC-08:** Clean-clone log records commands/versions and fixes; no hidden local files needed.\n- **DOC-12:** Every claimed experiment has raw evidence; missing cloud or cut feature is NOT RUN, never zero/pass.\n- **TEST-19:** Offline harness starts; code/doc gate outputs saved; CSV round-trip retains dependencies and issue IDs.\n- **G5-01:** All artifacts ready; official Canvas submissions marked pending until each member confirms; no false submission claim.\n\n## Evidence / definition of done\n\n- Fresh-clone core verification\n- Evidence completeness audit\n- Release verification log\n- G5 signed readiness checklist\n\n## Dependencies\n\nThe source plan lists the following upstream Task IDs:\n\n- `DOC-05`\n- `G4-01`\n- `DOC-06`\n- `TEST-18`\n- `DEMO-04`\n- `DOC-10`\n- `DEMO-02`\n\n## Ownership\n\n- **GitHub assignee(s):** @skwo0237\n- **Original task owner(s):** Saviour\n- **Reviewer(s):** Everyone\n- **Target gate:** G5 \u2014 2026-10-31\n\n> Keep failed or cut work visible. Do not mark the issue complete by weakening the frozen baseline criteria or by omitting failed evidence.\n",
+      "number": 64,
+      "state": "OPEN",
+      "title": "DOC-08 / DOC-12 / TEST-19 / G5-01: Verify and prepare the final release",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/64"
+    },
+    {
+      "assignees": [
+        {
+          "id": "U_kgDOEqR89w",
+          "login": "skwo0237",
+          "name": "Saviour Kwofie"
+        }
+      ],
+      "body": "<!-- source-tasks: TEST-18 -->\n\n## Context\n\nStress the selected extension flags together in the offline harness and export diagnostics before the release configuration is frozen.\n\nThis issue consolidates **1 master-plan task** into one outcome-based GitHub issue while preserving the original Task IDs for traceability.\n\n## Scope\n\n- [ ] **TEST-18 \u2014 Run offline all-flags fault suite and export diagnostics**\n  - Combine fake sensor sources, remote delays and behavior modes in CARLA-free CI.\n\n## Acceptance criteria\n\n- **TEST-18:** All enabled combinations stop safely on faults; logs identify source, session, frame and decision reason.\n\n## Evidence / definition of done\n\n- All-flags harness report\n\n## Dependencies\n\nThe source plan lists the following upstream Task IDs:\n\n- `G3-01`\n- `E4-10`\n\n## Ownership\n\n- **GitHub assignee(s):** @skwo0237\n- **Original task owner(s):** Saviour\n- **Reviewer(s):** Everyone\n- **Target gate:** G4 \u2014 2026-10-28\n\n> Keep failed or cut work visible. Do not mark the issue complete by weakening the frozen baseline criteria or by omitting failed evidence.\n",
+      "number": 63,
+      "state": "OPEN",
+      "title": "TEST-18: Run the offline all-flags fault suite",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/63"
+    },
+    {
+      "assignees": [
+        {
+          "id": "U_kgDOEqR89w",
+          "login": "skwo0237",
+          "name": "Saviour Kwofie"
+        }
+      ],
+      "body": "<!-- source-tasks: DOC-01,DOC-03,DOC-05 -->\n\n## Context\n\nKeep the report evidence map, installation/reproduction instructions, and generated API documentation aligned with the implementation.\n\nThis issue consolidates **3 master-plan tasks** into one outcome-based GitHub issue while preserving the original Task IDs for traceability.\n\n## Scope\n\n- [ ] **DOC-01 \u2014 Create report outline and evidence index**\n  - Map four mandatory report sections to tasks, figures, raw run IDs and decision records.\n- [ ] **DOC-03 \u2014 Update installation and offline reproduction scripts**\n  - Pin validated runtime/model assets and add prerequisites/checks for GPU/CARLA; update setup_environment.py.\n- [ ] **DOC-05 \u2014 Complete generated API documentation and module notes**\n  - Add how/why notes for every module; show public protocol and data flow in Sphinx.\n\n## Acceptance criteria\n\n- **DOC-01:** Outline reserves <=1000 words and <=3 pages; no result inserted before measurement.\n- **DOC-03:** Fresh environment recipe has offline model manifest, matching server/client version and clear error messages.\n- **DOC-05:** sphinx-build -W succeeds and links resolve; code explanation kept out of short report.\n\n## Evidence / definition of done\n\n- Report outline and figure placeholders\n- Reproduction instructions\n- Documentation build artifact\n\n## Dependencies\n\nThe source plan lists the following upstream Task IDs:\n\n- `PROC-01`\n- `BL-C-01`\n- `BL-F-07`\n- `E4-07`\n- `RV-07`\n- `RV-08`\n\n## Ownership\n\n- **GitHub assignee(s):** @skwo0237\n- **Original task owner(s):** Saviour\n- **Reviewer(s):** Everyone\n- **Target gate:** G3 \u2014 2026-10-25\n\n> Keep failed or cut work visible. Do not mark the issue complete by weakening the frozen baseline criteria or by omitting failed evidence.\n",
+      "number": 62,
+      "state": "OPEN",
+      "title": "DOC-01 / DOC-03 / DOC-05: Maintain the report evidence index and reproducible documentation",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/62"
+    },
+    {
+      "assignees": [
+        {
+          "id": "U_kgDOEqyNXQ",
+          "login": "Zhaolin-Huang",
+          "name": "Zhaolin"
+        }
+      ],
+      "body": "<!-- source-tasks: E5-04,E5-05,E5-08,E5-09 -->\n\n## Context\n\nTreat reverse parking as conditional P2 work: validate it only if baseline and P1 parking are green, otherwise record the cut honestly.\n\nThis issue consolidates **4 master-plan tasks** into one outcome-based GitHub issue while preserving the original Task IDs for traceability.\n\n## Scope\n\n- [ ] **E5-04 \u2014 Implement reverse two-arc parking prototype in harness**\n  - New signed-speed reverse controller and gear-safe command type; do not mutate forward-only A1 API.\n- [ ] **E5-05 \u2014 Verify reverse gear hook and low-speed adapter signs**\n  - Add adapter reverse switching only after stopped; isolated calibration pad, not baseline mission.\n- [ ] **E5-08 \u2014 Evaluate P2 reverse parking or record the cut**\n  - Only spend this budget if P1 and baseline are green; otherwise record defer with harness evidence.\n- [ ] **E5-09 \u2014 Run P2-enabled baseline regression before any admission**\n  - Only if reverse trials passed; run all 30 baseline trials with reverse flag enabled but DRIVE active.\n\n## Acceptance criteria\n\n- **E5-04:** Harness reverse path respects direction/sign and curvature; P2 remains experimental until CARLA evidence.\n- **E5-05:** Reverse sign, brake hold and gear-change interlock verified; P2 disabled in release configuration.\n- **E5-08:** Admit only if 5/5 <=0.3 m, <=5 deg and 0 collisions plus regression; otherwise label future work.\n- **E5-09:** P2 admission requires baseline pass and separate parking tolerances; otherwise keep flag off and log cut.\n\n## Evidence / definition of done\n\n- P2 harness prototype\n- Reverse pad test log\n- P2 measured result or cut record\n- P2 admission report or cut\n\n## Dependencies\n\nThe source plan lists the following upstream Task IDs:\n\n- `E5-03`\n- `BL-E-01`\n- `E5-06`\n\n## Ownership\n\n- **GitHub assignee(s):** @Zhaolin-Huang\n- **Original task owner(s):** Zhaolin\n- **Reviewer(s):** Everyone\n- **Target gate:** G4 \u2014 2026-10-28\n\n> Keep failed or cut work visible. Do not mark the issue complete by weakening the frozen baseline criteria or by omitting failed evidence.\n",
+      "number": 61,
+      "state": "OPEN",
+      "title": "E5-04\\u201305 / E5-08\\u201309: Evaluate reverse parking or record the cut",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/61"
+    },
+    {
+      "assignees": [
+        {
+          "id": "U_kgDOEqyNXQ",
+          "login": "Zhaolin-Huang",
+          "name": "Zhaolin"
+        }
+      ],
+      "body": "<!-- source-tasks: E5-06,E5-07 -->\n\n## Context\n\nRun the forward-parking acceptance trials and baseline regression before enabling parking in the release configuration.\n\nThis issue consolidates **2 master-plan tasks** into one outcome-based GitHub issue while preserving the original Task IDs for traceability.\n\n## Scope\n\n- [ ] **E5-06 \u2014 Run five P1 forward parking trials and blocked-bay test**\n  - Use selected destination bay with observed clearance; <=1 m/s final approach.\n- [ ] **E5-07 \u2014 Run full baseline regression with parking flag enabled**\n  - Use DRIVE behavior on S0-S5; explicit P1 test covers PARK mode at permitted destination.\n\n## Acceptance criteria\n\n- **E5-06:** 5/5 within 0.3 m and 5 deg, 0 collisions; time-to-park and blocked-bay safe stop captured.\n- **E5-07:** 30 baseline trials and P1 remain passing; default route goal unchanged when parking off.\n\n## Evidence / definition of done\n\n- P1 parking evidence\n- Parking admission report\n\n## Dependencies\n\nThe source plan lists the following upstream Task IDs:\n\n- `G3-01`\n- `E5-03`\n\n## Ownership\n\n- **GitHub assignee(s):** @Zhaolin-Huang\n- **Original task owner(s):** Zhaolin\n- **Reviewer(s):** Everyone\n- **Target gate:** G4 \u2014 2026-10-28\n\n> Keep failed or cut work visible. Do not mark the issue complete by weakening the frozen baseline criteria or by omitting failed evidence.\n",
+      "number": 60,
+      "state": "OPEN",
+      "title": "E5-06\\u201307: Validate and admit forward parking",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/60"
+    },
+    {
+      "assignees": [
+        {
+          "id": "U_kgDOEqyNXQ",
+          "login": "Zhaolin-Huang",
+          "name": "Zhaolin"
+        }
+      ],
+      "body": "<!-- source-tasks: E5-01,E5-02,E5-03 -->\n\n## Context\n\nImplement the P1 forward-parking path, including its goal representation, low-speed approach, clearance handling, and state handover.\n\nThis issue consolidates **3 master-plan tasks** into one outcome-based GitHub issue while preserving the original Task IDs for traceability.\n\n## Scope\n\n- [ ] **E5-01 \u2014 Specify forward parking goal and signed motion hook**\n  - Define bay pose/clearance, final heading and DRIVE/PARK mode; preserve A1 nonnegative VehicleState.\n- [ ] **E5-02 \u2014 Implement smooth forward bay approach in harness**\n  - Generate curvature-feasible arcs/Bezier with full vehicle footprint; final speed <=1 m/s.\n- [ ] **E5-03 \u2014 Add parking clearance, final stop and state handover**\n  - Use depth/LiDAR observed clearance; shorter lookahead/config for parking; validate orientation at goal.\n\n## Acceptance criteria\n\n- **E5-01:** MotionState carries signed speed only in new API; PARK defaults off; P1 target <=0.3 m and <=5 deg.\n- **E5-02:** Synthetic bays satisfy turning radius, position and heading tolerances; invalid bays rejected.\n- **E5-03:** Blocked bay stops safely; DRIVE->PARK once; no endpoint completion before pose/heading constraints hold.\n\n## Evidence / definition of done\n\n- Parking interface contract\n- P1 harness trajectory\n- Parking safety and endpoint tests\n\n## Dependencies\n\nThe source plan lists the following upstream Task IDs:\n\n- `BL-A-05`\n- `BL-C-01`\n- `BL-D-07`\n\n## Ownership\n\n- **GitHub assignee(s):** @Zhaolin-Huang\n- **Original task owner(s):** Zhaolin\n- **Reviewer(s):** Everyone\n- **Target gate:** G3 \u2014 2026-10-25\n\n> Keep failed or cut work visible. Do not mark the issue complete by weakening the frozen baseline criteria or by omitting failed evidence.\n",
+      "number": 59,
+      "state": "CLOSED",
+      "title": "E5-01\\u201303: Build the forward-parking capability",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/59"
+    },
+    {
+      "assignees": [
+        {
+          "id": "U_kgDOCaMNGQ",
+          "login": "at0941",
+          "name": "Alan Tran"
+        },
+        {
+          "id": "U_kgDOChYpqA",
+          "login": "RickyPurani",
+          "name": ""
+        },
+        {
+          "id": "U_kgDOEqyNXQ",
+          "login": "Zhaolin-Huang",
+          "name": "Zhaolin"
+        }
+      ],
+      "body": "<!-- source-tasks: E4-08,E4-10,E4-11,E4-12,E4-13 -->\n\n## Context\n\nExercise deployment, outage recovery, CARLA failover and the full baseline regression before deciding which hybrid-inference capabilities are admitted.\n\nThis issue consolidates **5 master-plan tasks** into one outcome-based GitHub issue while preserving the original Task IDs for traceability.\n\n## Scope\n\n- [ ] **E4-08 \u2014 Prepare optional cloud deployment and reproduce local server**\n  - Document provider-neutral container deploy, HTTPS/token and budget cap; deploy only to supplied authorized account.\n- [ ] **E4-10 \u2014 Verify cloud outage, restart and session cleanup offline**\n  - Kill server mid-sequence; repeat delayed response and rapid restart with new session.\n- [ ] **E4-11 \u2014 Run CARLA cloud failover on demo-class hardware**\n  - Ricky/Saviour supply service; Zhaolin runs CARLA and kills server; repeat resource-contention case.\n- [ ] **E4-12 \u2014 Run full baseline regression with hybrid flag enabled**\n  - S0-S5 five trials each with offline local server/forced failures; online cloud remains optional.\n- [ ] **E4-13 \u2014 Decide whether to add a remote Wayfinder endpoint**\n  - Reuse plain graph and route output only if E3 is stable and evidence/report time remains.\n\n## Acceptance criteria\n\n- **E4-08:** Local Docker works offline; cloud endpoint/provisioning status explicit; no claimed cloud speedup without measurement.\n- **E4-10:** No old-session results applied; deadline misses do not advance clear-frame counter; local service logs preserved.\n- **E4-11:** Fallback within one control tick when fresh local exists; otherwise stop; measure actual frame age and loop p95.\n- **E4-12:** 30 trials pass; include server-off interval; local GPU contention and deadline misses reported.\n- **E4-13:** Recorded defer/admit decision; server endpoint excluded from required offline demo.\n\n## Evidence / definition of done\n\n- Deployment recipe and local manifest\n- Fault-injection evidence\n- CARLA failover video and timing\n- Hybrid admission report\n- Remote routing decision\n\n## Dependencies\n\nThe source plan lists the following upstream Task IDs:\n\n- `E4-06`\n- `G3-01`\n- `E4-09`\n\n## Ownership\n\n- **GitHub assignee(s):** @RickyPurani, @Zhaolin-Huang, @at0941\n- **Original task owner(s):** Ricky, Zhaolin, Alan\n- **Reviewer(s):** Everyone\n- **Target gate:** G4 \u2014 2026-10-28\n\n> Keep failed or cut work visible. Do not mark the issue complete by weakening the frozen baseline criteria or by omitting failed evidence.\n",
+      "number": 58,
+      "state": "OPEN",
+      "title": "E4-08 / E4-10\\u201313: Validate failover and decide hybrid admission",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/58"
+    },
+    {
+      "assignees": [
+        {
+          "id": "U_kgDOEqR89w",
+          "login": "skwo0237",
+          "name": "Saviour Kwofie"
+        }
+      ],
+      "body": "<!-- source-tasks: E4-04,E4-05,E4-07,E4-09 -->\n\n## Context\n\nImplement the nonblocking remote detector and concurrent local fallback, then measure end-to-end latency across available deployment modes.\n\nThis issue consolidates **4 master-plan tasks** into one outcome-based GitHub issue while preserving the original Task IDs for traceability.\n\n## Scope\n\n- [ ] **E4-04 \u2014 Implement nonblocking RemoteDetector and JPEG client**\n  - Bound in-flight requests and deadlines; preserve frame IDs and enforce response schema.\n- [ ] **E4-05 \u2014 Implement concurrent local fallback and recovery policy**\n  - Keep local detector warm and independently runnable; remote preferred only if valid before deadline.\n- [ ] **E4-07 \u2014 Build latency sweep and breakdown script**\n  - Measure client end-to-end, encode/decode and server duration; RTT residual includes transfer/queue uncertainty.\n- [ ] **E4-09 \u2014 Compare local, LAN and available cloud inference**\n  - Use identical replay/model/hardware notes with warmup and >=200 frames/config; unavailable cloud marked NOT RUN.\n\n## Acceptance criteria\n\n- **E4-04:** Mock server tests cover timeout/malformed/stale/out-of-order results; core control thread never blocks on HTTP.\n- **E4-05:** Server failure chooses fresh local result within one tick; if both miss deadline, controlled stop; recovery hysteresis tested.\n- **E4-07:** p50/p95/max and deadline-miss rate by image size/JPEG quality; no fake separate upload/download timing.\n- **E4-09:** Comparable latency/accuracy table and miss rates; upload/download one-way estimates labelled unless synchronized.\n\n## Evidence / definition of done\n\n- Remote client tests\n- Hybrid failover unit tests\n- Replay latency CSV and plots\n- Latency comparison evidence\n\n## Dependencies\n\nThe source plan lists the following upstream Task IDs:\n\n- `E4-01`\n- `BL-F-04`\n- `BL-C-04`\n- `E4-06`\n- `E4-08`\n\n## Ownership\n\n- **GitHub assignee(s):** @skwo0237\n- **Original task owner(s):** Saviour\n- **Reviewer(s):** Everyone\n- **Target gate:** G3 \u2014 2026-10-25\n\n> Keep failed or cut work visible. Do not mark the issue complete by weakening the frozen baseline criteria or by omitting failed evidence.\n",
+      "number": 57,
+      "state": "OPEN",
+      "title": "E4-04\\u201305 / E4-07 / E4-09: Build the nonblocking client, fallback and latency evidence",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/57"
+    },
+    {
+      "assignees": [
+        {
+          "id": "U_kgDOChYpqA",
+          "login": "RickyPurani",
+          "name": ""
+        }
+      ],
+      "body": "<!-- source-tasks: E4-01,E4-02,E4-03,E4-06 -->\n\n## Context\n\nBuild and package the remote inference service with explicit protocol, timestamps, isolated tracker sessions, and source-switching tests.\n\nThis issue consolidates **4 master-plan tasks** into one outcome-based GitHub issue while preserving the original Task IDs for traceability.\n\n## Scope\n\n- [ ] **E4-01 \u2014 Specify remote protocol, sessions and timestamp domains**\n  - Version request with run/session/frame IDs, capture/send timing, JPEG metadata; server returns boxes and duration.\n- [ ] **E4-02 \u2014 Build inference server with isolated tracker sessions**\n  - FastAPI service wraps same ObjectDetector; serialize per-session requests, bound queues and expire sessions.\n- [ ] **E4-03 \u2014 Package offline Docker service and model assets**\n  - Pin dependency/model versions; no network downloads at first inference; endpoint/token from environment.\n- [ ] **E4-06 \u2014 Test server-client sessions and tracker source switching**\n  - Use replay through local Docker; maintain source namespaces and prevent resuming on an ID change.\n\n## Acceptance criteria\n\n- **E4-01:** Contract rejects old/duplicate/out-of-order/session-mismatched responses; no cross-host timestamp subtraction.\n- **E4-02:** Two clients cannot share track state; reset and health endpoint tests pass using fake detector.\n- **E4-03:** Container starts with mounted local weights and documented resource limits; invalid JPEG/size rejected.\n- **E4-06:** Multi-client, repeated episode, failure/recovery and backend switch fixtures pass without lost safety state.\n\n## Evidence / definition of done\n\n- Protocol fixtures\n- Server unit tests\n- Local container smoke log\n- Docker integration traces\n\n## Dependencies\n\nThe source plan lists the following upstream Task IDs:\n\n- `BL-C-02`\n- `BL-F-01`\n- `E4-05`\n\n## Ownership\n\n- **GitHub assignee(s):** @RickyPurani\n- **Original task owner(s):** Ricky\n- **Reviewer(s):** Everyone\n- **Target gate:** G3 \u2014 2026-10-25\n\n> Keep failed or cut work visible. Do not mark the issue complete by weakening the frozen baseline criteria or by omitting failed evidence.\n",
+      "number": 56,
+      "state": "CLOSED",
+      "title": "E4-01\\u201303 / E4-06: Build the isolated inference server and session model",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/56"
+    },
+    {
+      "assignees": [
+        {
+          "id": "U_kgDOEquMDw",
+          "login": "Abdullah-Almutairi-uni",
+          "name": "Abdullah S M SH Almutairi"
+        }
+      ],
+      "body": "<!-- source-tasks: E3-04,E3-05,E3-06 -->\n\n## Context\n\nValidate Wayfinder on multiple legal origin-destination pairs, regress it against the baseline, and explicitly decide whether lane changing or blocked-edge rerouting remains out of scope.\n\nThis issue consolidates **3 master-plan tasks** into one outcome-based GitHub issue while preserving the original Task IDs for traceability.\n\n## Scope\n\n- [ ] **E3-04 \u2014 Run five WF1 destination pairs and route-length comparison**\n  - Use adapter-only GlobalRoutePlanner as reference; state lane-change constraints when lengths differ.\n- [ ] **E3-05 \u2014 Run full baseline regression with Wayfinder enabled**\n  - Use original mission destination and S0-S5 with flag on; confirm identical corridor basis.\n- [ ] **E3-06 \u2014 Decide lane-changing and blocked-edge rerouting scope**\n  - Design v2 lane-change safety contract and HOLD edge-block reroute; estimate separately before implementation.\n\n## Acceptance criteria\n\n- **E3-04:** 5/5 reachable no-lane-change pairs complete; length, time, CTE and failures recorded.\n- **E3-05:** 30 baseline trials pass; route API boundary remains simulator independent.\n- **E3-06:** Decision records defer v2 unless capacity and new scenario coverage exist; no untested code in live route.\n\n## Evidence / definition of done\n\n- WF1 route comparison\n- Wayfinder admission report\n- Wayfinder v2 decision and future backlog\n\n## Dependencies\n\nThe source plan lists the following upstream Task IDs:\n\n- `G3-01`\n- `E3-03`\n\n## Ownership\n\n- **GitHub assignee(s):** @Abdullah-Almutairi-uni\n- **Original task owner(s):** Abdullah\n- **Reviewer(s):** Everyone\n- **Target gate:** G4 \u2014 2026-10-28\n\n> Keep failed or cut work visible. Do not mark the issue complete by weakening the frozen baseline criteria or by omitting failed evidence.\n",
+      "number": 55,
+      "state": "OPEN",
+      "title": "E3-04\\u201306: Validate Wayfinder and decide deferred routing scope",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/55"
+    },
+    {
+      "assignees": [
+        {
+          "id": "U_kgDOEquMDw",
+          "login": "Abdullah-Almutairi-uni",
+          "name": "Abdullah S M SH Almutairi"
+        }
+      ],
+      "body": "<!-- source-tasks: E3-01,E3-02,E3-03 -->\n\n## Context\n\nBuild Wayfinder v1: A* on the exported graph, named destinations, continuous route generation, and lightweight route guidance.\n\nThis issue consolidates **3 master-plan tasks** into one outcome-based GitHub issue while preserving the original Task IDs for traceability.\n\n## Scope\n\n- [ ] **E3-01 \u2014 Implement A-star on the exported lane graph**\n  - Use length cost and admissible Euclidean heuristic; deterministic tie-breaking; v1 excludes lane changes.\n- [ ] **E3-02 \u2014 Connect named destinations to continuous route generation**\n  - Validate legal origin/destination nodes; emit lane/maneuver sequence into RouteManager.\n- [ ] **E3-03 \u2014 Add route mini-map, maneuver distance and ETA**\n  - Expose named POIs first; click destination optional; display units and ETA based on remaining path/speed policy.\n\n## Acceptance criteria\n\n- **E3-01:** Small graph tests match Dijkstra reference including unreachable destinations and one-way edges.\n- **E3-02:** Five fixture pairs yield continuous legal paths without endpoint resets at every maneuver.\n- **E3-03:** Recorded replay shows route/current pose/next turn; stopped ETA is shown as paused, not division by zero.\n\n## Evidence / definition of done\n\n- A-star graph tests\n- Wayfinder route fixtures\n- Wayfinder HUD screenshots\n\n## Dependencies\n\nThe source plan lists the following upstream Task IDs:\n\n- `BL-A-02`\n- `BL-A-03`\n- `RV-06`\n\n## Ownership\n\n- **GitHub assignee(s):** @Abdullah-Almutairi-uni\n- **Original task owner(s):** Abdullah\n- **Reviewer(s):** Everyone\n- **Target gate:** G3 \u2014 2026-10-25\n\n> Keep failed or cut work visible. Do not mark the issue complete by weakening the frozen baseline criteria or by omitting failed evidence.\n",
+      "number": 54,
+      "state": "OPEN",
+      "title": "E3-01\\u201303: Build Wayfinder v1 on the exported lane graph",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/54"
+    },
+    {
+      "assignees": [
+        {
+          "id": "U_kgDOB81AvA",
+          "login": "kkaaman",
+          "name": "Mohammad-Judeh"
+        }
+      ],
+      "body": "<!-- source-tasks: E2-05,E2-06 -->\n\n## Context\n\nDemonstrate LiDAR performance against the depth baseline and run the regression required before enabling the LiDAR flag.\n\nThis issue consolidates **2 master-plan tasks** into one outcome-based GitHub issue while preserving the original Task IDs for traceability.\n\n## Scope\n\n- [ ] **E2-05 \u2014 Demonstrate L1 and measure LiDAR versus depth range**\n  - Place verified cone/barrier prop that frozen YOLO fails to label; compare ground-truth surface distance.\n- [ ] **E2-06 \u2014 Run full baseline regression with LiDAR enabled**\n  - Test S0-S5 five times each after source fusion; watch false stops from ground clusters.\n\n## Acceptance criteria\n\n- **E2-05:** L1 stops with 0 collisions; distance errors and sensor overhead measured on demo laptop.\n- **E2-06:** 30 runs pass applicable thresholds; measured added wall latency remains within frozen budget.\n\n## Evidence / definition of done\n\n- L1 video, errors and timing table\n- LiDAR admission report\n\n## Dependencies\n\nThe source plan lists the following upstream Task IDs:\n\n- `G3-01`\n- `E2-04`\n\n## Ownership\n\n- **GitHub assignee(s):** @kkaaman\n- **Original task owner(s):** Mohammad\n- **Reviewer(s):** Everyone\n- **Target gate:** G4 \u2014 2026-10-28\n\n> Keep failed or cut work visible. Do not mark the issue complete by weakening the frozen baseline criteria or by omitting failed evidence.\n",
+      "number": 53,
+      "state": "OPEN",
+      "title": "E2-05\\u201306: Validate and admit the LiDAR extension",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/53"
+    },
+    {
+      "assignees": [
+        {
+          "id": "U_kgDOB81AvA",
+          "login": "kkaaman",
+          "name": "Mohammad-Judeh"
+        }
+      ],
+      "body": "<!-- source-tasks: E2-01,E2-02,E2-03,E2-04 -->\n\n## Context\n\nImplement the LiDAR path from vehicle-frame data and transforms through ground removal, corridor clustering, and the common obstacle/governor interface.\n\nThis issue consolidates **4 master-plan tasks** into one outcome-based GitHub issue while preserving the original Task IDs for traceability.\n\n## Scope\n\n- [ ] **E2-01 \u2014 Specify LiDAR vehicle-frame data and obstacle source**\n  - Use N-by-4 float32 with x forward/y left/z up, timestamp and extrinsics; configure range and density.\n- [ ] **E2-02 \u2014 Capture configured LiDAR and verify transforms**\n  - Set ray_cast rotation_frequency=1/dt; transform points from sensor to vehicle once.\n- [ ] **E2-03 \u2014 Implement ground removal, corridor crop and clustering**\n  - Use configurable height/plane filter and bounded clustering; estimate cluster footprint and nearest surface.\n- [ ] **E2-04 \u2014 Fuse confirmed LiDAR obstacles into common governor input**\n  - Use source-namespaced tracking and nearest valid obstacle; don't double count distance or IDs.\n\n## Acceptance criteria\n\n- **E2-01:** Synthetic point fixture and protocol accepted by corridor owner; no CARLA types in obstacle module.\n- **E2-02:** Known object coordinates and intensity column checked; frame IDs and resulting scan density recorded.\n- **E2-03:** Synthetic/recorded tests separate road, roadside objects and in-corridor clusters; sparse data invalidity handled.\n- **E2-04:** Depth and LiDAR disagreement resolved conservatively; loss of one sensor does not imply clear corridor.\n\n## Evidence / definition of done\n\n- LiDAR interface fixture\n- LiDAR dataset\n- LiDAR unit/replay tests\n- Fusion replay results\n\n## Dependencies\n\nThe source plan lists the following upstream Task IDs:\n\n- `BL-B-02`\n- `BL-C-01`\n- `BL-B-03`\n- `BL-D-04`\n- `BL-C-06`\n\n## Ownership\n\n- **GitHub assignee(s):** @kkaaman\n- **Original task owner(s):** Mohammad\n- **Reviewer(s):** Everyone\n- **Target gate:** G3 \u2014 2026-10-25\n\n> Keep failed or cut work visible. Do not mark the issue complete by weakening the frozen baseline criteria or by omitting failed evidence.\n",
+      "number": 52,
+      "state": "OPEN",
+      "title": "E2-01\\u201304: Build the LiDAR obstacle-perception path",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/52"
+    },
+    {
+      "assignees": [
+        {
+          "id": "U_kgDOCaMNGQ",
+          "login": "at0941",
+          "name": "Alan Tran"
+        }
+      ],
+      "body": "<!-- source-tasks: E1-04,E1-05 -->\n\n## Context\n\nRun the weather matrix and full baseline regression, then admit only weather settings that preserve the baseline acceptance criteria.\n\nThis issue consolidates **2 master-plan tasks** into one outcome-based GitHub issue while preserving the original Task IDs for traceability.\n\n## Scope\n\n- [ ] **E1-04 \u2014 Run the 27-trial weather scenario matrix**\n  - Run S0-S2 in at least 3 conditions, 3 seeds/runs each; retain zero-visibility failures.\n- [ ] **E1-05 \u2014 Run full baseline regression with weather flag enabled**\n  - Default weather flag and chosen admitted presets must preserve applicable baseline requirements.\n\n## Acceptance criteria\n\n- **E1-04:** 27 complete run records with margin, collision, completion, recall and latency per condition.\n- **E1-05:** S0-S5 each five runs pass for admitted demo setting; failing presets listed as offline limitations.\n\n## Evidence / definition of done\n\n- Weather matrix evidence\n- Weather admission report\n\n## Dependencies\n\nThe source plan lists the following upstream Task IDs:\n\n- `G3-01`\n- `E1-02`\n- `E1-03`\n\n## Ownership\n\n- **GitHub assignee(s):** @at0941\n- **Original task owner(s):** Alan\n- **Reviewer(s):** Everyone\n- **Target gate:** G4 \u2014 2026-10-28\n\n> Keep failed or cut work visible. Do not mark the issue complete by weakening the frozen baseline criteria or by omitting failed evidence.\n",
+      "number": 51,
+      "state": "OPEN",
+      "title": "E1-04\\u201305: Validate and admit the weather extension",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/51"
+    },
+    {
+      "assignees": [
+        {
+          "id": "U_kgDOChYpqA",
+          "login": "RickyPurani",
+          "name": ""
+        }
+      ],
+      "body": "<!-- source-tasks: E1-03 -->\n\n## Context\n\nQuantify how usable detection range and recall change across the approved weather presets.\n\nThis issue consolidates **1 master-plan task** into one outcome-based GitHub issue while preserving the original Task IDs for traceability.\n\n## Scope\n\n- [ ] **E1-03 \u2014 Measure detection range and recall across weather**\n  - Compare per-class recall and first-confirmed detection distance on frozen settings.\n\n## Acceptance criteria\n\n- **E1-03:** Three-condition table has denominators and failures; no robustness claim based only on visual quality.\n\n## Evidence / definition of done\n\n- Weather perception table\n\n## Dependencies\n\nThe source plan lists the following upstream Task IDs:\n\n- `E1-02`\n- `TEST-09`\n\n## Ownership\n\n- **GitHub assignee(s):** @RickyPurani\n- **Original task owner(s):** Ricky\n- **Reviewer(s):** Everyone\n- **Target gate:** G3 \u2014 2026-10-25\n\n> Keep failed or cut work visible. Do not mark the issue complete by weakening the frozen baseline criteria or by omitting failed evidence.\n",
+      "number": 50,
+      "state": "OPEN",
+      "title": "E1-03: Measure detector robustness across weather conditions",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/50"
+    },
+    {
+      "assignees": [
+        {
+          "id": "U_kgDOCaMNGQ",
+          "login": "at0941",
+          "name": "Alan Tran"
+        }
+      ],
+      "body": "<!-- source-tasks: E1-01,E1-02 -->\n\n## Context\n\nDefine reproducible weather presets and collect labelled stress evidence for comparable robustness measurements.\n\nThis issue consolidates **2 master-plan tasks** into one outcome-based GitHub issue while preserving the original Task IDs for traceability.\n\n## Scope\n\n- [ ] **E1-01 \u2014 Define three weather presets and robustness matrix**\n  - Choose ClearNoon, HardRainNoon and ClearNight subject to installed-version verification; specify headlights and seeds.\n- [ ] **E1-02 \u2014 Verify weather presets and collect labelled stress frames**\n  - Check installed attributes; headlights at night; capture same scenes across presets without changing model tuning split.\n\n## Acceptance criteria\n\n- **E1-01:** Schema holds all weather/light settings; planned S0-S2 by 3 conditions by 3 repetitions is explicit.\n- **E1-02:** Offline dataset covers all conditions; record whether depth/LiDAR weather effects are actually observed.\n\n## Evidence / definition of done\n\n- Weather experiment specification\n- Weather samples and verification log\n\n## Dependencies\n\nThe source plan lists the following upstream Task IDs:\n\n- `BL-D-06`\n- `BL-B-06`\n\n## Ownership\n\n- **GitHub assignee(s):** @at0941\n- **Original task owner(s):** Alan\n- **Reviewer(s):** Everyone\n- **Target gate:** G3 \u2014 2026-10-25\n\n> Keep failed or cut work visible. Do not mark the issue complete by weakening the frozen baseline criteria or by omitting failed evidence.\n",
+      "number": 49,
+      "state": "OPEN",
+      "title": "E1-01\\u201302: Establish the weather robustness test matrix",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/49"
+    },
+    {
+      "assignees": [
+        {
+          "id": "U_kgDOCaMNGQ",
+          "login": "at0941",
+          "name": "Alan Tran"
+        }
+      ],
+      "body": "<!-- source-tasks: G3-01,PROC-04 -->\n\n## Context\n\nMake the evidence-based G3 decision, freeze the mandatory baseline when it passes, and explicitly record traffic-light and moving-obstacle scope that remains deferred.\n\nThis issue consolidates **2 master-plan tasks** into one outcome-based GitHub issue while preserving the original Task IDs for traceability.\n\n## Scope\n\n- [ ] **G3-01 \u2014 Freeze baseline and make extension admission decisions**\n  - Tag passing baseline; if any threshold fails, consume extension time and document conditional status.\n- [ ] **PROC-04 \u2014 Record decisions on traffic lights and moving obstacles**\n  - Document future virtual-stop-line design and moving-object needs; baseline holds lights green and obstacles stationary.\n\n## Acceptance criteria\n\n- **G3-01:** All mandatory criteria actually pass before baseline claimed working; immutable config and tag recorded.\n- **PROC-04:** No extra behavior silently enabled; alternatives and scope boundary are explicit for tutor and report.\n\n## Evidence / definition of done\n\n- Baseline release decision\n- Future-scope decision record\n\n## Dependencies\n\nThe source plan lists the following upstream Task IDs:\n\n- `TEST-08`\n- `TEST-09`\n- `TEST-10`\n- `TEST-15`\n- `TEST-16`\n- `TEST-17`\n- `TEST-22`\n- `G1-01`\n- `TEST-04`\n\n## Ownership\n\n- **GitHub assignee(s):** @at0941\n- **Original task owner(s):** Alan\n- **Reviewer(s):** Everyone\n- **Target gate:** G3 \u2014 2026-10-25\n\n> Keep failed or cut work visible. Do not mark the issue complete by weakening the frozen baseline criteria or by omitting failed evidence.\n",
+      "number": 48,
+      "state": "OPEN",
+      "title": "G3-01 / PROC-04: Freeze the baseline and record deferred behaviour scope",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/48"
+    },
+    {
+      "assignees": [
+        {
+          "id": "U_kgDOEqR89w",
+          "login": "skwo0237",
+          "name": "Saviour Kwofie"
+        }
+      ],
+      "body": "<!-- source-tasks: TEST-08 -->\n\n## Context\n\nAggregate the baseline scenario and fault results into one traceable evidence set without hiding failed attempts or substituting partial completion metrics.\n\nThis issue consolidates **1 master-plan task** into one outcome-based GitHub issue while preserving the original Task IDs for traceability.\n\n## Scope\n\n- [ ] **TEST-08 \u2014 Aggregate all 30 baseline runs and fault tests**\n  - Check per-run metrics, counts and uncertainty; retain failed attempts and failures per scenario.\n\n## Acceptance criteria\n\n- **TEST-08:** Summary covers every metric and all 30 runs; route percentage never substituted for safe completion.\n\n## Evidence / definition of done\n\n- Baseline table and failure log\n\n## Dependencies\n\nThe source plan lists the following upstream Task IDs:\n\n- `TEST-04`\n- `TEST-05`\n- `TEST-06`\n- `TEST-07`\n\n## Ownership\n\n- **GitHub assignee(s):** @skwo0237\n- **Original task owner(s):** Saviour\n- **Reviewer(s):** Everyone\n- **Target gate:** G3 \u2014 2026-10-25\n\n> Keep failed or cut work visible. Do not mark the issue complete by weakening the frozen baseline criteria or by omitting failed evidence.\n",
+      "number": 47,
+      "state": "OPEN",
+      "title": "TEST-08: Aggregate the complete baseline acceptance evidence",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/47"
+    },
+    {
+      "assignees": [
+        {
+          "id": "U_kgDOEqyNXQ",
+          "login": "Zhaolin-Huang",
+          "name": "Zhaolin"
+        }
+      ],
+      "body": "<!-- source-tasks: RV-07,TEST-06,TEST-16 -->\n\n## Context\n\nValidate the complete-stack S0 mission, controller exception handling, and retained A1 navigation/demo compatibility.\n\nThis issue consolidates **3 master-plan tasks** into one outcome-based GitHub issue while preserving the original Task IDs for traceability.\n\n## Scope\n\n- [ ] **RV-07 \u2014 Archive A1 demos and document endpoint braking**\n  - Move loose demos to examples/a1 with wrappers; explain continuous path rationale and forward-only controller.\n- [ ] **TEST-06 \u2014 Repeat five S0 trials with the complete perception stack**\n  - Measure complete-stack route, CTE, speed and latency after integration.\n- [ ] **TEST-16 \u2014 Stress controller exceptions and endpoint overshoot handling**\n  - Inject invalid state, behind-target error and loss of path; use isolated scenario at low speed.\n\n## Acceptance criteria\n\n- **RV-07:** Public imports/examples preserved; no direct CARLA dependency outside adapter, including archived wrappers.\n- **TEST-06:** 5/5 S0 completes with 0 false stops/collisions and thresholds met; per-tick outputs retained.\n- **TEST-16:** No seven-second command reuse; emergency stop is latched/logged; restart/goal behavior documented.\n\n## Evidence / definition of done\n\n- Migration checklist\n- Final baseline S0 evidence\n- Controller fault evidence\n\n## Dependencies\n\nThe source plan lists the following upstream Task IDs:\n\n- `BL-A-06`\n- `BL-F-07`\n- `BL-B-07`\n\n## Ownership\n\n- **GitHub assignee(s):** @Zhaolin-Huang\n- **Original task owner(s):** Zhaolin\n- **Reviewer(s):** Everyone\n- **Target gate:** G3 \u2014 2026-10-25\n\n> Keep failed or cut work visible. Do not mark the issue complete by weakening the frozen baseline criteria or by omitting failed evidence.\n",
+      "number": 46,
+      "state": "OPEN",
+      "title": "RV-07 / TEST-06 / TEST-16: Validate navigation and controller fail-safe behaviour",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/46"
+    },
+    {
+      "assignees": [
+        {
+          "id": "U_kgDOB81AvA",
+          "login": "kkaaman",
+          "name": "Mohammad-Judeh"
+        }
+      ],
+      "body": "<!-- source-tasks: RV-08,TEST-05,TEST-17 -->\n\n## Context\n\nClose the sensor-side baseline by validating negative/persistent-obstacle scenarios, documenting the sensor rig, and profiling the complete workload.\n\nThis issue consolidates **3 master-plan tasks** into one outcome-based GitHub issue while preserving the original Task IDs for traceability.\n\n## Scope\n\n- [ ] **RV-08 \u2014 Document sensor rig, segmentation tradeoff and lifecycle**\n  - Describe frame matching, weather limits, calibration and segmentation cadence; update module docstrings.\n- [ ] **TEST-05 \u2014 Run five S3 and five S4 acceptance trials**\n  - Roadside negative must not cause stop; persistent obstacle must hold for configured duration.\n- [ ] **TEST-17 \u2014 Profile the full sensor rig and reduce unnecessary cadence**\n  - Measure RGB-D, monitor, segmentation and optional LiDAR costs with warm models.\n\n## Acceptance criteria\n\n- **RV-08:** Sensor/segmentation Sphinx pages build; every new public function documented with units and validity rules.\n- **TEST-05:** S3 false stops 0 and slowdown within frozen threshold; S4 hold succeeds; route completion correctly N/A.\n- **TEST-17:** Real-time factor and p95 E2E reported; optional workloads rate-limited without misusing stale masks.\n\n## Evidence / definition of done\n\n- Generated documentation checks\n- S3/S4 acceptance evidence\n- Sensor-cost and cadence plot\n\n## Dependencies\n\nThe source plan lists the following upstream Task IDs:\n\n- `BL-B-05`\n- `BL-B-07`\n- `BL-D-09`\n- `BL-C-07`\n- `BL-F-07`\n\n## Ownership\n\n- **GitHub assignee(s):** @kkaaman\n- **Original task owner(s):** Mohammad\n- **Reviewer(s):** Everyone\n- **Target gate:** G3 \u2014 2026-10-25\n\n> Keep failed or cut work visible. Do not mark the issue complete by weakening the frozen baseline criteria or by omitting failed evidence.\n",
+      "number": 45,
+      "state": "OPEN",
+      "title": "RV-08 / TEST-05 / TEST-17: Validate sensor behaviour and runtime cost",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/45"
+    },
+    {
+      "assignees": [
+        {
+          "id": "U_kgDOCaMNGQ",
+          "login": "at0941",
+          "name": "Alan Tran"
+        }
+      ],
+      "body": "<!-- source-tasks: TEST-04,TEST-15 -->\n\n## Context\n\nValidate stop/hold/resume under normal S1/S2 trials and under occlusion, missing-depth, and track-loss faults.\n\nThis issue consolidates **2 master-plan tasks** into one outcome-based GitHub issue while preserving the original Task IDs for traceability.\n\n## Scope\n\n- [ ] **TEST-04 \u2014 Run five S1 and five S2 stop-resume acceptance trials**\n  - Test stationary car and pedestrian; complete route after scripted removal.\n- [ ] **TEST-15 \u2014 Stress HOLD under occlusion and missing observations**\n  - Keep physical obstacle present while masking detector outputs, missing depth and switching IDs.\n\n## Acceptance criteria\n\n- **TEST-04:** 10 run records meet applicable thresholds; include hold speed, clear-frame count and resume time.\n- **TEST-15:** Vehicle remains stopped for 60 s despite track expiry; resumes only on validated clear observations.\n\n## Evidence / definition of done\n\n- S1/S2 acceptance evidence\n- HOLD fault evidence\n\n## Dependencies\n\nThe source plan lists the following upstream Task IDs:\n\n- `BL-D-09`\n- `BL-C-07`\n- `BL-F-07`\n- `BL-B-07`\n- `TEST-05`\n\n## Ownership\n\n- **GitHub assignee(s):** @at0941\n- **Original task owner(s):** Alan\n- **Reviewer(s):** Everyone\n- **Target gate:** G3 \u2014 2026-10-25\n\n> Keep failed or cut work visible. Do not mark the issue complete by weakening the frozen baseline criteria or by omitting failed evidence.\n",
+      "number": 44,
+      "state": "OPEN",
+      "title": "TEST-04 / TEST-15: Validate stop-resume and HOLD fail-safe behaviour",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/44"
+    },
+    {
+      "assignees": [
+        {
+          "id": "U_kgDOChYpqA",
+          "login": "RickyPurani",
+          "name": ""
+        }
+      ],
+      "body": "<!-- source-tasks: BL-C-07,TEST-09 -->\n\n## Context\n\nUse real integration sequences to fix detector flicker and ID-switch failure modes, then verify the held-out perception evidence used by the baseline.\n\nThis issue consolidates **2 master-plan tasks** into one outcome-based GitHub issue while preserving the original Task IDs for traceability.\n\n## Scope\n\n- [ ] **BL-C-07 \u2014 Fix detection flicker and ID-switch failures from first stop**\n  - Replay actual integration sequences; document parameter effects rather than overfitting individual frames.\n- [ ] **TEST-09 \u2014 Audit held-out detections and false-stop evidence**\n  - Evaluate scene-level held-out splits; report car/person recall and first-confirmed detection range.\n\n## Acceptance criteria\n\n- **BL-C-07:** Confirmation latency stays within stop budget; unknown depth/track loss cannot trigger premature resume.\n- **TEST-09:** No tuning/test-frame leakage; false negatives, invalid depth and confidence limits documented.\n\n## Evidence / definition of done\n\n- Replay failure and correction table\n- Perception precision/recall and range figure\n\n## Dependencies\n\nThe source plan lists the following upstream Task IDs:\n\n- `G2-01`\n- `BL-C-06`\n- `TEST-04`\n- `TEST-05`\n- `TEST-06`\n- `TEST-07`\n\n## Ownership\n\n- **GitHub assignee(s):** @RickyPurani\n- **Original task owner(s):** Ricky\n- **Reviewer(s):** Everyone\n- **Target gate:** G3 \u2014 2026-10-25\n\n> Keep failed or cut work visible. Do not mark the issue complete by weakening the frozen baseline criteria or by omitting failed evidence.\n",
+      "number": 43,
+      "state": "OPEN",
+      "title": "BL-C-07 / TEST-09: Harden tracking and audit perception performance",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/43"
+    },
+    {
+      "assignees": [
+        {
+          "id": "U_kgDOEquMDw",
+          "login": "Abdullah-Almutairi-uni",
+          "name": "Abdullah S M SH Almutairi"
+        }
+      ],
+      "body": "<!-- source-tasks: RV-06,TEST-07,TEST-10,TEST-22 -->\n\n## Context\n\nFinish the remaining navigation-side integration work: lane monitoring, bend-obstacle acceptance, timing-budget validation, and reproduced integration fixes.\n\nThis issue consolidates **4 master-plan tasks** into one outcome-based GitHub issue while preserving the original Task IDs for traceability.\n\n## Scope\n\n- [ ] **RV-06 \u2014 Repurpose lane estimates as departure monitor and HUD**\n  - Compare image-derived lateral offset with map-based signed CTE; show monitor confidence and validity.\n- [ ] **TEST-07 \u2014 Run five S5 bend-obstacle acceptance trials**\n  - Place obstacle after bend with visibility and speed envelope recorded; no impossible short-range spawn.\n- [ ] **TEST-10 \u2014 Close integration defects and rerun affected scenarios**\n  - Use reserved time only for reproduced failures; rerun all affected trials on final candidate commit.\n- [ ] **TEST-22 \u2014 Check HUD and background workload against timing budget**\n  - Compare headless and full HUD settings with admitted baseline models and record capture-to-apply latency.\n\n## Acceptance criteria\n\n- **RV-06:** Monitor no longer rebuilds controller route; correct sign and overlay verified on recorded curves.\n- **TEST-07:** 5/5 stop without collision within margin; curve governor slows before blind section where required.\n- **TEST-10:** No unresolved P0 defect; rerun evidence tied to candidate hash, or gate explicitly blocked.\n- **TEST-22:** Final baseline config p95 <=100 ms or gate explicitly blocked; disable only optional overlays if necessary.\n\n## Evidence / definition of done\n\n- Lane-monitor replay screenshots\n- S5 acceptance evidence\n- Candidate regression log\n- Final baseline latency profile\n\n## Dependencies\n\nThe source plan lists the following upstream Task IDs:\n\n- `RV-03`\n- `BL-A-04`\n- `BL-D-09`\n- `BL-C-07`\n- `BL-F-07`\n- `BL-B-07`\n- `TEST-06`\n- `TEST-17`\n\n## Ownership\n\n- **GitHub assignee(s):** @Abdullah-Almutairi-uni\n- **Original task owner(s):** Abdullah\n- **Reviewer(s):** Everyone\n- **Target gate:** G3 \u2014 2026-10-25\n\n> Keep failed or cut work visible. Do not mark the issue complete by weakening the frozen baseline criteria or by omitting failed evidence.\n",
+      "number": 42,
+      "state": "OPEN",
+      "title": "RV-06 / TEST-07 / TEST-10 / TEST-22: Finish lane-monitor and bend-obstacle integration",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/42"
+    },
+    {
+      "assignees": [
+        {
+          "id": "U_kgDOEqR89w",
+          "login": "skwo0237",
+          "name": "Saviour Kwofie"
+        }
+      ],
+      "body": "## Context\n\nThe final baseline integration step is to run the same validated perception-to-behaviour pipeline through the CARLA adapters and demonstrate the first sensor-driven stationary-obstacle stop without leaking simulator ground truth into control.\n\nThis issue closes **BL-F-06, BL-E-04, G2-01 and BL-F-07**.\n\n## Dependencies\n\nRequires G1 PASS, stable obstacle tracks/depth joins, deterministic obstacle scenarios and validated stop-hold-resume behaviour.\n\n## Scope\n\n- Integrate perception -> depth/track -> corridor -> governor/state machine -> controller in the simulator-independent harness.\n- Wire the same core stack through `CarlaWorld`/adapter boundaries without introducing CARLA dependencies into core modules.\n- Demonstrate the first stationary-car stop using sensor-derived obstacle evidence only.\n- Preserve timeout/invalid-observation emergency behaviour.\n- Provide one reproducible acceptance/fault command for the integrated path.\n\n## Acceptance criteria\n\n- [ ] Harness and CARLA paths exercise the same core decision logic.\n- [ ] Core modules remain free of direct CARLA imports according to the existing boundary checks.\n- [ ] At least one complete sensor-driven stationary-car stop is captured with configuration and raw logs.\n- [ ] Timeout/invalid-observation paths produce the documented safe response.\n- [ ] The acceptance/fault command is documented and reproducible from a clean checkout with prerequisites installed.\n- [ ] Follow-up defects discovered during integration are opened as focused issues rather than expanding this issue indefinitely.\n\n## Evidence / definition of done\n\nAttach or link the first G2 CARLA stop run, exact command/configuration, raw logs, relevant screenshots/video and acceptance-runner output.\n\n**Primary owner:** @skwo0237  \n**CARLA integration:** @Abdullah-Almutairi-uni  \n**Reviewers:** @RickyPurani, @Zhaolin-Huang\n",
+      "number": 41,
+      "state": "OPEN",
+      "title": "BL-F-06\u201307 / BL-E-04 / G2-01: Integrate perception-to-control in CARLA",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/41"
+    },
+    {
+      "assignees": [
+        {
+          "id": "U_kgDOCaMNGQ",
+          "login": "at0941",
+          "name": "Alan Tran"
+        }
+      ],
+      "body": "## Context\n\nOnce obstacle observations, corridor geometry and deterministic scenarios are available, the baseline must enforce a conservative STOP/HOLD/RESUME policy. Clearance must be positively established; loss or expiry of a track is not sufficient evidence to resume.\n\nThis issue closes **BL-D-08 and BL-D-09**.\n\n## Dependencies\n\nRequires G1 PASS, temporal-track filtering, route-corridor/governor logic and deterministic obstacle scenarios.\n\n## Scope\n\n- Enter STOP only from validated in-corridor obstacle evidence.\n- HOLD while the obstacle remains blocking or while clearance visibility is invalid.\n- Require explicit hysteretic clearance evidence before RESUME.\n- Tune stop margin and resume delay from repeated scenario evidence.\n\n## Acceptance criteria\n\n- [ ] State-transition tests cover CRUISE/STOP/HOLD/RESUME and emergency precedence.\n- [ ] Invalid visibility/depth keeps the system in a conservative state.\n- [ ] Track expiry alone cannot trigger RESUME.\n- [ ] Resume requires the configured number/duration of valid clear observations.\n- [ ] Repeated scenario runs report steady-HOLD stop margin and resume delay.\n- [ ] Failed/unsafe runs are retained and discussed rather than excluded from tuning evidence.\n\n## Evidence / definition of done\n\nAttach or link state-machine tests, scenario traces and the stop-margin/clearance tuning summary.\n\n**Reviewer:** @kkaaman\n",
+      "number": 40,
+      "state": "OPEN",
+      "title": "BL-D-08\u201309: Implement and validate stop-hold-resume behaviour",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/40"
+    },
+    {
+      "assignees": [
+        {
+          "id": "U_kgDOB81AvA",
+          "login": "kkaaman",
+          "name": "Mohammad-Judeh"
+        }
+      ],
+      "body": "## Context\n\nStop/hold/resume cannot be evaluated reliably without deterministic obstacle scenarios and evaluation-only truth for collisions, lane invasions and stopping margin.\n\nThis issue closes **BL-B-06 and BL-B-07** and starts after G1 passes.\n\n## Scope\n\n- Define deterministic stationary-vehicle and pedestrian scenarios for S1-S5 where applicable.\n- Make obstacle spawn/removal/event timing reproducible from committed configuration/seed values.\n- Record collision and lane-invasion events with documented deduplication semantics.\n- Provide evaluation-only bumper/obstacle truth for stop-margin measurement.\n- Keep all evaluation truth outside the control decision path.\n\n## Acceptance criteria\n\n- [ ] Scenario configuration produces repeatable actor placement/timing from a clean run.\n- [ ] Collision and lane-invasion events are logged once according to documented deduplication rules.\n- [ ] Stop-margin truth uses consistent vehicle/obstacle reference points.\n- [ ] Tests or architecture checks demonstrate that evaluation truth cannot feed obstacle-control decisions.\n- [ ] Raw event evidence is retained for failed as well as successful runs.\n\n## Evidence / definition of done\n\nAttach or link scenario configs/seeds, event logs and tests for the evaluation-only truth/metric path.\n\n**Reviewer:** @at0941\n",
+      "number": 39,
+      "state": "CLOSED",
+      "title": "BL-B-06\u201307: Build deterministic obstacle scenarios and evaluation truth",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/39"
+    },
+    {
+      "assignees": [
+        {
+          "id": "U_kgDOEqyNXQ",
+          "login": "Zhaolin-Huang",
+          "name": "Zhaolin"
+        }
+      ],
+      "body": "## Context\n\nG1 is the admission gate for the next integration stage. It should be decided from reproducible evidence, not from elapsed schedule time or the presence of merged code alone.\n\nThis issue closes **G1-01**.\n\n## Dependencies\n\nComplete the navigation, RGB-D/depth, tracking, corridor/governor, longitudinal-calibration and acceptance-harness issues before closing this gate.\n\n## Acceptance criteria\n\n- [ ] Five-run S0 navigation evidence is linked and reviewed.\n- [ ] Installed-build depth convention and range-error evidence is linked and reviewed.\n- [ ] Longitudinal response and conservative speed/stopping configuration are linked and reviewed.\n- [ ] CI/harness/logging evidence is linked and reviewed.\n- [ ] Known limitations and unresolved blockers are explicitly listed.\n- [ ] The exact configuration admitted to G2 is frozen and referenced by commit/config path.\n- [ ] The decision is recorded as **PASS** or **BLOCKED** with rationale; partial completion is not recorded as PASS.\n\n## Evidence / definition of done\n\nUpdate the G1 gate document with links to the reviewed artifacts and the frozen baseline configuration.\n\n**Owner:** @Zhaolin-Huang  \n**Review:** all team members\n",
+      "number": 38,
+      "state": "CLOSED",
+      "title": "G1-01: Review and freeze the baseline navigation gate",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/38"
+    },
+    {
+      "assignees": [
+        {
+          "id": "U_kgDOEqR89w",
+          "login": "skwo0237",
+          "name": "Saviour Kwofie"
+        }
+      ],
+      "body": "## Context\n\nThe repository has simulator-independent test infrastructure, but the baseline still needs one reproducible acceptance path with consistent run logging and metric aggregation. CI must remain usable without requiring CARLA or implicit model downloads.\n\nThis issue closes **BL-F-04, BL-F-05 and TEST-14**.\n\n## Scope\n\n- Add an automated S0 acceptance scenario using the simulator-independent harness.\n- Preserve existing A1 regression checks and offline behaviour.\n- Add reproducible per-run logging for commands, state, timings and decision reasons.\n- Aggregate metrics using the definitions in `docs/acceptance.md` and the acceptance configuration.\n- Add golden fixtures for geometry/stopping metrics that should not drift silently.\n\n## Acceptance criteria\n\n- [ ] The S0 harness test runs in CI without CARLA.\n- [ ] CI does not download model assets implicitly.\n- [ ] Logs are deterministic enough to compare repeated runs and include timestamps/timings, state and decision reason.\n- [ ] Metric aggregation has unit tests against known expected values.\n- [ ] Golden fixtures fail when metric semantics change unexpectedly.\n- [ ] Existing baseline tests remain green.\n\n## Evidence / definition of done\n\nAttach or link CI output/artifacts, logger tests, metric aggregation tests and golden-fixture results.\n\n**Reviewer:** @RickyPurani\n",
+      "number": 37,
+      "state": "CLOSED",
+      "title": "BL-F-04\u201305 / TEST-14: Add reproducible acceptance logging and metric checks",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/37"
+    },
+    {
+      "assignees": [
+        {
+          "id": "U_kgDOEquMDw",
+          "login": "Abdullah-Almutairi-uni",
+          "name": "Abdullah S M SH Almutairi"
+        }
+      ],
+      "body": "## Context\n\nThe steering sweep is available, but the stopping envelope still needs measured longitudinal response for the fixed CARLA vehicle/timestep. The repaired navigation stack should also be compared with the archived A1-settings baseline using comparable conditions.\n\nThis issue closes **BL-E-03 and TEST-03**.\n\n## Scope\n\n- Measure throttle and brake step response at the selected fixed timestep.\n- Estimate conservative response lag and achievable deceleration on the baseline vehicle/road.\n- Feed measured values into the stopping-distance budget; do not introduce unverified constants.\n- Run the repaired navigation configuration under conditions that are comparable with TEST-01 where possible.\n- Summarise differences against the archived A1-settings baseline without treating previously supplied figures as measured truth.\n\n## Acceptance criteria\n\n- [ ] Raw longitudinal calibration data is retained.\n- [ ] Conservative response lag and deceleration values are derived from measured runs and documented.\n- [ ] The stopping-budget inputs can be consumed by the baseline configuration without manual reinterpretation.\n- [ ] Repaired navigation is compared against TEST-01 using clearly stated comparable/non-comparable metrics.\n- [ ] No historical number is presented as newly measured evidence unless it was reproduced in this task.\n\n## Evidence / definition of done\n\nAttach or link calibration CSV/plots, parameter derivation and the repaired-vs-A1 comparison table.\n\n**Reviewer:** @Zhaolin-Huang\n",
+      "number": 36,
+      "state": "CLOSED",
+      "title": "BL-E-03 / TEST-03: Calibrate longitudinal response and navigation baseline",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/36"
+    },
+    {
+      "assignees": [
+        {
+          "id": "U_kgDOCaMNGQ",
+          "login": "at0941",
+          "name": "Alan Tran"
+        }
+      ],
+      "body": "## Context\n\nValidated depth observations still need to be converted into route-relative obstacle geometry and then into a conservative target-speed decision. This logic is safety-critical: a missing or expired track must not be interpreted as confirmed clearance.\n\nThis issue closes **BL-D-04, BL-D-05, BL-D-06 and BL-D-07**.\n\n## Scope\n\n- Compute signed route-relative lateral position and obstacle near/far footprints.\n- Test obstacle footprints against the swept route corridor, including bends.\n- Apply rear-axle/front-bumper offsets exactly once in the clearance calculation.\n- Define behaviour guards for invalid observations, HOLD visibility and emergency precedence.\n- Include measured perception/filter/controller latency in the stopping envelope.\n- Implement the obstacle/curvature target-speed governor with immediate emergency-brake precedence.\n\n## Acceptance criteria\n\n- [ ] Straight and curved-corridor geometry is covered by unit tests.\n- [ ] Vehicle-reference offsets are documented and covered by tests that prevent double application.\n- [ ] Invalid or unavailable obstacle observations cannot be interpreted as clear road.\n- [ ] Emergency braking overrides normal speed-governor output in the same cycle.\n- [ ] Stopping-envelope inputs are derived from measured BL-B-04, BL-C-05 and BL-E-03 evidence before baseline parameters are frozen.\n- [ ] Frozen cruise, stopping and clearance values are committed to baseline configuration with rationale.\n\n## Evidence / definition of done\n\nAttach or link corridor/geometry tests, behaviour-guard tests and the baseline configuration/rationale used by downstream stop-hold-resume work.\n\n**Reviewer:** @kkaaman\n",
+      "number": 35,
+      "state": "CLOSED",
+      "title": "BL-D-04\u201307: Implement route-corridor gating and speed governance",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/35"
+    },
+    {
+      "assignees": [
+        {
+          "id": "U_kgDOChYpqA",
+          "login": "RickyPurani",
+          "name": ""
+        }
+      ],
+      "body": "## Context\n\nThe detector lifecycle and RGB-D association foundations are merged. The remaining baseline requirement is to turn frame-level detections into stable obstacle observations that survive short flicker while remaining conservative around ID changes, missing IDs and stale tracks.\n\nThis issue closes **BL-C-04, BL-C-05 and BL-C-06**.\n\n## Scope\n\n- Add N-of-M confirmation and robust distance history for obstacle tracks.\n- Namespace track identity by episode/source/model and handle `None` IDs conservatively.\n- Expire stale tracks without treating expiry itself as proof that the road is clear.\n- Benchmark first raw detection and first confirmed detection on captured sequences.\n- Join confirmed tracks only to matching valid depth observations.\n\n## Acceptance criteria\n\n- [ ] Unit tests cover flicker, ID switch, expiry, `None` IDs and invalid visibility/depth.\n- [ ] Track expiry cannot directly authorise clearance/resume.\n- [ ] Detector confidence, image size and other benchmark settings are recorded.\n- [ ] First-detection and first-confirmed-detection range/latency are reported on the same captured sequences.\n- [ ] Depth is joined only when frame/source association is valid.\n- [ ] If measured detection performance cannot support the proposed cruise speed, the issue records a concrete lower-speed recommendation.\n\n## Evidence / definition of done\n\nAttach or link temporal-filter tests, the detector benchmark table and aligned track/depth test results.\n\n**Reviewer:** @skwo0237\n",
+      "number": 34,
+      "state": "CLOSED",
+      "title": "BL-C-04\u201306: Stabilise obstacle tracks and join validated depth",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/34"
+    },
+    {
+      "assignees": [
+        {
+          "id": "U_kgDOB81AvA",
+          "login": "kkaaman",
+          "name": "Mohammad-Judeh"
+        }
+      ],
+      "body": "## Context\n\nRGB-D capture and depth estimation primitives are merged, but depth must not influence clearance behaviour until the installed CARLA depth convention and range error are measured with off-axis samples.\n\nThis issue closes **BL-B-03, BL-B-04 and TEST-13**. **BL-B-05** is optional/P1 and must not become a baseline dependency.\n\n## Scope\n\n- Capture evaluation-only vehicle and pedestrian samples over representative distances and lateral offsets, including camera pose and ground-truth range used only for evaluation.\n- Split evaluation data by run/episode rather than adjacent frames.\n- Determine whether the installed CARLA depth values behave as axial depth or radial/ray distance using off-axis geometry.\n- Quantify range error and invalid-depth behaviour.\n- Verify timeout and stale-snapshot paths fail safe.\n- Optionally evaluate segmentation masking for robust depth medians without coupling it to the P0 baseline.\n\n## Acceptance criteria\n\n- [ ] The evaluation dataset is versioned or reproducibly generated and its provenance is documented.\n- [ ] The axial-vs-ray convention is demonstrated with off-axis measurements, not assumed from documentation alone.\n- [ ] Error is reported by distance range with sample counts and invalid-depth rate.\n- [ ] Timeout/stale-snapshot tests demonstrate safe invalid observations.\n- [ ] Evaluation ground truth is not consumed by the control path.\n- [ ] Any segmentation-masking experiment remains optional and does not block the baseline.\n\n## Evidence / definition of done\n\nAttach or link the dataset/configuration, calibration table/plots, invalid-depth statistics and timeout/stale-snapshot test evidence.\n\n**Reviewer:** @at0941\n",
+      "number": 33,
+      "state": "CLOSED",
+      "title": "BL-B-03\u201305 / TEST-13: Validate RGB-D depth accuracy and failure handling",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/33"
+    },
+    {
+      "assignees": [
+        {
+          "id": "U_kgDOEqyNXQ",
+          "login": "Zhaolin-Huang",
+          "name": "Zhaolin"
+        }
+      ],
+      "body": "## Context\n\nThe route-planning primitives and controller baseline are already merged, but the project still needs one fixed Town10HD mission that can be executed repeatedly and evaluated against the baseline acceptance criteria.\n\nThis issue closes **BL-A-04, BL-A-05, TEST-02 and BL-A-06** and provides the navigation evidence required for the G1 gate.\n\n## Scope\n\n- Define and version one legal, open, non-self-crossing Town10HD mission route with its spawn/map metadata.\n- Install the route once per episode; do not reset or rebuild it every control frame.\n- Tune the retained Pure Pursuit controller only as required for the fixed mission. Preserve endpoint-braking semantics.\n- Run the S0 navigation scenario five times from a clean episode/tracker state.\n- Verify that a temporary obstacle stop cannot be mistaken for mission completion.\n\n## Acceptance criteria\n\n- [ ] The baseline mission route is committed as configuration/data and can be loaded deterministically.\n- [ ] Five S0 runs complete using the same frozen route and configuration.\n- [ ] Completion, collision, lane-invasion, CTE and cruise-speed error are reported using the definitions in `docs/acceptance.md`.\n- [ ] No run silently resets the route during execution.\n- [ ] A temporary stop does not latch the mission-complete condition.\n- [ ] Any failed run is retained and included in the result summary.\n\n## Evidence / definition of done\n\nAttach or link:\n\n- the committed route/configuration;\n- route visualisation/overlay;\n- controller tuning trace or rationale;\n- all five S0 run folders; and\n- a short result table against the frozen acceptance metrics.\n\n**Reviewer:** @Abdullah-Almutairi-uni\n",
+      "number": 32,
+      "state": "CLOSED",
+      "title": "BL-A-04\u201306 / TEST-02: Establish and validate the Town10HD baseline mission",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/32"
+    },
+    {
+      "assignees": [
+        {
+          "id": "U_kgDOB81AvA",
+          "login": "kkaaman",
+          "name": "Mohammad-Judeh"
+        },
+        {
+          "id": "U_kgDOCaMNGQ",
+          "login": "at0941",
+          "name": "Alan Tran"
+        },
+        {
+          "id": "U_kgDOChYpqA",
+          "login": "RickyPurani",
+          "name": ""
+        },
+        {
+          "id": "U_kgDOEqR89w",
+          "login": "skwo0237",
+          "name": "Saviour Kwofie"
+        },
+        {
+          "id": "U_kgDOEquMDw",
+          "login": "Abdullah-Almutairi-uni",
+          "name": "Abdullah S M SH Almutairi"
+        },
+        {
+          "id": "U_kgDOEqyNXQ",
+          "login": "Zhaolin-Huang",
+          "name": "Zhaolin"
+        }
+      ],
+      "body": "Classmate Feedback:\n\n- They trained the models by themselves.\n- We could learn from their modular design and clear interfaces between different components.\n- Our team could learn from their effective traffic perception and how they use perception results in the overall driving system.\n- The clean separation between CARLA and the algorithms. They created a standalone adapter, so the perception and control code doesn\u2019t depend directly on the simulator. This makes debugging and future upgrades much easier.\n- Our team could learn from how they pass perception information to the navigation system. For example, detected objects and lane information can be used to support steering and speed decisions.\n- Our team could learn from their clear presentation style and strong familiarity with the project. Their explanation was well structured and easy to follow.\n- They used Carla as a simulator, as its scenes are closer to reality; our model trained using real-world images would be more suitable.\n- Our team could learn from their approach to distance estimation and input validation. I liked that they only estimate distance when the required calibration information is available, instead of guessing unreliable values.\n- velocity, scene, the way to detect lane\n- One idea our team could learn from is their use of a more structured lane perception pipeline, particularly using segmentation to identify the lane and then extracting the ego-lane centreline. This could potentially make lane detection more robust than relying mainly on detected lane-line geometry, especially under challenging visual conditions.\n- Our team could learn from the way they integrated and tested different modules as a complete system, rather than only evaluating each component separately.\n- Clear and confident presentation of ideas.\n- Our team could learn from the strong functionality and technical completeness demonstrated by this group. However, their presentation also highlighted the importance of rehearsing carefully and controlling the timing so that every planned section can be completed within the allocated presentation time.\n- The upfront investment in system architecture diagrams and control chain documentation was very effective. Our team focused heavily on implementation and could have benefited from the same level of structural documentation to make cross-module integration clearer from the start.",
+      "number": 4,
+      "state": "CLOSED",
+      "title": "What is one idea from this team's project that your own team could learn from?",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/4"
+    },
+    {
+      "assignees": [
+        {
+          "id": "U_kgDOB81AvA",
+          "login": "kkaaman",
+          "name": "Mohammad-Judeh"
+        },
+        {
+          "id": "U_kgDOCaMNGQ",
+          "login": "at0941",
+          "name": "Alan Tran"
+        },
+        {
+          "id": "U_kgDOChYpqA",
+          "login": "RickyPurani",
+          "name": ""
+        },
+        {
+          "id": "U_kgDOEqR89w",
+          "login": "skwo0237",
+          "name": "Saviour Kwofie"
+        },
+        {
+          "id": "U_kgDOEquMDw",
+          "login": "Abdullah-Almutairi-uni",
+          "name": "Abdullah S M SH Almutairi"
+        },
+        {
+          "id": "U_kgDOEqyNXQ",
+          "login": "Zhaolin-Huang",
+          "name": "Zhaolin"
+        }
+      ],
+      "body": "Classmate Feedback:\n\n- Where did you get the real world data?\n- How does the CARLA adapter allow your perception and navigation modules to work independently of the simulator?\n- How does the system use the traffic perception results to make driving decisions?\n- How does your pipeline handle latency jitter and frame-sync issues across multiple deep learning models running together?\n- What happens if the lane detection or object detection gives an incorrect result?\n- Which part of your system was the most difficult to integrate, and how did you solve the interface or compatibility issues between modules?\n- How do the perception modules communicate with the navigation and control modules?\n- How do you make sure that the outputs from different modules, such as object tracking, lane perception and traffic perception, are consistent and reliable enough for the navigation module to use?\n- how can you increase the fps? average below 20 fps I do not reckon that is acceptable.\n- I would ask: How does the vehicle respond if the lane segmentation temporarily fails or only one lane boundary is detected, and what safeguards are used to prevent incorrect steering commands?\n- How did you integrate the different modules together, and what was the biggest challenge during the integration process?\n- 1) Why did you choose Carla even though it could possibly require more work than other simulations?\n2) How did you initiate framework for the implementation tasks so that everyone could get started on their programming? Did you first create fill-in the blank files with indications of API for each module?\n- Which part of the system was the most difficult to implement or integrate, and how did the team verify that it worked reliably? I would also ask how the team would improve the system if more development time were available.\n- How does the predictive turning path visualisation work \u2014 is it purely geometric based on steering angle, or does it incorporate a learned model of vehicle dynamics? And how does the system perform when the predicted path deviates from the actual road layout?",
+      "number": 3,
+      "state": "CLOSED",
+      "title": "If you were conducting the marking interview, what question would you ask?",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/3"
+    },
+    {
+      "assignees": [
+        {
+          "id": "U_kgDOB81AvA",
+          "login": "kkaaman",
+          "name": "Mohammad-Judeh"
+        },
+        {
+          "id": "U_kgDOCaMNGQ",
+          "login": "at0941",
+          "name": "Alan Tran"
+        },
+        {
+          "id": "U_kgDOChYpqA",
+          "login": "RickyPurani",
+          "name": ""
+        },
+        {
+          "id": "U_kgDOEqR89w",
+          "login": "skwo0237",
+          "name": "Saviour Kwofie"
+        },
+        {
+          "id": "U_kgDOEquMDw",
+          "login": "Abdullah-Almutairi-uni",
+          "name": "Abdullah S M SH Almutairi"
+        },
+        {
+          "id": "U_kgDOEqyNXQ",
+          "login": "Zhaolin-Huang",
+          "name": "Zhaolin"
+        }
+      ],
+      "body": "Classmate Feedback:\n\n- Having more traffic cases in the runing.\n- I would improve the robustness of the perception modules under different road and traffic conditions.\n- I would further improve the robustness of the perception system in more complex traffic situations.\n- The distance estimation feature. It currently relies on simple assumptions and 2D bounding boxes, which can fail easily. Adding depth estimation or using CARLA's depth sensor would make collision avoidance and speed control much more reliable.\n- I would focus on more testing of the complete system in different driving situations.\n- I would first add more testing under different road and environmental conditions to further evaluate the robustness of the system.\n- I would improve the integration between the different modules and make the data flow more reliable.\n- I would first improve the integration between modules by defining the input and output interfaces earlier. Some modules depended on others, which created delays during integration, so clearer interfaces and earlier integration testing could reduce the time pressure.\n- the small object detection accuracy is not enough. I do not see a fruit on a tree as a traffic sign\n- I would focus on testing the system under more difficult driving conditions, such as poor lighting, shadows, unclear lane markings, or more complex road layouts. This would help identify where the lane segmentation and path extraction become unreliable and improve the robustness of the overall system.\n- I would improve the testing under more complex and realistic scenarios.\n- Possibly time management as it was a limitation mentioned by them as well during the presentation. I would suggest optimizing the division of work for 6 members, perhaps allocating the integration components to 2 members while still having 4 members for the individual perception modules.\n- I would first improve the overall quality and structure of the presentation slides. A clearer visual hierarchy, less text, and stronger connections between the slides and the live demonstration would make the technical work easier for the audience to understand.\n- I would invest more time in the visual fidelity of traffic lights and road signs within the custom simulator. The current models appeared simplified and lacked realism, which could limit the generalisability of any detection models trained or tested within that environment. More realistic assets would make the full pipeline more convincing and robust.",
+      "number": 2,
+      "state": "CLOSED",
+      "title": "If you were joining this project tomorrow, what would you improve first?",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/2"
+    },
+    {
+      "assignees": [
+        {
+          "id": "U_kgDOB81AvA",
+          "login": "kkaaman",
+          "name": "Mohammad-Judeh"
+        },
+        {
+          "id": "U_kgDOCaMNGQ",
+          "login": "at0941",
+          "name": "Alan Tran"
+        },
+        {
+          "id": "U_kgDOChYpqA",
+          "login": "RickyPurani",
+          "name": ""
+        },
+        {
+          "id": "U_kgDOEqR89w",
+          "login": "skwo0237",
+          "name": "Saviour Kwofie"
+        },
+        {
+          "id": "U_kgDOEquMDw",
+          "login": "Abdullah-Almutairi-uni",
+          "name": "Abdullah S M SH Almutairi"
+        },
+        {
+          "id": "U_kgDOEqyNXQ",
+          "login": "Zhaolin-Huang",
+          "name": "Zhaolin"
+        }
+      ],
+      "body": "Classmate Feedback:\n\n- The complete adapter running.\n- I was impressed by how modular their system is, especially the clear separation between perception, navigation and vehicle control.\n- traffic perception system. It detected traffic information clearly.\n- The high degree of modularity and seamless end-to-end integration impressed me most. They designed a simulator-independent library with clear abstraction between camera input, perception, navigation, and the CARLA adapter. Seeing all these heavy models run concurrently in real-time within fluently was remarkable.\n- I liked their navigation design, especially how they used a path-following algorithm for steering and a PID controller for speed control, including throttle and braking.\n- I was most impressed by how clearly and confidently the team explained their solution. They presented the project without relying heavily on notes, which showed that they understood their own work well.\n- I was impressed by how they used U-Net for lane perception, and then connected these perception results to the navigation and control modules.\n- I was most impressed by the breadth of their system and how they connected multiple perception and control modules together. In particular, they combined object detection and tracking, lane perception, traffic perception, distance estimation, and navigation into one autonomous driving pipeline.\n- they are the firt team using double deep learning and deploy in carla.\n- I was most impressed by how well the different components were integrated into a complete system. Their lane perception used machine-learning segmentation and extracted an ego-lane centreline, which was then connected to their navigation and vehicle control. The final demonstration made it clear how the individual modules worked together.\n- I was impressed by how the team integrated different components into one complete system.\n- Their communication during the presentation was very clear and engaging and it was easy to learn most of what they were presenting. Their use of CARLA as the simulator is particularly impressive because it is a industrial level simulation program.\n- The team presented an impressive solution with strong functionality, and the main features appeared to work effectively during the demonstration. The overall implementation showed substantial technical effort and good progress toward the project objectives.\n- What stood out most was the team's strong system design. They clearly articulated the full control chain \u2014 from perception to planning to vehicle actuation \u2014 supported by detailed architecture diagrams. This level of logical clarity is rare and made it easy to understand how all components connected. The demo also showed impressive vehicle control, particularly the ability to pre-render the predicted turning path and visualise the intended trajectory ahead of the actual turn, which demonstrated genuine integration between planning and rendering.",
+      "number": 1,
+      "state": "CLOSED",
+      "title": "What impressed you most about this team's solution?",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/1"
+    }
+  ],
+  "open_prs": [
+    {
+      "baseRefName": "main",
+      "headRefName": "docs/62-evidence-reproduction",
+      "headRefOid": "daf4b7584d8c8d1eae151d43fef7f0940d384e06",
+      "number": 106,
+      "title": "docs: add report evidence map and reproduction checks for #62",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/pull/106"
+    },
+    {
+      "baseRefName": "main",
+      "headRefName": "feat/E2-01-04-lidar-obstacle-path",
+      "headRefOid": "4bbe2311d858e4aaa125af601b4352242e5f2cc9",
+      "number": 103,
+      "title": "Feat/e2 01 04 lidar obstacle path",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/pull/103"
+    },
+    {
+      "baseRefName": "main",
+      "headRefName": "feat/E3-01-03-wayfinder-v1",
+      "headRefOid": "9cd8e06dedb3a6ef49fadaa6ec3cebce18ce107f",
+      "number": 102,
+      "title": "Feat/e3 01 03 wayfinder v1",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/pull/102"
+    },
+    {
+      "baseRefName": "main",
+      "headRefName": "feat/RV-06-08-TEST-22-lane-monitor-sensor-docs-timing",
+      "headRefOid": "f38d665c3ea132144fb04b6d6e0543ef69270d10",
+      "number": 101,
+      "title": "Feat/rv 06 08 test 22 lane monitor sensor docs timing",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/pull/101"
+    },
+    {
+      "baseRefName": "main",
+      "headRefName": "feat/41-perception-control-integration",
+      "headRefOid": "3d643fce96a8c517b0a54da1e877740420af157a",
+      "number": 99,
+      "title": "[BL-F-06/07] Add shared perception-control cycle groundwork",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/pull/99"
+    },
+    {
+      "baseRefName": "main",
+      "headRefName": "62-report-evidence-documentation",
+      "headRefOid": "fbb8508923a0850649d388620ecdf5eb4ee7c249",
+      "number": 88,
+      "title": "[DOC-01/03/05] Add report evidence index and reproducible documentation",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/pull/88"
+    }
+  ]
+}

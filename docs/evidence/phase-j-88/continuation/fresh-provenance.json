@@ -1,0 +1,8 @@
+{
+  "network_mode": "none",
+  "python": "CPython3.12 fresh venv, no system site packages",
+  "base_image": "sha256:887e49a1215429e88c7c6d0b0b24de2f858120574997bcc15bb0ebd0a1db7048",
+  "profile": "Linux x86_64 CPU; no CARLA/CUDA",
+  "wheel_count": 75,
+  "historical_package_record_unchanged": true
+}
