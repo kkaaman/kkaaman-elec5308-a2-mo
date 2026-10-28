@@ -1684,14 +1684,12 @@ tests; those for R1, R2, R5 and R7 fail on the code before it.
   (`refused_plan_limit_mps`). A refused stop now brakes at once, not after the 0.5 s of
   validity left on the kept trajectory.
 - **Braking envelope.** `scripts/braking_table.py <runs> [--calibration
-  longitudinal.csv]` lists braking episodes from drive logs, with lag, mean and peak
-  deceleration, and stopping distance, and sets them against the assumed 1 / 2 / 4 m/s².
-  On the live stack logs (17 episodes), the peak at full brake from 2 m/s or more is
-  2.6 m/s² (p10, 9 episodes) and the lag 0.15 s at most. The planner's 1 m/s² and the
-  conflict rule's 2 m/s² hold. **Following's assumed 4 m/s² is not shown by this
-  closed-loop data**: the controller rarely held full brake. The clean measure is BL-E-03's
-  open-loop brake steps (`scripts/calibrate_longitudinal.py`, the same Tesla Model 3),
-  which the script reads.
+  longitudinal.csv]` lists braking episodes from drive logs or BL-E-03's brake steps: lag,
+  mean, peak and effective deceleration (v0² / 2d, lag included), and stopping distance.
+  It then sets each rule's assumed stop, v × response + v² / 2a, against the measured stops
+  from full brake. A first version compared a 3-tick peak deceleration, which the last
+  ticks before a standstill distort. That version read the live data as not showing
+  following's 4 m/s². Stopping distances do show it (live results below).
 - **Compute.** `driver_step_time` now reports p50, p95, p99, max, the share over the
   50 ms target, and each stage's p50 / p95 / max: the stack's (drive, paint, detect,
   track, plan, road_model) and the driver's own (`driver.ego`, `classify`, `grid`,
@@ -1715,6 +1713,60 @@ tests; those for R1, R2, R5 and R7 fail on the code before it.
 - **Not done yet:** a speed limit from the range at which a small object is seen (the
   review's observability point; Stage 5), and optimising the stages the profile shows
   over budget.
+
+**Live on `6370b98` (PC 1, Town05) and `7eaca3d` (PC 2, Town10HD site 1), 28 Oct.**
+Every run was MEASURED_PASS. PC 2 had not pulled, so its runs are on `7eaca3d` without
+the new logging. They were scored afterwards with the new evaluator; `actor_tracking`
+needs `tracks_near`, so it is not available for them.
+
+| Town05 braking lead, 4 m/s (PC 1) | A: LiDAR | B: + front radar | C: + rear radars |
+|---|---|---|---|
+| Lead speed RMSE, actor-matched | 0.29 m/s | 0.16 m/s | 0.16 m/s |
+| Brake detection delay | 0.50 s | 0.20 s | 0.20 s |
+| Actor tracked (of in-view ticks) | 94.4 % | 94.8 % | 94.7 % |
+| Longest miss | 1.70 s | 0.75 s | 0.75 s |
+| Ticks with two tracks on the actor | 146 | 309 | 288 |
+| ID switches, false-lead ticks | 1, 0 | 1, 0 | 1, 0 |
+| Restriction not from the actor | 0.80 s | 1.55 s | 1.55 s |
+| Driver step p50 / p95 / max | 216 / 539 / 675 ms | 252 / 618 / 845 ms | 155 / 276 / 420 ms |
+
+- **Radar.** The radar benefit holds with tracks matched to the actor: speed error
+  halved, braking seen 0.3 s sooner, misses shorter. The rear radars add nothing for a
+  lead ahead. With radar, the actor carries a second track on about half the ticks.
+  Twins still form, though no false lead came of it.
+- **Town05 scenery tracks.** The restriction not from the actor is all "predicted
+  conflict". It comes from LiDAR-only CONFIRMED tracks 14–22 m right of the path:
+  3.5–6 m long, mostly 0.3–0.85 m wide, "approaching" at 4–7 m/s. Some are young: no
+  recent speed yet. This is the known Town05 scenery false stop, now attributed and
+  measured. B and C slowed to 0.01 m/s at 6.7 s, 38 m short of the lead. Not fixed yet. These runs have no recorded
+  frames to replay a fix on.
+- **Braking (BL-E-03, Town05).** Full brake stopped from 2.3 m/s in 0.71 m and from
+  8.1 m/s in 4.52 m (3.8 and 7.2 m/s² effective, lag 0.1–0.25 s). The 5 m/s trials read
+  0.85 m at 0.7 and 1.0 brake (14.7 m/s²) and are implausible. Every rule's assumed
+  stop is longer than the measured one: planner +1.96 m, conflict rule +0.62 m, following
+  (4 m/s² after 0.5 s) +1.11 m. The live closed-loop stops agree (5 stops from 2–3.8 m/s:
+  +1.68, +0.68 and +1.18 m). The module's own conservative figure is 1.56 m/s² (0.7 × the
+  0.4-brake minimum).
+- **Segmenter A/B (PC 2, `7eaca3d`).** Constant and v2 gave identical commands on every
+  tick of the braking lead, the crossing pedestrian and the cut-in. The v2 model changed
+  no driving decision in these scenarios, and cost about 160 ms at p95 (96–98 → 256–258 ms;
+  p50 69–72 → 75–79 ms).
+- **Seeds (PC 2, braking lead, v2).** Seeds 5308, 1 and 2: lead speed RMSE 0.16–0.18 m/s,
+  brake seen in 0.15 s in all three. Seed 2 stopped for 0.35 s at 9.3 s, before the lead
+  braked. The cause was a 0.74 × 0.3 m track 6.7 m right "approaching" at 2.1 m/s,
+  under the `7eaca3d` filters.
+- **Behaviour, PC 2.** The restriction not from the actor was 0 s on the braking lead
+  (seeds 5308 and 1) and on the pedestrian (no near-stop after clearance). The cut-in car
+  drives off faster than the ego, so nothing restricted the car, and this scenario does
+  not exercise the R1 hand-over.
+- **Compute.** Driver step on Town10HD: 69–72 ms p50 and 96–98 ms p95 with the constant
+  segmenter, 75–79 ms and 254–267 ms with v2. On Town05: 155–252 ms p50, and 97 % of ticks over the 50 ms target. Town05
+  stage p50s:
+  - detect (clustering): 74–82 ms;
+  - paint (v2): 53–57 ms;
+  - the driver's obstacle observation: 18–20 ms;
+  - the stack's plan: 16–19 ms;
+  - road model: 12–13 ms.
 
 ## Running Phase 0 live
 

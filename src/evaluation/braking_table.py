@@ -11,14 +11,17 @@ against those assumptions.
 From a drive log, a braking episode is a run of ticks with a brake command of at least
 ``min_brake`` from a speed of at least ``min_speed_mps``. For each: the starting speed,
 the median command, the lag to the first tick decelerating at 0.5 m/s^2 or more, the
-mean deceleration over the episode, the peak (over 3 ticks), and the stopping distance
-when it ended at a standstill. Closed-loop commands vary within an episode, so the table
-bins by the median command; the open-loop steps are the cleaner measure.
+mean deceleration over the episode, the peak (over 3 ticks, above 0.5 m/s: the last ticks
+before a standstill read as a jump to zero), the stopping distance when it ended at a
+standstill, and the effective deceleration v0^2 / (2 x stopping distance), lag included.
+Closed-loop commands vary within an episode, so the table bins by the median command; the
+open-loop steps are the cleaner measure. An effective deceleration above 1 g is reported
+as implausible and left out of the comparison (BL-E-03 on Town05, 28 Oct: 0.85 m from
+5 m/s, twice).
 """
 
 import csv
 import json
-import math
 from pathlib import Path
 
 import numpy as np
@@ -62,8 +65,14 @@ def _episode(span):
     brakes = np.array([(r.get("command") or [0, 0, 0])[2] for r in span[:-1]])
     decel = -np.diff(v) / np.maximum(np.diff(t), 1e-3)
     lag = next((float(t[i + 1] - t[0]) for i, d in enumerate(decel) if d >= 0.5), None)
-    peak = float(np.convolve(decel, np.ones(3) / 3, mode="valid").max()) if len(decel) >= 3 else float(decel.max())
+    moving = decel[v[1:] > 0.5]
+    if len(moving) >= 3:
+        peak = float(np.convolve(moving, np.ones(3) / 3, mode="valid").max())
+    else:
+        peak = float(moving.max()) if len(moving) else float(decel.max())
     stopped = v[-1] <= 0.05
+    distance = float(np.sum(0.5 * (v[1:] + v[:-1]) * np.diff(t)))
+    effective = v[0] ** 2 / (2 * distance) if stopped and distance > 0 else None
     d = span[0].get("driver") or {}
     return dict(
         start_s=round(float(t[0]), 2),
@@ -74,7 +83,8 @@ def _episode(span):
         lag_s=None if lag is None else round(lag, 2),
         mean_decel_mps2=round(float((v[0] - v[-1]) / max(t[-1] - t[0], 1e-3)), 2),
         peak_decel_mps2=round(peak, 2),
-        stopping_distance_m=round(float(np.sum(0.5 * (v[1:] + v[:-1]) * np.diff(t))), 2) if stopped else None,
+        stopping_distance_m=round(distance, 2) if stopped else None,
+        effective_decel_mps2=None if effective is None else round(float(effective), 2),
         why=d.get("stop_reason") or d.get("speed_cap_reason") or "",
     )
 
@@ -96,7 +106,7 @@ def steps_from_calibration(csv_path):
 
 
 def table(eps, brake_bands=((0.05, 0.3), (0.3, 0.6), (0.6, 0.9), (0.9, 1.01)), speed_bands=((0.3, 2.0), (2.0, 4.0), (4.0, 9.0))):
-    """Mean and peak deceleration and lag by command and starting speed."""
+    """Mean, peak and effective deceleration and lag by command and starting speed."""
     rows = []
     for blo, bhi in brake_bands:
         for vlo, vhi in speed_bands:
@@ -106,6 +116,7 @@ def table(eps, brake_bands=((0.05, 0.3), (0.3, 0.6), (0.6, 0.9), (0.9, 1.01)), s
             mean = np.array([e["mean_decel_mps2"] for e in sel])
             peak = np.array([e["peak_decel_mps2"] for e in sel])
             lags = [e["lag_s"] for e in sel if e["lag_s"] is not None]
+            eff = [e["effective_decel_mps2"] for e in sel if e.get("effective_decel_mps2") is not None]
             rows.append(
                 dict(
                     brake=f"{blo:.2f}-{bhi:.2f}",
@@ -114,6 +125,7 @@ def table(eps, brake_bands=((0.05, 0.3), (0.3, 0.6), (0.6, 0.9), (0.9, 1.01)), s
                     mean_decel_median_mps2=round(float(np.median(mean)), 2),
                     peak_decel_median_mps2=round(float(np.median(peak)), 2),
                     peak_decel_p10_mps2=round(float(np.percentile(peak, 10)), 2),
+                    effective_decel_median_mps2=round(float(np.median(eff)), 2) if eff else None,
                     lag_median_s=round(float(np.median(lags)), 2) if lags else None,
                     lag_max_s=round(float(max(lags)), 2) if lags else None,
                 )
@@ -121,21 +133,33 @@ def table(eps, brake_bands=((0.05, 0.3), (0.3, 0.6), (0.6, 0.9), (0.9, 1.01)), s
     return rows
 
 
-def against_assumptions(eps, full_brake=0.9):
-    """Each assumed deceleration against the peak achieved at a brake command of at least
-    ``full_brake`` from 2 m/s or more (the 10th percentile, so a rule is checked against a
-    bad case, not the median), and the measured lag against ``response_s``."""
+def against_assumptions(eps, full_brake=0.9, g_mps2=9.81):
+    """Each rule's assumed stop against the stops full brake achieved, from 2 m/s or more
+    with a brake command of at least ``full_brake``: the rule's stopping distance
+    v x response + v^2 / (2 a) (the following rule's ``response_s``; none for the planner's
+    ramp and the conflict rule, which carry no reaction allowance) against the measured
+    one, lag included. ``margin_m`` is the least of (assumed - measured) over the stops; a
+    rule holds when it is not negative. Comparing distances, not a peak or an average
+    deceleration, keeps the lag and the end of the stop in. An effective deceleration
+    above 1 g is implausible and left out (counted)."""
     strong = [e for e in eps if e["brake_max"] >= full_brake and e["speed_mps"] >= 2.0]
-    if not strong:
-        return dict(note=f"no episode with a brake command of {full_brake:g} or more from 2 m/s: run BL-E-03 (scripts/calibrate_longitudinal.py)")
-    peak = float(np.percentile([e["peak_decel_mps2"] for e in strong], 10))
+    stops = [e for e in strong if e.get("effective_decel_mps2") is not None]
+    plausible = [e for e in stops if e["effective_decel_mps2"] <= g_mps2]
+    if not plausible:
+        return dict(note=f"no stop from 2 m/s or more with a brake command of {full_brake:g} or more: run BL-E-03 (scripts/calibrate_longitudinal.py)")
     lags = [e["lag_s"] for e in strong if e["lag_s"] is not None]
-    lag = max(lags) if lags else math.nan
+    rules = {}
+    for name, a in ASSUMED.items():
+        response = ASSUMED_RESPONSE_S if "following" in name else 0.0
+        margin = min(e["speed_mps"] * response + e["speed_mps"] ** 2 / (2 * a) - e["stopping_distance_m"] for e in plausible)
+        rules[name] = dict(assumed_mps2=a, response_s=response, margin_m=round(float(margin), 2), achieved=margin >= 0.0)
     return dict(
-        episodes=len(strong),
-        achieved_peak_decel_p10_mps2=round(peak, 2),
-        measured_lag_max_s=None if not lags else round(lag, 2),
+        stops=len(plausible),
+        implausible_excluded=len(stops) - len(plausible),
+        worst_effective_decel_mps2=round(float(min(e["effective_decel_mps2"] for e in plausible)), 2),
+        by_speed=[dict(speed_mps=e["speed_mps"], stopping_distance_m=e["stopping_distance_m"], effective_decel_mps2=e["effective_decel_mps2"]) for e in sorted(plausible, key=lambda e: e["speed_mps"])],
+        measured_lag_max_s=round(float(max(lags)), 2) if lags else None,
         assumed_response_s=ASSUMED_RESPONSE_S,
-        response_ok=None if not lags else lag <= ASSUMED_RESPONSE_S,
-        rules={name: dict(assumed_mps2=a, achieved=peak >= a) for name, a in ASSUMED.items()},
+        response_ok=None if not lags else max(lags) <= ASSUMED_RESPONSE_S,
+        rules=rules,
     )

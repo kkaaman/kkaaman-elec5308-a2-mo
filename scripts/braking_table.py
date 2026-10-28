@@ -38,12 +38,12 @@ def main():
         raise SystemExit("no braking episodes found")
     rows = table(eps)
     print(f"{len(eps)} braking episodes")
-    print(f"{'brake':>10} {'speed m/s':>10} {'n':>4} {'mean':>6} {'peak':>6} {'peak p10':>8} {'lag':>6} {'lag max':>7}")
+    print(f"{'brake':>10} {'speed m/s':>10} {'n':>4} {'mean':>6} {'peak':>6} {'peak p10':>8} {'effective':>9} {'lag':>6} {'lag max':>7}")
+    fmt = lambda v, w: f"{'' if v is None else format(v, '.2f'):>{w}}"  # noqa: E731
     for r in rows:
         print(
             f"{r['brake']:>10} {r['speed_mps']:>10} {r['episodes']:>4} {r['mean_decel_median_mps2']:>6.2f} {r['peak_decel_median_mps2']:>6.2f}"
-            f" {r['peak_decel_p10_mps2']:>8.2f} {'' if r['lag_median_s'] is None else format(r['lag_median_s'], '.2f'):>6}"
-            f" {'' if r['lag_max_s'] is None else format(r['lag_max_s'], '.2f'):>7}"
+            f" {r['peak_decel_p10_mps2']:>8.2f} {fmt(r['effective_decel_median_mps2'], 9)} {fmt(r['lag_median_s'], 6)} {fmt(r['lag_max_s'], 7)}"
         )
     check = against_assumptions(eps)
     print(json.dumps(check, indent=2))
