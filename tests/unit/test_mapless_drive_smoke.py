@@ -391,11 +391,17 @@ def test_step_time_report_gives_the_tail_the_deadline_share_and_each_stage():
     out = step_time_report(times, log)
     assert out["control_path_ms"]["p50"] == pytest.approx(42.0) and out["control_path_ms"]["over_target_share"] == 0.0
     assert out["optional_ms"]["max"] == pytest.approx(36.0)
-    # The reaction budget: a tick, the control path's p99 and the brake lag within response_s.
-    out = step_time_report(times, log, response_s=0.5)
+    # The reaction budget: a tick, the governing time's p99 and the brake lag within
+    # response_s. With the semantic work on its thread the control path governs actuation
+    # (sixth review, F6-01); inline, the whole step does.
+    out = step_time_report(times, log, response_s=0.5, semantic_mode="thread")
+    assert out["actuation_governed_by"].startswith("the control path") and out["response_budget"]["governing"] == "control path"
     assert out["response_budget"]["worst_s"] == pytest.approx(0.05 + 0.042 + 0.25) and out["response_budget"]["within"] is True
+    out = step_time_report(times, log, response_s=0.5)
+    assert out["semantic_mode"] == "inline" and out["actuation_governed_by"].startswith("the whole step")
+    assert out["response_budget"]["worst_s"] == pytest.approx(0.05 + float(np.percentile(np.array(times) * 1000, 99)) / 1000 + 0.25, abs=1e-3)
     slow = [dict(driver=dict(stack_timing_ms=dict(drive=150.0, detect=50.0, track=20.0, plan=10.0))) for _ in range(100)]
-    assert step_time_report(times, slow, response_s=0.5)["response_budget"]["within"] is False
+    assert step_time_report(times, slow, response_s=0.5, semantic_mode="thread")["response_budget"]["within"] is False
 
 
 def test_a_run_that_passes_every_gate_without_exercising_its_target_is_not_a_pass():
@@ -431,3 +437,9 @@ def test_semantic_shadow_report_summarises_the_agreement_and_is_none_without_it(
     out = semantic_shadow_report(log)
     assert out["ticks"] == 40 and out["road_share_median"] == pytest.approx(0.9) and out["mostly_pavement_ticks"] == 4
     assert semantic_shadow_report([dict(driver={})]) is None
+    # Sixth review, ML: coverage, disagreement and the right edge against the site's kerb.
+    log = [dict(driver=dict(semantic_shadow=dict(cells=100, with_evidence=80, coverage=0.8, road_share=0.9, pavement_share=0.1, right_edge_m=1.9 + 0.1 * (k % 3)))) for k in range(30)]
+    out = semantic_shadow_report(log, kerb_distance_m=1.75)
+    assert out["coverage_median"] == pytest.approx(0.8) and out["pavement_share_mean"] == pytest.approx(0.1) and out["right_edge_ticks"] == 30
+    assert out["right_edge_error_m"]["median"] == pytest.approx(0.25) and out["right_edge_error_m"]["mae"] == pytest.approx(0.25)
+    assert "right_edge_error_m" not in semantic_shadow_report(log)

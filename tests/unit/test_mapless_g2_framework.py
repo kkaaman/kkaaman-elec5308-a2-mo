@@ -769,3 +769,66 @@ def test_semantic_shadow_measures_the_segmenters_agreement_with_the_path():
     out = semantic_tube_support(LocalRoadModel(0.0, origin, cell, layers), Pose2D(0.0, 0.0, 0.0), path, c)
     assert 0.3 < out["pavement_share"] < 0.6 and abs(out["road_share"] + out["pavement_share"] - 1.0) < 1e-9
     assert semantic_tube_support(None, Pose2D(0.0, 0.0, 0.0), path, c) is None
+
+
+def test_ml_the_shadow_reports_its_coverage_and_where_it_puts_the_roads_right_edge():
+    """Sixth review, ML: the share of the lane band the segmenter's evidence covers, and the
+    road's right edge it shows (road out to 2.0 m right of the path, pavement beyond: the
+    edge reads 2.0 m, to within a cell). No pavement: no edge. Half the band without
+    evidence: coverage about a half."""
+    from mapless.contracts import LocalRoadModel
+    from mapless.stack import semantic_tube_support
+
+    n, cell = 200, 0.25
+    origin = (-20.0, -25.0)
+    layers = {k: np.zeros((n, n), dtype=np.float32) for k in LocalRoadModel.REQUIRED}
+    layers["road"][:, :] = 2.0
+    kerb_j = int((-2.0 - origin[1]) / cell)  # cells right of y = -2.0
+    layers["road"][:, :kerb_j] = 0.0
+    layers["pavement"][:, :kerb_j] = 3.0
+    path = np.column_stack((np.arange(-2.0, 30.0, 0.5), np.zeros(64)))
+    c = StackConfig()
+    out = semantic_tube_support(LocalRoadModel(0.0, origin, cell, layers), Pose2D(0.0, 0.0, 0.0), path, c)
+    assert out["right_edge_m"] == pytest.approx(2.0, abs=cell) and out["right_edge_stations"] > 40 and out["coverage"] == 1.0
+    plain = {k: np.zeros((n, n), dtype=np.float32) for k in LocalRoadModel.REQUIRED}
+    plain["road"][:, int((0.0 - origin[1]) / cell):] = 2.0  # left of the path only
+    out = semantic_tube_support(LocalRoadModel(0.0, origin, cell, plain), Pose2D(0.0, 0.0, 0.0), path, c)
+    assert out["right_edge_m"] is None and out["right_edge_stations"] == 0 and 0.4 < out["coverage"] < 0.65
+
+
+def test_f6_01_the_semantic_worker_changes_no_command_and_still_delivers_the_road_model():
+    """Sixth review, F6-01: with the semantic work on its own thread, every command is the
+    inline run's (nothing the command is computed from waits on segmentation, painting or
+    the road model), the road model still arrives, from the current odometry frame, and
+    the step's timing carries the job hand-off instead of the stages themselves."""
+    car = ParkedCar(55.0, 1.75)
+    scene = RoadScene(KerbLine([Straight(150)]), parked=(car,))
+    car_xy = scene.kerb.pose_at(car.s_m)
+    h = car_xy[2]
+    car_world = (car_xy[0] - car.offset_m * math.sin(h), car_xy[1] + car.offset_m * math.cos(h))
+
+    def run(mode):
+        world = MaplessRoadWorld(scene, SUITE, start_s_m=15.0)
+        config = DriverConfig(body=BODY, control=control(), corridor=CorridorConfig(keep_right_m=1.75))
+        stack = MaplessStack(SUITE, world.route(70.0), config, StackConfig(admission=Admission.preset("C"), semantic_mode=mode), DT)
+        out = []
+        try:
+            for _ in range(int(12 / DT)):
+                step = stack.step(with_camera_and_radar(world.frame(), world, car_world))
+                out.append(step)
+                world.apply(step.command)
+                if mode == "thread":
+                    stack.semantic_worker.wait_idle()  # deterministic here; live, the control path never waits
+        finally:
+            stack.close()
+        return out
+
+    inline, thread = run("inline"), run("thread")
+    assert [s.command for s in inline] == [s.command for s in thread]
+    assert [s.diagnostics.get("speed_cap_next_mps") for s in inline] == [s.diagnostics.get("speed_cap_next_mps") for s in thread]
+    assert thread[-1].road_model is not None and thread[-1].road_model.visibility_m > 10.0
+    stats = thread[-1].diagnostics["semantic_worker"]
+    assert stats["errors"] == 0 and stats["built"] >= 30 and stats["taken"] >= 30 and stats["segmented"] >= 60
+    timing = thread[-1].decision.timing_ms
+    assert "semantic_submit" in timing and "road_model" not in timing and "paint" not in timing
+    assert inline[-1].diagnostics["semantic_worker"] is None

@@ -95,6 +95,9 @@ class TrackerConfig:
     coherence_patchy_residual_m: float = 0.1
     coherence_min_points: int = 4
     coherence_min_extent_m: float = 2.5  # judged only for tracks this long (StackConfig.vehicle_min_m is 3 m)
+    # Movement history (sixth review, F6-04): a track has moved when its recent speed (net
+    # displacement over motion_window_s) reaches moving_mps; ``still_s`` counts from then.
+    moving_mps: float = 0.3
     # A sensor supports a track while it has updated it within this time; one LiDAR hit
     # long ago no longer makes a radar-held track "LiDAR-supported" (review of 405b056).
     support_max_age_s: float = 0.5
@@ -192,6 +195,8 @@ class _Track:
     doppler_last_y: float = 0.0  # ... and its last
     doppler_position_sum: np.ndarray = field(default_factory=lambda: np.zeros(2))  # normalised range and bearing innovations of the run
     origin_time_s: float = 0.0  # when the track started
+    max_excursion: float = 0.0  # the farthest it has been from where it was first seen (m)
+    last_moving_s: float | None = None  # when it was last seen moving (``moving_mps``)
     twin_of: int | None = None  # the LiDAR track a radar-only track has lain inside ...
     twin_ticks: int = 0  # ... for this many updates running
 
@@ -532,6 +537,11 @@ class Tracker:
                 del self.tracks[tid]
         for tid, track in self.tracks.items():
             track.trail.append((time_s, float(track.x[0]), float(track.x[1])))
+            if track.origin is not None:
+                track.max_excursion = max(track.max_excursion, float(np.hypot(*(track.x[:2] - track.origin))))
+            recent = _recent_speed(track.trail, c.motion_min_span_s)
+            if recent is not None and recent >= c.moving_mps:
+                track.last_moving_s = time_s
             track.measured.append((time_s, float(track.x[0]), float(track.x[1]), tid in hit, max(track.footprint[0], track.footprint[1]) if tid in hit and track.footprint is not None else None))
             while track.trail and time_s - track.trail[0][0] > c.motion_window_s + 1e-9:
                 track.trail.popleft()
@@ -632,6 +642,8 @@ class Tracker:
             # it standing.
             keep.trail, keep.origin, keep.origin_time_s = deque(src.trail, maxlen=src.trail.maxlen), None if src.origin is None else src.origin.copy(), src.origin_time_s
             keep.measured = deque(src.measured, maxlen=src.measured.maxlen)
+            keep.max_excursion = max(r.max_excursion, lt.max_excursion)
+            keep.last_moving_s = max((v for v in (r.last_moving_s, lt.last_moving_s) if v is not None), default=None)
             self._shift_history(keep, offset)
             if np.ptp(lt.classes) > np.ptp(keep.classes):
                 keep.classes = lt.classes.copy()
@@ -780,6 +792,8 @@ class Tracker:
                     doppler_rejects=t.doppler_rejects,
                     **_coherence(t.measured, c, t.footprint, t.classes),
                     lidar_nis=round(float(np.mean(t.nis)), 2) if t.nis else None,
+                    max_excursion_m=round(t.max_excursion, 3) if t.origin is not None else None,
+                    still_s=round((self._time or t.time_s) - (t.last_moving_s if t.last_moving_s is not None else t.origin_time_s), 3),
                 )
             )
         return out

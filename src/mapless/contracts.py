@@ -78,6 +78,11 @@ class ObjectTrack:
     # Mean normalised innovation squared of the last LiDAR position updates (2 degrees of
     # freedom: about 2 when the filter's uncertainty matches its errors), or None.
     lidar_nis: float | None = None
+    # Movement history (sixth review, F6-04): the farthest the track has been from where it
+    # was first seen (m; net displacement alone misses a car that moved and came back), and
+    # how long it has stood since it was last seen moving (s), or None when unknown.
+    max_excursion_m: float | None = None
+    still_s: float | None = None
 
     def __post_init__(self):
         object.__setattr__(self, "state", _array(self.state, (4,), "state"))

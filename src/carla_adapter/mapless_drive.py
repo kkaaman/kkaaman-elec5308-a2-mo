@@ -46,10 +46,13 @@ everything else:
 | Completion (moving actors) | Per scenario: walker yielded to then goal reached; cut-in gap ≥ 1 m then goal; braking lead held behind for ``--hold-s`` or goal |
 | Speed | Never above the cruise speed + 0.5 m/s |
 | Faults | Under 2% of driving ticks in FAULT |
-| Exercised (moving actors) | The run reached the transition its scenario is for (``score_exercised``); NOT_EXERCISED otherwise, and the run's status is NOT_EXERCISED rather than MEASURED_PASS |
+| Exercised (moving actors) | The run reached the transition its scenario is for (``score_exercised``), and its variant's too (a radar-first crossing, a cut-in that brakes: ``EXERCISE_VARIANT``); NOT_EXERCISED otherwise, and the run's status is NOT_EXERCISED rather than MEASURED_PASS |
 
-Reported, not gated: driver step time, the start-up route-pose error, and the kerb
-bias (where the LiDAR found the kerb against where the map has it).
+Reported, not gated: driver step time (the whole step, the control path, and which of
+them governs actuation: ``--semantic``), the start-up route-pose error, the kerb bias
+(where the LiDAR found the kerb against where the map has it), the segmenter's shadow
+(coverage, disagreement, its right road edge against the kerb) and, for the crossing car,
+the radar timeline (when the radar, the LiDAR and the stack's restriction each had it).
 
 Outputs: ``drive_report.json``, ``drive_log.jsonl`` (one line per tick), ``route.json``,
 ``drive_plot.png``, every ``--snapshot-every`` ticks a top-down image of the terrain grid
@@ -81,6 +84,7 @@ from carla_adapter.mapless_scenarios import (
     score_exercised,
     score_lead_tracking,
     score_moving,
+    score_radar_timeline,
 )
 from carla_adapter.sensor_rig import SensorRig, true_forward_speed
 from carla_adapter.sensor_rig_check import rear_axle_pose
@@ -109,6 +113,12 @@ PASS, FAIL, INCOMPLETE, REPORT = "PASS", "FAIL", "INCOMPLETE", "REPORT"
 # NOT_EXERCISED): a cut-in run whose car drove off passed every gate and showed nothing
 # about the hand-over it was meant to test.
 NOT_EXERCISED = "NOT_EXERCISED"
+
+
+def _params_record(actor):
+    """The scripted actor's parameters as recorded, or None (an actor without them)."""
+    params = getattr(actor, "params", None)
+    return params.record() if hasattr(params, "record") else None
 
 
 def run_status(checks):
@@ -607,13 +617,19 @@ STEP_TARGET_MS = 50.0  # the declared real-time budget: one 20 Hz tick
 BRAKE_LAG_S = 0.25  # the longest brake lag measured open loop (BL-E-03: 0.1-0.25 s)
 
 
-def step_time_report(step_times_s, log, target_ms=STEP_TARGET_MS, response_s=None, brake_lag_s=BRAKE_LAG_S, dt_s=0.05):
+def step_time_report(step_times_s, log, target_ms=STEP_TARGET_MS, response_s=None, brake_lag_s=BRAKE_LAG_S, dt_s=0.05, semantic_mode=None):
     """The driver step's wall-clock time against the 50 ms tick (third review: p95 and the
     worst case are first-class, so a passing drive cannot hide a missed deadline): p50,
     p95, p99 and max, the share of ticks over the target, and each stage's p50, p95 and
     max where they were logged (the stack's ``stack_timing_ms``, and the driver's own
     ``driver_timing_ms`` as ``driver.<stage>``). Wall-clock in synchronous mode:
-    a slow tick slows the simulation's real-time rate, not the simulated car."""
+    a slow tick slows the simulation's real-time rate, not the simulated car.
+
+    Which time governs actuation (sixth review, F6-01: ``actuation_governed_by``): the
+    command reaches the vehicle when the step returns, so with ``semantic_mode`` "inline"
+    the whole step's (the semantic work included), with "thread" the control path's (the
+    worker's own stage times are in the log's ``semantic_worker``). The response budget is
+    taken on that time."""
     times = np.array(step_times_s, dtype=float) * 1000
     if not len(times):
         return dict(note="no timed steps")
@@ -646,6 +662,9 @@ def step_time_report(step_times_s, log, target_ms=STEP_TARGET_MS, response_s=Non
             optional.append(sum(timing.get(k, 0.0) for k in OPTIONAL_STAGES))
     if control:
         c, o = np.array(control), np.array(optional)
+        inline = semantic_mode != "thread"
+        out["semantic_mode"] = semantic_mode or "inline"
+        out["actuation_governed_by"] = "the whole step (semantic work inline)" if inline else "the control path (semantic work on its worker thread)"
         out["control_path_ms"] = dict(p50=round(float(np.median(c)), 1), p95=round(float(np.percentile(c, 95)), 1), max=round(float(c.max()), 1), over_target_share=round(float(np.mean(c > target_ms)), 3), stages=list(CONTROL_STAGES))
         out["optional_ms"] = dict(p50=round(float(np.median(o)), 1), p95=round(float(np.percentile(o, 95)), 1), max=round(float(o.max()), 1), stages=list(OPTIONAL_STAGES))
         if response_s:
@@ -654,9 +673,12 @@ def step_time_report(step_times_s, log, target_ms=STEP_TARGET_MS, response_s=Non
             # the control path's own time and the brake's lag. The following rule's worst
             # case allows response_s for all of it. Synchronous CARLA hides the processing
             # time; this says whether the budget would hold if it did not.
-            worst = dt_s + float(np.percentile(c, 99)) / 1000.0 + brake_lag_s
+            governing = np.array(times) if inline else c
+            worst = dt_s + float(np.percentile(governing, 99)) / 1000.0 + brake_lag_s
             out["response_budget"] = dict(
                 tick_s=dt_s,
+                governing="whole step" if inline else "control path",
+                governing_p99_s=round(float(np.percentile(governing, 99)) / 1000.0, 3),
                 control_path_p99_s=round(float(np.percentile(c, 99)) / 1000.0, 3),
                 brake_lag_s=brake_lag_s,
                 worst_s=round(worst, 3),
@@ -666,27 +688,47 @@ def step_time_report(step_times_s, log, target_ms=STEP_TARGET_MS, response_s=Non
     return out
 
 
-def semantic_shadow_report(log):
+def semantic_shadow_report(log, kerb_distance_m=None):
     """The segmenter in shadow (fifth review, ML stage 2), over the road-model ticks: how
     often its evidence covered the lane band along the path, the median share of road in
     it, and the ticks where most of it read pavement (where it disagrees with the kerb
-    corridor). None without a stack."""
+    corridor). Sixth review, ML: the share of the band its evidence covers (``coverage``),
+    the mean pavement share in the band (road/pavement disagreement), and, given the site's
+    lane-centre-to-kerb distance (``kerb_distance_m``, the evaluator's truth), the error of
+    the road's right edge it shows (``right_edge_m`` minus the kerb distance: positive, the
+    edge put beyond the kerb). None without a stack."""
     rows = [s for s in ((r.get("driver") or {}).get("semantic_shadow") for r in log) if s]
     if not rows:
         return None
     shares = [s["road_share"] for s in rows if s.get("road_share") is not None]
     pavement = [s["pavement_share"] for s in rows if s.get("pavement_share") is not None]
-    return dict(
+    coverage = [s["coverage"] for s in rows if s.get("coverage") is not None]
+    edges = [s["right_edge_m"] for s in rows if s.get("right_edge_m") is not None]
+    out = dict(
         ticks=len(rows),
         with_evidence_ticks=len(shares),
+        coverage_median=round(float(np.median(coverage)), 3) if coverage else None,
+        coverage_p10=round(float(np.percentile(coverage, 10)), 3) if coverage else None,
         road_share_median=round(float(np.median(shares)), 2) if shares else None,
         road_share_p10=round(float(np.percentile(shares, 10)), 2) if shares else None,
+        pavement_share_mean=round(float(np.mean(pavement)), 3) if pavement else None,
         mostly_pavement_ticks=sum(1 for v in pavement if v > 0.5),
+        right_edge_ticks=len(edges),
         note="logged only: no rule reads the segmenter's output",
     )
+    if edges and kerb_distance_m is not None:
+        err = np.array(edges) - float(kerb_distance_m)
+        out["right_edge_error_m"] = dict(
+            kerb_distance_m=round(float(kerb_distance_m), 2),
+            median=round(float(np.median(err)), 2),
+            mae=round(float(np.mean(np.abs(err))), 2),
+            p95_abs=round(float(np.percentile(np.abs(err), 95)), 2),
+            note="from the path line, which keeps within the lane-keeping error of the lane centre",
+        )
+    return out
 
 
-CONTROL_STAGES = ("drive", "detect", "track", "plan")
+CONTROL_STAGES = ("drive", "detect", "track", "plan", "semantic_submit")
 OPTIONAL_STAGES = ("paint", "road_model")
 
 
@@ -952,7 +994,7 @@ class MaplessDrive:
                 snap = self.world.get_snapshot()
                 rig.read(frame, true_forward_speed(snap, self.ego.id), sim_time_s=snap.timestamp.elapsed_seconds)
             if args.stack:
-                stack_config = StackConfig(admission=Admission.preset(args.admission), segmenter=args.segmenter, detector=args.detector)
+                stack_config = StackConfig(admission=Admission.preset(args.admission), segmenter=args.segmenter, detector=args.detector, semantic_mode=getattr(args, "semantic", "thread"))
                 driver = MaplessStack(self.suite, self.route, config, stack_config, DT_S)
                 self.report["stack"] = dict(
                     admission=args.admission,
@@ -961,6 +1003,9 @@ class MaplessDrive:
                     detector=args.detector or "none",
                     stack_config_sha256=hashlib.sha256(json.dumps(dataclasses.asdict(stack_config), sort_keys=True, default=str).encode()).hexdigest(),
                     segmenter_load=getattr(driver.segmenter, "load_mode", None),
+                    # Where the semantic work ran and on which ticks (sixth review, F6-01, F6-07).
+                    semantic_mode=stack_config.semantic_mode,
+                    optional_schedule=driver.schedule,
                 )
                 f = stack_config.following
                 self.report["braking_assumptions"] = braking_assumptions(config.planner.decel_mps2, stack_config.conflict_decel_mps2, f.ego_brake_mps2, f.response_s)
@@ -1083,6 +1128,7 @@ class MaplessDrive:
         self.report["collisions"] = collisions.events
         self.report["rig"] = rig.record()
         if args.stack:
+            driver.close()
             (args.output / "decisions.jsonl").write_text("\n".join(json.dumps(rounded(r.as_dict())) for r in driver.records), encoding="utf-8")
         plot(log, args.output / "drive_plot.png", args.speed)
         self.score(log, step_times, modes, hold_ticks, actor_truths)
@@ -1137,12 +1183,15 @@ class MaplessDrive:
                 checks.append(check("actor_tracking", REPORT, **score_actor_tracking(log, actor_truths, self.body, DT_S)))
                 if self.actor_scenario in ("braking_lead", "cut_in"):
                     checks.append(check("lead_tracking", REPORT, **score_lead_tracking(log, actor_truths, self.body, DT_S)))
+                if self.actor_scenario == "crossing_vehicle":
+                    # When the radar, the LiDAR and the stack's restriction each had the car (F6-02).
+                    checks.append(check("radar_timeline", REPORT, **score_radar_timeline(log, actor_truths, self.body, args.speed, DT_S)))
             # Driving quality beside the gates: what restricted the car, whether it was the
             # actor, and the time it cost (third review, F4).
             checks.append(check("behaviour", REPORT, **score_behaviour(self.actor_name, log, actor_truths, self.body, args.speed, DT_S)))
             # Whether the run reached the transition its scenario is for (fourth review): a
             # pass on a cut-in car that drove off is no evidence for the hand-over.
-            exercised = score_exercised(self.actor_name, log, actor_truths, self.body, args.speed, DT_S)
+            exercised = score_exercised(self.actor_name, log, actor_truths, self.body, args.speed, DT_S, params=_params_record(self.actor))
             checks.append(check("exercised", {True: PASS, False: NOT_EXERCISED}.get(exercised.get("exercised"), REPORT), **exercised))
         last = log[-1]
         summary = last["driver"].get("calibration")
@@ -1193,8 +1242,9 @@ class MaplessDrive:
             reasons[key] = reasons.get(key, 0) + 1
         checks.append(check("faults", PASS if share <= 0.02 else FAIL, share=share, reasons=reasons))
         following = next((r for name, r in (self.report.get("braking_assumptions") or {}).items() if name.startswith("following")), None)
-        checks.append(check("driver_step_time", REPORT, **step_time_report(step_times, log, response_s=None if following is None else following["response_s"])))
-        shadow = semantic_shadow_report(log)
+        semantic_mode = (self.report.get("stack") or {}).get("semantic_mode")
+        checks.append(check("driver_step_time", REPORT, **step_time_report(step_times, log, response_s=None if following is None else following["response_s"], semantic_mode=semantic_mode)))
+        shadow = semantic_shadow_report(log, kerb_distance_m=self.site.get("kerb_distance_m") if isinstance(self.site, dict) else None)
         if shadow is not None:
             checks.append(check("semantic_shadow", REPORT, **shadow))
         edge_errors = []
@@ -1262,6 +1312,12 @@ def main(argv=None, stack=False):
     parser.add_argument("--admission", choices=("A", "B", "C"), default="A", help="stack: sensor admission preset (A camera+LiDAR, B +front radar, C +rear radars)")
     parser.add_argument("--segmenter", default=None, help="stack: road segmenter checkpoint (default: constant)")
     parser.add_argument("--detector", default=None, help="stack: 'yolo' or none")
+    parser.add_argument(
+        "--semantic",
+        choices=("thread", "inline"),
+        default="thread",
+        help="stack: segmentation, painting and the road model on their own worker thread, off the control path (default), or inline in each step",
+    )
     parser.add_argument("--hold-s", type=float, default=5.0)
     parser.add_argument("--max-s", type=float, default=150.0)
     parser.add_argument("--snapshot-every", type=int, default=40, help="Ticks between terrain snapshots (0: none)")

@@ -2154,6 +2154,152 @@ NOT_EXERCISED, not MEASURED_PASS.
 - the parked-evidence rule and the stopped-car gate need the M08 runs;
 - the supported-speed envelope needs the stop runs per obstacle size.
 
+### Sixth technical review, of `36b49ef` (29 Oct)
+
+All seven findings and the ML item were taken.
+
+**Recorded runs.** Seven recorded runs replay to the same restriction on every tick (the
+cap, its reason and its track) before and after this work: 5720 ticks on Town10HD, Town03
+and Town05, three of them with a braking lead. On these runs, none of the new rules adds or
+lifts a restriction.
+
+The recordings carry LiDAR only, with no radar or camera frames. They therefore test the
+LiDAR-side rules (F6-03, F6-04, F6-05). The radar rules (F6-02) and the semantic worker
+(F6-01) rest on their tests, on the live logs, and on the next live batch.
+
+**The first live batch on PC Temp, `36b49ef`, before this work.**
+- Town10HD, 11 runs: 9 MEASURED_PASS.
+  - The 4 m/s car stop is INCOMPLETE: it reached the car with 94 settled ticks of the 100
+    that lane keeping needs.
+  - The braking cut-in is NOT_EXERCISED, correctly. The conflict cap at the hand-over was
+    3.46 m/s, above the 2 m/s cruise, so it restricted nothing.
+- Town05, braking lead, 4 runs: all MEASURED_PASS. The brake was seen 0.15–0.2 s after it
+  began, the lead's speed error (RMSE) was 0.11–0.14 m/s, and its speed NEES averaged
+  0.45–0.71 with 99 % of ticks within the 95 % bound. No run had a false lead.
+- Control path, p50: 33–37 ms on Town10HD and 46–52 ms on Town05. The optional stages added
+  7–9 ms at p50 and 18–27 ms at p95, before the command (F6-01).
+
+**F6-01, semantic work off the control path (P0).** Segmentation, painting and the road
+model inform no command. Run inline, `MaplessStack.step` still ran them before it returned,
+so the command waited for them.
+- `StackConfig.semantic_mode` "thread" runs them on `mapless.semantic_worker.SemanticWorker`.
+- Each tick the stack hands the worker an immutable `SemanticJob`:
+  - the sweep's points (a copy), the camera images and the pose;
+  - the frame id and time;
+  - the stack's spatial epoch, bumped on every reset of the odometry frame;
+  - the terrain grid's placement (`TerrainGrid.view`) or, on a road-model tick, a copy of
+    the grid (`TerrainGrid.snapshot`). The worker never reads arrays the control path is
+    writing.
+- The queue holds one job. A waiting job is dropped for a newer one, except that a waiting
+  road-model build is not dropped for a job that only segments.
+- The stack takes the newest finished model only if it comes from the current epoch and is
+  no older than 0.5 s (`semantic_max_age_s`). Stale results are counted and dropped. An
+  exception in the worker is counted (`semantic_worker.errors`, `last_error`) and the car
+  drives on.
+- The step now times only the hand-off (`semantic_submit`); the worker's own stage times
+  and counters are logged every tick as `semantic_worker`.
+- "inline" stays the library default, so replays and tests remain deterministic. The live
+  harness defaults to `--semantic thread`.
+- On the synthetic parked-car drive, every command and every cap is identical in the two
+  modes (test).
+- The run report gives both times and says which governs actuation:
+  - `driver_step_time.actuation_governed_by`: the whole step when the work is inline, the
+    control path when it is on the worker;
+  - `response_budget` is computed on the governing time.
+
+**F6-02, radar threats earlier, ghosts kept out.**
+- A radar-only track becomes a *provisional* threat after 0.5 m of travel
+  (`radar_provisional_travel_m`), at 1 m/s or faster, with its velocity explaining its
+  radial speed. It is predicted along its velocity. Its conflict cap is floored at 1.5 m/s
+  (`radar_provisional_cap_mps`): it may slow the car, not stop it.
+- Once it has full evidence (motion "moving", 2 m of travel), it is a full threat and may
+  stop the car.
+- **Exclusions, both stricter than before:**
+  - **Free ground.** Before, a track was excluded when the LiDAR had *seen* its cell, and a
+    hit on the car itself counted as seen. Now it is excluded only where the LiDAR saw *free
+    ground*: road hit in the cell and the four beside it, and no obstacle hit (`_lidar_free`).
+  - **Twins.** It is excluded within 3.5 m of a LiDAR-supported track (`radar_twin_m`).
+- **Both travels are at least two bearing sigmas across the track's range**
+  (`radar_travel_bearing_sigmas`). The Doppler confirms motion along the line of sight, not
+  across it. In the live crossing run, the radar-only track on the parked car, 46 m out
+  and 4–6 m right, "moved" 2 m across in 0.7 s on bearing noise alone. It was a full threat
+  for three ticks before the LiDAR took it over. The floor at 46 m is now 3.2 m; at 10 m it
+  is 0.7 m.
+- The log's `radar_threats` lists `[id, "provisional" | "full"]`. For the crossing car, the
+  report adds a `radar_timeline` (`score_radar_timeline`), measured from when the car began
+  to move:
+  - when the radar, the radar alone, and the LiDAR first had it;
+  - when it first became a provisional or a full threat;
+  - the first restriction, the first brake, and when it entered the band;
+  - whether the LiDAR already had it standing (`lidar_before_moving_s`), and how long the
+    radar alone had it (`radar_only_s`).
+- On the live crossing run, the LiDAR had the parked car from 1.9 s, at 46 m. The first
+  restriction came 3.2 s after the car moved off. At this site and geometry a radar-first
+  case does not arise.
+
+**F6-03, off-road admission by the quality of the track.** The 4 m/s limit is gone. A
+vehicle-sized track off the road is admitted if:
+- its motion is coherent;
+- its sustained motion bears out its filter speed (`recent_speed_mps` at least 0.6 of it);
+- it was tracked 30 times as one object of one size (footprint spread at most 0.5);
+- its speed is within a physical bound (12 m/s);
+- it can reach the lane band within the conflict horizon plus a second.
+
+Paired tests:
+- Cars leaving a driveway at 2, 3.5, 5 and 7 m/s count.
+- These do not:
+  - a 7 m/s track whose sustained motion is 2 m/s;
+  - an incoherent track;
+  - a 2 m/s car 20 m out, 8.9 s from the band.
+
+On the recorded runs, the rule is checked call by call. It admits no more than the old one,
+except 10 m-long stretches seen at 4–6 m/s. The checks after it drop those, and the
+restrictions are unchanged.
+
+**F6-04, parked evidence from the whole history.**
+- The tracker keeps each track's furthest excursion from where it was first seen
+  (`ObjectTrack.max_excursion_m`) and how long it has stood still (`still_s`, since its
+  sustained speed was last 0.3 m/s or more).
+- The left-turn gate's parked rule uses them, not net displacement:
+  - excursion of at most 1 m;
+  - standing still for at least 5 s.
+- A car that moved off and came back to where it was first seen is not parked (test).
+
+**F6-05, following tied to the lead.** `FollowingController.target_speed` takes the lead's
+id. A different lead resets the controller's state, so a far lead that replaces a near
+slow one does not inherit its target (two-lead test).
+
+**F6-06, variant-specific exercised conditions.** `score_exercised` takes the scenario's
+parameters and adds a variant's own condition (`EXERCISE_VARIANT`):
+- a crossing with `radar_first` 1 needs the radar alone on the moving car for at least
+  0.25 s before the LiDAR (`radar_first_min_s`);
+- a cut-in with `cut_brake_after_s` needs the cut-in car to brake, 0.5 m/s below its
+  speed then, after it became the lead.
+
+**F6-07, the schedule checked at start-up.** The two optional stages share a tick exactly
+when the road-model phase is a multiple of gcd(`segment_every`, `road_model_every`).
+- `optional_schedule` replaces such a phase with the first that does not share a tick.
+- If every phase does (segmenting every tick), it reports the overlap as unavoidable.
+- The result is `MaplessStack.schedule` and the run report's `stack.optional_schedule`.
+
+**ML (evaluator side).** Each road-model tick's `semantic_shadow` adds:
+- `coverage`: the share of the lane band with semantic evidence;
+- the road's right edge as the segmenter shows it (`right_edge_m`): the median, over the
+  stations along the path, of the midpoint between the last road cell and the first
+  pavement cell.
+
+The run report summarises:
+- coverage, median and p10;
+- the mean pavement share (road/pavement disagreement);
+- the edge error against the site's lane-centre-to-kerb distance, evaluator truth: median,
+  MAE and p95 (`right_edge_error_m`).
+
+No rule reads any of it.
+
+**Also seen in the live batch (not changed):** below about 2 m/s, a brake command of
+0.05–0.15 stops the car within a tick or two in CARLA. Every stop and the close cut-in came
+in as two or three such pulses.
+
 ## Running Phase 0 live
 
 Run with CARLA 0.9.16 and no other clients:

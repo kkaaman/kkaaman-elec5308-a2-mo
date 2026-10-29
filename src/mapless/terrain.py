@@ -26,6 +26,7 @@ LiDAR intensity in the simulator depends on range only, not on paint, so lane ma
 are invisible here. That is why the corridor follows the kerb.
 """
 
+import copy
 import math
 from dataclasses import dataclass
 from enum import IntEnum
@@ -245,6 +246,26 @@ class TerrainGrid:
             else:
                 setattr(self, name, new)
         self.origin = self.origin + shift * c.cell_m
+
+    def view(self):
+        """The grid's placement now, without its arrays: a TerrainGrid whose ``origin`` is a
+        copy and whose evidence arrays are this grid's own (read none of them through it).
+        What ``RoadModelBuilder.add`` needs from another thread (sixth review, F6-01)."""
+        out = copy.copy(self)
+        out.origin = self.origin.copy()
+        return out
+
+    def snapshot(self):
+        """A copy of the grid now, arrays and all, for reading from another thread while
+        this one is updated (``RoadModelBuilder.build`` on the semantic worker, F6-01)."""
+        out = copy.copy(self)
+        out.origin = self.origin.copy()
+        for name, value in vars(self).items():
+            if isinstance(value, np.ndarray):
+                setattr(out, name, value.copy())
+            elif isinstance(value, dict) and value and all(isinstance(v, np.ndarray) for v in value.values()):
+                setattr(out, name, {k: v.copy() for k, v in value.items()})
+        return out
 
     def cells(self, xy):
         """Integer cell indices for odometry points, and which fall inside the grid."""

@@ -176,7 +176,7 @@ def test_s5_an_oncoming_car_that_can_reach_the_crossing_in_time_blocks_the_turn(
     verdict = oncoming_verdict([coming], _gate(), j, c)
     assert not verdict["clear"] and "track 1" in verdict["note"]
     far_slow = track(2, 80.0, 3.5, -2.0, 0.0, fp=(4.5, 1.9, 0.0))  # 64 m out at 2 m/s: 8.4 s speeding up at 2 m/s^2 to 8.5
-    parked = track(3, 25.0, 4.6, 0.0, 0.0, fp=(4.5, 1.9, 0.0), travelled=0.0, hits=200)  # at the far kerb, never moved (F5-07)
+    parked = _history(track(3, 25.0, 4.6, 0.0, 0.0, fp=(4.5, 1.9, 0.0), travelled=0.0), 0.0, 10.0)  # at the far kerb, never moved (F5-07)
     leaving = track(4, 20.0, 3.5, 6.0, 0.0, fp=(4.5, 1.9, 0.0))  # the car's way: away from it
     verdict = oncoming_verdict([far_slow, parked, leaving], _gate(), j, c)
     assert verdict["clear"] and len(verdict["excused"]) == 3  # the LiDAR check ignores their cells
@@ -522,6 +522,12 @@ def test_f5_03_an_uncertain_lead_past_the_lines_end_is_followed_for_the_worst_ca
     assert lead["continuation"]["uncertain"] and near_cap is not None and near_cap < 4.0
 
 
+def _history(t, excursion, still):
+    from dataclasses import replace  # noqa: PLC0415
+
+    return replace(t, max_excursion_m=excursion, still_s=still)
+
+
 def test_f5_07_a_stopped_oncoming_car_blocks_the_turn_while_it_could_move_off_in_time():
     """Fifth review, F5-07: a static track in the opposing lane was excused, so a car
     stopped at the junction could move off as the car crossed. A car is judged by the time
@@ -536,10 +542,10 @@ def test_f5_07_a_stopped_oncoming_car_blocks_the_turn_while_it_could_move_off_in
     def verdict(*tracks):
         return oncoming_verdict(list(tracks), gate, j, c)
 
-    parked = track(1, 25.0, 4.6, 0.0, 0.0, fp=(4.5, 1.9, 0.0), travelled=0.1, hits=200)
-    stopped = track(2, 25.0, 3.5, 0.0, 0.0, fp=(4.5, 1.9, 0.0), travelled=0.1, hits=200)  # mid-lane
-    arrived = track(3, 25.0, 4.6, 0.0, 0.0, fp=(4.5, 1.9, 0.0), travelled=18.0, hits=200)  # came to a stop there
-    just_seen = track(4, 25.0, 4.6, 0.0, 0.0, fp=(4.5, 1.9, 0.0), travelled=0.1, hits=30)
+    parked = _history(track(1, 25.0, 4.6, 0.0, 0.0, fp=(4.5, 1.9, 0.0), travelled=0.1), 0.1, 10.0)
+    stopped = _history(track(2, 25.0, 3.5, 0.0, 0.0, fp=(4.5, 1.9, 0.0), travelled=0.1), 0.1, 10.0)  # mid-lane
+    arrived = _history(track(3, 25.0, 4.6, 0.0, 0.0, fp=(4.5, 1.9, 0.0), travelled=18.0), 18.0, 10.0)  # came to a stop there
+    just_seen = _history(track(4, 25.0, 4.6, 0.0, 0.0, fp=(4.5, 1.9, 0.0), travelled=0.1), 0.1, 1.5)
     assert verdict(parked)["clear"]
     for t in (stopped, arrived, just_seen):
         v = verdict(t)
@@ -581,8 +587,9 @@ def test_f5_02_off_the_road_a_car_moving_as_one_still_counts_and_a_buildings_fac
     assert cap([young], grid=Grid([pavement]), cruise=4.0, speed=4.0) is None  # not for long enough
     grew = _coherent(driveway_car, coherence=(1.0, 0.03, 4.0))
     assert cap([grew], grid=Grid([pavement]), cruise=4.0, speed=4.0) is None  # a fragment merged into a big cluster
+    # The Town05 faces "approached" at 4-7 m/s incoherently (F6-03 judges them by that, not by their speed).
     face = track(30, 20.0, -20.0, -3.0, 6.0, fp=(5.5, 0.8, math.pi / 2), travelled=4.0, recent=6.5)
-    assert cap([_coherent(face)], grid=Grid([pavement]), cruise=4.0, speed=4.0) is None  # too fast off the road
+    assert cap([_coherent(face, False)], grid=Grid([pavement]), cruise=4.0, speed=4.0) is None
     # Road around it: counted whatever its coherence is not yet known.
     car_park = (lambda xy: (xy[:, 1] < -6.0) & ~((xy[:, 1] < -9.0) & (np.abs(xy[:, 0] - 14.0) < 6.0)), CellLabel.BARRIER)
     assert cap([driveway_car], grid=Grid([car_park]), cruise=4.0, speed=4.0) is not None
@@ -649,6 +656,7 @@ def test_f5_06_a_radar_only_car_coming_across_where_the_lidar_sees_nothing_caps_
         return replace(t, support=("radar",), **kw)
 
     def run(t, saw):
+        # ``saw``: the LiDAR saw free ground where the track stands (F6-02's ``_lidar_free``).
         stack = make_stack(cruise=4.0)
         preds = tuple(predict_all(predictable_tracks([t], lambda xy: np.full(len(xy), saw), c), c.prediction))
         return stack._speed_cap(SimpleNamespace(speed_mps=4.0), Pose2D(0, 0, 0), [t], preds, 10.0)[0], preds
@@ -658,7 +666,7 @@ def test_f5_06_a_radar_only_car_coming_across_where_the_lidar_sees_nothing_caps_
     assert run(radar_car(), saw=True)[1] == ()
     standing = replace(radar_car(), state=np.array([10.0, -12.0, 0.0, 0.0]), recent_speed_mps=0.0, travelled_m=0.0)
     assert run(standing, saw=False)[1] == ()
-    assert run(radar_car(travelled_m=1.0), saw=False)[1] == ()
+    assert run(radar_car(travelled_m=0.3), saw=False)[1] == ()
     assert run(radar_car(doppler_rejects=2), saw=False)[1] == ()
     # Without the policy's inputs (lidar view, config) only LiDAR-supported tracks are predicted.
     assert predictable_tracks([radar_car()]) == []
@@ -694,3 +702,132 @@ def test_4_1_a_crosser_the_car_meets_only_because_it_is_accelerating_or_slowing_
     stop_xy, stop_t = {n: (pxy, t) for n, pxy, t in arrival_profiles(xy, d, 4.0, 4.0, 0.0, c)}["slowing"]
     assert stop_xy[-1][0] == pytest.approx(4.0, abs=0.01) and stop_t[-1] >= c.conflict_horizon_s
     assert {n for n, *_ in arrival_profiles(xy, d, 4.0, 4.0, None, c)} == {"nominal"}
+
+
+def test_f6_05_a_far_lead_that_replaces_a_near_slow_one_does_not_inherit_its_target():
+    """Sixth review, F6-05: following kept one target whatever the lead. The car follows a
+    slow lead 9 m ahead; it leaves the lane and a lead 35 m ahead at 4 m/s takes over on the
+    next tick. The cap is then the one a car meeting only the far lead would get, not the
+    slow lead's low target ramping up at 1 m/s^2."""
+    def slow(x):
+        return track(1, x, 0.0, 1.0, 0.0, fp=(4.5, 1.9, 0.0), travelled=3.0, recent=1.0)
+
+    far = track(2, 35.0, 0.0, 4.0, 0.0, fp=(4.5, 1.9, 0.0), travelled=3.0, recent=4.0)
+    lane = np.column_stack((np.arange(-2.0, 60.0, 0.5), np.zeros(124)))
+    stack = make_stack(cruise=6.0, path_odo=lane)
+    motion = SimpleNamespace(speed_mps=3.0)
+    for _ in range(20):
+        held, _ = stack._speed_cap(motion, Pose2D(0, 0, 0), [slow(9.0)], (), 10.0)
+        stack.driver.speed_cap_mps = held
+    assert held is not None and held < 3.0  # following the slow lead
+    switched, _ = stack._speed_cap(motion, Pose2D(0, 0, 0), [far], (), 10.05)
+    alone = make_stack(cruise=6.0, path_odo=lane)
+    fresh, _ = alone._speed_cap(motion, Pose2D(0, 0, 0), [far], (), 10.05)
+    assert switched == fresh
+
+
+def test_f6_04_a_car_that_moved_and_came_back_is_not_parked():
+    """Sixth review, F6-04: parked evidence was net displacement and an update count. A car
+    that drove 2 m and reversed to within 0.5 m of where it was first seen, then stopped,
+    has moved: it is judged as stopped traffic. The tracker keeps its farthest excursion
+    and how long it has stood still."""
+    from mapless.tracking import LidarMeasurement, Tracker, TrackerConfig  # noqa: PLC0415
+
+    c, j = StackConfig(), JunctionConfig()
+    tracker = Tracker(TrackerConfig())
+    pose = Pose2D(0.0, 0.0, 0.0)
+    # Out 2 m over 2 s, back 1.5 m over 1.5 s, then 8 s still, at the far kerb of the opposing lane.
+    for k in range(int(11.5 / 0.05)):
+        t = k * 0.05
+        x = 25.0 + (min(t, 2.0) * 1.0) - (min(max(t - 2.0, 0.0), 1.5) * 1.0)
+        tracks = tracker.update(t, pose, lidar=[LidarMeasurement(np.array([x, 4.6]), (4.5, 1.9, 0.0), {"car": 0.9, "unknown": 0.1})])
+    car = next(tr for tr in tracks if abs(tr.position[1] - 4.6) < 0.5)
+    assert car.travelled_m < 1.0 and car.max_excursion_m > 1.5 and car.still_s > 5.0
+    v = oncoming_verdict([car], _gate(), j, c)
+    assert not v["clear"]  # not excused as parked: it moved
+    # The same car that never moved is parked.
+    tracker = Tracker(TrackerConfig())
+    for k in range(int(11.5 / 0.05)):
+        tracks = tracker.update(k * 0.05, pose, lidar=[LidarMeasurement(np.array([25.0, 4.6]), (4.5, 1.9, 0.0), {"car": 0.9, "unknown": 0.1})])
+    car = tracks[0]
+    assert car.max_excursion_m < 0.3 and car.still_s > 10.0
+    assert oncoming_verdict([car], _gate(), j, c)["clear"]
+
+
+def test_f6_02_a_radar_only_car_is_a_provisional_threat_after_half_a_metre_and_a_full_one_after_two():
+    """Sixth review, F6-02: at 2 m/s the 2 m of travel a full radar threat needs take a
+    second, a second the car crossing out of a driveway has already used. From 0.5 m of
+    travel at 1 m/s or faster (velocity explaining its radial speed) it is a provisional
+    threat: predicted along its velocity, it slows the car to no less than
+    ``radar_provisional_cap_mps``; from 2 m, a full one, which may stop it. Paired: not
+    where the LiDAR saw free ground there (the old test, "the LiDAR saw the place", let a
+    hit on the car itself count), nor within ``radar_twin_m`` of a LiDAR-supported track
+    (its twin)."""
+    from dataclasses import replace  # noqa: PLC0415
+
+    from mapless.stack import provisional_radar, radar_threat  # noqa: PLC0415
+
+    c = StackConfig()
+
+    def radar_car(travelled, recent=2.0):
+        t = track(77, 6.0, -4.0, 0.0, 2.0, fp=None, travelled=travelled, recent=recent)
+        return replace(t, support=("radar",))
+
+    def run(t, free=False, others=()):
+        stack = make_stack(cruise=4.0)
+        tracks = [t, *others]
+        preds = tuple(predict_all([p for p in predictable_tracks(tracks, lambda xy: np.full(len(xy), free), c) if p.track_id == t.track_id], c.prediction))
+        return stack._speed_cap(SimpleNamespace(speed_mps=4.0), Pose2D(0, 0, 0), tracks, preds, 10.0), preds
+
+    never = lambda xy: np.zeros(len(xy), dtype=bool)  # noqa: E731
+    young, sure = radar_car(0.6, recent=0.0), radar_car(3.0)
+    assert radar_threat(radar_car(0.3), never, c) is None
+    assert radar_threat(young, never, c) == "provisional" and provisional_radar(young, c)
+    assert radar_threat(sure, never, c) == "full" and not provisional_radar(sure, c)
+    (cap, reason), preds = run(young)
+    assert len(preds) == 1 and cap == pytest.approx(c.radar_provisional_cap_mps) and "provisional" in reason
+    (cap, reason), _ = run(sure)
+    assert cap is not None and cap < c.radar_provisional_cap_mps
+    # Free ground seen where it stands: a ghost. A LiDAR track beside it: its twin.
+    assert run(young, free=True)[1] == ()
+    twin = replace(track(5, 6.5, -3.0, 0.0, 2.0, fp=(4.5, 1.9, math.pi / 2), travelled=0.6), support=("lidar",))
+    assert radar_threat(young, never, c, lidar_tracks=[twin]) is None
+    far = replace(twin, state=np.array([30.0, 10.0, 0.0, 0.0]))
+    assert radar_threat(young, never, c, lidar_tracks=[far]) == "provisional"
+    # Across the line of sight its motion is its bearing's noise: 46 m out, 2 m of travel is
+    # 1.2 sigma (the live crossing run's parked car); 7 m out, 0.6 m is 2.4.
+    drift = replace(radar_car(2.1), state=np.array([46.0, -5.0, 0.0, -2.5]))
+    assert radar_threat(drift, never, c, ego_xy=(0.0, 0.0)) is None and radar_threat(drift, never, c) == "full"
+    assert radar_threat(young, never, c, ego_xy=(0.0, 0.0)) == "provisional"  # 7.2 m out: floor 0.5 m
+
+
+def test_f6_03_off_the_road_a_car_is_judged_by_its_track_not_its_speed():
+    """Sixth review, F6-03: off the road a vehicle-sized track was admitted only at 4 m/s or
+    less, so a car leaving a driveway at 5-7 m/s was scenery. Now its track decides:
+    coherent, its speed borne out by its sustained motion, one object of one size, and able
+    to reach the lane band within the conflict horizon. Paired: cars coming out at 2, 3.5,
+    5 and 7 m/s count; the same track at 7 m/s whose sustained motion is 2 m/s (a jump, not
+    a car), incoherent, or too far out to reach the lane in time, does not (yet)."""
+    from dataclasses import replace  # noqa: PLC0415
+
+    c = StackConfig()
+    pavement = (lambda xy: xy[:, 1] < -6.0, CellLabel.BARRIER)
+
+    def car(speed, y=-10.0, recent=None):  # 4 m beyond the pavement's edge: no road within 3 m
+        t = track(33, 14.0, y, 0.0, speed, fp=(4.5, 1.9, math.pi / 2), travelled=4.0, recent=speed if recent is None else recent)
+        return _coherent(t)
+
+    for speed in (2.0, 3.5, 5.0, 7.0):
+        assert cap([car(speed)], grid=Grid([pavement]), cruise=4.0, speed=4.0) is not None, speed
+    assert cap([car(7.0, recent=2.0)], grid=Grid([pavement]), cruise=4.0, speed=4.0) is None  # speed not borne out
+    assert cap([_coherent(car(5.0), False)], grid=Grid([pavement]), cruise=4.0, speed=4.0) is None
+    # 20 m out at 2 m/s: 8.9 s from the lane band, past the 4 s the check looks ahead.
+    assert cap([car(2.0, y=-20.0)], grid=Grid([pavement]), cruise=4.0, speed=4.0) is None
+    assert (20.0 - (c.following.lane_half_width_m + 0.5)) / 2.0 > c.conflict_horizon_s + 1.0
+    # The rule itself, on its inputs: speed only as a physical bound.
+    from mapless.stack import moves_as_a_car_off_the_road  # noqa: PLC0415
+
+    assert moves_as_a_car_off_the_road(car(7.0), c)
+    assert not moves_as_a_car_off_the_road(car(c.offroad_vehicle_max_mps + 1.0), c)
+    assert not moves_as_a_car_off_the_road(replace(car(5.0), hits=c.offroad_vehicle_min_hits - 1), c)
+    assert not moves_as_a_car_off_the_road(_coherent(car(5.0), coherence=(1.0, 0.03, 0.9)), c)
