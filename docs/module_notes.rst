@@ -625,6 +625,17 @@ Why: Keep recorded observations and metric analysis separate from controller inp
 
 Declared public classes/functions: ``ego_front_offset_m``, ``footprint_samples``, ``signed_lateral_m``, ``route_surface_gap``, ``hold_metrics``.
 
+evaluation/weather.py
+~~~~~~~~~~~~~~~~~~~~~
+
+Role (source summary)::
+
+    Calculate E1-03 detector results for the three approved weathers.
+
+Why: Keep recorded observations and metric analysis separate from controller inputs.
+
+Declared public classes/functions: ``evaluate_weather``, ``markdown_table``.
+
 geometry/__init__.py
 ~~~~~~~~~~~~~~~~~~~~
 
