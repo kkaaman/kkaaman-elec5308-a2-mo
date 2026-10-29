@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
   "decision": "PASS",
-  "publication_state": "PR102_REVIEWED_CANONICAL_REFRESH",
+  "publication_state": "PR111_REVIEWED_SOURCE_REBIND_20261029",
   "review_process": "Issue38 designated reviewer/owner; final bytes published for team review; later objections tracked separately, not unanimous individual sign-off",
   "review_process_url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/38#issuecomment-6395116981",
   "scope_evidence_acknowledgement_url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/38#issuecomment-6394910845",
-  "final_change_review": "Codex complete production-diff review delegated by explicit continuation instruction, 2026-10-28; no new human sign-off claimed",
+  "final_change_review": "Complete production review under explicit user delegation; Codex, 2026-10-29; no new human signoff",
   "admitted_profile": "stationary_vehicle_g2_only",
   "operational_scope": "Stationary-vehicle obstacle profile for the G2 stationary-car baseline only; pedestrian operational first-admission range unestablished/deferred.",
   "frozen_values": {
@@ -100,6 +100,7 @@
         "src/evaluation/scenarios.py": "3c7e52061e05a0a60b28a0aae3d6adf7c1a089584bfa6b70f91b2324ac18bba4",
         "src/evaluation/steering_calibration.py": "9fd864affb08ee6f3717e62e298c7f26d0df5fd1e1720d87b86d2e5475c1cfd3",
         "src/evaluation/stop_truth.py": "dddc4485a9f05a97ce450744c94f28eec146d56049f7877b7abe218c420b2fcc",
+        "src/evaluation/weather.py": "2ee6bfea07c1b87ed6fd40e6f681292dbde374f07891ea4d918a981ae8f508b7",
         "src/geometry/__init__.py": "9261e7d68807624bc04fe94895a03deb140a77bd9c92c4ed8af80edfaec07aa5",
         "src/geometry/camera.py": "6947c5b4016932157a0c3759318e01a36d1a405d65768f0ce2774a150f9df267",
         "src/geometry/ground_projection.py": "e17eaa658385532604fd3b0f9fc1761ba1ce77b3aad757ac9b5e445e1f393eae",
@@ -189,7 +190,7 @@
         "configs/weather/robustness_v1.json": "0bfc4770bfcdb6f5eff0276dd80d8ffbb9b4f296c383d5899e7e4eac87184874",
         "docs/evidence/BL-D-06/sources/depth-calibration.json": "89d64df2475790eea16a0fc2b862a9fcbafdf125c9f3fd5ef3f74453afc9cf5f"
       },
-      "scope_sha256": "f2143c7ca680f2657bb69193698b2402c18f0ac273b592a9dc283b0d0d619ceb"
+      "scope_sha256": "9c9d4d0718ac841fb466f9d31c8de0cbcd871236e8b50b86018abdf30dc1c38b"
     },
     "issue41_runner": {
       "kind": "issue41_runner",

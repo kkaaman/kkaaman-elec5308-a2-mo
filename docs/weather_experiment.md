@@ -54,6 +54,25 @@ cannot establish a depth or LiDAR degradation. LiDAR is optional and stays
 NOT_RUN when absent. Collection and labels are not implemented/verified here;
 issue #49 remains open for that work after its runner prerequisites.
 
+## E1-03 held-out scoring
+
+After the 27 weather recordings are collected and labelled,
+`scripts/evaluate_weather.py` compares the labelled cars/people with the detector
+output. It reports correct detections, misses, false detections, recall, precision
+and first-confirmed distance for ClearNoon, HardRainNoon and ClearNight. Missing
+runs or missing labelled classes make the result `INCOMPLETE`.
+
+```powershell
+$py = '.\.venv\Scripts\python.exe'
+& $py scripts/evaluate_weather.py `
+  --matrix runs/weather-v1/matrix.json `
+  --input runs/weather-v1/observations.json `
+  --output runs/weather-v1/e1-03-report.json `
+  --table runs/weather-v1/e1-03-table.md
+```
+
+This tool only calculates results; it does not collect the CARLA recordings.
+
 ## Admission and attribution
 
 The new config/adapter is covered by an explicitly reviewed loader-only source
@@ -66,3 +85,21 @@ AI-assisted with OpenAI Codex, 28 October 2026; no human or live approval claime
 
 evidence/E1-01-02/phase-j-20261028/README
 ```
+
+## Evaluator input and fail-closed rules
+
+Observations require origin recorded/synthetic, matching specification SHA and
+frames with cell_id, integer frame_id, sim_time_s, boolean valid, labels and
+detections. Labels: class_name car/person, finite positive-area xyxy, boolean
+visible/depth_valid and finite nonnegative distance_m. Detections: class_name,
+xyxy, boolean confirmed. Distances are evaluation labels, never control inputs.
+
+The full27 matrix must be unique and weather seeds paired. Unknown/duplicate
+frames, malformed values and nonmonotonic frame/time identity are rejected.
+Invalid frames earn no TP or confirmed range; visible labels count FN and the
+report remains INCOMPLETE. Counts cover visible labels; no labels is undefined,
+never recall1. First-confirmed range is first eligible matched frame per cell/
+class, ordered by frame ID, summarized across cells; it is not per-actor range.
+COMPLETE means input coverage, never operational/weather admission. Declared
+recorded origin requires separate provenance/label audit. Real dataset remains
+missing; issue50 stays open. AI-assisted continuation: OpenAI Codex.
