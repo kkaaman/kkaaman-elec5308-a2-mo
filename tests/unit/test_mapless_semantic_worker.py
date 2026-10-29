@@ -34,8 +34,8 @@ def job(tick, epoch=0, build=True, grid=None, t=None):
     )
 
 
-def worker(shadow=None, max_age_s=0.5):
-    return SemanticWorker(None, None, RoadModelConfig(), TerrainGrid(), shadow=shadow, max_age_s=max_age_s)
+def worker(shadow=None, max_age_s=0.5, max_wall_age_s=None):
+    return SemanticWorker(None, None, RoadModelConfig(), TerrainGrid(), shadow=shadow, max_age_s=max_age_s, max_wall_age_s=max_wall_age_s)
 
 
 def test_a_build_comes_back_with_its_frame_its_epoch_and_the_shadow():
@@ -159,3 +159,25 @@ def test_f7_04_results_carry_their_wall_clock_age_and_late_ones_are_counted():
         gate.go.set()
         w.close()
 
+
+
+def test_eighth_review_a_result_late_on_the_wall_clock_is_refused_when_admission_asks():
+    """Before a semantic layer may steer or set a speed, wall-clock age is an admission rule:
+    with max_wall_age_s set, a result recent in simulation time but old in real time is
+    refused (stale_wall), as a stale one is; unset, it is kept and counted late (F7-04)."""
+    gate = Gate()
+    w = worker(shadow=gate, max_age_s=0.5, max_wall_age_s=0.05)
+    try:
+        w.submit(job(1))
+        threading.Event().wait(0.12)
+        gate.go.set()
+        assert w.wait_idle()
+        assert w.take(0.05, epoch=0) is None
+        stats = w.stats()
+        assert stats["stale_wall"] == 1 and stats["taken"] == 0 and stats["stale_share"] == 1.0
+    finally:
+        gate.go.set()
+        w.close()
+    assert StackConfig().semantic_max_wall_age_s is None  # shadow only: reported, not refused
+    with pytest.raises(ValueError):
+        StackConfig(semantic_max_wall_age_s=0.0)

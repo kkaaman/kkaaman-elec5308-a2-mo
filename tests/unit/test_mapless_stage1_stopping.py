@@ -526,3 +526,115 @@ def test_r7_a_refused_plan_still_limits_the_speed_of_the_kept_trajectory():
     assert after[0].diagnostics["refused_plan_limit_mps"] == 0.0
     assert all(s.command.throttle == 0.0 for s in after)
     assert after[0].diagnostics["target_speed_mps"] == 0.0
+
+
+# -- live r9 (b4280cd): holds that could never be released ----------------------------------
+def _bumper_hold(departed_at=None, ticks=60):
+    """A car-sized detection 1 m past the bumper, then nothing: the tube clear to 15 m, but
+    no ground on its region (none within 2.5 m of the bumper, as the LiDAR sees it from
+    here: its lowest unblocked ring meets the road beyond that). ``departed_at``: when the
+    stack reports what stood there driven off."""
+    near_m = BODY.front_m + 1.0
+    corridor, p = straight(), planner()
+    p.plan(corridor, PathObservation(PathObstacle(near_m, 0.0, 200, -0.9, 0.9, 1.4), near_m), None, 0.0)
+    seen = ground(along=(BODY.front_m + 2.5, 20.0))
+    (hold_id, span, seen_s), = p.held_regions()
+    assert seen_s == 0.0 and span.shape == (2, 2)
+    for k in range(1, ticks):
+        if departed_at is not None and abs(k * DT - departed_at) < 1e-9:
+            p.mark_departed(hold_id, k * DT)
+        plan = p.plan(corridor, PathObservation(None, 15.0, seen), None, k * DT)
+    return plan
+
+
+def test_a_hold_whose_object_was_seen_to_leave_the_near_blind_zone_is_released():
+    """PC1, Town03, r9_left_oncoming: a car crossed 1 m in front of the bumper; its region
+    could never show ground from where the car stood, and the hold kept it there 130 s.
+    The stack saw the car drive off: that is the evidence the ground cannot give."""
+    plan = _bumper_hold(departed_at=0.2)
+    assert plan.stop_reason != "obstacle_hold" and plan.holds == ()
+
+
+def test_without_a_departure_a_hold_on_unseen_ground_stays():
+    """Not seen is not gone: something under the rings (a person crouching there) is not
+    seen either. No height rule releases it."""
+    plan = _bumper_hold()
+    assert plan.stop_reason == "obstacle_hold" and plan.holds[0]["state"] == "unknown"
+
+
+def test_a_departure_before_the_last_detection_does_not_count():
+    corridor, p = straight(), planner()
+    near_m = BODY.front_m + 1.0
+    p.plan(corridor, PathObservation(PathObstacle(near_m, 0.0, 200, -0.9, 0.9, 1.4), near_m), None, 0.0)
+    (hold_id, _, _), = p.held_regions()
+    p.mark_departed(hold_id, 0.05)
+    p.plan(corridor, PathObservation(PathObstacle(near_m, 0.0, 200, -0.9, 0.9, 1.4), near_m), None, 0.1)  # seen again
+    for k in range(3, 60):
+        plan = p.plan(corridor, PathObservation(None, 15.0, ground(along=(BODY.front_m + 2.5, 20.0))), None, k * DT)
+    assert plan.stop_reason == "obstacle_hold"
+
+
+def test_a_hold_near_the_lines_end_needs_clearance_only_to_the_end():
+    """PC1, Town03, r9_left_parked: a hold at 6.5 m on a 7.1 m corridor needed 8.5 m seen
+    clear; the corridor showed 7.5 m and the car stood 115 s with the region's ground seen."""
+    xs = np.arange(-2.0, 7.11, 0.5)
+    corridor, p = line_corridor(np.column_stack((xs, np.zeros_like(xs)))), planner()
+    p.plan(corridor, PathObservation(PathObstacle(6.5, 0.0, 40, -0.4, 0.4, 1.4), 6.5), None, 0.0)
+    for k in range(1, 50):
+        plan = p.plan(corridor, PathObservation(None, 7.0, ground(along=(0.0, 12.0))), None, k * DT)
+    assert plan.stop_reason != "obstacle_hold" and plan.holds == ()
+
+
+def test_path_obstacle_reports_the_tallest_point_of_its_cluster():
+    pts = np.array([[8.0 + 0.05 * i, 0.1 * (i % 5 - 2), 0.2 + 0.1 * (i % 12)] for i in range(40)])
+    obstacle = path_obstacle(pts, straight(), BODY, ObstacleConfig(), heights=pts[:, 2])
+    assert obstacle is not None and abs(obstacle.height_m - pts[:, 2].max()) < 1e-9
+    assert path_obstacle(pts, straight(), BODY, ObstacleConfig()).height_m is None
+
+
+# -- eighth review, P1: observability-limited speed -----------------------------------------
+def test_the_car_drives_no_faster_than_it_can_stop_within_the_road_it_sees_clear():
+    """Nothing in view, but the tube seen clear only so far: the plan's speed at the car is
+    the one from which it stops stop_gap_m short of the end of that view, with the brake lag."""
+    from mapless.planner import sight_speed
+
+    c = PlannerConfig(cruise_mps=6.0)
+    p = LanePlanner(c, BODY, tube_half_m=TUBE_HALF)
+    for clear_to in (6.0, 9.0, 12.0, 30.0):
+        plan = p.plan(straight(), PathObservation(None, clear_to, ground(along=(0.0, clear_to))), None, 0.0)
+        bound = sight_speed(clear_to - BODY.front_m, c.decel_mps2, c.sight_response_s, c.stop_gap_m)
+        first = plan.trajectory.samples[0].speed_mps
+        assert abs(plan.sight_speed_mps - bound) < 1e-9 and first <= bound + 1e-9
+        v = bound
+        assert v * c.sight_response_s + v * v / (2 * c.decel_mps2) <= max(0.0, clear_to - BODY.front_m - c.stop_gap_m) + 1e-6
+    assert plan.trajectory.samples[0].speed_mps == 6.0  # 30 m seen clear supports more than the cruise
+    assert LanePlanner(replace(c, sight_governed=False), BODY, tube_half_m=TUBE_HALF).plan(straight(), PathObservation(None, 6.0, ground(along=(0.0, 6.0))), None, 0.0).sight_speed_mps == math.inf
+
+
+def test_the_observability_report_and_the_planner_agree_on_the_supported_speed():
+    from evaluation.observability import supported_speed
+    from mapless.planner import sight_speed
+
+    for d in (0.5, 3.0, 8.0, 25.0):
+        assert sight_speed(d, 1.0, 0.25, 2.5) == supported_speed(d, 1.0, 0.25, 2.5)
+
+
+def test_a_low_detection_just_ahead_of_tall_points_is_as_tall_as_they_are():
+    """The passing car's sills and wheels, kerb-high and nearer than its body's tall points,
+    were the detection on some ticks, without a height: the hold had none and the blind
+    zone could not release it. They are the same object; a low thing alone stays low."""
+    from mapless.obstacles import observe_path
+    from mapless.terrain import ClassifiedSweep
+
+    def sweep(parts):
+        xyz = np.vstack([p for p, _ in parts])
+        cls = np.concatenate([np.full(len(p), c, dtype=np.int8) for p, c in parts])
+        return ClassifiedSweep(xyz, xyz[:, 2].copy(), cls, np.zeros(0), np.zeros(0))
+
+    ys = np.linspace(-0.8, 0.8, 30)
+    sills = np.column_stack((np.full(30, 5.0), ys, np.full(30, 0.2)))
+    body = np.vstack([np.column_stack((np.full(30, 5.4), ys, np.full(30, z))) for z in (0.5, 0.9, 1.4)])
+    car = observe_path(sweep([(sills, PointClass.RAISED), (body, PointClass.OBSTACLE)]), straight(), BODY)
+    assert car.obstacle is not None and abs(car.obstacle.distance_m - 5.0) < 0.2 and car.obstacle.height_m == 1.4
+    brick = observe_path(sweep([(sills, PointClass.RAISED)]), straight(), BODY)
+    assert brick.obstacle is not None and abs(brick.obstacle.height_m - 0.2) < 1e-6

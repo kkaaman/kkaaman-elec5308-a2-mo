@@ -199,6 +199,29 @@ def test_s5_in_the_opposing_lane_the_car_clears_it_rather_than_stopping_in_it():
     assert cap([walker], clearing=True) <= 0.8 + 1e-9
 
 
+def test_s5_a_car_out_of_the_oncoming_vehicles_way_waits_rather_than_clears():
+    """PC1, Town03, r9_left_oncoming: the gate frame, 1.4 degrees off, had the car "in the
+    opposing lane" with its corner 1.1 m short of the oncoming car's side. Exempted as
+    clearing, it drove its corner to the lane's edge: 0.5 m from the passing car. Out of
+    the vehicle's way (its strip, width at least 1.8 m plus 0.3 m), the car stays stopped."""
+    from mapless.stack import in_the_way_of
+
+    oncoming = track(243, 21.7, 2.3, -5.72, 0.06, fp=(4.5, 1.6, math.pi))  # its side 1.2 m left of the car's
+    assert cap([oncoming]) == 0.0
+    stack = make_stack(clearing=True)
+    assert cap_for(stack, [oncoming])[0] == 0.0 and stack._clearing is None  # was exempted: no cap
+    assert not in_the_way_of(oncoming, Pose2D(0.0, 0.0, 0.0), BODY, StackConfig())
+    assert in_the_way_of(track(1, 6.0, 1.0, -6.0, 0.0, fp=(4.5, 1.9, 0.0)), Pose2D(0.0, 0.0, 0.0), BODY, StackConfig())
+    behind = track(2, -8.0, 0.0, -6.0, 0.0, fp=(4.5, 1.9, 0.0))  # driving away from the car
+    assert not in_the_way_of(behind, Pose2D(0.0, 0.0, 0.0), BODY, StackConfig())
+    # A heading 3.5 degrees towards the car puts the velocity's strip on it, 18 m on; along
+    # the lane (lane_yaw: the gate frame's) the vehicle stays 1.55 m off: not in the way.
+    veering = track(3, 21.7, 2.6, -5.7, -0.35, fp=(4.5, 1.9, math.pi))
+    assert in_the_way_of(veering, Pose2D(0.0, 0.0, 0.0), BODY, StackConfig())
+    assert not in_the_way_of(veering, Pose2D(0.0, 0.0, 0.0), BODY, StackConfig(), lane_yaw=0.0)
+    assert in_the_way_of(track(1, 6.0, 1.0, -6.0, 0.0, fp=(4.5, 1.9, 0.0)), Pose2D(0.0, 0.0, 0.0), BODY, StackConfig(), lane_yaw=0.0)
+
+
 # -- the first live stack turn (ff1910b, Town10HD site 0) ---------------------------------
 
 
@@ -584,7 +607,9 @@ def test_f5_02_off_the_road_a_car_moving_as_one_still_counts_and_a_buildings_fac
     from dataclasses import replace  # noqa: PLC0415
 
     young = replace(_coherent(driveway_car), hits=12)
-    assert cap([young], grid=Grid([pavement]), cruise=4.0, speed=4.0) is None  # not for long enough
+    # Not for long enough to be admitted outright; since the eighth review (F8-03) a
+    # provisional threat meanwhile.
+    assert "young vehicle off the road" in cap_for(make_stack(grid=Grid([pavement]), cruise=4.0), [young], speed=4.0)[1]
     grew = _coherent(driveway_car, coherence=(1.0, 0.03, 4.0))
     assert cap([grew], grid=Grid([pavement]), cruise=4.0, speed=4.0) is None  # a fragment merged into a big cluster
     # The Town05 faces "approached" at 4-7 m/s incoherently (F6-03 judges them by that, not by their speed).
@@ -868,3 +893,132 @@ def test_f7_03_the_provisional_floor_falls_with_the_evidence_and_where_only_hard
     assert cap < 1.5  # evidence near full: the conflict's own cap
     cap, reason = run(radar_car(0.6, 8.0))
     assert cap == 0.0 and "provisional" in reason  # too close to stop from 1.5 m/s: no floor
+
+
+def test_f8_03_a_young_car_off_the_road_is_a_provisional_threat_until_its_track_matures():
+    """Eighth review, F8-03: off the road a vehicle was admitted only once tracked 30 times
+    (1.5 s, 7.5 m at 5 m/s), so a car out of a driveway first seen close to the road was
+    scenery for its first second and a half. A young track moving so far as a car does is
+    now a provisional threat from its 8th hit: the car is slowed to a floor that falls as
+    the track matures, and stopped only where hard braking must; at maturity the full
+    conflict cap takes over and is never above the provisional one. Scenery stays out: a
+    wall's thin stretch, a track on structure, one whose motion is not borne out."""
+    from dataclasses import replace  # noqa: PLC0415
+
+    from mapless.stack import young_floor, young_vehicle_off_the_road  # noqa: PLC0415
+
+    c = StackConfig()
+    pavement = (lambda xy: xy[:, 1] < -6.0, CellLabel.BARRIER)
+
+    def car(hits, x=14.0, y=-10.0, speed=5.0, fp=(4.5, 1.9, math.pi / 2), recent=None, coherent=None):
+        t = track(33, x, y, 0.0, speed, fp=fp, hits=hits, travelled=2.0, recent=speed if recent is None else recent)
+        return t if coherent is None else _coherent(t, coherent)
+
+    def run(t, grid=None):
+        return cap_for(make_stack(grid=grid or Grid([pavement]), cruise=4.0), [t], speed=4.0)
+
+    assert run(car(7))[0] is None  # too young yet
+    assert young_vehicle_off_the_road(car(8), c) and not young_vehicle_off_the_road(car(8, recent=1.0), c)
+    # 14 m ahead the graded conflict cap is above the floor; the floor matters where it is
+    # lower (below). The floor itself falls with the hits.
+    caps = []
+    for hits in (8, 15, 22, 29):
+        value, reason = run(car(hits))
+        assert value is not None and "young vehicle off the road" in reason, hits
+        caps.append(value)
+    assert caps == sorted(caps, reverse=True)
+    floors = [young_floor(car(h), c) for h in (8, 15, 22, 29, 30)]
+    assert floors[0] == pytest.approx(c.offroad_young_cap_mps) and floors == sorted(floors, reverse=True) and floors[-1] == 0.0
+    # Matured (30 hits, coherent): the full admission's cap, no higher than the last provisional one.
+    full, reason = run(car(30, coherent=True))
+    assert full is not None and "young" not in reason and full <= caps[-1] + 1e-9
+    # Nearer, where the graded cap would stop the car: the floor holds it at walking pace
+    # (an unconfirmed track), unless only hard braking would still stop short.
+    mid, _ = run(car(8, x=8.5, y=-7.5))
+    assert mid == pytest.approx(c.offroad_young_cap_mps, abs=1e-6) or mid < c.offroad_young_cap_mps
+    near, _ = run(car(8, x=5.5, y=-7.5))
+    assert near is not None and near < c.offroad_young_cap_mps
+    # Scenery: a wall's thin stretch, a track on structure, an incoherent one.
+    assert run(car(10, fp=(6.0, 0.3, math.pi / 2)))[0] is None
+    class Structure(Grid):
+        def tall_evidence(self, xy, max_age_s=None):  # a wall's persistent tall evidence where it stands
+            xy = np.asarray(xy, dtype=float).reshape(-1, 2)
+            return np.where((np.abs(xy[:, 0] - 14.0) < 2.0) & (np.abs(xy[:, 1] + 10.0) < 2.0), 30.0, 0.0).astype(np.float32)
+
+    assert run(car(10), grid=Structure([pavement]))[0] is None
+    assert run(car(10, coherent=False))[0] is None
+    assert not young_vehicle_off_the_road(replace(car(10), coherence=(1.0, 0.03, 0.9)), c)  # two sizes: a merge
+
+
+def test_eighth_review_ground_seen_free_then_taken_by_an_actor_is_not_free():
+    """Eighth review (validation of F6-02's ``_lidar_free``): ground seen free within the
+    0.3 s window, then an actor drives onto it. The sweep that hits it marks the cells
+    OBSTACLE, so the place is no longer "seen empty" from that sweep on, however recent
+    the ground hits; and ground seen free 0.3 s ago or more no longer counts at all. The
+    window a radar return there is judged a ghost is at most the time to the first
+    LiDAR hit on the actor."""
+    from mapless.terrain import PointClass, TerrainConfig, TerrainGrid
+
+    grid = TerrainGrid(TerrainConfig())
+    stack = MaplessStack.__new__(MaplessStack)
+    stack.config = StackConfig()
+    stack.driver = SimpleNamespace(grid=grid)
+    here = np.array([[8.0, 1.0]])
+    around = here + np.array([[0.0, 0.0], [0.25, 0.0], [-0.25, 0.0], [0.0, 0.25], [0.0, -0.25]])
+    ij = grid.cells(around)[0]
+
+    def hit(cls, t):
+        grid.seen_by_class[cls][ij[:, 0], ij[:, 1]] = t
+        grid.seen[ij[:, 0], ij[:, 1]] = t
+
+    hit(PointClass.ROAD, 10.0)
+    grid.time_s = 10.2
+    assert stack._lidar_free(here)[0]  # seen empty 0.2 s ago
+    grid.seen_by_class[PointClass.OBSTACLE][ij[0, 0], ij[0, 1]] = 10.2  # one ray on the actor's body
+    assert not stack._lidar_free(here)[0]
+    grid.seen_by_class[PointClass.OBSTACLE][:] = -np.inf
+    grid.time_s = 10.0 + stack.config.lidar_view_age_s + 0.05
+    assert not stack._lidar_free(here)[0]  # the ground's view has lapsed
+
+
+class _Planner:
+    def __init__(self, seen_s):
+        self.seen_s, self.departed = seen_s, []
+
+    def held_regions(self):
+        return ((7, np.array([[5.0, -0.9], [5.0, 0.9]]), self.seen_s),)
+
+    def mark_departed(self, hold_id, t):
+        self.departed.append((hold_id, t))
+
+
+def test_r9_a_hold_is_released_once_the_car_on_it_has_driven_clear():
+    """PC1, Town03, r9_left_oncoming: the hold's region, at the bumper, could never show
+    ground. What stood on it when it was last seen is remembered; once every one of those
+    tracks is a vehicle driving away and 1.5 m clear, the planner is told."""
+    from mapless.stack import drove_clear, footprint_gap
+
+    stack = make_stack()
+    stack._hold_owners, stack._departures = {}, []
+    stack.driver.planner = _Planner(seen_s=10.0)
+    on_it = track(243, 5.8, 0.5, 0.0, 5.8, fp=(4.5, 1.9, math.pi / 2))  # crossing the face at x = 5
+    assert footprint_gap(on_it, stack.driver.planner.held_regions()[0][1]) == 0.0
+    stack._judge_departures([on_it], 10.0)  # detected this tick: its owner noted
+    assert stack._hold_owners == {7: {243}} and stack.driver.planner.departed == []
+    near = track(243, 5.8, 3.75, 0.0, 5.8, fp=(4.5, 1.9, math.pi / 2))  # 0.6 m clear: not yet
+    stack._judge_departures([near], 10.2)
+    assert stack.driver.planner.departed == []
+    gone = track(243, 5.8, 5.5, 0.0, 5.8, fp=(4.5, 1.9, math.pi / 2))
+    stack._judge_departures([gone], 10.6)
+    assert stack.driver.planner.departed == [(7, 10.6)] and stack._departures[-1] == [7, [243], True]
+    back = track(243, 5.8, 5.5, 0.0, -5.8, fp=(4.5, 1.9, math.pi / 2))  # coming back: not away
+    assert not drove_clear(back, stack.driver.planner.held_regions()[0][1], stack.config)
+    # A walker on it, or a track lost, never releases it.
+    for tracks_then, tracks_now in (
+        ([track(5, 5.3, 0.0, 0.0, 1.2, fp=(0.6, 0.6, 0.0))], [track(5, 5.3, 4.0, 0.0, 1.2, fp=(0.6, 0.6, 0.0))]),
+        ([on_it], []),
+    ):
+        stack._hold_owners, stack.driver.planner = {}, _Planner(seen_s=10.0)
+        stack._judge_departures(tracks_then, 10.0)
+        stack._judge_departures(tracks_now, 10.6)
+        assert stack.driver.planner.departed == []

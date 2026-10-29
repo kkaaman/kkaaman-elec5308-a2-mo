@@ -118,6 +118,10 @@ class JunctionConfig:
     oncoming_age_s: float = 0.3
     gate_accel_mps2: float = 1.0
     gate_gap_m: float = 0.3  # the body stops this far short of the opposing lane
+    # The stack's oncoming verdict excuses tracks (a parked car) from the gate for this long
+    # after it was computed; older, the excuses lapse (``driver.resolve_oncoming_override``).
+    # It is read one tick (0.05 s) old when fresh, so one tick without perception is enough.
+    oncoming_override_max_age_s: float = 0.075
 
     def __post_init__(self):
         if not 0 < self.min_radius_m <= self.max_radius_m:
@@ -515,6 +519,7 @@ class JunctionTurn:
         self._probe_odo = None  # the route's exit point in the odometry frame: where the exit road is searched for
         self._entry = None  # (pose at commit, y_entry, radius): the entry frame the latched path was built in
         self._exit_fit = None  # the exit-line fit the latched path rests on; a refinement must read the kerb from nearer
+        self._first_exit_odo = None  # the exit lane point of the first commit: a refinement may always return within refine_max_shift_m of it
         self.refine_note = None  # why the last refinement did or did not move the path (console diagnostics)
         self._blocked_since = None  # when an object first stood on the latched path within the stopping envelope
         self.block = None  # the latched path's first hazard at the last follow ({label, at_m, near, waited_s}), or None
@@ -774,6 +779,8 @@ class JunctionTurn:
             self._probe_odo = pose.to_world(np.array([exit_point_body]))[0]
             self._entry = (pose, y_entry, radius)  # the frame the path was built in, for a same-arc re-anchor
             self._exit_fit = fit
+            if self._first_exit_odo is None:
+                self._first_exit_odo = self._exit_odo[0]
         n = len(points)
         length = float(arc_end + c.after_turn_m)
         turn = Corridor(
@@ -822,6 +829,7 @@ class JunctionTurn:
         self._probe_odo = None
         self._entry = None
         self._exit_fit = None
+        self._first_exit_odo = None
         self._refine_candidate = None
         self._blocked_since = None
         self.block = None
@@ -955,10 +963,15 @@ class JunctionTurn:
             # range rule held a 1.15 m correction back for 3 s on the synthetic right turn).
             normal = np.array([-math.sin(heading_odo_new), math.cos(heading_odo_new)])
             shift = float((exit_odo - exit_odo_new) @ normal)
-            if abs(shift) > c.refine_max_shift_m:
+            first = None if self._first_exit_odo is None else float((self._first_exit_odo - exit_odo_new) @ normal)
+            if abs(shift) > c.refine_max_shift_m and (first is None or abs(first) > c.refine_max_shift_m):
                 # Further than a measurement can be off from close by: another carriageway
                 # or road, not this exit lane (S6: a 4.6 m "refinement" onto the opposing
                 # carriageway). The latched path stands; its own check stops the car if blocked.
+                # A line back within the cap of the first commit's is not another road: one
+                # refinement taken from a wrong far reading (-1.10 m, read from 29 m) left the
+                # right line +1.50 m from the latched, and it was refused for good: the car
+                # ended 1.6 m off the exit lane (PC1, Town03, r9_left_parked, b4280cd).
                 self._refine_candidate = None
                 self.refine_note = f"exit line {shift:+.2f} m off: beyond {c.refine_max_shift_m:g} m, not taken"
                 return None
@@ -978,11 +991,12 @@ class JunctionTurn:
                 held = self._now - candidate[1]
             else:
                 self._refine_candidate, held = (exit_odo_new, self._now), 0.0
+            back = "" if first is None or abs(shift) <= c.refine_max_shift_m else f", {first:+.2f} m from the first commit's"
             if held < c.refine_persist_s:
-                self.refine_note = f"exit line {shift:+.2f} m off for {held:.1f} s (read from {fit['range_m']} m)"
+                self.refine_note = f"exit line {shift:+.2f} m off{back} for {held:.1f} s (read from {fit['range_m']} m)"
                 return None
             self._refine_candidate = None
-            self.refine_note = f"exit line {shift:+.2f} m off, read from {fit['range_m']} m"
+            self.refine_note = f"exit line {shift:+.2f} m off{back}, read from {fit['range_m']} m"
         refining = min_shift_m is not None
 
         def fresh_arc(note):

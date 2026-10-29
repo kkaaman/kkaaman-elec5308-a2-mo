@@ -462,7 +462,7 @@ def test_semantic_shadow_report_summarises_the_agreement_and_is_none_without_it(
 def test_f7_04_the_run_report_summarises_the_workers_takes():
     from carla_adapter.mapless_drive import semantic_worker_report  # noqa: PLC0415
 
-    stats = dict(submitted=10, dropped=1, segmented=6, built=4, taken=4, stale_epoch=0, stale_age=0, late_wall=1, errors=0, dropped_share=0.1, error_share=0.0, stale_share=0.0, late_share=0.25)
+    stats = dict(submitted=10, dropped=1, segmented=6, built=4, taken=4, stale_epoch=0, stale_age=0, stale_wall=0, late_wall=1, errors=0, dropped_share=0.1, error_share=0.0, stale_share=0.0, late_share=0.25)
     log = [dict(driver=dict(semantic_worker=stats, semantic_take=dict(sim_age_s=0.05, wall_age_ms=40.0 + 10 * k, queue_wait_ms=1.0, run_ms=30.0) if k % 2 else None)) for k in range(8)]
     out = semantic_worker_report(log)
     assert out["takes"] == 4 and out["dropped_share"] == 0.1 and out["late_share"] == 0.25
@@ -481,3 +481,64 @@ def test_f7_05_the_stop_scenario_is_long_enough_for_lane_keepings_sample():
     for v in (2.0, 3.0, 4.0, 5.0):
         settled_m = stop_obstacle_m(v) - 15.0 - 8.0
         assert settled_m / v / 0.05 >= 100
+
+
+def test_sensor_to_actuator_is_reported_from_the_world_tick_to_the_applied_command():
+    """Eighth review, section 5: the step's time is the computation only. Per tick the
+    harness marks the world tick's return, the frame's assembly, the step and the command's
+    hand-over; the report splits the whole path and its share over the 50 ms target."""
+    from carla_adapter.mapless_drive import sensor_to_actuator_report  # noqa: PLC0415
+
+    marks = []
+    for k in range(100):
+        t0 = 10.0 + k * 0.1
+        step = 0.030 if k < 90 else 0.060  # ten slow steps
+        marks.append(dict(ticked=t0, assembled=t0 + 0.004, begun=t0 + 0.005, ended=t0 + 0.005 + step, applied=t0 + 0.006 + step))
+    out = sensor_to_actuator_report(marks)
+    assert out["delivery_ms"]["p50"] == pytest.approx(4.0) and out["record_ms"]["p50"] == pytest.approx(1.0)
+    assert out["step_ms"]["p50"] == pytest.approx(30.0) and out["step_ms"]["max"] == pytest.approx(60.0)
+    assert out["apply_ms"]["p50"] == pytest.approx(1.0)
+    assert out["sensor_to_actuator_ms"]["p50"] == pytest.approx(36.0) and out["sensor_to_actuator_ms"]["max"] == pytest.approx(66.0)
+    assert out["over_target_share"] == pytest.approx(0.1) and out["ticks"] == 100
+    assert sensor_to_actuator_report([]) is None
+
+
+def test_frame_recordings_keep_the_radars_and_read_old_ones_without(tmp_path):
+    """Schema 2 stores each radar's returns, so a stack replay sees what the live stack saw
+    (PC1, r9_left_oncoming: the oncoming car was first tracked 26 m away, and with no radar
+    in the recording the replay could not say why not earlier). Schema 1 reads as before."""
+    from carla_adapter.frame_record import FrameRecorder, iter_frames  # noqa: PLC0415
+    from mapless.frame import (  # noqa: PLC0415
+        ImuSample,
+        LidarSweep,
+        RadarReturns,
+        SensorFrame,
+        SensorState,
+        SensorStatus,
+    )
+    from mapless.sensor_suite import load_sensor_suite  # noqa: PLC0415
+
+    suite = load_sensor_suite(ROOT / "configs/sensor_suites/mapless_v2.json")
+    lidar, radar = suite.lidars[0].name, suite.radars[0].name
+    lidar_to_ego, radar_to_ego = np.eye(4), np.eye(4)
+    radar_to_ego[0, 3] = 2.3
+    returns = np.array([[40.0, 0.05, 0.01, -7.6], [41.0, 0.06, 0.0, -7.5]], dtype=np.float32)
+    status = (SensorStatus(lidar, "lidar", SensorState.OK, 1.0), SensorStatus(radar, "radar", SensorState.OK, 1.0))
+    frame = SensorFrame(
+        episode_id="e", frame_id=7, sim_time_s=1.0, received_monotonic_s=1.0, cameras=(),
+        lidars=(LidarSweep(lidar, np.array([[5.0, 0.0, -2.0, 0.0]], dtype=np.float32), lidar_to_ego),),
+        radars=(RadarReturns(radar, returns, radar_to_ego),),
+        gnss=None, imu=ImuSample((0.0, 0.0, 9.8), (0.0, 0.0, 0.0), 0.0), speed_mps=2.0, status=status, calibration_id="c",
+    )
+    with FrameRecorder(tmp_path / "frames", suite, "c", "e", {lidar: lidar_to_ego, radar: radar_to_ego}) as rec:
+        rec.record(0, frame)
+    ((_, back),) = list(iter_frames(tmp_path / "frames"))
+    assert len(back.radars) == 1 and back.radars[0].name == radar
+    assert np.allclose(back.radars[0].returns, returns) and np.allclose(np.asarray(back.radars[0].sensor_to_ego), radar_to_ego)
+    assert {s.name for s in back.status} == {lidar, radar}
+    # A schema 1 recording: no radar_to_ego, no radar names; the radar's status is dropped.
+    meta = json.loads((tmp_path / "frames/meta.json").read_text(encoding="utf-8"))
+    meta.pop("radar_to_ego")
+    (tmp_path / "frames/meta.json").write_text(json.dumps(meta), encoding="utf-8")
+    ((_, old),) = list(iter_frames(tmp_path / "frames"))
+    assert old.radars == () and {s.name for s in old.status} == {lidar} and len(old.lidars) == 1

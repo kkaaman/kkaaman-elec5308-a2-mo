@@ -196,6 +196,16 @@ class ScriptedActor:
     def truth(self):
         return None if self.actor is None else _box_truth(self.actor, self.core_xy)
 
+    def roles(self):
+        """(role, CARLA actor) of every vehicle or walker the scenario drives."""
+        return [("primary", self.actor)]
+
+    def truths(self):
+        """Evaluator truth of every actor the scenario drives, each with its ``role`` (eighth
+        review, F8-05: a second car was driven but never recorded, so no metric could say
+        which car a track was). Log only: the stack never sees it."""
+        return [dict(_box_truth(actor, self.core_xy), role=role) for role, actor in self.roles() if actor is not None and getattr(actor, "is_alive", True)]
+
     def hold_ends_run(self):
         """Whether a sustained hold may end the run now (review: holding is not a result
         for every scenario; a car that waits out a crossing must be allowed to resume)."""
@@ -263,6 +273,9 @@ class BrakingLeadCar(ScriptedActor):
         self._drive(self.actor, self.braking)
         if self.second is not None:
             self._drive(self.second, self.braking)
+
+    def roles(self):
+        return [("lead", self.actor)] + ([("second", self.second)] if getattr(self, "second", None) is not None else [])
 
     def destroy(self):
         if getattr(self, "second", None) is not None and self.second.is_alive:
@@ -971,8 +984,8 @@ def score_radar_timeline(log, actor_truths, body, cruise_mps, dt_s=0.05, match_m
     radar alone (no LiDAR-supported track on it that tick: ``first_radar_only_s``) and LiDAR
     support (``first_lidar_s``); the first tick the stack predicted a radar-only track on
     it as a provisional or a full threat (``first_provisional_threat_s``,
-    ``first_full_threat_s``), the first restriction it set (the cap's track on the actor,
-    or a cap below cruise for a radar threat: ``first_restriction_s``), the first brake
+    ``first_full_threat_s``), the first restriction it set for the actor (a cap below
+    cruise whose responsible track is on it: ``first_restriction_s``), the first brake
     command (``first_brake_s``) and the actor entering the ego's band within 30 m
     (``entered_band_s``). ``lidar_before_moving_s``: the first tick a LiDAR track was on it
     before it moved (a car the LiDAR had standing is no radar-first case).
@@ -988,7 +1001,13 @@ def score_radar_timeline(log, actor_truths, body, cruise_mps, dt_s=0.05, match_m
     had it: the warning was there for the plan to use). ``radar_first``: a radar-only
     run at all, with the LiDAR not on it standing. At the first restriction, the room
     from the car's front to the crossing car (``restriction_room_m``), the speed then and
-    the deceleration a stop in that room needs (``restriction_decel_needed_mps2``)."""
+    the deceleration a stop in that room needs (``restriction_decel_needed_mps2``).
+
+    A radar restriction whose responsible track is not on the actor is not the actor's
+    (eighth review, F8-04: "radar" in the cap's reason also counted, so an unrelated radar
+    track could set the first restriction and its room): such caps from the actor's moving
+    off are reported apart as possible false interventions (``unmatched_radar_restrictions``:
+    ticks, seconds, first time and the tracks)."""
     rows = [(k, a) for k, a in enumerate(actor_truths) if a is not None]
     if not rows or "tracks_near" not in (log[rows[0][0]].get("driver") or {}):
         return dict(available=False, note="no actor measurements or no tracks_near in the log")
@@ -996,6 +1015,7 @@ def score_radar_timeline(log, actor_truths, body, cruise_mps, dt_s=0.05, match_m
     first = dict.fromkeys(keys)
     moving = lidar_before = None
     alone = []  # (tick, radar-only track on it) from moving off until the LiDAR has it
+    unmatched = []  # (tick, responsible track) of radar restrictions not on the actor
     for k, a in rows:
         row = log[k]
         d = row.get("driver") or {}
@@ -1028,8 +1048,11 @@ def score_radar_timeline(log, actor_truths, body, cruise_mps, dt_s=0.05, match_m
                 mark("first_provisional_threat" if kind == "provisional" else "first_full_threat")
         cap = d.get("speed_cap_mps")
         cause = (d.get("cap_track") or {}).get("track_id")
-        if cap is not None and cap < cruise_mps - 0.25 and (cause in on or "radar" in (d.get("speed_cap_reason") or "")):
-            mark("first_restriction")
+        if cap is not None and cap < cruise_mps - 0.25:
+            if cause is not None and cause in on:
+                mark("first_restriction")
+            elif "radar" in (d.get("speed_cap_reason") or ""):
+                unmatched.append((k, cause))
         if (row.get("command") or [0, 0, 0])[2] >= 0.05 and row["truth"]["speed_mps"] >= 0.3:
             mark("first_brake")
         inside, dx, _ = _ahead_in_band(row["truth"], a, body, 0.5)
@@ -1082,8 +1105,65 @@ def score_radar_timeline(log, actor_truths, body, cruise_mps, dt_s=0.05, match_m
             restriction_decel_needed_mps2=None if room <= 0.1 else round(v * v / (2.0 * room), 2),
         )
     out["from_actor_moving_s"] = {key: None if k is None else round((k - moving) * dt_s, 2) for key, k in first.items()}
+    out["unmatched_radar_restrictions"] = dict(
+        ticks=len(unmatched),
+        seconds=round(len(unmatched) * dt_s, 2),
+        first_s=at(unmatched[0][0]) if unmatched else None,
+        tracks=sorted({tid for _, tid in unmatched if tid is not None}),
+    )
     return out
 
+
+
+def score_multi_actor_tracking(log, actor_sets, body, dt_s=0.05, match_m=1.0):
+    """Every scripted actor's tracking, and whether the tracks kept them apart (eighth review,
+    F8-05). ``actor_sets``: per tick, the actors' truths, each with its ``role``. Per role,
+    ``score_actor_tracking``'s summary (matched share, track ids, id switches, lead ticks).
+    Across them: ``shared_track_ticks`` (one track the nearest match of two actors at once:
+    two cars as one), ``tracks_on_two_actors`` (track ids matched to more than one actor
+    over the run, with the roles: an identity carried from one car to the other) and, over
+    ticks with a lead, which actor it was (``lead_by_role``) and how often that changed
+    (``lead_hand_overs``, with the times). Reported, not gated; the runtime never sees it."""
+    roles = sorted({a["role"] for actors in actor_sets for a in actors or ()})
+    if len(roles) < 2:
+        return dict(available=False, note="fewer than two actors recorded")
+    by_role = {role: [next((a for a in actors or () if a["role"] == role), None) for actors in actor_sets] for role in roles}
+    keep = ("matched_share", "track_ids", "id_switches", "lead_ticks", "lead_is_actor_ticks", "missed_ticks", "in_view_ticks")
+    per_role = {}
+    for role, truths in by_role.items():
+        out = score_actor_tracking(log, truths, body, dt_s, match_m)
+        per_role[role] = {k: out.get(k) for k in keep} if out.get("available") else out
+    shared, owners, lead_roles, hand_overs, last = 0, {}, {}, [], None
+    for k, row in enumerate(log):
+        d = row.get("driver") or {}
+        nearest = {}
+        for role in roles:
+            a = by_role[role][k]
+            if a is None:
+                continue
+            hits = sorted((ego_to_actor_distance(row["truth"], a, (e[1], e[2])), e[0]) for e in d.get("tracks_near") or ())
+            if hits and hits[0][0] <= match_m:
+                nearest[role] = hits[0][1]
+                owners.setdefault(hits[0][1], set()).add(role)
+        shared += len(set(nearest.values())) < len(nearest)
+        if d.get("lead"):
+            matched = [role for role in roles if by_role[role][k] is not None and lead_is_actor(row, by_role[role][k], match_m)]
+            role = matched[0] if len(matched) == 1 else ("several" if matched else "none")
+            lead_roles[role] = lead_roles.get(role, 0) + 1
+            if last is not None and role != last:
+                hand_overs.append(dict(time_s=round(row["time_s"], 2), from_role=last, to_role=role))
+            last = role
+    return dict(
+        available=True,
+        match_m=match_m,
+        roles=roles,
+        per_role=per_role,
+        shared_track_ticks=shared,
+        tracks_on_two_actors={str(tid): sorted(rs) for tid, rs in owners.items() if len(rs) > 1},
+        lead_by_role=lead_roles,
+        lead_hand_overs=len(hand_overs),
+        lead_hand_over_times=hand_overs[:10],
+    )
 
 EXERCISE_CONDITION = {
     "braking_lead": "the lead slows by 0.5 m/s or more while within 50 m ahead",

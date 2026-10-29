@@ -211,6 +211,34 @@ class StackConfig:
     # 4 m/s towards the path, and the motion after it was coherent) ...
     offroad_vehicle_min_hits: int = 30
     offroad_vehicle_max_spread: float = 0.5
+    # ... but for its maturity (eighth review, F8-03: 30 hits are 1.5 s, 7.5 m at 5 m/s, for a
+    # car out of a driveway first seen close to the road), a young one that so far moves as
+    # a car does (``young_vehicle_off_the_road``: offroad_young_min_hits hits, its motion not
+    # judged incoherent and borne out, no wider spread, wider than a wall's visible stretch)
+    # is a provisional threat, as a provisional radar one: its cap's floor
+    # offroad_young_cap_mps falls to 0 as its hits grow to offroad_vehicle_min_hits, and never
+    # exceeds the speed from which the car stops short at radar_provisional_hard_decel_mps2.
+    offroad_young_min_hits: int = 8
+    offroad_young_min_width_m: float = 1.0
+    offroad_young_cap_mps: float = 1.5
+    # A left turn clearing the opposing lane does not stop for a moving vehicle predicted
+    # where it stands (S5) only when it is in that vehicle's way (``in_the_way_of``): its
+    # body, where it stands now, inside the strip the vehicle drives along, the vehicle's
+    # width (at least clearing_vehicle_width_m) plus clearing_strip_margin_m either side.
+    # The driver's "in the opposing lane" rests on the gate frame, latched 19 m back and
+    # 1.4 degrees off: the car stopped for an oncoming car 1.1 m clear of its path, was let
+    # go as "clearing", and drove its corner to the lane's edge: 0.5 m from the passing car
+    # (PC1, Town03, r9_left_oncoming, b4280cd).
+    clearing_vehicle_width_m: float = 1.8
+    clearing_strip_margin_m: float = 0.3
+    # A driver hold whose region cannot show ground (the near blind zone) is released once
+    # what stood on it is seen to leave (``LanePlanner.mark_departed``): the LiDAR tracks
+    # within hold_owner_m of its near face when it was last detected, every one of them a
+    # vehicle, moving, LiDAR-supported now and hold_departed_clear_m clear of the face,
+    # driving away from it. A walker or an unknown never releases a hold this way; a lost
+    # track leaves it held (r9_left_oncoming: held 130 s after the oncoming car had gone).
+    hold_owner_m: float = 0.5
+    hold_departed_clear_m: float = 1.5
     # ... and able to reach the lane band within the conflict horizon (plus a second) at
     # the speed it is coming towards it: until then it is no conflict to plan for.
     # A vehicle beside the path slower than this, not coming towards it, is parked or
@@ -278,12 +306,21 @@ class StackConfig:
     # path; a worker's road model older than semantic_max_age_s (simulation time) is stale.
     semantic_mode: str = "inline"
     semantic_max_age_s: float = 0.5
+    # ... and one older than semantic_max_wall_age_s on the wall clock, from its submission
+    # to its use (eighth review, P2): in synchronous CARLA a result can be recent in
+    # simulation time and old in real time. None while the semantic layers are shadow
+    # information only (late results are kept and counted, ``late_wall``); set before any
+    # of them steers or sets a speed, so that a stale result never corrects a current
+    # road boundary for belonging to the same odometry epoch.
+    semantic_max_wall_age_s: float | None = None
 
     def __post_init__(self):
         if self.semantic_mode not in ("inline", "thread"):
             raise ValueError("StackConfig.semantic_mode: inline or thread")
         if self.segment_every < 1 or self.road_model_every < 1:
             raise ValueError("StackConfig: segment_every and road_model_every of 1 or more")
+        if self.semantic_max_wall_age_s is not None and not self.semantic_max_wall_age_s > 0:
+            raise ValueError("StackConfig.semantic_max_wall_age_s: positive or None")
 
 
 def optional_schedule(config):
@@ -345,6 +382,7 @@ class MaplessStack:
             self.semantic_worker = SemanticWorker(
                 self.segmenter, c.painting, c.road_model, self.driver.grid,
                 shadow=lambda model, pose, path: semantic_tube_support(model, pose, path, c), max_age_s=c.semantic_max_age_s,
+                max_wall_age_s=c.semantic_max_wall_age_s,
             )
         self._segmentations = None  # the last SegmentedFrame (its frame id says which sweep it may paint)
         self._model = None
@@ -363,6 +401,8 @@ class MaplessStack:
         self._yield_since = {}  # track id -> first time it qualified for a yield
         self._outside_lead_s = {}  # track id -> time seen outside the lead's body (a road user of its own)
         self._blocked_ticks = {}  # track id -> ticks running its run to the path met a wall
+        self._hold_owners = {}  # driver hold id -> the track ids on its region when last detected
+        self._departures = []  # [hold id, owners, departed] this tick, for the log
         self.records = []
 
     @staticmethod
@@ -406,6 +446,7 @@ class MaplessStack:
         self._semantic_take = None
         self._structures = []
         self._unreachable = []
+        self._departures = []
         coverage = {s.name: s.state.value for s in frame.status}
         # -- local frame rebuild -----------------------------------------------------------
         rebuilt = bool(step.diagnostics.get("frame_rebuilt"))
@@ -493,12 +534,15 @@ class MaplessStack:
             self._incoherent = sum(1 for tr in live if "lidar" in tr.support and incoherent_vehicle(tr, c))
             predicted = {p.track_id for p in predictions}
             self._radar_threats = sorted([tr.track_id, "provisional" if provisional_radar(tr, c) else "full"] for tr in live if "lidar" not in tr.support and tr.track_id in predicted)
+            self._judge_departures(live, t)
             timing["track"] = (time.perf_counter() - begun) * 1000
             # -- follow and conflicts --------------------------------------------------------
             begun = time.perf_counter()
             cap, cap_reason = self._speed_cap(motion, pose, live, predictions, t)
             gate = self.driver.last_gate
-            self.driver.oncoming_override = None if gate is None else oncoming_verdict(live, gate, self.driver.config.junction, c)
+            # Stamped (eighth review, F8-02): a tick without perception leaves it as it was,
+            # and the driver gives it its due weight by age (``resolve_oncoming_override``).
+            self.driver.oncoming_override = None if gate is None else dict(oncoming_verdict(live, gate, self.driver.config.junction, c), time_s=t, generation=self.frame_generation)
             self._oncoming = None if self.driver.oncoming_override is None else self.driver.oncoming_override["note"]
             timing["plan"] = (time.perf_counter() - begun) * 1000
             # -- road model ------------------------------------------------------------------
@@ -547,6 +591,7 @@ class MaplessStack:
             tracks_near_omitted=near[1],
             cap_track=self._cause,
             clearing_for=self._clearing,
+            hold_departures=self._departures[:4] or None,
             parked_beside=self._parked[:5],
             radar_threats=self._radar_threats[:5],
             incoherent_vehicles=self._incoherent,
@@ -683,10 +728,10 @@ class MaplessStack:
             provisional = {tr.track_id: tr for tr in tracks if provisional_radar(tr, c)}
             tracks = [_as_predicted(tr, c, in_lane) for tr in tracks]
             others = conflict_candidates(tracks, predictions, lead_id, c.prediction)
-            admitted = {}
+            admitted, young = {}, set()
             keep_right = self.driver.corridor.keep_right_m
             if keep_right is not None:
-                others = plausible_crossers(tracks, others, xy, keep_right, c, ego_speed_mps=motion.speed_mps, grid=self.driver.grid, why=admitted)
+                others = plausible_crossers(tracks, others, xy, keep_right, c, ego_speed_mps=motion.speed_mps, grid=self.driver.grid, why=admitted, young=young)
             if keep_right is not None:
                 others, self._unreachable = road_reachable(tracks, others, xy, self.driver.grid, keep_right, c, history=self._blocked_ticks)
             others, self._parked = parked_beside(tracks, others, xy, self.driver.config.body, c)
@@ -711,11 +756,20 @@ class MaplessStack:
                 # (A10, 26 Oct). The cap is recomputed every tick as the car closes.
                 arc = first_occupied_arc([p], xy, body, from_arc_m=s_now)
                 track = next((t for t in tracks if t.track_id == p.track_id), None)
-                if clearing and arc is not None and arc <= s_now + 0.5 and track is not None and is_vehicle(track, c) and motion_state(track, c.prediction) == "moving":
+                if (
+                    clearing
+                    and arc is not None
+                    and arc <= s_now + 0.5
+                    and track is not None
+                    and is_vehicle(track, c)
+                    and motion_state(track, c.prediction) == "moving"
+                    and in_the_way_of(track, pose, body, c, lane_yaw=None if getattr(self.driver, "gate_frame", None) is None else self.driver.gate_frame.yaw_rad)
+                ):
                     # In the opposing lane of a left turn, a vehicle predicted where the car
-                    # already is: stopping there keeps the car in its way; it clears the
-                    # lane instead (full review of 73ae759, S5). The driver's obstacle stop
-                    # still stops for anything in the path ahead.
+                    # already is, and the car in its way: stopping there keeps it there; it
+                    # clears the lane instead (full review of 73ae759, S5). The driver's
+                    # obstacle stop still stops for anything in the path ahead. Out of its
+                    # way, the car waits where it is.
                     self._clearing = _track_note(tracks, p.track_id, pose)
                     continue
                 conflict_cap = conflict_speed_cap([p], xy, s_now, body, c)
@@ -728,6 +782,11 @@ class MaplessStack:
                     hard = conflict_speed_cap([p], xy, s_now, body, replace(c, conflict_decel_mps2=c.radar_provisional_hard_decel_mps2))
                     floor = provisional_floor(provisional[p.track_id], c, (pose.x_m, pose.y_m))
                     conflict_cap, why = max(conflict_cap, min(floor, hard)), "provisional radar threat on the path"
+                elif p.track_id in young and track is not None:
+                    # A young vehicle off the road (F8-03), the same way: slowed early, its
+                    # floor falling as its track matures, stopped only where hard braking must.
+                    hard = conflict_speed_cap([p], xy, s_now, body, replace(c, conflict_decel_mps2=c.radar_provisional_hard_decel_mps2))
+                    conflict_cap, why = max(conflict_cap, min(young_floor(track, c), hard)), "provisional: a young vehicle off the road"
                 passing = roadside_cap(track, xy, s_now, body, tube_half, c)
                 if passing is not None and passing > conflict_cap:
                     conflict_cap, why = passing, "passing a road user standing at the roadside"
@@ -752,6 +811,30 @@ class MaplessStack:
         offsets = np.array([[0.0, 0.0], [0.25, 0.0], [-0.25, 0.0], [0.0, 0.25], [0.0, -0.25]])
         seen = grid.seen_at((pts[:, None, :] + offsets[None]).reshape(-1, 2)).reshape(len(pts), -1)
         return np.any(seen >= grid.time_s - self.config.lidar_view_age_s, axis=1)
+
+    def _judge_departures(self, tracks, t):
+        """Which driver holds' objects have driven off (``hold_owner_m``): the planner
+        is told (``mark_departed``) for its next plan."""
+        planner = getattr(self.driver, "planner", None)
+        if planner is None or not hasattr(planner, "held_regions"):
+            return
+        c = self.config
+        regions = planner.held_regions()
+        self._hold_owners = {k: v for k, v in self._hold_owners.items() if k in {r[0] for r in regions}}
+        by_id = {tr.track_id: tr for tr in tracks}
+        for hold_id, span, seen_s in regions:
+            if seen_s >= t - 1e-9:
+                owners = {tr.track_id for tr in tracks if "lidar" in tr.support and tr.footprint is not None and footprint_gap(tr, span) <= c.hold_owner_m}
+                if owners:
+                    self._hold_owners[hold_id] = owners
+                continue
+            owners = self._hold_owners.get(hold_id)
+            if not owners:
+                continue
+            gone = all(drove_clear(by_id.get(o), span, c) for o in owners)
+            if gone:
+                planner.mark_departed(hold_id, t)
+            self._departures.append([hold_id, sorted(owners), gone])
 
     def _lidar_free(self, xy_odo):
         """For odometry points: did the LiDAR see free ground there just now, ground hit in
@@ -779,6 +862,7 @@ class MaplessStack:
         self._yield_since = {}
         self._outside_lead_s = {}
         self._blocked_ticks = {}
+        self._hold_owners = {}  # the tracks are gone: no departure is judged on them
         self._segmentations, self._model = None, None
         self._epoch += 1  # the semantic worker's evidence and results from before are void
         self.driver.speed_cap_mps = None
@@ -1075,7 +1159,7 @@ def _parked_in_lane(track, lateral_m, lo, hi, config):
 _AROUND = np.array([[0.0, 0.0], [0.25, 0.0], [-0.25, 0.0], [0.0, 0.25], [0.0, -0.25]])  # a cell and its neighbours
 
 
-def plausible_crossers(tracks, candidates, path_xy, keep_right_m, config, ego_speed_mps=0.0, grid=None, why=None):
+def plausible_crossers(tracks, candidates, path_xy, keep_right_m, config, ego_speed_mps=0.0, grid=None, why=None, young=None):
     """Drop candidates that are not clearly vehicles and cannot be crossing. Vehicles (a
     decided car/truck class, or a footprint ``vehicle_min_m`` or longer) are kept: the timed
     conflict check handles them. Of the rest, kept are:
@@ -1098,7 +1182,9 @@ def plausible_crossers(tracks, candidates, path_xy, keep_right_m, config, ego_sp
     live M04 run).
 
     ``why`` (a dict, optional) gets each kept track's admitting rule, for the log (fourth
-    review: which gate let a track become a predicted conflict)."""
+    review: which gate let a track become a predicted conflict). ``young`` (a set, optional)
+    gets the ids admitted off the road on a young track's evidence (eighth review, F8-03):
+    the caller treats them as provisional threats."""
     by_id = {t.track_id: t for t in tracks}
     why = {} if why is None else why
     path = np.asarray(path_xy, dtype=float)
@@ -1133,11 +1219,16 @@ def plausible_crossers(tracks, candidates, path_xy, keep_right_m, config, ego_sp
             if not within and thin and grid is not None and float(grid.tall_evidence(track.position[None] + _AROUND).max()) >= config.reach_wall_min_evidence:
                 continue
             off_road = not within and grid is not None and not road_near(grid, track.position, config)
+            provisional = False
             if off_road and not moves_as_a_car_off_the_road(track, config):
                 # Beyond reach, on ground the grid has seen and not road, and not moving as a
                 # car leaving a driveway, a car park or a verge does: a building's face, not a
-                # car. Missing road alone is not enough (fifth review, F5-02).
-                continue
+                # car. Missing road alone is not enough (fifth review, F5-02). A young track
+                # moving so far as a car does, not on structure, is admitted provisionally.
+                on_structure = float(grid.tall_evidence(track.position[None] + _AROUND).max()) >= config.reach_wall_min_evidence
+                if on_structure or not young_vehicle_off_the_road(track, config):
+                    continue
+                provisional = True
             if not within and towards < config.approach_min_mps:
                 # Beyond reach and not heading for the path: it can enter it only by turning
                 # first, and is kept the tick it does. Fence stretches 5-6 m right, 4-8 m long,
@@ -1148,7 +1239,12 @@ def plausible_crossers(tracks, candidates, path_xy, keep_right_m, config, ego_sp
                 # Off the road and too far out to reach the lane band in time at the speed
                 # it is coming: kept the tick it can (F6-03: reach, not speed, decides).
                 continue
-            why[p.track_id] = "vehicle " + ("within reach" if within else ("beyond reach, off the road, moving as a car there does" if off_road else "beyond reach, road near"))
+            if provisional:
+                if ego_speed_mps > 0.5 and along >= 0.5 * ego_speed_mps and along > towards:
+                    continue  # the sliding-wall signature: no young evidence outweighs it
+                if young is not None:
+                    young.add(p.track_id)
+            why[p.track_id] = "vehicle " + ("within reach" if within else ("beyond reach, off the road, young: provisional" if provisional else "beyond reach, off the road, moving as a car there does" if off_road else "beyond reach, road near"))
             out.append(p)
             continue
         if within and (motion_state(track, config.prediction) == "uncertain" or decided_class(track) == "pedestrian"):
@@ -1185,6 +1281,94 @@ def plausible_crossers(tracks, candidates, path_xy, keep_right_m, config, ego_sp
         why[p.track_id] = ("beyond reach" if not within else "within reach") + f", approaching at {towards:.1f} m/s"
         out.append(p)
     return out
+
+
+def young_vehicle_off_the_road(track, config):
+    """Whether a vehicle-sized track off the road, short of ``moves_as_a_car_off_the_road``'s
+    maturity, moves so far as a car there does (eighth review, F8-03): tracked
+    ``offroad_young_min_hits`` times (fewer than ``offroad_vehicle_min_hits``), its motion
+    not judged incoherent (unjudged is allowed: coherence needs its window), its filter
+    speed borne out by its sustained motion, its footprint wider than a wall's visible
+    stretch (``offroad_young_min_width_m``) and of one size where that is known, and within
+    the physical bound. Admitted, it is a provisional threat (``plausible_crossers``)."""
+    c = config
+    if not c.offroad_young_min_hits <= track.hits < c.offroad_vehicle_min_hits or track.speed_mps > c.offroad_vehicle_max_mps:
+        return False
+    if track.motion_coherent is False or track.footprint is None or min(track.footprint[0], track.footprint[1]) < c.offroad_young_min_width_m:
+        return False
+    if track.recent_speed_mps is None or track.recent_speed_mps < c.offroad_vehicle_min_consistency * track.speed_mps:
+        return False
+    spread = None if track.coherence is None or len(track.coherence) < 3 else track.coherence[2]
+    return spread is None or spread <= c.offroad_vehicle_max_spread
+
+
+def footprint_gap(track, segment_xy):
+    """Plan-view distance from ``track``'s footprint box (at its position) to the segment
+    ``segment_xy`` (2 x 2, odometry); 0 when they touch."""
+    length, width, yaw = (float(v) for v in track.footprint)
+    a, b = np.asarray(segment_xy, dtype=float)
+    pts = a + np.linspace(0.0, 1.0, max(2, int(np.hypot(*(b - a)) / 0.1) + 2))[:, None] * (b - a)
+    rel = pts - np.asarray(track.position, dtype=float)
+    cy, sy = math.cos(yaw), math.sin(yaw)
+    along, across = rel @ np.array([cy, sy]), rel @ np.array([-sy, cy])
+    dx, dy = np.maximum(np.abs(along) - length / 2, 0.0), np.maximum(np.abs(across) - width / 2, 0.0)
+    return float(np.hypot(dx, dy).min())
+
+
+def drove_clear(track, segment_xy, config):
+    """Whether ``track`` is a vehicle that has driven off a held face ``segment_xy``: alive,
+    LiDAR-supported now, moving, its box ``hold_departed_clear_m`` clear of the face and its
+    motion away from it (``MaplessStack._judge_departures``)."""
+    if track is None or "lidar" not in track.support or track.footprint is None or not is_vehicle(track, config):
+        return False
+    if motion_state(track, config.prediction) != "moving" or footprint_gap(track, segment_xy) < config.hold_departed_clear_m:
+        return False
+    away = np.asarray(track.position, dtype=float) - np.asarray(segment_xy, dtype=float).mean(axis=0)
+    return float(away @ np.asarray(track.velocity, dtype=float)) > 0.0
+
+
+def in_the_way_of(track, pose, body, config, lane_yaw=None):
+    """Whether the car's body at ``pose`` (odometry) lies in the strip ``track`` drives along:
+    ahead of the track's rear along its velocity, and across it within half the vehicle's
+    width (its footprint's extent across its motion, at least ``clearing_vehicle_width_m``)
+    plus ``clearing_strip_margin_m``. With ``lane_yaw`` (the lane's direction, odometry) the
+    strip must hold both along the velocity and along the lane, the way the vehicle is going:
+    20 m out, a few degrees of a track's heading put its strip a metre to one side (a LiDAR
+    track of r9_left_oncoming's oncoming car read "in the way" for 0.35 s, 1.2 m clear).
+    A track not moving is in no one's way here."""
+    v = np.asarray(track.velocity, dtype=float)
+    speed = float(np.hypot(*v))
+    if speed < 1e-6:
+        return False
+    directions = [v / speed]
+    if lane_yaw is not None:
+        lane = np.array([math.cos(lane_yaw), math.sin(lane_yaw)])
+        directions.append(lane if float(lane @ v) >= 0.0 else -lane)
+    corners_body = np.array([[body.front_m, body.half_width_m], [body.front_m, -body.half_width_m], [body.rear_m, body.half_width_m], [body.rear_m, -body.half_width_m]])
+    rel_corners = pose.to_world(corners_body) - np.asarray(track.position, dtype=float)
+    for u in directions:
+        n = np.array([-u[1], u[0]])
+        length, width = 4.5, config.clearing_vehicle_width_m
+        if track.footprint is not None:
+            flen, fwid, fyaw = (float(x) for x in track.footprint)
+            d = math.atan2(u[1], u[0]) - fyaw
+            length = flen * abs(math.cos(d)) + fwid * abs(math.sin(d))
+            width = max(width, flen * abs(math.sin(d)) + fwid * abs(math.cos(d)))
+        half = width / 2 + config.clearing_strip_margin_m
+        along, across = rel_corners @ u, rel_corners @ n
+        if not (across.min() <= half and across.max() >= -half and along.max() >= -length / 2):
+            return False
+    return True
+
+
+def young_floor(track, config):
+    """The floor under a young off-road vehicle's provisional cap: ``offroad_young_cap_mps``
+    at ``offroad_young_min_hits`` hits, falling linearly to 0 at ``offroad_vehicle_min_hits``
+    (where full admission takes over)."""
+    c = config
+    span = max(1, c.offroad_vehicle_min_hits - c.offroad_young_min_hits)
+    evidence = min(1.0, max(0.0, (track.hits - c.offroad_young_min_hits) / span))
+    return c.offroad_young_cap_mps * (1.0 - evidence)
 
 
 def moves_as_a_car_off_the_road(track, config):

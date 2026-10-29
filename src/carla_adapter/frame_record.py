@@ -8,10 +8,14 @@ on the development machine, with the terrain grid, exit-line stations and truth 
 What is written under ``<run>/frames``:
 - ``meta.json``: episode and calibration ids, the LiDAR's name and extrinsics, the suite
   (name, sha and the full specification, so the recording replays without the config file).
-- ``frames.jsonl``: one row per tick: frame id, times, speed, GNSS fix, IMU sample and the
-  per-sensor status list (cameras and radars are not stored; the G1 driver uses neither).
+- ``frames.jsonl``: one row per tick: frame id, times, speed, GNSS fix, IMU sample, the
+  per-sensor status list and the names of the radars stored that tick (cameras are not
+  stored; the stack's semantic layer is replayed off).
 - ``t<tick>.npz``: the LiDAR sweep as int16 centimetres (x, y, z; intensity is range-only
-  in the simulator and unused), ~90 KB a tick against 250 KB as float32.
+  in the simulator and unused), ~90 KB a tick against 250 KB as float32, and each radar's
+  returns as float32 (range, azimuth, elevation, range rate; ~300 a tick, 5 KB) under
+  ``radar_<name>``. Schema 1 recordings (before 29 Oct) hold no radar: the PC 1 run in
+  which the oncoming car was first tracked 26 m away could not be replayed with it.
 
 The replay is open loop: the car follows the logged motion whatever the replayed driver
 commands, so it answers questions about perception and estimation, not control.
@@ -24,7 +28,15 @@ from pathlib import Path
 
 import numpy as np
 
-from mapless.frame import GnssFix, ImuSample, LidarSweep, SensorFrame, SensorState, SensorStatus
+from mapless.frame import (
+    GnssFix,
+    ImuSample,
+    LidarSweep,
+    RadarReturns,
+    SensorFrame,
+    SensorState,
+    SensorStatus,
+)
 
 
 class FrameRecorder:
@@ -35,11 +47,12 @@ class FrameRecorder:
         (self.directory / "meta.json").write_text(
             json.dumps(
                 dict(
-                    schema="group7-mapless-frames-1",
+                    schema="group7-mapless-frames-2",
                     episode_id=episode_id,
                     calibration_id=calibration_id,
                     lidar=self.lidar,
                     lidar_to_ego=np.asarray(extrinsics[self.lidar]).tolist(),
+                    radar_to_ego={s.name: np.asarray(extrinsics[s.name]).tolist() for s in suite.radars if s.name in extrinsics},
                     suite=suite.name,
                     suite_sha256=suite.sha256,
                     suite_spec=suite.as_dict(),
@@ -65,12 +78,16 @@ class FrameRecorder:
             imu=None if frame.imu is None else dict(accel_mps2=list(frame.imu.accel_mps2), gyro_rps=list(frame.imu.gyro_rps), compass_rad=frame.imu.compass_rad),
             status=[dict(name=s.name, kind=s.kind, state=s.state.value, capture_time_s=s.capture_time_s, detail=s.detail) for s in frame.status],
             lidar=any(s.name == self.lidar for s in frame.lidars),
+            radars=[r.name for r in frame.radars],
         )
         self._rows.write(json.dumps(row) + "\n")
         self._rows.flush()  # the recording exists to debug runs that die
+        arrays = {f"radar_{r.name}": np.asarray(r.returns, dtype=np.float32) for r in frame.radars}
         for sweep in frame.lidars:
             if sweep.name == self.lidar:
-                np.savez_compressed(self.directory / f"t{tick:05d}.npz", xyz_cm=np.round(sweep.points[:, :3] * 100.0).astype(np.int16))
+                arrays["xyz_cm"] = np.round(sweep.points[:, :3] * 100.0).astype(np.int16)
+        if arrays:
+            np.savez_compressed(self.directory / f"t{tick:05d}.npz", **arrays)
         self.ticks += 1
 
     def close(self):
@@ -88,16 +105,24 @@ def iter_frames(directory):
     directory = Path(directory)
     meta = json.loads((directory / "meta.json").read_text(encoding="utf-8"))
     extrinsics = np.asarray(meta["lidar_to_ego"], dtype=float)
+    radar_to_ego = meta.get("radar_to_ego", {})  # absent in schema 1: no radar was stored
     with open(directory / "frames.jsonl", encoding="utf-8") as rows:
         for line in rows:
             row = json.loads(line)
-            lidars = ()
-            status_rows = [s for s in row["status"] if s["kind"] not in ("camera", "radar") and not (s["kind"] == "lidar" and s["name"] != meta["lidar"])]
+            lidars, radars = (), ()
+            stored = [n for n in row.get("radars", ()) if n in radar_to_ego]
+            arrays = np.load(directory / f"t{row['tick']:05d}.npz") if row["lidar"] or stored else None
             if row["lidar"]:
-                xyz = np.load(directory / f"t{row['tick']:05d}.npz")["xyz_cm"].astype(np.float32) / 100.0
+                xyz = arrays["xyz_cm"].astype(np.float32) / 100.0
                 lidars = (LidarSweep(meta["lidar"], np.column_stack((xyz, np.zeros(len(xyz), dtype=np.float32))), extrinsics),)
-            # Cameras and radars are not stored, so their statuses are dropped (a frame may
-            # carry OK status only for data it holds); the G1 driver reads neither.
+            radars = tuple(RadarReturns(n, arrays[f"radar_{n}"], radar_to_ego[n]) for n in stored)
+            # Cameras are not stored, nor radars before schema 2, so their statuses are
+            # dropped (a frame may carry OK status only for data it holds).
+            status_rows = [
+                s
+                for s in row["status"]
+                if s["kind"] != "camera" and not (s["kind"] == "lidar" and s["name"] != meta["lidar"]) and not (s["kind"] == "radar" and s["name"] not in radar_to_ego)
+            ]
             status = tuple(SensorStatus(s["name"], s["kind"], SensorState(s["state"]), s["capture_time_s"], s.get("detail", "")) for s in status_rows)
             frame = SensorFrame(
                 episode_id=meta["episode_id"],
@@ -106,7 +131,7 @@ def iter_frames(directory):
                 received_monotonic_s=float(row["received_monotonic_s"]),
                 cameras=(),
                 lidars=lidars,
-                radars=(),
+                radars=radars,
                 gnss=None if row["gnss"] is None else GnssFix(*row["gnss"]),
                 imu=None if row["imu"] is None else ImuSample(row["imu"]["accel_mps2"], row["imu"]["gyro_rps"], row["imu"]["compass_rad"]),
                 speed_mps=float(row["speed_mps"]),

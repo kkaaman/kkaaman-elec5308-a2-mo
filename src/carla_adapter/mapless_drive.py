@@ -84,6 +84,7 @@ from carla_adapter.mapless_scenarios import (
     score_exercised,
     score_lead_tracking,
     score_moving,
+    score_multi_actor_tracking,
     score_radar_timeline,
 )
 from carla_adapter.sensor_rig import SensorRig, true_forward_speed
@@ -627,6 +628,31 @@ def stop_obstacle_m(speed_mps, settled_ticks=100, dt_s=0.05, start_m=15.0, stop_
     return float(max(base_m, 5.0 * math.ceil(need / 5.0)))
 
 
+def sensor_to_actuator_report(marks, target_ms=STEP_TARGET_MS):
+    """The whole path from sensing to actuation on the wall clock, per tick (eighth review,
+    section 5: the step's time is the autonomy's computation only, so it is no measured
+    sensor-to-actuator deadline). ``marks``: per tick, the wall-clock (perf_counter, s)
+    marks ``ticked`` (the synchronous world tick returned: every sensor has produced the
+    frame), ``assembled`` (the rig's frame read), ``begun`` and ``ended`` (``step``) and
+    ``applied`` (the command handed to the vehicle). Reported, per interval: ``delivery``
+    (ticked to assembled: the data's hand-over to the client), ``record`` (assembled to
+    begun: the frame recorder, when on), ``step``, ``apply`` (ended to applied) and
+    ``sensor_to_actuator`` (ticked to applied), each p50, p95, p99 and max in ms, and the
+    share of ticks whose whole path exceeded ``target_ms``. In synchronous CARLA the command
+    takes effect at the next world tick whatever these are: they are what real time would
+    cost, not what the simulated car saw. None without marks."""
+    if not marks:
+        return None
+    spans = dict(delivery=("ticked", "assembled"), record=("assembled", "begun"), step=("begun", "ended"), apply=("ended", "applied"), sensor_to_actuator=("ticked", "applied"))
+    out = {}
+    for name, (a, b) in spans.items():
+        ms = np.array([1000.0 * (m[b] - m[a]) for m in marks], dtype=float)
+        out[f"{name}_ms"] = dict(p50=round(float(np.median(ms)), 2), p95=round(float(np.percentile(ms, 95)), 2), p99=round(float(np.percentile(ms, 99)), 2), max=round(float(ms.max()), 2))
+    whole = np.array([1000.0 * (m["applied"] - m["ticked"]) for m in marks], dtype=float)
+    out |= dict(target_ms=target_ms, over_target_share=round(float(np.mean(whole > target_ms)), 3), ticks=len(marks), note="wall clock; synchronous CARLA applies the command at the next world tick regardless")
+    return out
+
+
 def step_time_report(step_times_s, log, target_ms=STEP_TARGET_MS, response_s=None, brake_lag_s=BRAKE_LAG_S, dt_s=0.05, semantic_mode=None):
     """The driver step's wall-clock time against the 50 ms tick (third review: p95 and the
     worst case are first-class, so a passing drive cannot hide a missed deadline): p50,
@@ -720,7 +746,7 @@ def semantic_worker_report(log):
         return None if not len(v) else dict(p50=round(float(np.median(v)), 3), p95=round(float(np.percentile(v, 95)), 3), max=round(float(v.max()), 3))
 
     last = stats[-1]
-    keys = ("submitted", "dropped", "segmented", "built", "taken", "stale_epoch", "stale_age", "late_wall", "errors", "dropped_share", "error_share", "stale_share", "late_share")
+    keys = ("submitted", "dropped", "segmented", "built", "taken", "stale_epoch", "stale_age", "stale_wall", "late_wall", "errors", "dropped_share", "error_share", "stale_share", "late_share")
     return {k: last.get(k) for k in keys} | dict(
         takes=len(takes),
         sim_age_s=summary("sim_age_s"),
@@ -1076,20 +1102,30 @@ class MaplessDrive:
                 self.report["braking_assumptions"] = braking_assumptions(config.planner.decel_mps2)
             start_time = None
             actor_truths = []
+            actor_sets = []  # every scripted actor's truth (F8-05), when there are several
+            latencies = []  # the per-tick wall-clock marks (sensor_to_actuator_report)
             for tick in range(int(args.max_s / DT_S)):
+                # Wall-clock marks per tick (eighth review, section 5): the world tick
+                # returned (every sensor has produced this frame's data), the frame
+                # assembled, the step begun and ended, the command handed to the vehicle.
                 frame = self.owner.tick()
+                ticked = time.perf_counter()
                 snap = self.world.get_snapshot()
                 if args.follow:
                     self._follow_with_spectator()
                 sf = rig.read(frame, true_forward_speed(snap, self.ego.id), sim_time_s=snap.timestamp.elapsed_seconds)
+                assembled = time.perf_counter()
                 start_time = sf.sim_time_s if start_time is None else start_time
                 if recorder is not None:
                     recorder.record(tick, sf)
                 begun = time.perf_counter()
                 step = driver.step(sf)
-                step_times.append(time.perf_counter() - begun)
+                ended = time.perf_counter()
+                step_times.append(ended - begun)
                 try:
                     self.adapter.apply(step.command)
+                    applied = time.perf_counter()
+                    latencies.append(dict(ticked=ticked, assembled=assembled, begun=begun, ended=ended, applied=applied))
                 except ValueError as error:
                     # The planar adapter's scope (tilt, reverse motion): a result to score,
                     # not a traceback — the gates and the recording are still written.
@@ -1100,6 +1136,7 @@ class MaplessDrive:
                 if self.actor is not None:
                     self.actor.step(tick, truth)
                     actor_truths.append(self.actor.truth())
+                    actor_sets.append(self.actor.truths())
                 modes.append(step.mode)
                 row = dict(
                     tick=tick,
@@ -1112,6 +1149,8 @@ class MaplessDrive:
                     degraded=[s.name for s in sf.degraded()],
                     actor=actor_truths[-1] if self.actor is not None else None,  # evaluator truth, log only
                 )
+                if self.actor is not None and len(actor_sets[-1]) > 1:
+                    row["actors"] = actor_sets[-1]  # all of them, by role (evaluator truth, log only)
                 out.write(json.dumps(rounded(row)) + "\n")
                 log.append(row)
                 if args.snapshot_every and tick % args.snapshot_every == 0 and step.mode is not DriveMode.STARTUP:
@@ -1193,9 +1232,10 @@ class MaplessDrive:
             driver.close()
             (args.output / "decisions.jsonl").write_text("\n".join(json.dumps(rounded(r.as_dict())) for r in driver.records), encoding="utf-8")
         plot(log, args.output / "drive_plot.png", args.speed)
-        self.score(log, step_times, modes, hold_ticks, actor_truths)
+        self.latencies = latencies
+        self.score(log, step_times, modes, hold_ticks, actor_truths, actor_sets)
 
-    def score(self, log, step_times, modes, hold_ticks, actor_truths=()):
+    def score(self, log, step_times, modes, hold_ticks, actor_truths=(), actor_sets=()):
         args, checks = self.args, self.report["checks"]
         startup = [r for r in log if r["mode"] != DriveMode.STARTUP.value]
         if not startup:
@@ -1251,6 +1291,9 @@ class MaplessDrive:
                 if self.actor_scenario == "crossing_vehicle":
                     # When the radar, the LiDAR and the stack's restriction each had the car (F6-02).
                     checks.append(check("radar_timeline", REPORT, **score_radar_timeline(log, actor_truths, self.body, args.speed, DT_S)))
+                if any(len(actors) > 1 for actors in actor_sets):
+                    # Every scripted actor, and whether the tracks kept them apart (F8-05).
+                    checks.append(check("multi_actor_tracking", REPORT, **score_multi_actor_tracking(log, actor_sets, self.body, DT_S)))
             # Driving quality beside the gates: what restricted the car, whether it was the
             # actor, and the time it cost (third review, F4).
             checks.append(check("behaviour", REPORT, **score_behaviour(self.actor_name, log, actor_truths, self.body, args.speed, DT_S)))
@@ -1309,6 +1352,9 @@ class MaplessDrive:
         following = next((r for name, r in (self.report.get("braking_assumptions") or {}).items() if name.startswith("following")), None)
         semantic_mode = (self.report.get("stack") or {}).get("semantic_mode")
         checks.append(check("driver_step_time", REPORT, **step_time_report(step_times, log, response_s=None if following is None else following["response_s"], semantic_mode=semantic_mode)))
+        latency = sensor_to_actuator_report(getattr(self, "latencies", ()))
+        if latency is not None:
+            checks.append(check("sensor_to_actuator", REPORT, **latency))
         worker = semantic_worker_report(log)
         if worker is not None:
             checks.append(check("semantic_worker", REPORT, **worker))
