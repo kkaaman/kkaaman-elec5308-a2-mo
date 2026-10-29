@@ -215,6 +215,8 @@ class TerrainGrid:
         # (review of 2b7e14d): "fresh kerb" means a recent raised hit in that cell.
         self.seen_by_class = {k: np.full((self.n, self.n), -np.inf) for k in (PointClass.ROAD, PointClass.RAISED, PointClass.OBSTACLE)}
         self.time_s = None
+        self._still_since = None  # the last sweep's time before the current standstill began
+        self._seen_before = None  # per class, the cells hit before it (a standstill's scenery)
 
     def reset(self):
         """Forget every observation: the odometry frame they were placed in is no longer sound."""
@@ -225,12 +227,15 @@ class TerrainGrid:
             grid.fill(-np.inf)
         self.origin = np.array([-self.config.size_m / 2, -self.config.size_m / 2])
         self.time_s = None
+        self._still_since = None
+        self._seen_before = None
 
     def _centre(self):
         return self.origin + self.config.size_m / 2
 
     def _recentre(self, x, y):
         c = self.config
+        self._seen_before = None  # not shifted with the arrays: a standstill's transient evidence keeps, as before
         shift = np.round((np.array([x, y]) - self._centre()) / c.cell_m).astype(int)
         for name in ("road", "raised", "obstacle", "tall", "seen", *self.seen_by_class):
             old = getattr(self, name) if not isinstance(name, PointClass) else self.seen_by_class[name]
@@ -282,7 +287,14 @@ class TerrainGrid:
         tall) is kept as it was instead of decaying: after 5-10 s at a junction mouth the
         road ahead had decayed to unknown, the verified distance fell from 22 m to 0 and
         the car never moved off (full review of 73ae759, S7). Cells this sweep covers decay
-        as usual, so their evidence stays bounded; obstacle evidence always decays.
+        as usual, so their evidence stays bounded; obstacle evidence always decays. So does
+        evidence of a class first added *during* the standstill to a cell already observed
+        (it had none of that class before) that this sweep does not cover: nothing static
+        appears and vanishes while the car stands, something moved through. A cell first
+        observed during the standstill (the whole grid at start-up) keeps, as before. An oncoming car passing a car
+        waiting to turn left left raised hits from its wheels in the opposing lane, kept as
+        kerb for good, and no turn ever cleared them (PC Temp, Town03, dd9344c: held 25 s).
+        Scenery seen before the standstill and hit now and then since (a ring's edge) keeps.
         """
         if not isinstance(sweep, ClassifiedSweep) or not isinstance(pose, Pose2D):
             raise TypeError("add(ClassifiedSweep, Pose2D, time_s)")
@@ -293,11 +305,21 @@ class TerrainGrid:
         ij, inside = self.cells(xy)
         flat = ij[:, 0] * self.n + ij[:, 1]
         covered = np.unique(flat[inside & (sweep.cls != PointClass.IGNORED)])
+        if not stationary:
+            self._still_since = self._seen_before = None
+        elif self._still_since is None:
+            self._still_since = self.time_s if self.time_s is not None else time_s
+            self._seen_before = {k: np.isfinite(v) for k, v in self.seen_by_class.items()}
+            self._seen_before["any"] = np.isfinite(self.seen)
         if self.time_s is not None:
             dt = max(0.0, time_s - self.time_s)
             static = math.exp(-dt / c.static_tau_s)
-            for grid in (self.road, self.raised, self.tall):
-                if stationary:
+            for point_class, grid in ((PointClass.ROAD, self.road), (PointClass.RAISED, self.raised), (PointClass.OBSTACLE, self.tall)):
+                if stationary and self._seen_before is not None:
+                    decaying = (self.seen_by_class[point_class] > self._still_since) & ~self._seen_before[point_class] & self._seen_before["any"]
+                    decaying.ravel()[covered] = True
+                    grid[decaying] *= static
+                elif stationary:
                     grid.ravel()[covered] *= static
                 else:
                     grid *= static

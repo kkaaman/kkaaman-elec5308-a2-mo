@@ -135,3 +135,27 @@ def test_f6_07_the_schedule_keeps_the_road_model_off_segmentation_ticks():
         assert bool(shared) == s["overlap"], (seg, rm, phase, s)
     with pytest.raises(ValueError):
         StackConfig(semantic_mode="fast")
+
+
+def test_f7_04_results_carry_their_wall_clock_age_and_late_ones_are_counted():
+    """Seventh review, F7-04: simulation time alone says nothing of real time in synchronous
+    CARLA. A taken result reports its queue wait, run time and wall-clock age from the job's
+    submission; one older on the wall clock than max_age_s is kept (shadow information) but
+    counted late, and the shares of drops, failures, stale and late results are reported."""
+    gate = Gate()
+    w = worker(shadow=gate, max_age_s=0.05)
+    try:
+        w.submit(job(1))
+        threading.Event().wait(0.12)  # the job runs 0.12 s on the wall clock, no simulation time
+        gate.go.set()
+        assert w.wait_idle()
+        result = w.take(0.05, epoch=0)
+        assert result is not None
+        take = w.last_take
+        assert take["wall_age_ms"] >= 100.0 and take["run_ms"] >= 100.0 and take["queue_wait_ms"] >= 0.0 and take["sim_age_s"] == 0.0
+        stats = w.stats()
+        assert stats["late_wall"] == 1 and stats["late_share"] == 1.0 and stats["dropped_share"] == 0.0 and stats["error_share"] == 0.0
+    finally:
+        gate.go.set()
+        w.close()
+

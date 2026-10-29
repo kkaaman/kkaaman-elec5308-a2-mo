@@ -2300,6 +2300,160 @@ No rule reads any of it.
 0.05–0.15 stops the car within a tick or two in CARLA. Every stop and the close cut-in came
 in as two or three such pulses.
 
+### Live on PC Temp (29 Oct, `36b49ef` and `dd9344c`): the left-turn deadlock
+
+**The runs.**
+- Reruns on `36b49ef`:
+  - braking cut-in at 4 m/s: MEASURED_PASS, exercised (the conflict cap now restricted
+    the car at the hand-over);
+  - car stop at 4 m/s with the car at 50 m: MEASURED_PASS;
+  - three Town03 left turns (plain, `--oncoming stopped`, `--oncoming parked`): all
+    MEASURED_FAIL, held 25 s at the mouth.
+- The r7 batch on `dd9344c`:
+  - car stop: MEASURED_PASS;
+  - braking cut-in at 4 m/s: MEASURED_PASS, exercised with its braking variant (the car
+    braked 2.5 s after it led);
+  - braking lead, inline and threaded, with the v2 segmenter: both MEASURED_PASS,
+    identical behaviour;
+  - two left turns: MEASURED_FAIL as before;
+  - two crossing cars: MEASURED_FAIL on completion. The evaluator was at fault (below).
+- The Town05 crossing car could not be placed 6 m or 8 m right of the lane at that site.
+
+**Semantic work, inline against threaded (v2 segmenter, the same braking-lead run):**
+
+| | inline | threaded |
+|---|---|---|
+| whole step p50 / p95 / p99 / max | 52 / 117 / 129 / 411 ms | 51 / 70 / 76 / 115 ms |
+| control stages p50 / p95 | 34 / 45 ms | 50 / 68 ms |
+
+- The worker kept up: 390 jobs, 1 dropped. It built 130 road models and every one was
+  taken; none was stale and none failed.
+- Its segmentation took 139 ms p50 on the wall clock, sharing the interpreter. Inline, the
+  paint stage, segmentation included, took 22 ms p50.
+- The control stages slowed by about 15 ms at p50 because the worker's Python competes for
+  the interpreter and the cores. Moving the worker to a process is the next step if the
+  tail must come down further.
+
+**Why the left turns held, found by replaying the recorded frames.** There were three
+causes, each enough on its own.
+1. **The exit kerb's span.** From near the mouth only the exit kerb's first three stations
+   are in view. Three stations a metre apart span 2 m, the fit's minimum, only nominally.
+   Re-projected into a probe frame that moves by centimetres, they read 1.99–2.06 m, and
+   the 1.99 dropped the exit measurement at 7 m from the entry.
+   - Fix: `JunctionConfig.exit_span_tolerance_m` (0.25 m).
+2. **The exit measurement forgotten at the mouth.** The car held at the mouth, where those
+   three stations are all it can see, and its 2 s memory dropped what it had measured on
+   the approach.
+   - Fix: stations now age only while the car moves (2 s of motion). The fit still reads
+     the last 2 s of stations first, as before. Only if those make no line does it fall
+     back to the stations kept from before the standstill.
+   - Read from farther away, those carry more range bias. Fitting them all at once let
+     the approach's 1.1 m outvote the standstill's 1.3 m in the synthetic S7 pause, and
+     the car was held on its latched path.
+   - The live yield before it (below) and CARLA's low-speed brake pulse had cost the car
+     the 1.5 s that let the memory run out.
+3. **A passing car's wheels read as kerb.** Standing at the mouth, the car keeps static
+   evidence it no longer hits, so the cells between the rings do not decay (S7). The
+   oncoming car's wheels left raised hits in four cells of the opposing lane (raised 6–9,
+   little tall), so they read as kerb. Those cells were kept for the whole standstill, and
+   no turn radius ever cleared them ("no radius clears the terrain" for 25 s).
+   - Fix: evidence of a class first added during the standstill, to a cell already
+     observed, decays as usual once the sweeps stop hitting that cell. Nothing static
+     appears and vanishes while the car stands.
+   - A cell first observed during the standstill (the whole grid at start-up) keeps, as
+     before; the G1c turns depend on it.
+
+**Replays of the recorded turns, open loop:**
+- Plain, parked and oncoming left turns: the exit stays measured at the mouth. On the
+  oncoming run the turn is planned again 4 s after the car has passed, instead of never.
+- The five turns that passed before (three left on Town03, two right on Town10HD, 4338
+  ticks): the driver's mode, stop distance, exit source and turn note are identical on
+  every tick.
+- The stack's caps on three Town05 braking-lead recordings: identical.
+
+**Also from these runs:**
+- **A yield to clutter at the junction.** A 0.7 × 0.4 m LiDAR track 33 m ahead and 18 m left
+  "approached" at 0.7 m/s and brought a 0.8 m/s yield for a second. Recorded frames carry
+  no radar, so the replay's tracker does not reproduce it; it is logged for the next run.
+- **Crossing-car completion (evaluator).** A crossing car must now be yielded to only if
+  the car, at the speed it was making, would reach it before it cleared, with a second's
+  margin. Arriving a second or more after it has cleared counts as giving way.
+  - r7 at 4 m/s: arrived 1.85 s after the crossing car cleared. Now passes.
+  - The 5 m/s crossing: gone 8 s before the car arrived. Now passes.
+  - Holding 4 m/s into a 2 m/s crossing 30 m ahead still fails (test).
+- **Lead tracking.** The actor's braking is now looked for only from the tick it first led
+  the car. The braking cut-in's slowing from its lane change no longer reads as a brake
+  2.5 s before it led (brake delay 5.05 → 0.5 s).
+
+### Seventh technical review, of `dd9344c` (29 Oct)
+
+All six findings were taken.
+
+**F7-01, radar-only time from the ticks the radar had the car.** The radar-only time was
+the span from the first radar-only tick to the first LiDAR tick. A radar that had the car
+for one tick was credited the whole span.
+- `score_radar_timeline` now counts the ticks a radar-only track was actually on the car:
+  - `radar_only_observed_s`;
+  - the longest unbroken run (`radar_only_longest_s`, which is `radar_only_s`);
+  - the gaps, a loss before the LiDAR included (`radar_only_gaps`,
+    `radar_only_longest_gap_s`);
+  - the span (`radar_only_span_s`);
+  - whether a radar threat was on the car before the LiDAR had it (`threat_before_lidar`).
+- The radar-first variant needs both an unbroken 0.25 s and that threat.
+
+**F7-02, the whole step governs.** The command goes out when `stack.step` returns, so the
+whole step's measured wall time now governs actuation in both modes, and the response
+budget is taken on it.
+- The control stages stay as a decomposition.
+- `uninstrumented_ms` is what the stage timers miss: the step's time less every stage's.
+
+**F7-03, the provisional floor.** The provisional radar threat's 1.5 m/s floor held
+whatever the evidence and however close the conflict.
+- The floor now falls linearly to 0 as the track's travel grows from the provisional
+  threshold to the full one. Both thresholds are at least the bearing floor.
+- The floor is never above the speed from which the car stops short of the conflict at
+  4 m/s² (`radar_provisional_hard_decel_mps2`).
+- 11 m out, on 0.6 m of travel, it still holds the car at 1.5 m/s: the clutter it is
+  there for. 8 m out, it lets the car stop.
+- At the first restriction, the radar timeline now reports:
+  - `restriction_room_m`, from the car's front to the crossing car;
+  - the speed then;
+  - `restriction_decel_needed_mps2`, the deceleration a stop in that room needs. The live
+    crossings needed 0.1–0.7 m/s².
+- **Radar-first in CARLA.** The roof LiDAR reaches 60 m and tracked the parked crossing car
+  at 46 m. In CARLA the radar is blocked by whatever blocks the LiDAR, so with this rig a
+  radar-first crossing cannot arise within the conflict horizon. The live radar-first runs
+  therefore shorten the LiDAR (`--set roof.range_m=25`, recorded in the report's suite
+  overrides): a degraded LiDAR, against which the radar has to earn its place.
+
+**F7-04, wall-clock age of semantic results.** Each job carries its submission time on the
+wall clock; each result its start and completion.
+- Per taken result, the log's `semantic_take` gives:
+  - its simulation age;
+  - its wall-clock age, from submission to use;
+  - its queue wait and run time.
+- Results older than 0.5 s on the wall clock are kept (shadow information) but counted
+  (`late_wall`).
+- The report's `semantic_worker` gives:
+  - the shares of jobs dropped and failed, and of results stale or late;
+  - the ages' p50, p95 and max.
+
+**F7-05, the stop route's length.** The stop scenario's car now stands as far along as lane
+keeping needs for its 100 settled ticks at the cruise speed: 35 m at 2 m/s, 45 m at 4 m/s.
+The requirement itself is unchanged. A shorter `--obstacle-m` says so in the INCOMPLETE.
+
+**F7-06, the shadow by section and mode.** `semantic_shadow` splits the band ahead into
+near, mid and far (0–10, 10–20 and 20+ m). For each section it logs:
+- the coverage;
+- the right edge;
+- the stations with an edge;
+- the stations where road was seen right of the line but no edge (`missed`).
+
+The report gives coverage, the edge's signed error and MAE against the kerb, and the
+missed share, by section and by the driver's mode (driving or turning). A downstream
+driving benefit is still to be shown: the same route and seed with the semantic
+correction on and off.
+
 ## Running Phase 0 live
 
 Run with CARLA 0.9.16 and no other clients:

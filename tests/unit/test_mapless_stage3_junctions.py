@@ -6,6 +6,7 @@ import math
 from pathlib import Path
 
 import numpy as np
+import pytest
 
 from mapless.corridor import CorridorConfig
 from mapless.driver import DriveMode, DriverConfig, MaplessDriver
@@ -273,3 +274,81 @@ def test_labels_used_by_the_gate_are_the_grids():
     assert grid.labels(np.array([[30.0, 4.0]]), max_age_s=0.3)[0] == CellLabel.BARRIER
     frame = Pose2D(0.0, 0.0, 0.0)
     assert oncoming_gate(grid, frame, _left_turn_path(), frame, BODY, JunctionConfig(), 0.0, 2.0).clear
+
+
+# -- Live left turns on PC Temp (Town03, 36b49ef and dd9344c): held at the mouth for good ----
+
+
+def test_evidence_that_comes_and_goes_while_the_car_stands_still_decays():
+    """A car waiting to turn left: an oncoming car's wheels passing in the opposing lane
+    left raised hits there, kept as kerb for the whole standstill (static evidence keeps
+    while the car stands, S7), and no turn ever cleared them. Evidence last added during
+    the standstill in a cell no longer hit came from something that moved through: it
+    decays as if the car were moving. What was seen before the standstill keeps (S7)."""
+    grid = TerrainGrid(TerrainConfig())
+    pose = Pose2D(0.0, 0.0, 0.0)
+
+    def sweep(points):
+        xyz = np.array([[x, y, 0.0] for x, y, _ in points], dtype=float)
+        cls = np.array([c for *_, c in points], dtype=np.int8)
+        return ClassifiedSweep(xyz, np.zeros(len(points)), cls, np.zeros(0), np.zeros(0))
+
+    kerb, ring, lane = (15.0, -6.0, PointClass.RAISED), (10.0, 0.0, PointClass.ROAD), (15.0, 3.0, PointClass.ROAD)
+    for k in range(10):  # moving: the kerb and the opposing lane's road are seen
+        grid.add(sweep([kerb, ring, lane]), pose, k * DT)
+    t = 10 * DT
+    for k in range(40):  # standing; a passing car's wheel is in a cell 15 m ahead, 3 m left, for 0.3 s
+        wheel = [(15.0, 3.0, PointClass.RAISED)] if k < 6 else []
+        grid.add(sweep([ring] + wheel), pose, t, stationary=True)
+        t += DT
+    for _ in range(200):  # 10 s more standing: only the ring is hit
+        grid.add(sweep([ring]), pose, t, stationary=True)
+        t += DT
+    label = lambda x, y: grid.labels(np.array([[x, y]]), max_age_s=30.0)[0]  # noqa: E731
+    assert label(15.0, -6.0) == CellLabel.BARRIER  # seen before the standstill: kept
+    assert label(15.0, 3.0) != CellLabel.BARRIER  # came and went during it: decayed
+    i, j = grid.cells(np.array([[15.0, 3.0]]))[0][0]
+    assert grid.raised[i, j] < TerrainConfig().barrier_min_evidence
+    # A cell first observed during the standstill (the whole grid at start-up) keeps, as before.
+    fresh = TerrainGrid(TerrainConfig())
+    for k in range(6):
+        fresh.add(sweep([(15.0, 3.0, PointClass.RAISED)]), pose, k * DT, stationary=True)
+    for k in range(6, 200):
+        fresh.add(sweep([ring]), pose, k * DT, stationary=True)
+    i, j = fresh.cells(np.array([[15.0, 3.0]]))[0][0]
+    assert fresh.raised[i, j] == pytest.approx(6.0, rel=0.05)
+
+
+def test_the_exit_kerb_measured_on_the_approach_is_kept_while_the_car_stands_at_the_mouth():
+    """From a left turn's mouth only the exit kerb's first three stations are in view: the
+    car forgot the rest 2 s after it stopped there and never measured the exit again
+    (held 25 s, "exit lane not measured"). Stations now age only while the car moves; and
+    three stations a metre apart count as a 2 m span when re-projection reads 1.99 m."""
+    from mapless.corridor import CorridorEstimator
+    from mapless.junction import JunctionTurn
+
+    config = JunctionConfig()
+    turn = JunctionTurn(config, BODY, CorridorEstimator(CorridorConfig(keep_right_m=1.75)))
+    grid = TerrainGrid(TerrainConfig())  # nothing seen now: only the memory can measure the exit
+    pose = Pose2D(0.0, 0.0, 0.0)
+    probe = Pose2D(20.0, 10.0, math.pi / 2)
+
+    def remember(xs):
+        turn._kerb = [(turn._now, turn._moving_s, probe.to_world(np.array([[x, -6.4] for x in xs])))]
+
+    def source(now_s, standing_s=0.0):
+        turn._now, turn.standing_s = now_s, standing_s
+        return turn.exit_line(grid, pose, (20.0, 10.0), math.pi / 2)[1]
+
+    stations = [11.0, 12.0, 13.0, 15.0, 18.0]
+    source(0.0)
+    remember(stations)
+    assert source(1.0) == "kerb"
+    assert source(1.5, standing_s=0.05) == "kerb"
+    assert source(30.0, standing_s=28.5) == "kerb"  # stood still since: kept
+    assert source(30.8) == "kerb"  # moving off: 1.8 s of motion since
+    assert source(31.5) == "route"  # 2.5 s of motion: forgotten, replaced from nearer
+    remember([11.0, 12.0, 12.99])
+    assert source(32.0) == "kerb"  # 1.99 m: three stations
+    remember([11.0, 12.0])
+    assert source(32.5) == "route"  # two stations are not a line
