@@ -1,0 +1,28 @@
+{
+  "strict_sphinx_final_pass": [
+    "100",
+    "101",
+    "103",
+    "105",
+    "108",
+    "109",
+    "88"
+  ],
+  "all_exact_candidate_manifests_match": true,
+  "issue40_targeted": "54 passed",
+  "canonical_main": "ae6a83d",
+  "merged_prs": [],
+  "closed_issues": [],
+  "remaining_blockers": [
+    "designated exact-source admission review/rebind",
+    "supported #40 clearance and #41/#43 detector correction evidence",
+    "live recorded sensor/baseline/extension acceptance",
+    "labelled real-model LAN/deployment comparison",
+    "fresh target-platform disconnected install and human release/submission evidence"
+  ],
+  "no_force_push": true,
+  "preserved_concurrent_parking_commits": [
+    "d4b6b5e",
+    "f22ef76"
+  ]
+}
