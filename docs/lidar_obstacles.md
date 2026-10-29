@@ -26,11 +26,14 @@ height is re-estimated per sweep (below), so this is an anchor, not an
 assumption of flatness. Range is checked from the sensor origin, not the rear
 axle. Density is `point_count / expected_points_per_sweep`.
 
-Recommended live configuration (`carla_adapter.lidar.LidarRig` defaults): 32
-channels, 50 m, 640 000 points/s, −30° to +10°, 360°, roof mount 2.4 m above the
-actor origin, no simulated noise or drop-off so that the measured density
-reflects geometry only. At `fixed_delta_seconds = 0.05` the rotation frequency
-is 20 Hz and a sweep nominally holds 32 000 returns.
+The current live default is the [#40 geometry configuration](lidar_geometry_issue40.md):
+128 channels, 50 m, 1 280 000 points/s, −85° to +10°, 360°, actor-relative
+mount (2.5, 0, 1.5) m, zero roll/pitch/yaw. At 0.05 s, rotation is 20 Hz
+and the nominal sweep contains 64 000 returns. Noise/drop-off remain zero.
+This improves observed near-field support; positive clearance remains disabled.
+The original #103 roof configuration (32 channels, 640 000 points/s, −30° to
++10°, mount (0, 0, 2.4) m) remains the provenance of historical evidence and
+synthetic fixtures, which have not been relabelled as the new configuration.
 
 ## Capture and transform verification (E2-02)
 

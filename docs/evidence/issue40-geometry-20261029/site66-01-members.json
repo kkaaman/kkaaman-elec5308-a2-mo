@@ -1,0 +1,113 @@
+{
+  "archive": "site66-01.tar.xz",
+  "archive_sha256": "3dc0568567e90773234ec4f10bba29724c623628503de06c448a20e91e72b5ce",
+  "archive_bytes": 1108064,
+  "members": [
+    {
+      "path": "site66-01/front_high128/ego_1521282.npy",
+      "size": 878496,
+      "sha256": "951101361775f86b8b9089bf31fc970bccdf1c584b047b991260447c108bb984"
+    },
+    {
+      "path": "site66-01/front_high128/ego_1521283.npy",
+      "size": 878496,
+      "sha256": "951101361775f86b8b9089bf31fc970bccdf1c584b047b991260447c108bb984"
+    },
+    {
+      "path": "site66-01/front_high128/ego_1521290.npy",
+      "size": 878848,
+      "sha256": "fd751626497d1fe89366772233977b02cfbd91133597f26d94e7e32a7adc294a"
+    },
+    {
+      "path": "site66-01/front_high128/ego_1521291.npy",
+      "size": 878848,
+      "sha256": "fd751626497d1fe89366772233977b02cfbd91133597f26d94e7e32a7adc294a"
+    },
+    {
+      "path": "site66-01/front_high128/ego_1521298.npy",
+      "size": 878576,
+      "sha256": "a0e137f34771599d0a299d79e65cb449382799e768ca989e747a91f926f338c3"
+    },
+    {
+      "path": "site66-01/front_high128/ego_1521299.npy",
+      "size": 878576,
+      "sha256": "a0e137f34771599d0a299d79e65cb449382799e768ca989e747a91f926f338c3"
+    },
+    {
+      "path": "site66-01/front_high128/ego_1521306.npy",
+      "size": 880640,
+      "sha256": "2b38e7194963f4c893009558d7f767fc39828da023797fb9a079abebc30ec758"
+    },
+    {
+      "path": "site66-01/front_high128/ego_1521307.npy",
+      "size": 880640,
+      "sha256": "2b38e7194963f4c893009558d7f767fc39828da023797fb9a079abebc30ec758"
+    },
+    {
+      "path": "site66-01/front_high128/raw/sensor_1521282.bin",
+      "size": 878368,
+      "sha256": "221ab9212ed0db0738104edd18ddbbd0cc5f97020c2af7e1b5cc1546f0dee5d5"
+    },
+    {
+      "path": "site66-01/front_high128/raw/sensor_1521283.bin",
+      "size": 878368,
+      "sha256": "221ab9212ed0db0738104edd18ddbbd0cc5f97020c2af7e1b5cc1546f0dee5d5"
+    },
+    {
+      "path": "site66-01/front_high128/raw/sensor_1521290.bin",
+      "size": 878720,
+      "sha256": "e212ca62134102e4d4b7ed2e15f419b0206cfc7eacbdec75b735663317feb731"
+    },
+    {
+      "path": "site66-01/front_high128/raw/sensor_1521291.bin",
+      "size": 878720,
+      "sha256": "e212ca62134102e4d4b7ed2e15f419b0206cfc7eacbdec75b735663317feb731"
+    },
+    {
+      "path": "site66-01/front_high128/raw/sensor_1521298.bin",
+      "size": 878448,
+      "sha256": "359e09bd430178ca904d4ef8d2992e3334c5f0f71bf4fb4885478aaa0ee0dbb9"
+    },
+    {
+      "path": "site66-01/front_high128/raw/sensor_1521299.bin",
+      "size": 878448,
+      "sha256": "359e09bd430178ca904d4ef8d2992e3334c5f0f71bf4fb4885478aaa0ee0dbb9"
+    },
+    {
+      "path": "site66-01/front_high128/raw/sensor_1521306.bin",
+      "size": 880512,
+      "sha256": "45d2b0b039d55903761d40ff5b4ca35d48f00ad07ff15079bb5858fbca2defd7"
+    },
+    {
+      "path": "site66-01/front_high128/raw/sensor_1521307.bin",
+      "size": 880512,
+      "sha256": "45d2b0b039d55903761d40ff5b4ca35d48f00ad07ff15079bb5858fbca2defd7"
+    },
+    {
+      "path": "site66-01/front_high128/result.json",
+      "size": 73441,
+      "sha256": "b85045062cd74c49e9d98686a3461689fd5ed5d97055387fe6c8b6d7b7d458ea"
+    },
+    {
+      "path": "site66-01/lidar-adapter.py",
+      "size": 18335,
+      "sha256": "8d9435b3e5b97f18e32244c365626f6900f27efa1a816c653df00f063c166c0b"
+    },
+    {
+      "path": "site66-01/progress.json",
+      "size": 90916,
+      "sha256": "06380baf02a6c6dab8ef9e37789386fd70b1bf20fa896a94a08f65eb839b7e5f"
+    },
+    {
+      "path": "site66-01/screen-script.py",
+      "size": 11549,
+      "sha256": "9cd56575eef1b137c6b0992d56fe07e9157583fdedb1bd67288f179c9596f8d1"
+    },
+    {
+      "path": "site66-01/screen.json",
+      "size": 91282,
+      "sha256": "245b0afa3baeabc102692ed3216fa240119b40f7f745798e511f5e0b876b1227"
+    }
+  ],
+  "member_hashes_verified": true
+}

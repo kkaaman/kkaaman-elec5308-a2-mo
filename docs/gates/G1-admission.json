@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
   "decision": "PASS",
-  "publication_state": "PR103_REVIEWED_SOURCE_REBIND_20261029",
+  "publication_state": "ISSUE40_GEOMETRY_REVIEWED_SOURCE_REBIND_20261029",
   "review_process": "Issue38 designated reviewer/owner; final bytes published for team review; later objections tracked separately, not unanimous individual sign-off",
   "review_process_url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/38#issuecomment-6395116981",
   "scope_evidence_acknowledgement_url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/38#issuecomment-6394910845",
-  "final_change_review": "Complete production review under explicit user delegation; Codex, 2026-10-29; no new human signoff",
+  "final_change_review": "Codex review under explicit user delegation, 2026-10-29; validated LiDAR geometry only; no #40 live acceptance or new human signoff",
   "admitted_profile": "stationary_vehicle_g2_only",
   "operational_scope": "Stationary-vehicle obstacle profile for the G2 stationary-car baseline only; pedestrian operational first-admission range unestablished/deferred.",
   "frozen_values": {
@@ -74,7 +74,7 @@
         "src/carla_adapter/dataset_capture.py": "fe3240a133ab453972344d40332ddc036b228e09744fe0a128f3badcc650b0bf",
         "src/carla_adapter/depth_calibration.py": "e658985d15748abfca46998ca876239beed62704dd0c4dcc68bf8fbc8f0dcdd3",
         "src/carla_adapter/environment_check.py": "50d070c01f71148b159e93f5189bdbf6045585270d28a5b869963c46f778a6b5",
-        "src/carla_adapter/lidar.py": "1add8da7bcb64efa7be90735d95f6c433a745b14e1135d1d12a0e06cd9079422",
+        "src/carla_adapter/lidar.py": "7b7ccec73400d836293fd91fb5630c29e6f0de6790b5458c9a6a58b1a5900e77",
         "src/carla_adapter/longitudinal.py": "43198304502eb607d929efcebb47a5e07157d272deacf5221449e72562e03802",
         "src/carla_adapter/s0_runner.py": "f25eb879515d66d47fa7e67fb83ac9a555824d577dab6479778860b98c664542",
         "src/carla_adapter/scenario_verification.py": "03a5e1b72105476a07c9007f34fb4b3c599fe66a21a56a132f34b579cde3bbd2",
@@ -178,6 +178,7 @@
         "src/visualisation/__init__.py": "589c65f47cb689ca49206cf37fd164469b7f25d6918fae27b906e59882ee36c9",
         "configs/README.md": "efaefeb4f69401c52231dc78d04f4f4a33d4f37e80208f3122450b616e6b1c07",
         "configs/acceptance.json": "9f8ba3cf712dedd6d0483eb228a6df8155e9f2e65880bd6a560ec07495c6c7d8",
+        "configs/lidar_issue40.json": "5e7dd673b6d279bfb8307dd75975c9e86f68a4e68fbba0dec164768aedd7cd8e",
         "configs/models.yaml": "a8e1a7956ed5646593167694264235dcd106c4d4eb4cb0cf97f4527191117533",
         "configs/parking_p1.json": "ba4f08fb57cc3f186c990c0b215f0ded8c9992f8ea4957c1b5d9dd3bb4b47f07",
         "configs/reproduction.json": "20a6bdd82da79a3bb77a92ca9437d70ba38169358721741274be61227fbdad05",
@@ -197,7 +198,7 @@
         "configs/weather/robustness_v1.json": "0bfc4770bfcdb6f5eff0276dd80d8ffbb9b4f296c383d5899e7e4eac87184874",
         "docs/evidence/BL-D-06/sources/depth-calibration.json": "89d64df2475790eea16a0fc2b862a9fcbafdf125c9f3fd5ef3f74453afc9cf5f"
       },
-      "scope_sha256": "4bbcbe04975691ae8e98026611fd6be698426ba98729b3e3bfaf89aba2a566a9"
+      "scope_sha256": "ed42f70670961ea0792e8c637225ffa33dd15f15bbc6d7c0ba7484125ecf43fb"
     },
     "issue41_runner": {
       "kind": "issue41_runner",

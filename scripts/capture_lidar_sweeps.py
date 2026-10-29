@@ -147,6 +147,9 @@ def collect(args):
     source = Path(__file__).resolve()
     (args.output / "capture-script.py").write_bytes(source.read_bytes())
     rig = LidarRig(z_actor_m=args.mount_height)
+    if getattr(args, "rig_config", None) is not None:
+        rig = LidarRig(**json.loads(args.rig_config.read_text()))
+        (args.output / "rig-config.json").write_bytes(args.rig_config.read_bytes())
     episode = f"lidar-capture-{uuid.uuid4()}"
     document = dict(
         schema_version=FIXTURE_SCHEMA_VERSION,
@@ -217,6 +220,20 @@ def collect(args):
                     [float(v) for v in row] for row in capture.sensor_to_ego
                 ]
                 document["actor_ids"] = dict(ego=ego.id, target=target.id, lidar=capture.sensor.id)
+                box = ego.bounding_box
+                ego_bounds = (
+                    [
+                        box.location.x - box.extent.x + offset,
+                        box.location.y - box.extent.y,
+                        box.location.z - box.extent.z,
+                    ],
+                    [
+                        box.location.x + box.extent.x + offset,
+                        box.location.y + box.extent.y,
+                        box.location.z + box.extent.z,
+                    ],
+                )
+                document["ego_evaluation_bounds"] = ego_bounds
                 for distance, lateral in capture_cases(args.distances, args.lateral_offsets):
                     target.set_transform(target_pose(carla, waypoint, distance, lateral))
                     for _ in range(SETTLE_TICKS):
@@ -239,7 +256,9 @@ def collect(args):
                             ],
                             offset,
                         )
-                        check = known_object_check(sweep, center_ego_m=center, extent_m=extent)
+                        check = known_object_check(
+                            sweep, center_ego_m=center, extent_m=extent, exclude_bounds=ego_bounds
+                        )
                         target_box = dict(
                             x_m=center[0],
                             y_m=center[1],
@@ -339,6 +358,9 @@ def final_capture_status(error, checks, cleanup):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--host", default="127.0.0.1")
+    parser.add_argument(
+        "--rig-config", type=Path, help="Explicit LidarRig JSON retained with capture"
+    )
     parser.add_argument("--port", type=int, default=2000)
     parser.add_argument(
         "--site-index",
@@ -368,7 +390,7 @@ def main():
     parser.add_argument(
         "--mount-height",
         type=float,
-        default=2.4,
+        default=LidarRig().z_actor_m,
         help="LiDAR height above the actor origin (metres)",
     )
     parser.add_argument("--output", type=Path, required=True, help="new directory under runs/")

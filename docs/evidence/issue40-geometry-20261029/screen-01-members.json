@@ -1,0 +1,708 @@
+{
+  "archive": "screen-01.tar.xz",
+  "archive_sha256": "55ec6892eb71ed53eb7f404eacd9d80c28449d814f1f5fcab5838019296abfe8",
+  "archive_bytes": 5077168,
+  "members": [
+    {
+      "path": "screen-01/baseline/ego_1242548.npy",
+      "size": 313072,
+      "sha256": "06f8d54f5d47ff2b9d960fb000c75a89b26d967863ec169f5b683759d7844d4d"
+    },
+    {
+      "path": "screen-01/baseline/ego_1242549.npy",
+      "size": 313072,
+      "sha256": "06f8d54f5d47ff2b9d960fb000c75a89b26d967863ec169f5b683759d7844d4d"
+    },
+    {
+      "path": "screen-01/baseline/ego_1242556.npy",
+      "size": 313072,
+      "sha256": "372afe709a3db2c574b3ae2d89e1b1be415131c75b2d247a0a66d02196122076"
+    },
+    {
+      "path": "screen-01/baseline/ego_1242557.npy",
+      "size": 313072,
+      "sha256": "372afe709a3db2c574b3ae2d89e1b1be415131c75b2d247a0a66d02196122076"
+    },
+    {
+      "path": "screen-01/baseline/ego_1242564.npy",
+      "size": 313072,
+      "sha256": "b59733459ab6bc0bcff2dd6a419e655abf6ff54a4e9cc8da58cf83a027e20eb9"
+    },
+    {
+      "path": "screen-01/baseline/ego_1242565.npy",
+      "size": 313072,
+      "sha256": "b59733459ab6bc0bcff2dd6a419e655abf6ff54a4e9cc8da58cf83a027e20eb9"
+    },
+    {
+      "path": "screen-01/baseline/ego_1242572.npy",
+      "size": 313072,
+      "sha256": "11949d5274094a8b5301a3d0afe7c4d3c514567a1ff63ba096980742d1778eee"
+    },
+    {
+      "path": "screen-01/baseline/ego_1242573.npy",
+      "size": 313072,
+      "sha256": "11949d5274094a8b5301a3d0afe7c4d3c514567a1ff63ba096980742d1778eee"
+    },
+    {
+      "path": "screen-01/baseline/raw/sensor_1242548.bin",
+      "size": 312944,
+      "sha256": "d9a86661424168a932bbd565aedbc3d49f34e44f5ea94130c665afd021066bac"
+    },
+    {
+      "path": "screen-01/baseline/raw/sensor_1242549.bin",
+      "size": 312944,
+      "sha256": "d9a86661424168a932bbd565aedbc3d49f34e44f5ea94130c665afd021066bac"
+    },
+    {
+      "path": "screen-01/baseline/raw/sensor_1242556.bin",
+      "size": 312944,
+      "sha256": "1e8b09668221d74175794c5ff47a9ca5febb3fd9af733eff42cd44314e9795bc"
+    },
+    {
+      "path": "screen-01/baseline/raw/sensor_1242557.bin",
+      "size": 312944,
+      "sha256": "1e8b09668221d74175794c5ff47a9ca5febb3fd9af733eff42cd44314e9795bc"
+    },
+    {
+      "path": "screen-01/baseline/raw/sensor_1242564.bin",
+      "size": 312944,
+      "sha256": "2e9450acd4070a78bae9d5b141ee622e977bf1079ee0ef65d2c330f7ca027384"
+    },
+    {
+      "path": "screen-01/baseline/raw/sensor_1242565.bin",
+      "size": 312944,
+      "sha256": "2e9450acd4070a78bae9d5b141ee622e977bf1079ee0ef65d2c330f7ca027384"
+    },
+    {
+      "path": "screen-01/baseline/raw/sensor_1242572.bin",
+      "size": 312944,
+      "sha256": "fc396d6542efc8780a0fa09a49947e0d00e07091a7b617df44f9a902e9142fbb"
+    },
+    {
+      "path": "screen-01/baseline/raw/sensor_1242573.bin",
+      "size": 312944,
+      "sha256": "fc396d6542efc8780a0fa09a49947e0d00e07091a7b617df44f9a902e9142fbb"
+    },
+    {
+      "path": "screen-01/baseline/result.json",
+      "size": 70000,
+      "sha256": "7c9d8c108580c21ebe69b2d8e23a3db463b75f2c71c33a39eb0c026a1b8617a3"
+    },
+    {
+      "path": "screen-01/front_high128/ego_1242786.npy",
+      "size": 878384,
+      "sha256": "b6a1df4eb7cfd37d8f1d6b23182bd09a82ce91ac9e136910d447f2823318b697"
+    },
+    {
+      "path": "screen-01/front_high128/ego_1242787.npy",
+      "size": 878384,
+      "sha256": "b6a1df4eb7cfd37d8f1d6b23182bd09a82ce91ac9e136910d447f2823318b697"
+    },
+    {
+      "path": "screen-01/front_high128/ego_1242794.npy",
+      "size": 878736,
+      "sha256": "9a516f9319b3fb59f1ce178004d55f77143a6600e29aa08952dcccee4e0a8146"
+    },
+    {
+      "path": "screen-01/front_high128/ego_1242795.npy",
+      "size": 878736,
+      "sha256": "9a516f9319b3fb59f1ce178004d55f77143a6600e29aa08952dcccee4e0a8146"
+    },
+    {
+      "path": "screen-01/front_high128/ego_1242802.npy",
+      "size": 878464,
+      "sha256": "9c85adc049733f44e05fb310edd2496d8c7ac0323df9f0a200196c868b6fe906"
+    },
+    {
+      "path": "screen-01/front_high128/ego_1242803.npy",
+      "size": 878464,
+      "sha256": "9c85adc049733f44e05fb310edd2496d8c7ac0323df9f0a200196c868b6fe906"
+    },
+    {
+      "path": "screen-01/front_high128/ego_1242810.npy",
+      "size": 880576,
+      "sha256": "c0bdf82092e8f34581f96d9714e87ec71fcfc8d2f98bc718236c141643a0a74e"
+    },
+    {
+      "path": "screen-01/front_high128/ego_1242811.npy",
+      "size": 880576,
+      "sha256": "c0bdf82092e8f34581f96d9714e87ec71fcfc8d2f98bc718236c141643a0a74e"
+    },
+    {
+      "path": "screen-01/front_high128/raw/sensor_1242786.bin",
+      "size": 878256,
+      "sha256": "b0f09c4ba02c276e4333e7bba041d29fa54e3c57a414d0034fce8c6f306573c6"
+    },
+    {
+      "path": "screen-01/front_high128/raw/sensor_1242787.bin",
+      "size": 878256,
+      "sha256": "b0f09c4ba02c276e4333e7bba041d29fa54e3c57a414d0034fce8c6f306573c6"
+    },
+    {
+      "path": "screen-01/front_high128/raw/sensor_1242794.bin",
+      "size": 878608,
+      "sha256": "dbcc96f0988810a13381adf9a38b8fb122e7ab96bf6e90e955948c9092f74a95"
+    },
+    {
+      "path": "screen-01/front_high128/raw/sensor_1242795.bin",
+      "size": 878608,
+      "sha256": "dbcc96f0988810a13381adf9a38b8fb122e7ab96bf6e90e955948c9092f74a95"
+    },
+    {
+      "path": "screen-01/front_high128/raw/sensor_1242802.bin",
+      "size": 878336,
+      "sha256": "246e16864e22fdd7dc5f04ee4a2c05c7a52a71629a1e0dcbb9f19ac22cf93394"
+    },
+    {
+      "path": "screen-01/front_high128/raw/sensor_1242803.bin",
+      "size": 878336,
+      "sha256": "246e16864e22fdd7dc5f04ee4a2c05c7a52a71629a1e0dcbb9f19ac22cf93394"
+    },
+    {
+      "path": "screen-01/front_high128/raw/sensor_1242810.bin",
+      "size": 880448,
+      "sha256": "d3f55479878b5e1443a72aab4e435bd690a06c768c5b791bd2cffce54d22a203"
+    },
+    {
+      "path": "screen-01/front_high128/raw/sensor_1242811.bin",
+      "size": 880448,
+      "sha256": "d3f55479878b5e1443a72aab4e435bd690a06c768c5b791bd2cffce54d22a203"
+    },
+    {
+      "path": "screen-01/front_high128/result.json",
+      "size": 70876,
+      "sha256": "da9fd6199a621c0c3c4e17b43d37a5154e9a7582293ef896510e214662d8ff45"
+    },
+    {
+      "path": "screen-01/front_low128/ego_1242718.npy",
+      "size": 913760,
+      "sha256": "cd34f47e97be1675efc3d467a1da314e57d1b93aaa74d4a257d1e2604babf898"
+    },
+    {
+      "path": "screen-01/front_low128/ego_1242719.npy",
+      "size": 913760,
+      "sha256": "cd34f47e97be1675efc3d467a1da314e57d1b93aaa74d4a257d1e2604babf898"
+    },
+    {
+      "path": "screen-01/front_low128/ego_1242726.npy",
+      "size": 916144,
+      "sha256": "62205528186c98f173adad0d2336a212c561e98a5d986633428ba9774b35c2da"
+    },
+    {
+      "path": "screen-01/front_low128/ego_1242727.npy",
+      "size": 916144,
+      "sha256": "62205528186c98f173adad0d2336a212c561e98a5d986633428ba9774b35c2da"
+    },
+    {
+      "path": "screen-01/front_low128/ego_1242734.npy",
+      "size": 914016,
+      "sha256": "e167a462d38efe726c78718d736fdf281cb3c189b97d4461ec039d5af6341846"
+    },
+    {
+      "path": "screen-01/front_low128/ego_1242735.npy",
+      "size": 914016,
+      "sha256": "e167a462d38efe726c78718d736fdf281cb3c189b97d4461ec039d5af6341846"
+    },
+    {
+      "path": "screen-01/front_low128/ego_1242742.npy",
+      "size": 957264,
+      "sha256": "776e9fcfb5671a5b29e56bf227b4032e26604693495f58bcd75337ed26393bf5"
+    },
+    {
+      "path": "screen-01/front_low128/ego_1242743.npy",
+      "size": 957264,
+      "sha256": "776e9fcfb5671a5b29e56bf227b4032e26604693495f58bcd75337ed26393bf5"
+    },
+    {
+      "path": "screen-01/front_low128/raw/sensor_1242718.bin",
+      "size": 913632,
+      "sha256": "db1dc600a3ebe9add6f3ee35a4cac1c2b0c5005146221423d76b58b64000bad0"
+    },
+    {
+      "path": "screen-01/front_low128/raw/sensor_1242719.bin",
+      "size": 913632,
+      "sha256": "db1dc600a3ebe9add6f3ee35a4cac1c2b0c5005146221423d76b58b64000bad0"
+    },
+    {
+      "path": "screen-01/front_low128/raw/sensor_1242726.bin",
+      "size": 916016,
+      "sha256": "3d7bb67011ff8d751138dfe694ca2be8b54ba761ae4d27fa9304f398be5f554e"
+    },
+    {
+      "path": "screen-01/front_low128/raw/sensor_1242727.bin",
+      "size": 916016,
+      "sha256": "3d7bb67011ff8d751138dfe694ca2be8b54ba761ae4d27fa9304f398be5f554e"
+    },
+    {
+      "path": "screen-01/front_low128/raw/sensor_1242734.bin",
+      "size": 913888,
+      "sha256": "68922b438bda277447b503a3ee48586a7610cc5893819a6701a8b65958ae47f3"
+    },
+    {
+      "path": "screen-01/front_low128/raw/sensor_1242735.bin",
+      "size": 913888,
+      "sha256": "68922b438bda277447b503a3ee48586a7610cc5893819a6701a8b65958ae47f3"
+    },
+    {
+      "path": "screen-01/front_low128/raw/sensor_1242742.bin",
+      "size": 957136,
+      "sha256": "13848fa7630018bd4565421cd6a7bd78eeb33780b8af92ee13012f8a70912ccd"
+    },
+    {
+      "path": "screen-01/front_low128/raw/sensor_1242743.bin",
+      "size": 957136,
+      "sha256": "13848fa7630018bd4565421cd6a7bd78eeb33780b8af92ee13012f8a70912ccd"
+    },
+    {
+      "path": "screen-01/front_low128/result.json",
+      "size": 70764,
+      "sha256": "8da90055cf3dec2b9437c07fc97b172d9fe161dd0ddd5395e4f9a9b307b7d866"
+    },
+    {
+      "path": "screen-01/front_low64/ego_1242650.npy",
+      "size": 455152,
+      "sha256": "e3ee3ba8e05fa16d16f7a7ea8869b94df2067367bc12b8c6d94e9af03ac7db16"
+    },
+    {
+      "path": "screen-01/front_low64/ego_1242651.npy",
+      "size": 455152,
+      "sha256": "e3ee3ba8e05fa16d16f7a7ea8869b94df2067367bc12b8c6d94e9af03ac7db16"
+    },
+    {
+      "path": "screen-01/front_low64/ego_1242658.npy",
+      "size": 456368,
+      "sha256": "23a0367330c574d123edd83cde634015759a6ff40a9dfd4f10003c3312a36ca8"
+    },
+    {
+      "path": "screen-01/front_low64/ego_1242659.npy",
+      "size": 456368,
+      "sha256": "23a0367330c574d123edd83cde634015759a6ff40a9dfd4f10003c3312a36ca8"
+    },
+    {
+      "path": "screen-01/front_low64/ego_1242666.npy",
+      "size": 455248,
+      "sha256": "b7bd37d3501ed38e7cfbaf1c8a45547ead4407923e28dd4b2131c62a482aad5e"
+    },
+    {
+      "path": "screen-01/front_low64/ego_1242667.npy",
+      "size": 455248,
+      "sha256": "b7bd37d3501ed38e7cfbaf1c8a45547ead4407923e28dd4b2131c62a482aad5e"
+    },
+    {
+      "path": "screen-01/front_low64/ego_1242674.npy",
+      "size": 477664,
+      "sha256": "b00b3716db9cc67d8167ba3873779659457cc2180ad18556b01ee594ab331173"
+    },
+    {
+      "path": "screen-01/front_low64/ego_1242675.npy",
+      "size": 477664,
+      "sha256": "b00b3716db9cc67d8167ba3873779659457cc2180ad18556b01ee594ab331173"
+    },
+    {
+      "path": "screen-01/front_low64/raw/sensor_1242650.bin",
+      "size": 455024,
+      "sha256": "d5850763c8ca8398fd330040605cdd6a3c7b86a482c8c5b6dfb3ffc9e0e3498c"
+    },
+    {
+      "path": "screen-01/front_low64/raw/sensor_1242651.bin",
+      "size": 455024,
+      "sha256": "d5850763c8ca8398fd330040605cdd6a3c7b86a482c8c5b6dfb3ffc9e0e3498c"
+    },
+    {
+      "path": "screen-01/front_low64/raw/sensor_1242658.bin",
+      "size": 456240,
+      "sha256": "a30febb6c4199d02c5ad765a515bbc3fd449732d4e4d57e0800cd3e08e0eb8c6"
+    },
+    {
+      "path": "screen-01/front_low64/raw/sensor_1242659.bin",
+      "size": 456240,
+      "sha256": "a30febb6c4199d02c5ad765a515bbc3fd449732d4e4d57e0800cd3e08e0eb8c6"
+    },
+    {
+      "path": "screen-01/front_low64/raw/sensor_1242666.bin",
+      "size": 455120,
+      "sha256": "27f575c326974958b6a93a998eae820a0303b4f30ea488ffdafe98faddc616ff"
+    },
+    {
+      "path": "screen-01/front_low64/raw/sensor_1242667.bin",
+      "size": 455120,
+      "sha256": "27f575c326974958b6a93a998eae820a0303b4f30ea488ffdafe98faddc616ff"
+    },
+    {
+      "path": "screen-01/front_low64/raw/sensor_1242674.bin",
+      "size": 477536,
+      "sha256": "8a9d40e5c372385bfe0ed642f23164716c08bbf96b97460d2b09b0569a73a17d"
+    },
+    {
+      "path": "screen-01/front_low64/raw/sensor_1242675.bin",
+      "size": 477536,
+      "sha256": "8a9d40e5c372385bfe0ed642f23164716c08bbf96b97460d2b09b0569a73a17d"
+    },
+    {
+      "path": "screen-01/front_low64/result.json",
+      "size": 70447,
+      "sha256": "77bf1fe8ca47447e11c34eb163a6558fb12981ae9699fcedf68b0f4c41b1dc4c"
+    },
+    {
+      "path": "screen-01/front_mid128/ego_1242752.npy",
+      "size": 887392,
+      "sha256": "6609ae7b6b923cb9bbcbbf48e2eed972b9ffecf43aeaa70f5e50d9e200c1f3a3"
+    },
+    {
+      "path": "screen-01/front_mid128/ego_1242753.npy",
+      "size": 887392,
+      "sha256": "6609ae7b6b923cb9bbcbbf48e2eed972b9ffecf43aeaa70f5e50d9e200c1f3a3"
+    },
+    {
+      "path": "screen-01/front_mid128/ego_1242760.npy",
+      "size": 888416,
+      "sha256": "8f57a26e13aecd43ec8c70d8a3d8c77cf8da80ef11d724a816060e4a5bedefc1"
+    },
+    {
+      "path": "screen-01/front_mid128/ego_1242761.npy",
+      "size": 888416,
+      "sha256": "8f57a26e13aecd43ec8c70d8a3d8c77cf8da80ef11d724a816060e4a5bedefc1"
+    },
+    {
+      "path": "screen-01/front_mid128/ego_1242768.npy",
+      "size": 887504,
+      "sha256": "88b30d3c3cef99adc7a4d8cd09671871fa56ca24c76950cfe61b4eab48b23dc5"
+    },
+    {
+      "path": "screen-01/front_mid128/ego_1242769.npy",
+      "size": 887504,
+      "sha256": "88b30d3c3cef99adc7a4d8cd09671871fa56ca24c76950cfe61b4eab48b23dc5"
+    },
+    {
+      "path": "screen-01/front_mid128/ego_1242776.npy",
+      "size": 901616,
+      "sha256": "a170e201cedacbfbe5e83b3cd572d350e6f05bffacc201cab098e70a16272313"
+    },
+    {
+      "path": "screen-01/front_mid128/ego_1242777.npy",
+      "size": 901616,
+      "sha256": "a170e201cedacbfbe5e83b3cd572d350e6f05bffacc201cab098e70a16272313"
+    },
+    {
+      "path": "screen-01/front_mid128/raw/sensor_1242752.bin",
+      "size": 887264,
+      "sha256": "53627e869317859a58069808a11e6f8c3c5221ee37586c12bc3ec1336007108d"
+    },
+    {
+      "path": "screen-01/front_mid128/raw/sensor_1242753.bin",
+      "size": 887264,
+      "sha256": "53627e869317859a58069808a11e6f8c3c5221ee37586c12bc3ec1336007108d"
+    },
+    {
+      "path": "screen-01/front_mid128/raw/sensor_1242760.bin",
+      "size": 888288,
+      "sha256": "5cdc671468c6809ef0513d894caaad3493d43543c3053572be9eb3bc05f610c4"
+    },
+    {
+      "path": "screen-01/front_mid128/raw/sensor_1242761.bin",
+      "size": 888288,
+      "sha256": "5cdc671468c6809ef0513d894caaad3493d43543c3053572be9eb3bc05f610c4"
+    },
+    {
+      "path": "screen-01/front_mid128/raw/sensor_1242768.bin",
+      "size": 887376,
+      "sha256": "487d680be8970bf4f86da954c0cb687c2b7cf4103742fbe2c09aa276e6fad47f"
+    },
+    {
+      "path": "screen-01/front_mid128/raw/sensor_1242769.bin",
+      "size": 887376,
+      "sha256": "487d680be8970bf4f86da954c0cb687c2b7cf4103742fbe2c09aa276e6fad47f"
+    },
+    {
+      "path": "screen-01/front_mid128/raw/sensor_1242776.bin",
+      "size": 901488,
+      "sha256": "299e65caaf55b779cf0454ad71fbc04159a6a5aecfa33f4724d3beb529ad3c1c"
+    },
+    {
+      "path": "screen-01/front_mid128/raw/sensor_1242777.bin",
+      "size": 901488,
+      "sha256": "299e65caaf55b779cf0454ad71fbc04159a6a5aecfa33f4724d3beb529ad3c1c"
+    },
+    {
+      "path": "screen-01/front_mid128/result.json",
+      "size": 70794,
+      "sha256": "79a2e4b278f50a3e4065cbd912d7b3e3cd03d74c4a79d34215a7ecb751b64cf2"
+    },
+    {
+      "path": "screen-01/front_mid64/ego_1242684.npy",
+      "size": 442560,
+      "sha256": "f3678db338cc8cf0e816d7a44e2d97ab882aa1f80af93b187473786437ee7204"
+    },
+    {
+      "path": "screen-01/front_mid64/ego_1242685.npy",
+      "size": 442560,
+      "sha256": "f3678db338cc8cf0e816d7a44e2d97ab882aa1f80af93b187473786437ee7204"
+    },
+    {
+      "path": "screen-01/front_mid64/ego_1242692.npy",
+      "size": 443008,
+      "sha256": "83428ac00db2d55977e8e6b4fd1ce269542bbd58fff5195c977a089b1152bc1c"
+    },
+    {
+      "path": "screen-01/front_mid64/ego_1242693.npy",
+      "size": 443008,
+      "sha256": "83428ac00db2d55977e8e6b4fd1ce269542bbd58fff5195c977a089b1152bc1c"
+    },
+    {
+      "path": "screen-01/front_mid64/ego_1242700.npy",
+      "size": 442592,
+      "sha256": "b4b25c5b7fd73219c524e1ac0d31a32bd472f6d386b4265b3c51576b1fd4389a"
+    },
+    {
+      "path": "screen-01/front_mid64/ego_1242701.npy",
+      "size": 442592,
+      "sha256": "b4b25c5b7fd73219c524e1ac0d31a32bd472f6d386b4265b3c51576b1fd4389a"
+    },
+    {
+      "path": "screen-01/front_mid64/ego_1242708.npy",
+      "size": 449536,
+      "sha256": "67f7685386bfa436c54b4e108fbad7ac596e8955c8db9b567ffdd1eb451a14b0"
+    },
+    {
+      "path": "screen-01/front_mid64/ego_1242709.npy",
+      "size": 449536,
+      "sha256": "67f7685386bfa436c54b4e108fbad7ac596e8955c8db9b567ffdd1eb451a14b0"
+    },
+    {
+      "path": "screen-01/front_mid64/raw/sensor_1242684.bin",
+      "size": 442432,
+      "sha256": "96f837b74507a3486d03a306903752439d9fd827d33c43a84acc706e4a242ea5"
+    },
+    {
+      "path": "screen-01/front_mid64/raw/sensor_1242685.bin",
+      "size": 442432,
+      "sha256": "96f837b74507a3486d03a306903752439d9fd827d33c43a84acc706e4a242ea5"
+    },
+    {
+      "path": "screen-01/front_mid64/raw/sensor_1242692.bin",
+      "size": 442880,
+      "sha256": "1eaa14b4493315b366207a67d6133294fc332175d74f6425735a5bb765fb4c4f"
+    },
+    {
+      "path": "screen-01/front_mid64/raw/sensor_1242693.bin",
+      "size": 442880,
+      "sha256": "1eaa14b4493315b366207a67d6133294fc332175d74f6425735a5bb765fb4c4f"
+    },
+    {
+      "path": "screen-01/front_mid64/raw/sensor_1242700.bin",
+      "size": 442464,
+      "sha256": "a0324ad26fca35c9f3f02f8e3f8d2bc68f1dc338b87da1d39801d4dab9da20ef"
+    },
+    {
+      "path": "screen-01/front_mid64/raw/sensor_1242701.bin",
+      "size": 442464,
+      "sha256": "a0324ad26fca35c9f3f02f8e3f8d2bc68f1dc338b87da1d39801d4dab9da20ef"
+    },
+    {
+      "path": "screen-01/front_mid64/raw/sensor_1242708.bin",
+      "size": 449408,
+      "sha256": "a4c539552961d71fbfe6bcbd403a96467aa4a85259aec5ffd4bbc43cfd26c3c2"
+    },
+    {
+      "path": "screen-01/front_mid64/raw/sensor_1242709.bin",
+      "size": 449408,
+      "sha256": "a4c539552961d71fbfe6bcbd403a96467aa4a85259aec5ffd4bbc43cfd26c3c2"
+    },
+    {
+      "path": "screen-01/front_mid64/result.json",
+      "size": 70544,
+      "sha256": "b4fa20d9c94c86b6f0e2641ce6f0a1f5ce89ce31c199201f1c211b954515bcee"
+    },
+    {
+      "path": "screen-01/lidar-adapter.py",
+      "size": 17751,
+      "sha256": "0681e308f3d1ea6955d8ca22bbe1e00392e7a0f7766bc55ffaf5e93b480256ba"
+    },
+    {
+      "path": "screen-01/progress.json",
+      "size": 692376,
+      "sha256": "5fb830ab721589ddd6e00b54210445932d71af02431a59e534eb016608587b06"
+    },
+    {
+      "path": "screen-01/roof_pitch_down/ego_1242616.npy",
+      "size": 308848,
+      "sha256": "bf832b6f3736792bec62015516e3c933aa54ac51057b408647ee9fa1ae6f0d35"
+    },
+    {
+      "path": "screen-01/roof_pitch_down/ego_1242617.npy",
+      "size": 308848,
+      "sha256": "bf832b6f3736792bec62015516e3c933aa54ac51057b408647ee9fa1ae6f0d35"
+    },
+    {
+      "path": "screen-01/roof_pitch_down/ego_1242624.npy",
+      "size": 308848,
+      "sha256": "08b40135c4b323d8199bf373bb91f9df1a49ff8774c5fa8e23aff0ad6ef72fe4"
+    },
+    {
+      "path": "screen-01/roof_pitch_down/ego_1242625.npy",
+      "size": 308848,
+      "sha256": "08b40135c4b323d8199bf373bb91f9df1a49ff8774c5fa8e23aff0ad6ef72fe4"
+    },
+    {
+      "path": "screen-01/roof_pitch_down/ego_1242632.npy",
+      "size": 308848,
+      "sha256": "b18df0af4d446245d598fca1528b2c8b0e244c5f105ac32c4970382dde8c430d"
+    },
+    {
+      "path": "screen-01/roof_pitch_down/ego_1242633.npy",
+      "size": 308848,
+      "sha256": "b18df0af4d446245d598fca1528b2c8b0e244c5f105ac32c4970382dde8c430d"
+    },
+    {
+      "path": "screen-01/roof_pitch_down/ego_1242640.npy",
+      "size": 308848,
+      "sha256": "4eb310a6579ddd57b19bd3c0d79e2a9ee36694f579e7a911643292e1bbbdc8f0"
+    },
+    {
+      "path": "screen-01/roof_pitch_down/ego_1242641.npy",
+      "size": 308848,
+      "sha256": "4eb310a6579ddd57b19bd3c0d79e2a9ee36694f579e7a911643292e1bbbdc8f0"
+    },
+    {
+      "path": "screen-01/roof_pitch_down/raw/sensor_1242616.bin",
+      "size": 308720,
+      "sha256": "2926e59f2b1f107548355a3a0c3cf3a76752244c91cd5e6ec759079ac20ec536"
+    },
+    {
+      "path": "screen-01/roof_pitch_down/raw/sensor_1242617.bin",
+      "size": 308720,
+      "sha256": "2926e59f2b1f107548355a3a0c3cf3a76752244c91cd5e6ec759079ac20ec536"
+    },
+    {
+      "path": "screen-01/roof_pitch_down/raw/sensor_1242624.bin",
+      "size": 308720,
+      "sha256": "6069a002cc2003c044c6c70358cd427accdcc54bb2c9a29afc1f993d37ec9791"
+    },
+    {
+      "path": "screen-01/roof_pitch_down/raw/sensor_1242625.bin",
+      "size": 308720,
+      "sha256": "6069a002cc2003c044c6c70358cd427accdcc54bb2c9a29afc1f993d37ec9791"
+    },
+    {
+      "path": "screen-01/roof_pitch_down/raw/sensor_1242632.bin",
+      "size": 308720,
+      "sha256": "79b411e873f62adda444e9ecec599586bdf863bebc9d315d3277557a1718a094"
+    },
+    {
+      "path": "screen-01/roof_pitch_down/raw/sensor_1242633.bin",
+      "size": 308720,
+      "sha256": "79b411e873f62adda444e9ecec599586bdf863bebc9d315d3277557a1718a094"
+    },
+    {
+      "path": "screen-01/roof_pitch_down/raw/sensor_1242640.bin",
+      "size": 308720,
+      "sha256": "86e70351ce2c0da58a2c143e4abf1c2935e2c54fb8b1563ebc82f32040b93ed3"
+    },
+    {
+      "path": "screen-01/roof_pitch_down/raw/sensor_1242641.bin",
+      "size": 308720,
+      "sha256": "86e70351ce2c0da58a2c143e4abf1c2935e2c54fb8b1563ebc82f32040b93ed3"
+    },
+    {
+      "path": "screen-01/roof_pitch_down/result.json",
+      "size": 70040,
+      "sha256": "d019b4e24420a5a8b5385a87294b6324399697acbc9b3ade6bb700d6d95f9b62"
+    },
+    {
+      "path": "screen-01/roof_wider_lower/ego_1242582.npy",
+      "size": 363440,
+      "sha256": "fa3a7007d172cebcd495e9d58154c5873f2d29375052ef72762ebc4e44299974"
+    },
+    {
+      "path": "screen-01/roof_wider_lower/ego_1242583.npy",
+      "size": 363440,
+      "sha256": "fa3a7007d172cebcd495e9d58154c5873f2d29375052ef72762ebc4e44299974"
+    },
+    {
+      "path": "screen-01/roof_wider_lower/ego_1242590.npy",
+      "size": 363264,
+      "sha256": "28ecd2bd5376894edffac0b68adae8ac6b72e72bcbfce3703a374f17ed84cba3"
+    },
+    {
+      "path": "screen-01/roof_wider_lower/ego_1242591.npy",
+      "size": 363264,
+      "sha256": "28ecd2bd5376894edffac0b68adae8ac6b72e72bcbfce3703a374f17ed84cba3"
+    },
+    {
+      "path": "screen-01/roof_wider_lower/ego_1242598.npy",
+      "size": 363264,
+      "sha256": "627b68b070a62c1cc0e7a2d3414880180980cd8220081e67266d7b72758327a8"
+    },
+    {
+      "path": "screen-01/roof_wider_lower/ego_1242599.npy",
+      "size": 363264,
+      "sha256": "627b68b070a62c1cc0e7a2d3414880180980cd8220081e67266d7b72758327a8"
+    },
+    {
+      "path": "screen-01/roof_wider_lower/ego_1242606.npy",
+      "size": 363264,
+      "sha256": "473cb407864a9d5c9ddc47a6e3051945eca5b057b8bdcec30d6fda4ea552f3b0"
+    },
+    {
+      "path": "screen-01/roof_wider_lower/ego_1242607.npy",
+      "size": 363264,
+      "sha256": "473cb407864a9d5c9ddc47a6e3051945eca5b057b8bdcec30d6fda4ea552f3b0"
+    },
+    {
+      "path": "screen-01/roof_wider_lower/raw/sensor_1242582.bin",
+      "size": 363312,
+      "sha256": "7f87394dd4f746ed980839452e05bffd31b23dfa0d4cdc676af7a0677da773c7"
+    },
+    {
+      "path": "screen-01/roof_wider_lower/raw/sensor_1242583.bin",
+      "size": 363312,
+      "sha256": "7f87394dd4f746ed980839452e05bffd31b23dfa0d4cdc676af7a0677da773c7"
+    },
+    {
+      "path": "screen-01/roof_wider_lower/raw/sensor_1242590.bin",
+      "size": 363136,
+      "sha256": "2000ea96fed5467f9d10746621372b7d9db2147321943d4c4dc23da0f7eb6398"
+    },
+    {
+      "path": "screen-01/roof_wider_lower/raw/sensor_1242591.bin",
+      "size": 363136,
+      "sha256": "2000ea96fed5467f9d10746621372b7d9db2147321943d4c4dc23da0f7eb6398"
+    },
+    {
+      "path": "screen-01/roof_wider_lower/raw/sensor_1242598.bin",
+      "size": 363136,
+      "sha256": "65747b827825c75a5a98ad28a9e3cb9cf05481323042075ac8c5b9035b115791"
+    },
+    {
+      "path": "screen-01/roof_wider_lower/raw/sensor_1242599.bin",
+      "size": 363136,
+      "sha256": "65747b827825c75a5a98ad28a9e3cb9cf05481323042075ac8c5b9035b115791"
+    },
+    {
+      "path": "screen-01/roof_wider_lower/raw/sensor_1242606.bin",
+      "size": 363136,
+      "sha256": "ee84da6cdfa05b2255b06bbccc0a4530a98316a0d3a4d9b2d64050e586b26625"
+    },
+    {
+      "path": "screen-01/roof_wider_lower/raw/sensor_1242607.bin",
+      "size": 363136,
+      "sha256": "ee84da6cdfa05b2255b06bbccc0a4530a98316a0d3a4d9b2d64050e586b26625"
+    },
+    {
+      "path": "screen-01/roof_wider_lower/result.json",
+      "size": 70197,
+      "sha256": "4bdc0bdc9e68049627c65700f99d9ef0f64b5b425655ad4ee7d64d63d1945705"
+    },
+    {
+      "path": "screen-01/screen-script.py",
+      "size": 11370,
+      "sha256": "930f6a0ccdbb4c2d3e901d24e4b8e88c070b1951c8466d2aab0cbacf1e3bc847"
+    },
+    {
+      "path": "screen-01/screen.json",
+      "size": 692819,
+      "sha256": "31d2baf1117fd7e8f3447742c91dc72573087e1e06ace0c643b2020b68ebdb6c"
+    }
+  ],
+  "member_hashes_verified": true
+}
