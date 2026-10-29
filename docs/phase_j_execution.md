@@ -1,108 +1,131 @@
-# Phase J continuation execution and consolidated CARLA queue
+# Phase J final continuation report and CARLA RUN QUEUE
 
-28 October 2026, Australia/Sydney. CARLA remained OFF. Original #40 dirty work
-was preserved. Normal merges/pushes preserved contributor histories: no force
-push, rebase, squash or contributor branch deletion. This supersedes the
-[initial snapshot](evidence/phase-j-88/initial-phase-j-report.txt).
+29 October2026, Australia/Sydney. **CARLA remained OFF.** Original #40 uncommitted
+work remains intact. Contributor histories preserved through normal merges and
+pushes; no force push/rebase/squash/branch deletion. This supersedes the
+[previous report](evidence/phase-j-final/pre-final-report.txt).
+[Official snapshot](evidence/phase-j-final/official-state.json) preserves exact
+heads, merge commits, issue states/bodies and dependencies.
 
-## Completed merges
+## Merged PRs
 
-| PR | Merge commit | Issue | Validation |
+| PR/title | Final merge commit | Issue disposition | Tests/evidence |
 |---|---|---|---|
-| #100 parking harness | 7f0a80d35fd2288a8ee61a02c0c0f5bf56cf2b26 | #59 CLOSED; #60 OPEN | 77 focused/972 full; P1 8/8, S0 5/5, archive/member hashes |
-| #108 weather preparation | 86a7e189776d996bc6a6e9fe4ca80ead3bbac5d7 | #49 OPEN | 12 focused/984 full; all27 paired cells NOT_RUN |
-| #107 aggregation scaffold | d0ceb4f2134b8b3a2eca4e422c1e42e532a29113 | #47 OPEN | 16 focused/1000 full; identity/duplicate/fault checks, empty register BLOCKED |
-| #105 client/fallback implementation scaffold | 29aed99b7c1a6c22228c26db0e40f4b2a28ae80b | #57 OPEN | 37 focused/1037 full; canonical optional control composition, HOLD retained across source/session changes |
-| #109 inference service | deeefde82fee14257d5b9e4dd0cf915f89ec99fe | #56 CLOSED | 55 focused/1055 full; fresh real-model two-client/duplicate/repeated-session Docker smoke |
+| [#100](https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/pull/100) E5-01\u201303: Build the forward-parking capability  | 7f0a80d35fd2288a8ee61a02c0c0f5bf56cf2b26 | #59 CLOSED; #60 OPEN | 77 focused;972 full;P1 8/8,S0 5/5,archive/hash checks |
+| [#108](https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/pull/108) feat(weather): specify paired experiment and installed preset checks for #49 | 86a7e189776d996bc6a6e9fe4ca80ead3bbac5d7 | #49 OPEN | 12 focused;984 full;27 paired cells NOT_RUN |
+| [#107](https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/pull/107) test: add baseline evidence aggregation scaffold for #47 | d0ceb4f2134b8b3a2eca4e422c1e42e532a29113 | #47 OPEN | 16 focused;1000 full;empty register BLOCKED |
+| [#105](https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/pull/105) Add remote detector and local fallback scaffold for issue 57 | 29aed99b7c1a6c22228c26db0e40f4b2a28ae80b | #57 OPEN | 37 focused;1037 full;canonical control/HOLD/session fixtures |
+| [#109](https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/pull/109) feat(server): add isolated offline inference service for #56 | deeefde82fee14257d5b9e4dd0cf915f89ec99fe | #56 CLOSED | 55 focused;1055 full;real-model offline Docker smoke |
+| [#88](https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/pull/88) [DOC-01/03/05] Add report evidence index and reproducible documentation | 0eaae9716e8d8b2ebaf74e6463ef6bed17d86461 | #62 OPEN | 15 reproduction;1070 full;75-wheel fresh disconnected profile |
+| [#106](https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/pull/106) docs: add report evidence map and reproduction checks for #62 | 2eaa653dbc47688f448155c31d48198d5a8a4391 | #62 OPEN; incorporated via88 | Contributor history included by normal merge, no duplicate content |
+| [#102](https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/pull/102) Feat/e3 01 03 wayfinder v1 | 9cc45d6de9f0c00d33b3fd66acadca74e3e5bbe3 | #54 OPEN; RV-06 dependency | 40 focused;1110 full;24 recorded HUDs,3 paused;archive/member SHA verified |
+| [#111](https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/pull/111) feat(e1-03): add weather detection evaluator | ed07850a9818d9d55e00b37fcd3eb26ed5aa27cb | #50 OPEN; measured dataset missing | 12 focused;1122 full;invalid-frame/identity/time counterexamples |
+| [#112](https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/pull/112) test: add offline fault matrix and diagnostics for #63 | 9de375502e42304100c0617bf18c6727f9989daa | #63 OPEN; G3/E4-10 missing | 216 synthetic fault cases;1349 full;12 release combinations BLOCKED |
 
-All full runs deselected one CARLA test and passed three subtests; server runs
-retain one dependency deprecation warning. Ruff, simulator boundary, strict
-Sphinx and diff checks pass. Docker smoke used network none, read-only root/
-weights, 4GiB/2CPU/128PIDs/nonroot/no capabilities; temporary container removed.
-Black images are protocol evidence, not accuracy/LAN performance.
+All full runs passed3 subtests and deselected1 CARLA test. Server-related suites
+retain1 dependency deprecation warning. Ruff, simulator boundary, generated
+module notes, strict Sphinx and diff checks passed on each final scope.
+The latest canonical full regression is **1349 passed**. Container smoke used
+real mounted weights with networking disabled/read-only root,2CPU/4GiB/128PIDs,
+nonroot/no capabilities; container stopped/removed. It proves protocol, not
+accuracy/LAN latency. Fresh Linux CPU reproduction used75 fully hashed wheels
+in a clean venv without system packages, network disabled; pip check, imports,
+package/asset profile, reproduction tests and strict Sphinx passed.
+Windows/CUDA/backup-machine evidence remains separate.
 
-CI failures were classified billing-only only after actual payment/spending
-annotation, no runner and zero steps were verified (#105/#107). Missing checks
-were NOT_REPORTED. No unexecuted CI check is represented as passed.
+## Open PRs
 
-## Remaining PR dispositions
-
-| PR | Classification | Remaining criterion |
+| PR | Classification | Exact remaining criterion |
 |---|---|---|
-| #99/#41 | TECHNICALLY INCOMPLETE; validated correction needs further sensor evidence | Learned detector still emits car for trash-can region, confidence0.55528. Crop verifier rejects genuine car too; width interval overlaps583/599 genuine observations. No validated sensor-only correction. Runner/site and mission runner fingerprint differ from historical admission; no blind rebind. |
-| #101/#42,#45 | CARLA BLOCKED; final runner dependencies explicit | Recorded lane/curve/HUD, S3/S4/S5 and final full-workload timing. Substantive review fixes complete; 41 focused/1041 full and19 negative probes pass. |
-| #102/#54 | READY component/replay scope; RV-06 integration dependency remains for whole issue | 40 focused/1095 full and19 negative probes pass. Hash-verified merged TEST-02 archive supplies24 actual pose samples,3 paused and24 new HUDs. Original HOLD false-stop FAIL retained. No live camera-overlay claim. |
-| #103/#52 | CARLA BLOCKED | Actual90-sweep known-object dataset and recorded road/roadside/in-corridor replay. 67 focused/1067 full and19 negative probes pass. Sparse road extent never supplies positive clearance. |
-| #88+#106/#62 | Documentation scope READY after final publication checks | Contributor PR106 merged normally into88, useful preflight/tests retained. Complete75-wheel Linux CPU profile and fresh disconnected installation verified. Whole62 remains open for final upstream evidence. |
+| #99/#41 | TECHNICALLY INCOMPLETE; correction requires further sensor validation | Known learned-detector trash-can false positive persists (car confidence0.55528). Crop verification also rejects the genuine car; width proxy overlaps583/599 genuine observations. No validated sensor-only correction/held-out data. Runner site/scope and mission binding differ from historical admission; unsupported execution was not rebound. |
+| #101/#42,#45 | CARLA BLOCKED; final runner dependencies remain | Actual recorded lane/curve/model overlay, S3/S4/S5 and final complete workload/cadence/timing. Offline observer/evidence tooling and substantive review fixes complete. Latest1163 full tests,41 focused,admission+19 negative probes pass. |
+| #103/#52 | CARLA BLOCKED | Actual90-sweep known-object capture and recorded road/roadside/in-corridor classification/replay with cleanup. Latest1189 full tests,67 focused,admission+19 negative probes pass. Sparse road extent cannot establish positive clearance; that unsupported predicate was removed. |
 
-No new human approval was invented. Complete production review uses explicit
-user delegation. Source binding is separate from live/sensor acceptance.
+No READY PR is intentionally left open. #102's actual recorded-replay criterion
+was satisfied by reusing the merged TEST-02 archive, not new CARLA execution:
+24 sampled real ego poses,3 stopped samples,24 rendered mini-map HUDs, full
+archive/member hashes and selected row/frame IDs. Original injected-HOLD run
+retains FAIL for false_stops; never relabelled S0 PASS. Its original controller
+did not run Wayfinder; these are postprocessed recorded HUDs, not live overlays.
+Issue54 stays open for documented RV-06 integration; no dependency silently waived.
 
-## Admission
+## Admission and production review
 
-| Branch | Old source fingerprint | Reviewed new fingerprint |
+Complete production deltas classified per entry before supported loader-only
+rebinding under explicit user delegation. No new human approval fabricated;
+no validator disabled or test changed merely to accept a fingerprint.
+
+| Branch | Old fingerprint | Final reviewed fingerprint |
 |---|---|---|
 | #100 | bb8f19fedc92a330b90ee090a928bd836612390019104d823a44482ff242203d | b0f3edc49691ce9033bc85226a2473854122a9d386f2c822d161064903f40b90 |
 | #108 | b0f3edc49691ce9033bc85226a2473854122a9d386f2c822d161064903f40b90 | 664c4d019ad385f1a6a6b360bf8a776ed4fa47c157230da3c751853f21984f5c |
 | #105 | 664c4d019ad385f1a6a6b360bf8a776ed4fa47c157230da3c751853f21984f5c | f34a21469f2207fdbefe53eee91b7d3913cb7e522081e25747bddd70021ffea3 |
 | #109 | f34a21469f2207fdbefe53eee91b7d3913cb7e522081e25747bddd70021ffea3 | e036881ecd771d85698915075c3f6c5c7134a36de30d02f62cc3418ceff32924 |
 | #88/#106 | e036881ecd771d85698915075c3f6c5c7134a36de30d02f62cc3418ceff32924 | 520921912f1f43bc6743d01ad176167d901bf07678377dfaa3382ff3cc9c7875 |
-| #101 candidate | 664c4d019ad385f1a6a6b360bf8a776ed4fa47c157230da3c751853f21984f5c | b6967c2a16de3fd3b3f5b2d7ffecd2bd601992d5b3f8f6b88bf3cb5a2a4cc47e |
-| #102 candidate | e036881ecd771d85698915075c3f6c5c7134a36de30d02f62cc3418ceff32924 | bf72ba45692595a89810d36f7859f1417f0321b96555b21fbdbb885f1610d496 |
-| #103 candidate | 664c4d019ad385f1a6a6b360bf8a776ed4fa47c157230da3c751853f21984f5c | 639a8bc367cdf66a7921807ba978b396f397cd0353b1314d52326dac9c95d51b |
+| #102 canonical refresh | 520921912f1f43bc6743d01ad176167d901bf07678377dfaa3382ff3cc9c7875 | f2143c7ca680f2657bb69193698b2402c18f0ac273b592a9dc283b0d0d619ceb |
+| #111 current canonical | f2143c7ca680f2657bb69193698b2402c18f0ac273b592a9dc283b0d0d619ceb | 9c9d4d0718ac841fb466f9d31c8de0cbcd871236e8b50b86018abdf30dc1c38b |
+| #101 refreshed candidate | 9c9d4d0718ac841fb466f9d31c8de0cbcd871236e8b50b86018abdf30dc1c38b | d6ebdd26c001451af8bb30b40c2802f2ed123b685d412ae0d18199811ef9cf95 |
+| #103 refreshed candidate | 9c9d4d0718ac841fb466f9d31c8de0cbcd871236e8b50b86018abdf30dc1c38b | 2b8daedd77c0977eb17eaebbae87a83ec0cf07a98bcbd43edbe8e5363fe3834b |
 
-Per-branch applied-review JSON records complete inventory/classification,
-config semantic/file SHA, actual model, camera/depth and record SHA. Historical
-records are preserved. Open candidates require canonical refresh/revalidation
-before future merge; their bindings admit no live extension operation.
+#107/#112 and this report change no protected production inventory; no rebind
+needed. Intermediate/previous records remain in docs/gates/history and applied
+review evidence. Fresh records include inventory/classification, config semantic/
+file/model/camera/depth/record identities. Candidates101/103 contain canonical
+production foundation111; later112 is scripts/tests only. Refresh again before
+future merge if canonical protected source changes.
 
-Frozen values stay4m/s,1.497566177392398m/s²,0.9500000052154064s,6m;
-stationary_vehicle_g2_only, pedestrian admission deferred, supported depth25m,
-existing confirmation/freshness/all-track contracts. Mission semantic SHA:
-2903124878485c8030e160f3598c381bf0197329f79d74773d84048a96c2e9ef.
-Mission file SHA:
-a4b5e669f9426db24d42d9a1d20114981c95bb15302af006b1196044696fe187.
-Model SHA:
-9b09cc8bf347f0fc8a5f7657480587f25db09b34bf33b0652110fb03a8ad4fef.
-Historical runner fingerprint:
-cac8bc9c4f131b16b871191f69562d87517d3f1b956849b9950543e582ff400a.
+Frozen values unchanged: cruise4m/s,deceleration1.497566177392398m/s²,
+response0.9500000052154064s,stop margin6m,stationary_vehicle_g2_only,
+pedestrian admission deferred,depth25m,confirmation/freshness/all-track contracts.
+Mission semantic SHA2903124878485c8030e160f3598c381bf0197329f79d74773d84048a96c2e9ef;
+file SHAa4b5e669f9426db24d42d9a1d20114981c95bb15302af006b1196044696fe187;
+actual model SHA9b09cc8bf347f0fc8a5f7657480587f25db09b34bf33b0652110fb03a8ad4fef.
+Historical runner fingerprintcac8bc9c4f131b16b871191f69562d87517d3f1b956849b9950543e582ff400a
+and revision897bd126 remain unchanged.
 
-All19 probes still reject modified/missing/added source, aux config, mission
-values/scope/profile, model identity/actual bytes, camera, confirmation/depth,
-runner revision/hash and record checksum. No validator was disabled.
+All19 negative probes still reject changed/missing/added source, auxiliary config,
+mission values/scope/profile, model identity/actual bytes, camera/confirmation/
+depth policy, runner hash/revision and record checksum. Canonical checks pass.
+CI102/112 failures were explicitly payment/spending, no runner, zero steps.
+111 had no reported checks; it was never labelled passed/billing by assumption.
+Local evidence is recorded separately.
 
-## Official graph and issues remaining open
+## Issues completed and remaining
 
-[Refreshed metadata](evidence/phase-j-88/continuation/official-state.json) retains
-official issue bodies, dependencies and PR heads. Cycles42↔43,43↔44,43↔45,
-56↔57,57↔58,66↔72 represent integration feedback.105→109 implementation landed
-without inventing57 results.
+Only **#59 and #56 closed** during continuation: harness-scoped parking8/8 plus
+baseline5/5 and archive provenance; offline server protocol/isolation/reset/
+fault/source-switch fixtures plus actual real-model local Docker smoke.
 
-- #40: supported action/positive-clearance bounds and repeated stop/HOLD/resume.
-- #41/#43: validated detector correction/held-out audit. #42/#44/#45/#46:
-  complete-stack lane/sensor/fault/cost and repeated live evidence.
-- #47/#48: real acceptance register, failures/uncertainty, final scope and freeze.
-- #49/#50/#51: actual paired weather captures/labels, robustness table/admission.
-- #52/#53: recorded LiDAR evidence, performance/cost and extension admission.
-- #54/#55: recorded Wayfinder HUD and route/integration/admission criteria.
-- #57/#58: >=200 labelled held-out real frames per local/LAN configuration,
-  hardware/model/config identity, latency/accuracy/miss tables; available cloud
-  or NOT_RUN; live fault/operational extension admission.
-- #60/#61: actual near-field/low-speed parking qualification; reverse evidence or
-  explicitly authorized cut decision, not an invented owner decision.
-- #62: final41/45/46/57 evidence and final report/claim verification. Linux CPU
-  reproduction passes; historical runtime/backup CUDA remain separate.
-- #63/#67/#70: selected admitted release, all-flags/combined/final sensors
-  depend on missing G3 and extension decisions.
+- #40/#41/#43: supported clearance/action bounds and validated detector/held-out
+  evidence; original40 dirty work preserved, no private copy of unmerged LiDAR.
+- #42/#44/#45/#46: final complete-stack repeated lane/sensor/HOLD/fault/cost data.
+- #47/#48: actual30-trial register,all failures/uncertainty,final scope and G3 freeze.
+- #49/#50/#51: paired weather dataset/labels and measured robustness/admission.
+  Preparation and evaluator now canonical; no result fabricated.
+- #52/#53: actual LiDAR capture/replay then extension performance/cost/admission.
+- #54/#55: RV-06-dependent Wayfinder integration and extension admission; recorded
+  replay component evidence completed.
+- #57/#58: >=200 labelled held-out real frames per local/LAN configuration with
+  hardware/model/config identities,latency/accuracy/miss table,available cloud or
+  NOT_RUN and final operational failover/admission. Synthetic216-case harness
+  and black-image Docker smoke do not substitute.
+- #60/#61: actual low-speed/near-field/braking parking qualification; reverse
+  evidence or explicitly authorized cut decision.
+- #62: final41/45/46/57 evidence and report/claim verification; CPU reproduction
+  complete,actual backup-machine/CUDA remains separate.
+- #63/#67/#70: admitted selected release/all-flags/combined/final sensors depend
+  on missing G3 and extension decisions.63 harness retains12 BLOCKED combinations.
 - #64/#65/#66/#68/#71/#72/#73/#74: stable measured report/media/release/demo,
-  real backup-machine/hardware and archive access depend on selected release.
-- #75/#76/#78/#79: actual rehearsals, Q&A, peer review and cross-training.
+  archive access and backup hardware depend on final selected release.
+- #75/#76/#78/#79: real rehearsals,Q&A,peer review,cross-training.
 - #80–#85: respective humans' private submissions.
 
-Locally actionable client/control, server, source review, capture/replay,
-aggregation and reproduction tooling were completed. Remaining official work
-depends on missing validated sensor contracts/data, live runs, hardware,
-release decisions or human participation. No claim that all work is complete.
+The dependency graph's literal feedback cycles42↔43,43↔44,43↔45,56↔57,57↔58,
+66↔72 are retained. The client/server implementation stack was completed without
+pretending dependent measurement issues were closed. No further dependency-ready
+offline issue can be accepted from the available evidence. Missing validated
+sensor contracts/data,hardware,live execution,release choices and human actions
+remain explicit; this is not a claim that all official work is complete.
 
 ## CARLA RUN QUEUE — ordered to minimise simulator sessions
 
@@ -213,8 +236,7 @@ metrics, failures, uncertainty, final candidate identity and actual acceptance e
   failures/denominators and actual observed sensor effects. Current S0 forces
   ClearNoon; extension capture integration is still needed and cannot be relabelled.
 - #102/#54/#55: legal named route pairs, current pose/next-turn HUD, stopped ETA
-  paused and actual recorded curves. Existing `wayfinder_replay.py` makes scripted
-  poses; it is not live HUD integration. Complete the adapter path after RV-06.
+  paused and actual recorded curves. Recorded replay acceptance now uses real TEST-02 traces. The remaining RV-06-dependent live integration/demo is separate; do not repeat the completed pose replay as a missing live criterion.
 - #100/#59 → #60: live forward-parking trials only after near-field depth/LiDAR
   coverage and low-speed steering/braking qualification; harness results alone do
   not admit P1. #61's reverse admission/cut decision must be evidenced explicitly.
@@ -227,18 +249,25 @@ prerequisites exist. #67 combined regression/G4 and #70 final constraints follow
 then backup capture, rehearsal, report and release packaging.
 
 
-## Recorded Wayfinder input
 
-After a later authorized real capture:
-python scripts/wayfinder_replay.py --origin baseline_start --destination baseline_goal --poses runs/wayfinder-poses.json --output runs/wayfinder-recorded-v1
-Require one complete recorded route including stop; retain provenance and
-actual poses. Schema1 origin=recorded,run_id,steps(time_s,x_m,y_m,yaw_rad,speed_mps).
-The CLI renders each supplied pose and preserves hashes; declared origin alone
-does not establish acceptance. Actual live HUD integration depends on RV-06.
+## Additional precise commands and scope
 
-## External deployment/reproduction queue
+For101 timing preparation, once the final runner/workload is admitted:
+python scripts/run_scenario.py --runs 5 --output runs/S0/final-candidate
+python scripts/run_scenario.py --runs 1 --output runs/TEST-22/headless
+python scripts/run_scenario.py --runs 1 --output runs/TEST-22/hud
+python scripts/measure_operational_governance.py --host 127.0.0.1 --frames 120 --episodes 2 --output runs/TEST-22/warm
+python scripts/profile_loop_timing.py --output runs/TEST-22/profile --run headless=runs/TEST-22/headless/run-01 --run hud=runs/TEST-22/hud/run-01 --run warm=runs/TEST-22/warm/timing.jsonl --baseline headless --final hud
+Same warm/config identity required; >=20 valid latency samples,final p95<=100ms
+or explicitly BLOCKED. Windowed server/spectator is not an in-loop HUD timing
+certificate. Recorded lane-model curves need actual video and matched poses;
+see101 docs/live_trial_plan.md,not a substituted synthetic video.
 
-Canonical service recipe and75-wheel CPU reproduction profile are available.
-No service is running.57 requires actual LAN hardware and labelled replay,
-not loopback/black-image replacement. Cloud unavailable stays NOT_RUN.
-Actual backup-machine/CUDA validation remains71. Retain every failed attempt.
+Final S0–S5 full-stack runner is not admitted yet: no honest exact execution
+command exists for30 trials. S2 remains deferred until pedestrian admission.
+This is a NOT_READY prerequisite,not an instruction to improvise live execution.
+
+No service/container remains running.57 needs actual LAN hardware and >=200
+labelled frames/configuration.51/53/55/58/60 admission decisions require their
+measured criteria; no artificial single repeated frame or local loopback result
+is accepted. Actual backup-machine/CUDA and human participation remain external.
