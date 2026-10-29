@@ -85,3 +85,21 @@ AI-assisted with OpenAI Codex, 28 October 2026; no human or live approval claime
 
 evidence/E1-01-02/phase-j-20261028/README
 ```
+
+## Evaluator input and fail-closed rules
+
+Observations require origin recorded/synthetic, matching specification SHA and
+frames with cell_id, integer frame_id, sim_time_s, boolean valid, labels and
+detections. Labels: class_name car/person, finite positive-area xyxy, boolean
+visible/depth_valid and finite nonnegative distance_m. Detections: class_name,
+xyxy, boolean confirmed. Distances are evaluation labels, never control inputs.
+
+The full27 matrix must be unique and weather seeds paired. Unknown/duplicate
+frames, malformed values and nonmonotonic frame/time identity are rejected.
+Invalid frames earn no TP or confirmed range; visible labels count FN and the
+report remains INCOMPLETE. Counts cover visible labels; no labels is undefined,
+never recall1. First-confirmed range is first eligible matched frame per cell/
+class, ordered by frame ID, summarized across cells; it is not per-actor range.
+COMPLETE means input coverage, never operational/weather admission. Declared
+recorded origin requires separate provenance/label audit. Real dataset remains
+missing; issue50 stays open. AI-assisted continuation: OpenAI Codex.

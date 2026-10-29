@@ -1,5 +1,8 @@
 """Calculate E1-03 detector results for the three approved weathers."""
 
+import itertools
+import math
+import re
 from collections import defaultdict
 from statistics import median
 
@@ -7,17 +10,84 @@ CLASSES = ("car", "person")
 WEATHERS = ("ClearNoon", "HardRainNoon", "ClearNight")
 
 
+def _finite(value, minimum=0):
+    return type(value) in (int, float) and math.isfinite(value) and value >= minimum
+
+
+def _box(value):
+    return (
+        isinstance(value, (list, tuple))
+        and len(value) == 4
+        and all(_finite(v) for v in value)
+        and value[2] > value[0]
+        and value[3] > value[1]
+    )
+
+
 def _check_inputs(matrix, observations):
-    """Only check that this is the correct experiment and that recordings exist."""
+    """Reject malformed/duplicate/unpaired data before counting any results."""
     cells = matrix.get("cells", [])
-    if len(cells) != 27 or {cell["condition"] for cell in cells} != set(WEATHERS):
-        raise ValueError("Expected the approved 27-run weather matrix")
-    if (
-        observations.get("specification_sha256") != matrix.get("specification_sha256")
-        or not observations.get("frames")
-    ):
-        raise ValueError("Recordings are missing or belong to a different weather matrix")
-    return {cell["cell_id"]: cell for cell in cells}
+    expected = set(itertools.product(("S0", "S1", "S2"), WEATHERS, (1, 2, 3)))
+    try:
+        triples = {(c["scenario"], c["condition"], c["repetition"]) for c in cells}
+        ids = [c["cell_id"] for c in cells]
+        if len(cells) != 27 or triples != expected or len(set(ids)) != 27:
+            raise ValueError("Expected unique approved 27-cell matrix")
+        for scenario, rep in itertools.product(("S0", "S1", "S2"), (1, 2, 3)):
+            seeds = {
+                c["seed"] for c in cells if c["scenario"] == scenario and c["repetition"] == rep
+            }
+            if len(seeds) != 1 or any(type(seed) is not int or seed < 0 for seed in seeds):
+                raise ValueError("Weather scene seeds must be paired")
+        digest = matrix["specification_sha256"]
+        if (
+            not isinstance(digest, str)
+            or not re.fullmatch("[0-9a-f]{64}", digest)
+            or observations.get("specification_sha256") != digest
+        ):
+            raise ValueError("Missing/mismatched specification identity")
+        if observations.get("origin") not in ("recorded", "synthetic"):
+            raise ValueError("Explicit recorded/synthetic origin required")
+        frames = observations["frames"]
+        if not isinstance(frames, list) or not frames:
+            raise ValueError("Nonempty frame list required")
+        threshold = observations.get("match_iou", 0.5)
+        if not _finite(threshold) or not 0 < threshold <= 1:
+            raise ValueError("IoU must be in (0,1]")
+        seen = set()
+        for frame in frames:
+            cell = frame["cell_id"]
+            frame_id = frame["frame_id"]
+            if cell not in ids or type(frame_id) is not int or frame_id < 0:
+                raise ValueError("Unknown cell or invalid frame identity")
+            key = (cell, frame_id)
+            if key in seen:
+                raise ValueError("Duplicate cell/frame identity")
+            seen.add(key)
+            if not _finite(frame["sim_time_s"]) or type(frame["valid"]) is not bool:
+                raise ValueError("Finite frame time and boolean validity required")
+            labels, detections = frame["labels"], frame["detections"]
+            if not isinstance(labels, list) or not isinstance(detections, list):
+                raise ValueError("Explicit label/detection lists required")
+            for label in labels:
+                if (
+                    label["class_name"] not in CLASSES
+                    or not _box(label["xyxy"])
+                    or type(label["visible"]) is not bool
+                    or type(label["depth_valid"]) is not bool
+                    or not _finite(label["distance_m"])
+                ):
+                    raise ValueError("Invalid labelled object")
+            for detection in detections:
+                if (
+                    detection["class_name"] not in CLASSES
+                    or not _box(detection["xyxy"])
+                    or type(detection["confirmed"]) is not bool
+                ):
+                    raise ValueError("Invalid detection")
+    except (KeyError, TypeError, AttributeError) as error:
+        raise ValueError("Malformed weather input") from error
+    return {c["cell_id"]: c for c in cells}
 
 
 def _iou(first, second):
@@ -80,9 +150,12 @@ def evaluate_weather(observations, matrix):
 
     for cell_id, cell in cells.items():
         first_confirmed = {class_name: None for class_name in CLASSES}
-        for frame in frames_by_cell.get(cell_id, []):
+        ordered = sorted(frames_by_cell.get(cell_id, []), key=lambda f: f["frame_id"])
+        if any(a["sim_time_s"] >= b["sim_time_s"] for a, b in zip(ordered, ordered[1:])):
+            raise ValueError("Frame IDs and simulation times must strictly agree")
+        for frame in ordered:
             labels = frame["labels"]
-            detections = frame["detections"]
+            detections = frame["detections"] if frame["valid"] else []
             matched_labels, matched_detections, pairs = _match(labels, detections, threshold)
 
             for class_name in CLASSES:
@@ -117,9 +190,7 @@ def evaluate_weather(observations, matrix):
 
         for class_name, distance in first_confirmed.items():
             if distance is not None:
-                totals[(cell["condition"], class_name)]["first_confirmed_ranges"].append(
-                    distance
-                )
+                totals[(cell["condition"], class_name)]["first_confirmed_ranges"].append(distance)
 
     rows, missing_denominators = [], []
     for key in sorted(totals):
@@ -137,9 +208,13 @@ def evaluate_weather(observations, matrix):
         rows.append(result)
 
     missing_cells = sorted(set(cells) - set(frames_by_cell))
-    complete = not missing_cells and not missing_denominators
+    invalid_cells = sorted({f["cell_id"] for f in observations["frames"] if not f["valid"]})
+    complete = not missing_cells and not missing_denominators and not invalid_cells
     return {
         "status": "COMPLETE" if complete else "INCOMPLETE",
+        "origin": observations["origin"],
+        "operational_acceptance": False,
+        "invalid_cells": invalid_cells,
         "missing_cells": missing_cells,
         "missing_denominators": missing_denominators,
         "rows": rows,

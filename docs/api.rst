@@ -120,3 +120,9 @@ Optional hybrid control adapter
 
 .. automodule:: autonomy.hybrid_detector
    :members:
+
+Weather evaluation
+------------------
+
+.. automodule:: evaluation.weather
+   :members:

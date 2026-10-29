@@ -1,0 +1,26 @@
+{
+  "scope": "Optional held-out weather evaluator tooling only; real observations/robustness issue50 remain open",
+  "classification": {
+    "src/evaluation/weather.py": {
+      "category": "additional validated functionality",
+      "reason": "Full optional scoring module reviewed; unique paired matrix, strict finite boxes/identity/timing, invalid frames retain misses and cannot earn TP/range, deterministic first confirmation; no control effect"
+    }
+  },
+  "other_diff_review": [
+    "CLI rejects duplicate JSON keys and writes new artifacts",
+    "Synthetic fixtures are explicitly labelled; COMPLETE is input coverage, never operational acceptance",
+    "No protected mission or existing executable source change"
+  ],
+  "pr": 111,
+  "review_authority": "Explicit user delegation; Codex review, no new human approval",
+  "canonical_base": "9cc45d6de9f0c00d33b3fd66acadca74e3e5bbe3",
+  "old_source_fingerprint": "f2143c7ca680f2657bb69193698b2402c18f0ac273b592a9dc283b0d0d619ceb",
+  "new_source_fingerprint": "9c9d4d0718ac841fb466f9d31c8de0cbcd871236e8b50b86018abdf30dc1c38b",
+  "old_record_sha256": "e44156a30be85bd8bda58aba6d4a2edc86b14fe578697c82666be346ca1b9fe3",
+  "new_record_sha256": "5e5c274028315db2e964755165dba42147bd2552881a642c79d59610b63ddc17",
+  "configuration_semantic_sha256": "2903124878485c8030e160f3598c381bf0197329f79d74773d84048a96c2e9ef",
+  "configuration_file_sha256": "a4b5e669f9426db24d42d9a1d20114981c95bb15302af006b1196044696fe187",
+  "actual_model_sha256": "9b09cc8bf347f0fc8a5f7657480587f25db09b34bf33b0652110fb03a8ad4fef",
+  "frozen_values_scope_model_sensor_and_runner_unchanged": true,
+  "live_acceptance": false
+}

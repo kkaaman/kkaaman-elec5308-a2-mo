@@ -14,9 +14,18 @@ def main(argv=None):
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--table", type=Path, required=True)
     args = parser.parse_args(argv)
+
+    def unique(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError("Duplicate JSON key")
+            result[key] = value
+        return result
+
     report = evaluate_weather(
-        json.loads(args.input.read_text()),
-        json.loads(args.matrix.read_text()),
+        json.loads(args.input.read_text(), object_pairs_hook=unique),
+        json.loads(args.matrix.read_text(), object_pairs_hook=unique),
     )
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.table.parent.mkdir(parents=True, exist_ok=True)
