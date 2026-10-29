@@ -1,0 +1,77 @@
+{
+  "map_name": "Town10HD",
+  "pois": [
+    {
+      "description": "Goal of the frozen baseline route: exit of lane 0:0:-1 north of junction 532.",
+      "name": "baseline_goal",
+      "node_id": "0:0:-1:exit",
+      "xyz_m": [
+        106.47979,
+        22.653191,
+        0.0
+      ]
+    },
+    {
+      "description": "Start of the frozen baseline route: entry of lane 20:0:-1 west of junction 841.",
+      "name": "baseline_start",
+      "node_id": "20:0:-1:entry",
+      "xyz_m": [
+        -28.715296,
+        -24.604235,
+        0.0
+      ]
+    },
+    {
+      "description": "North end of the long road 10 (lane -1), before the junction at road 17.",
+      "name": "north_end",
+      "node_id": "10:0:-1:exit",
+      "xyz_m": [
+        7.410689,
+        64.400002,
+        0.0
+      ]
+    },
+    {
+      "description": "North end of road 22 (lane 1) in the north-west block, before junctions 100/105.",
+      "name": "northwest_block",
+      "node_id": "22:0:1:exit",
+      "xyz_m": [
+        -45.142807,
+        43.326485,
+        0.0
+      ]
+    },
+    {
+      "description": "Entry of lane 0:0:-2 on the 16-lane outer circuit; reachable as a destination, but no legal successor leads back without a lane change.",
+      "name": "outer_circuit",
+      "node_id": "0:0:-2:entry",
+      "xyz_m": [
+        109.929886,
+        9.335196,
+        0.0
+      ]
+    },
+    {
+      "description": "West end of road 4 (lane -1) on the southern edge, before junction 515.",
+      "name": "south_end",
+      "node_id": "4:0:-1:exit",
+      "xyz_m": [
+        -28.537708,
+        -133.535675,
+        0.0
+      ]
+    },
+    {
+      "description": "North end of road 5 (lane -1) on the western edge, before junctions 736/795.",
+      "name": "west_end",
+      "node_id": "5:0:-1:exit",
+      "xyz_m": [
+        -107.233223,
+        -43.900475,
+        0.0
+      ]
+    }
+  ],
+  "schema_version": 1,
+  "topology_sha256": "300b5fba3c6119c4f2d606e0f7c8562560850a59878399ceb1864f074ae3e7be"
+}
