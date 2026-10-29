@@ -1,0 +1,42 @@
+{
+  "archive": "docs/evidence/TEST-02/rgb-repair-evidence.zip",
+  "archive_sha256": "b9a66a04d1e4d3a1b737b9f6d0eec60bab97237d4cbf1445a18135245d00a0e9",
+  "member": "runs/rgb-repair/20261017-035730/guard-hold-curve/run-01/samples.csv",
+  "member_sha256": "c96433a4645268717ccf177206e7fe9585d31885ef4c9eb7f7a0f6003f52d069",
+  "original_rows": 1071,
+  "selected_rows": [
+    0,
+    50,
+    100,
+    150,
+    200,
+    250,
+    300,
+    350,
+    400,
+    450,
+    500,
+    550,
+    600,
+    650,
+    700,
+    750,
+    751,
+    800,
+    850,
+    900,
+    950,
+    1000,
+    1050,
+    1070
+  ],
+  "original_status": "FAIL",
+  "original_failed_metrics": [
+    "false_stops"
+  ],
+  "completed": true,
+  "cleanup_ok": true,
+  "original_route_sha256": "78b0235ad8788d03101bc027dfefa0f6bc6b89e309e4192ed3121742e14df06a",
+  "original_config_sha256": "5e8f907afa85c89d16831fc4d3dc92bbee060c2bd7ed75340579d8347a7a8932",
+  "scope": "Recorded ego pose replay only; independently planned Wayfinder route, original controller did not run Wayfinder"
+}
