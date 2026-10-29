@@ -5,12 +5,12 @@ This tests command selection, not physical stopping or remote deployment.
 """
 from __future__ import annotations
 
+import builtins
 import hashlib
 import itertools
 import json
 import platform
 import socket
-import sys
 from contextlib import ExitStack
 from dataclasses import asdict, replace
 from pathlib import Path
@@ -249,19 +249,23 @@ def run_suite():
     cases, blocked = [], []
     def no_network(*args, **kwargs):
         raise AssertionError("Network forbidden in TEST-18 offline harness")
+    original_import=builtins.__import__
+    def no_simulator(name, *args, **kwargs):
+        if name=="carla" or name.startswith(("carla.", "carla_adapter.")) or name=="carla_adapter":
+            raise RuntimeError("Simulator import forbidden during offline suite")
+        return original_import(name, *args, **kwargs)
     with ExitStack() as scope:
+        scope.enter_context(patch.object(builtins, "__import__", no_simulator))
         for name in ("connect", "connect_ex"):
             scope.enter_context(patch.object(socket.socket, name, no_network))
         scope.enter_context(patch.object(socket, "create_connection", no_network))
         for profile, behaviour, tracking in itertools.product(PROFILES, BEHAVIOURS, (False, True)):
             if profile in ("remote", "hybrid"):
                 blocked.append({"profile": profile, "behaviour": behaviour, "tracking": tracking,
-                                "status": "BLOCKED", "reason": "Implementation absent in uploaded tree; E4-10 evidence and G3 flag admission pending"})
+                                "status": "BLOCKED", "reason": "Canonical client/hybrid/server implementations now exist; this fixture profile is not a selected/admitted production flag combination. E4-10 evidence and G3 flag admission pending"})
                 continue
             for fault in FAULTS:
                 cases.append(run_case(profile, behaviour, tracking, fault))
-    if "carla" in sys.modules:
-        raise RuntimeError("CARLA imported during offline suite")
     failures = sum(c["status"] == "FAIL" for c in cases)
     return {"schema": 1, "status": "FAIL" if failures else "BLOCKED",
             "scope": "Synthetic command-level integration only; not physical stopping, cloud transport, release or admission evidence",

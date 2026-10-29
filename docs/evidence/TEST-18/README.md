@@ -103,3 +103,7 @@ These are local synthetic development records, not Windows or CI measurements.
 
 AI assistance: ChatGPT/Codex prepared the harness, tests, workflow and analysis.
 The user must run the commands in the project checkout and retain their results.
+
+## Canonical continuation,29 October2026
+
+Canonical client/hybrid/server implementations are now merged. The12 combinations remain blocked because this harness supplies synthetic local/delayed profiles, not an admitted production flag registry or E4-10 evidence. Implementation availability is no longer the reason. The existing hybrid-control/client/server regression suites run alongside the216-case harness; their passing fixtures do not close63 or replace58/48. Historical Windows/development archives are retained. CARLA stayed OFF.

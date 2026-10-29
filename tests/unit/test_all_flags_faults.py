@@ -95,3 +95,19 @@ def test_standalone_import_has_no_carla_or_ml_dependency():
                     "from offline_fault_suite import run_suite; run_suite(); "
                     "assert not ({'carla', 'torch', 'ultralytics'} & set(sys.modules))"],
                    cwd=root, check=True, timeout=30)
+
+
+def test_suite_checks_its_own_imports_even_with_other_tests_preloaded(monkeypatch):
+    from types import SimpleNamespace
+    monkeypatch.setitem(sys.modules,"carla",SimpleNamespace(test_double=True))
+    assert suite.run_suite()["counts"]["failed"]==0
+
+
+def test_simulator_import_guard_rejects_cached_module_access(monkeypatch):
+    from types import SimpleNamespace
+    monkeypatch.setitem(sys.modules,"carla",SimpleNamespace(test_double=True))
+    def forbidden_case(*args):
+        __import__("carla")
+    monkeypatch.setattr(suite,"run_case",forbidden_case)
+    with pytest.raises(RuntimeError,match="Simulator import forbidden"):
+        suite.run_suite()
