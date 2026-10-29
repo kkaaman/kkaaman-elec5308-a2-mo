@@ -26,6 +26,8 @@ Command-line entry points. Run them from the repository root after
 | `benchmark_latency.py` | Loop timing and real-time factor | TEST-03 (Abdullah), TEST-17 (Mohammad) |
 | `evaluate_weather.py` | Recall and range across weather | E1-03 (Ricky) |
 | `latency_speed_test.py` | Local, LAN and cloud inference latency | E4-07 (Saviour) |
+| `capture_lidar_sweeps.py` | Vehicle-frame LiDAR sweeps around a known target, with transform checks | E2-02 (Mohammad) |
+| `replay_lidar_obstacles.py` | LiDAR ground removal, clustering, tracking and fusion replay to JSON | E2-03/04 (Mohammad) |
 
 ## Lane topology (BL-A-02)
 

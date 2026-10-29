@@ -78,6 +78,8 @@ ignore = ["E501"]
 "carla_adapter".msg = "Core must not depend on the CARLA adapter."
 
 [tool.ruff.lint.per-file-ignores]
+# Read-only offline adapter decoding audit; no simulator connection.
+"scripts/audit_lidar_live.py" = ["TID251"]
 # Adapter implementations and existing simulator entry points only. The AST
 # check independently prevents core from depending on these exempt modules.
 "src/carla_adapter/*.py" = ["TID251"]
@@ -98,6 +100,8 @@ ignore = ["E501"]
 "scripts/capture_operational_approach.py" = ["TID251"]
 "tests/unit/test_operational_freshness.py" = ["TID251"]
 "scripts/capture_obstacle_tracks.py" = ["TID251"]
+"scripts/capture_lidar_sweeps.py" = ["TID251"]
+"tests/unit/test_lidar_capture.py" = ["TID251"]
 "scripts/run_scenario.py" = ["TID251"]
 "scripts/check_baseline_mission.py" = ["TID251"]
 "tests/unit/test_s0_runner.py" = ["TID251"]

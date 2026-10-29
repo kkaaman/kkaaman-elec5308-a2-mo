@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "decision": "PASS",
-  "publication_state": "PR111_REVIEWED_SOURCE_REBIND_20261029",
+  "publication_state": "PR103_REVIEWED_SOURCE_REBIND_20261029",
   "review_process": "Issue38 designated reviewer/owner; final bytes published for team review; later objections tracked separately, not unanimous individual sign-off",
   "review_process_url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/38#issuecomment-6395116981",
   "scope_evidence_acknowledgement_url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/38#issuecomment-6394910845",
@@ -58,6 +58,8 @@
         "src/autonomy/freshness.py": "fd11d2ceda67eb9675031569a90c6abc1ed3f3e1f0e9ae78fe3f48394c2977f8",
         "src/autonomy/hybrid_detector.py": "d0004950dbcedba73efbd55c0d95866334d930877aec5ae024bbbd4a47321d61",
         "src/autonomy/interfaces.py": "bb56919b50bee998fd3b39a451c857d8f5c9d333595c7633d8e14be483a14dd3",
+        "src/autonomy/lidar_fusion.py": "6b55c717c48c7326ab346b23388674f2df4f91a8f51ebd4f1daaada61b92326e",
+        "src/autonomy/lidar_replay.py": "d9619d2d911ea0e03fcd9ad6399dd14754e3b5580e093322538287e7fef34d43",
         "src/autonomy/mission.py": "2fc7dfaeff3fad0893acb3a53d5a764b97d3e23cc6efb234b22896eabdc7c872",
         "src/autonomy/obstacle_policy.py": "03de571deee9fb1a73a18e534b9f9a65b8824050c49e22e8caafd5f0f8076012",
         "src/autonomy/operational.py": "5baaa7c347aa2ca3c0b63c5055d3ed71371f72218a8043abbe60f01b24a08877",
@@ -72,6 +74,7 @@
         "src/carla_adapter/dataset_capture.py": "fe3240a133ab453972344d40332ddc036b228e09744fe0a128f3badcc650b0bf",
         "src/carla_adapter/depth_calibration.py": "e658985d15748abfca46998ca876239beed62704dd0c4dcc68bf8fbc8f0dcdd3",
         "src/carla_adapter/environment_check.py": "50d070c01f71148b159e93f5189bdbf6045585270d28a5b869963c46f778a6b5",
+        "src/carla_adapter/lidar.py": "1add8da7bcb64efa7be90735d95f6c433a745b14e1135d1d12a0e06cd9079422",
         "src/carla_adapter/longitudinal.py": "43198304502eb607d929efcebb47a5e07157d272deacf5221449e72562e03802",
         "src/carla_adapter/s0_runner.py": "f25eb879515d66d47fa7e67fb83ac9a555824d577dab6479778860b98c664542",
         "src/carla_adapter/scenario_verification.py": "03a5e1b72105476a07c9007f34fb4b3c599fe66a21a56a132f34b579cde3bbd2",
@@ -114,9 +117,13 @@
         "src/navigation_control/speed.py": "e617554ee8af3ba921222d428abb4e5d3d07a1157cf060eaef189d5fb80e80ae",
         "src/navigation_control/steering.py": "60cee027fdce66578c838c72f66806ff15cdc46bfd7d905603e19b41c3ee241e",
         "src/navigation_control/types.py": "df0e5f232e635db4cf208bc37d5ee3d2dc04024cee833558c97fac9ccdef7b59",
-        "src/obstacle_perception/__init__.py": "6bf9470952c3db87811ac8dbe2cd31683dfa89f32dffc4d4dad63d6bf57230db",
+        "src/obstacle_perception/__init__.py": "424976a28cef9efaf45e46469a0c0d56d6f584a2b69f24e405c55d0e1160381b",
         "src/obstacle_perception/box_depth.py": "d00ac5dcb4ca5a808f09bbed54a2bb541fffa8a030090983ae2ed3345bf3a897",
         "src/obstacle_perception/boxes.py": "8b37ba71cef5650176d3702dbb822ed57d357c717250d4ee455f18b439f1ba8b",
+        "src/obstacle_perception/fusion.py": "d972c000357bc63d0d93b93dea6eaad1cd0ca721546e6f77074e096953cc3ac4",
+        "src/obstacle_perception/lidar.py": "af5c1b171cd228b1e78cec830f17ea5f7c732d944cb93b70f023cf2836934634",
+        "src/obstacle_perception/lidar_obstacles.py": "2e83e4fc30b6066f3fb2fbd655456eaeac316cd5fae0dbe2dcb39118b2e2fcc9",
+        "src/obstacle_perception/lidar_synthetic.py": "535faa572f24675d03d7fc06224db957893a6b74199d467e9c56956810af13e1",
         "src/obstacle_perception/parking_clearance.py": "dc06a4ffcfb9b6568aaf0123c02ebea4df18dfcb899f943b149c67008e3af789",
         "src/obstacle_perception/tracking.py": "c0a2781e4b5fde3080c8b2d0d18e697be46cc4ea0e4b22c18d57e0a5b58cef61",
         "src/obstacle_perception/types.py": "bd4ee59bf6cc0f928e1c25028c0628aa3f3218118d1b054f19a1a36262c75794",
@@ -190,7 +197,7 @@
         "configs/weather/robustness_v1.json": "0bfc4770bfcdb6f5eff0276dd80d8ffbb9b4f296c383d5899e7e4eac87184874",
         "docs/evidence/BL-D-06/sources/depth-calibration.json": "89d64df2475790eea16a0fc2b862a9fcbafdf125c9f3fd5ef3f74453afc9cf5f"
       },
-      "scope_sha256": "9c9d4d0718ac841fb466f9d31c8de0cbcd871236e8b50b86018abdf30dc1c38b"
+      "scope_sha256": "4bbcbe04975691ae8e98026611fd6be698426ba98729b3e3bfaf89aba2a566a9"
     },
     "issue41_runner": {
       "kind": "issue41_runner",
