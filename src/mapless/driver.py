@@ -368,6 +368,11 @@ class MaplessDriver:
             # In the turn: follow the latched path to its end, whatever the route says.
             exit_heading_body = self.turn.exit_heading_body(motion.odometry)
             plan_turn = self.turn.follow(self.grid, motion.odometry, t)
+            block = self.turn.block
+            if block is not None:
+                d.update(turn_block=block)
+                if plan_turn is not None:
+                    d.update(turn=f"an object on the latched path {block['at_m']:.1f} m on: held short of it ({block['waited_s']:.1f} s)")
             if plan_turn is None:
                 # A newly seen kerb or obstacle cell under the latched path (review of 1931070:
                 # the first version sat in the junction for good). Near the entry heading the

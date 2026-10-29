@@ -493,7 +493,7 @@ def cluster_measurement(sweep, members, class_probs=None, config=None):
         length, width = max(float(np.ptp(along)), 0.3), max(float(np.ptp(across)), 0.3)
         extent = (min(length, c.max_cluster_m), min(width, c.max_cluster_m), float(np.arctan2(vt[0][1], vt[0][0])))
     sigma = 0.3 + 0.01 * float(np.hypot(*centre))
-    return LidarMeasurement(centre, extent, class_probs, int(len(members)), sigma)
+    return LidarMeasurement(centre, extent, class_probs, int(len(members)), sigma, plan_xy=p)
 
 
 def join(sweep, clusters, cameras, boxes_by_camera, config=None, painting=None):

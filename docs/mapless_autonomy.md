@@ -2454,6 +2454,109 @@ missed share, by section and by the driver's mode (driving or turning). A downst
 driving benefit is still to be shown: the same route and seed with the semantic
 correction on and off.
 
+### Live on PC 1 and PC 2 (29 Oct, `b15b76f`): the r8 batch
+
+| Run | Status | |
+|---|---|---|
+| Radar-first crossing, Town10HD, LiDAR at 25 m, trigger 35 m, 2 m/s | MEASURED_PASS | exercised |
+| Radar-first crossing, trigger 30 m, 1.5 m/s | NOT_EXERCISED | no radar threat before the LiDAR |
+| Braking lead, constant segmenter, inline | MEASURED_PASS | |
+| Braking lead, constant segmenter, threaded | MEASURED_PASS | the same driving |
+| Traffic cone at 4 m/s | MEASURED_PASS | 169 lane-keeping ticks |
+| Crossing car, Town05 `--site 1`, 4 m/s | MEASURED_PASS | yield needed and given |
+| Left turn, `--oncoming stopped` | MEASURED_FAIL | junction footprint, 0.21 m |
+| Left turn, `--oncoming parked` | NOT_EXERCISED | |
+| Left turn, plain | not run | CARLA timed out |
+
+**Radar-first, exercised.** The radar had the crossing car alone for 2.6 s, unbroken. Its
+provisional threat came at 7.8 s, the full one at 7.85 s, the LiDAR at 8.4 s. The first
+restriction (9.05 s) had 20.5 m of room at 2.9 m/s. At 1.5 m/s from 30 m the radar had the
+car alone for only 0.85 s, never as a threat.
+
+**Inline against threaded, constant segmenter.** The driving was the same: separation
+3.435 m and brake delay 0.2 s in both.
+
+| | inline | threaded |
+|---|---|---|
+| whole step p50 / p95 / p99 | 45.9 / 59.0 / 62.4 ms | 44.2 / 61.8 / 64.8 ms |
+| control stages p50 | 33.4 ms | 43.2 ms |
+
+- The threaded worker dropped nothing. Results were 79 ms old on the wall clock (p50).
+- Uninstrumented time was 0.8 ms p50.
+- Without the v2 segmenter there is little to take off the control path, and the worker's
+  interpreter contention still costs the control stages about 10 ms.
+
+**The left turn with the oncoming car: one arc dropped for another.** The car yielded to
+the oncoming car at the mouth, as it should. Then the car swept through the latched 14 m
+arc's path, and its cells failed the arc's re-check.
+- The driver dropped the latch at once and planned afresh from where the car stood. That
+  was past the 14 m arc's tangent point, so for 2 s no radius cleared the car's fading
+  cells, and then only 11.5 m did.
+- The tighter arc cut 0.21 m into the exit road's far lane (`junction_footprint`).
+- Fix: a latched path blocked by an object, not a kerb, is waited for. Its first hazard
+  OCCUPIED, within the stopping envelope: the path is verified to a metre short of it, so the
+  car holds there on the same arc, for up to `JunctionConfig.blocked_wait_s` (4 s). A kerb,
+  or an object still there after that, is repaired as before. The swept check now says which
+  it met (`why`); the log carries `turn_block`.
+- Open-loop replay of the run: the latched arc is held for 2.15 s and then clears, and the
+  car goes on along the 14 m arc 0.25 s after the live car took the 11.5 m one.
+- The eleven other recorded turns: the driver's decisions are identical on every tick.
+- A synthetic left turn with a box set on the latched arc for 2.5 s reproduces the failure
+  before the fix (re-committed at 12.5 m against 15 m) and keeps one arc after it.
+
+**The parked oncoming car was never in reach.** Parked 12 m beyond the far side of this
+junction, it was 25.4 m from the car at its nearest, beyond the 25 m the exercise needs and
+the range the LiDAR forms objects at. No track was ever on it, and the gate read the lane
+clear. The verdict is right; the placement is not. The rerun parks it 4 m beyond the
+junction (`--actor-param oncoming_m=4`).
+
+**The crossing car beside the road: a stop for a car that had stopped.** In all three
+crossing runs, the ego braked from 3–4 m/s to a stop, cap 0 for "predicted conflict on the
+path", after the crossing car had cleared and stopped 1.9 m beside the path.
+- The track's cluster was measured at its mean. The mean sits where the points are
+  densest, on the faces in view. As the ego drew level it saw only the car's end face, and
+  the mean moved 1.2 m towards the path in 2 s while the car stood still.
+- The track read 0.3–0.6 m/s towards the path: "moving" (Town05, 0.92 m/s over the last
+  second) or "uncertain" (Town10HD, 0.36 m/s). It was predicted into the path, and the car
+  held 0.3–0.5 s until the drift stopped with it.
+- Fix, the tracker's remembered shape (`TrackerConfig.shape_*`). A vehicle-sized track is
+  measured at the centre of its remembered box, placed against the points in view:
+  - Along each of the box's axes: the middle of the points' span where the span is the
+    box's size, or where the sensor lies within it (a face square on).
+  - Otherwise: the end nearer the sensor, plus half the box's size (the far side is out of
+    view).
+  - The box is the third-largest length and width the track has shown, so a merged
+    cluster or two do not set it. Its axes are those of the last view that showed that
+    length.
+  - The views are fitted as L-shapes (`_rectangle`: the orientation whose rectangle has the
+    points closest to its edges). A cluster's principal axis runs between an L's two faces,
+    and the smallest rectangle is no better (an L's hull is a right triangle).
+  - Vehicle-sized means 3–7 m long and 1.45–2.6 m wide (wider than a group of walkers, no
+    wider than a lorry), not decided a pedestrian or a bike.
+  - A cluster that shows none of the box's sides whole is a fragment. It associates where it
+    lies on the box, behind any whole cluster of the object, and does not move the track.
+    Placed against the box, a 0.4 m fragment of a 5.9 × 4.1 m roadside blob on Town05 put
+    its centre metres off; the blob's next whole cluster then fitted a new track better, and
+    that track's jump read 4.9 m/s and capped the car to 0 for a tick in the replay.
+  - Whenever the box changes (first known, resized, turned, or given up when the object
+    outgrows a vehicle's, as that blob did), the reference point changes with it. The track,
+    its trail and origin move by the difference the cluster shows: a change of reference,
+    not motion, as at a radar-held track's first LiDAR fix.
+- A synthetic crossing car (4.2 × 2.0 m, the points a scanning LiDAR returns off it) that
+  crosses and stops beside the road reproduces the drift. At the cluster's mean the track
+  reads up to 1.0 m/s towards the path and "moving". At the box's centre it reads under
+  0.1 m/s, stays static and lies within 0.15 m of the car's centre with the car's own box.
+- The crossing runs recorded no frames, so the live case is to be seen on the rerun (with
+  `--record-frames all`). Open-loop stack replays of seven recorded runs (no radar in the
+  recordings), head against the fix:
+  - Three Town05 braking-lead runs: following the lead identical on every tick. Two have
+    identical caps. The third has two more ticks capped at 2.0–2.4 m/s by clutter beside
+    the road, where the two versions' fragment tracks associate differently.
+  - Two recorded oncoming-car left turns: the oncoming car's track lies 0.45 m from it at
+    the median, against 1.4–1.5 m. Its speed held at 5.6–5.8 m/s as it passed, against a
+    "deceleration" to 4.6 m/s. The car is released 17–21 ticks sooner once it has gone by.
+  - Two left turns without traffic: identical.
+
 ## Running Phase 0 live
 
 Run with CARLA 0.9.16 and no other clients:

@@ -94,6 +94,13 @@ class JunctionConfig:
     exit_hazard_after_m: float = 2.0  # a hazard this far past the arc's end limits the verified distance, not the radius
     exit_tolerance_rad: float = math.radians(10)  # hand back to kerb following within this of the exit heading
     replan_max_heading_rad: float = math.radians(5)  # a blocked latched path is re-planned from the entry line while the car has turned less than this (beyond: mid-arc)
+    # ... but one blocked by an object (OCCUPIED cells, not a kerb) is first waited for, the
+    # car held short of it on the path, for up to this long: the oncoming car a left turn
+    # yields to sweeps through the turn's own path, and its cells take a second or two to
+    # fade. Dropped at once, the latched 14 m arc was re-planned from where the car stood,
+    # past its tangent point, where only 11.5 m fitted, and the tighter arc cut 0.21 m into
+    # the exit road's far lane (PC1, Town03, r8_left_oncoming, b15b76f).
+    blocked_wait_s: float = 4.0
     opening_min_m: float = 3.0  # a right kerb gap at least this long is a junction mouth
     max_entry_offset_m: float = 10.0  # the route's entry point may be this far from the kerb opening (the opening is read ~4 m into the fillet)
     # Oncoming traffic on a left turn (full review of 73ae759, S5): the body may enter the
@@ -271,7 +278,7 @@ class _HazardField:
         return out
 
 
-def _swept_check(grid, pose, points, body, c, barrier_age_s, hazard_xy=None, margin_m=None, clearance_from_m=0.0, clearance_to_m=math.inf, road_memory_s=None, hazard_tolerated_beyond_m=None, tolerate_kerb_only=False):
+def _swept_check(grid, pose, points, body, c, barrier_age_s, hazard_xy=None, margin_m=None, clearance_from_m=0.0, clearance_to_m=math.inf, road_memory_s=None, hazard_tolerated_beyond_m=None, tolerate_kerb_only=False, tolerate_occupied=False, why=None):
     """(feasible, verified_m, clearance_m): no BARRIER/OCCUPIED under the body swept
     along ``points``, how far along the path the footprint lies on observed road, and the
     body's nearest approach to a hazard cell (``hazard_xy``, odometry frame), margin excluded.
@@ -281,6 +288,12 @@ def _swept_check(grid, pose, points, body, c, barrier_age_s, hazard_xy=None, mar
     the car slows towards it and keeps measuring (fresh-eyes review of 58adaf3: a kerb cell
     under the exit straight 28 m out stopped the car dead at the junction mouth with 20 m
     of clear road ahead, and nothing at a standstill could ever release it).
+
+    With ``tolerate_occupied`` the same holds for a first hazard of OCCUPIED cells only (an
+    object standing or passing on the path, not a kerb), however near. ``why`` (a dict,
+    optional) gets the first hazard's ``label`` ("occupied" or "barrier") and its distance
+    along the path (``at_m``), and whether a hazard nearer than ``hazard_tolerated_beyond_m``
+    was met (``near``); it is left empty when nothing was hit.
 
     Observed means at least ``observed_share`` of the pose's footprint cells are ROAD
     (within ``road_memory_s``): LiDAR rings are metres apart at range, so a far pose is
@@ -331,8 +344,13 @@ def _swept_check(grid, pose, points, body, c, barrier_age_s, hazard_xy=None, mar
     hit = ((hazards == CellLabel.BARRIER) | (hazards == CellLabel.OCCUPIED)).any(axis=1)
     verified_cap = math.inf
     if hit.any():
-        first_hazard_m = float(arcs[int(np.argmax(hit))])
-        if hazard_tolerated_beyond_m is None or first_hazard_m <= hazard_tolerated_beyond_m:
+        first = int(np.argmax(hit))
+        first_hazard_m = float(arcs[first])
+        occupied_only = not bool((hazards[first] == CellLabel.BARRIER).any())
+        near = hazard_tolerated_beyond_m is None or first_hazard_m <= hazard_tolerated_beyond_m
+        if why is not None:
+            why.update(label="occupied" if occupied_only else "barrier", at_m=round(first_hazard_m, 2), near=near)
+        if near and not (tolerate_occupied and occupied_only):
             return False, 0.0, 0.0
         if tolerate_kerb_only and (hazards == CellLabel.OCCUPIED).any():
             return False, 0.0, 0.0  # something standing on the exit is waited for at the mouth, not tolerated
@@ -498,6 +516,8 @@ class JunctionTurn:
         self._entry = None  # (pose at commit, y_entry, radius): the entry frame the latched path was built in
         self._exit_fit = None  # the exit-line fit the latched path rests on; a refinement must read the kerb from nearer
         self.refine_note = None  # why the last refinement did or did not move the path (console diagnostics)
+        self._blocked_since = None  # when an object first stood on the latched path within the stopping envelope
+        self.block = None  # the latched path's first hazard at the last follow ({label, at_m, near, waited_s}), or None
         self._refine_candidate = None  # (odometry exit point, first seen) of a re-measured line that differs from the latched
         self.last_measured_odo = None  # (exit lane point, kerb stations) in odometry from the last kerb measurement, for the drive log
         self.last_exit = None  # (exit point, exit heading, entry line y) in the vehicle frame of the last plan
@@ -744,6 +764,7 @@ class JunctionTurn:
             # Near the tangent point, the exit measured and room to spare: commit the path.
             arc_index = int(np.searchsorted(np.concatenate(([0.0], np.cumsum(np.hypot(*np.diff(points, axis=0).T)))), arc_end - 1e-6))
             self._committed = (pose.to_world(points), arc_index, pose.yaw_rad + exit_heading_body)
+            self._blocked_since = None
             # The latched exit line is the measured one the path was built on, not the route
             # point (external review of 7b1e3c6: the refinement compared new measurements
             # against the route point, 2.7 m from the lane, so its first verdict was a
@@ -802,6 +823,8 @@ class JunctionTurn:
         self._entry = None
         self._exit_fit = None
         self._refine_candidate = None
+        self._blocked_since = None
+        self.block = None
 
     @property
     def committed(self):
@@ -831,6 +854,7 @@ class JunctionTurn:
         caller re-plans from the current pose (allowed only while the car is still near the
         entry heading)."""
         self._committed = None
+        self._blocked_since = None
 
     def follow(self, grid, pose, time_s):
         """The committed turn from the current pose: re-verified, never re-planned.
@@ -838,8 +862,14 @@ class JunctionTurn:
         Once the car has entered the arc the path is latched in the odometry frame
         (review of 697d53c: a path re-planned from a turning car jumps and breaks down).
         Returns a TurnPlan, or None when the latched path no longer clears the terrain.
-        """
+
+        An object on the path (OCCUPIED cells first, not a kerb) within the stopping
+        envelope is waited for, for up to ``blocked_wait_s``: the path is verified only to a
+        metre short of it, so the car holds there on the latched path. A kerb, or an object
+        still there after that, returns None and the caller repairs the path (``block``
+        says which)."""
         c = self.config
+        self.block = None
         points_odo, arc_end_index, exit_heading_odo = self._committed
         body = pose.to_body(points_odo)
         ahead = np.flatnonzero(body[:, 0] > -1.0)
@@ -848,6 +878,8 @@ class JunctionTurn:
         start = int(ahead[0])
         points = body[start:]
         hazards = _HazardField(grid, pose, self.barrier_age_s)
+        waited = 0.0 if self._blocked_since is None else time_s - self._blocked_since
+        why = {}
         feasible, verified, clearance = _swept_check(
             grid,
             pose,
@@ -859,7 +891,17 @@ class JunctionTurn:
             margin_m=c.follow_margin_m,
             road_memory_s=self.road_memory_s,
             hazard_tolerated_beyond_m=c.near_cover_m,
+            tolerate_occupied=waited < c.blocked_wait_s,
+            why=why,
         )
+        if why.get("near") and why["label"] == "occupied":
+            if self._blocked_since is None:
+                self._blocked_since = time_s
+            self.block = dict(why, waited_s=round(waited, 2))
+        else:
+            self._blocked_since = None
+            if why.get("near"):
+                self.block = dict(why, waited_s=0.0)
         if not feasible:
             return None
         arcs = np.concatenate(([0.0], np.cumsum(np.hypot(*np.diff(points, axis=0).T))))

@@ -352,3 +352,58 @@ def test_the_exit_kerb_measured_on_the_approach_is_kept_while_the_car_stands_at_
     assert source(32.0) == "kerb"  # 1.99 m: three stations
     remember([11.0, 12.0])
     assert source(32.5) == "route"  # two stations are not a line
+
+
+# -- an object on the latched path (PC1, Town03, r8_left_oncoming, b15b76f) ---------------
+
+
+def test_an_object_on_the_latched_turn_is_waited_for_not_planned_around():
+    """The oncoming car a left turn had yielded to swept through the latched path while the
+    car stood; the latch was dropped at once, the re-plan from where the car stood (past
+    the 14 m arc's tangent point) could only take 11.5 m, and the tighter arc cut 0.21 m
+    into the exit road's far lane. An object (OCCUPIED, not a kerb) on the latched path is
+    now waited for, the car held short of it, and the turn goes on on the same arc."""
+    world, _ = junction_world(1)
+    route = world.route(goal_after_turn(world))
+    state = dict(box=None, placed_s=None, removed=False, radius=None, radii=set())
+
+    def per_tick(k, w, driver, step):
+        if driver.turn.committed and step.diagnostics.get("turn_radius_m"):
+            state["radii"].add(step.diagnostics["turn_radius_m"])
+        if state["removed"]:
+            return
+        if state["box"] is None and driver.turn.committed:
+            # 6 m ahead along the heading, 1 m towards the turn: on the arc's swept path.
+            h = w.state.yaw
+            x = w.state.x + 6.0 * math.cos(h) - 1.0 * math.sin(h)
+            y = w.state.y + 6.0 * math.sin(h) + 1.0 * math.cos(h)
+            state["box"], state["placed_s"] = (x, y, h, 0.5, 0.5, 1.5), w.time_s
+            state["radius"] = step.diagnostics.get("turn_radius_m")
+            w.boxes.append(state["box"])
+        elif state["box"] is not None and w.time_s - state["placed_s"] >= 2.5:
+            w.boxes = [b for b in w.boxes if b != state["box"]]
+            state["removed"] = True
+
+    log = drive(world, route, seconds=80, per_tick=per_tick)
+    assert state["removed"] and finished(world, log)
+    notes = [s.diagnostics.get("turn") or "" for _, s in log]
+    assert any(n.startswith("an object on the latched path") for n in notes)
+    assert not any(n.startswith("latched path blocked") for n in notes)
+    assert state["radius"] is not None and state["radii"] == {state["radius"]}  # one arc, committed to the end
+    # A kerb is not waited for: the swept check says which it met.
+    from mapless.junction import _swept_check  # noqa: PLC0415
+
+    path = np.column_stack((np.arange(0.0, 20.0, 1.0), np.zeros(20)))
+    for label in ("occupied", "barrier"):
+        grid = _gate_grid([(6.0 + 0.25 * i, 0.25 * j) for i in range(3) for j in range(-2, 3)] if label == "occupied" else ())
+        if label == "barrier":
+            for i in range(3):
+                for j in range(-2, 3):
+                    ij = grid.cells(np.array([[6.0 + 0.25 * i, 0.25 * j]]))[0][0]
+                    grid.raised[ij[0], ij[1]] = 5.0
+                    grid.seen[ij[0], ij[1]] = 10.0
+                    grid.seen_by_class[PointClass.RAISED][ij[0], ij[1]] = 10.0
+        why = {}
+        feasible, verified, _ = _swept_check(grid, Pose2D(0.0, 0.0, 0.0), path, BODY, JunctionConfig(), 1.0, margin_m=0.05, hazard_tolerated_beyond_m=8.0, tolerate_occupied=True, why=why)
+        assert why.get("label") == label and why["near"], (label, why)
+        assert feasible == (label == "occupied")

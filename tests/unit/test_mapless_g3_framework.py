@@ -946,3 +946,106 @@ def test_f5_03_the_lead_past_the_lines_end_is_judged_on_the_route_not_a_straight
     assert follow.lead_ahead([car(21.5, 0.0)], ORIGIN, line, tube_half_m=1.3, turn_entry_m=18.0) is None
     # On the line itself there is no continuation note.
     assert follow.lead_ahead([car(15.0, 0.0)], ORIGIN, line, tube_half_m=1.3) is not None and follow.continuation is None
+
+
+# -- remembered shape (live crossing car, r8, b15b76f) -----------------------------------
+def _box_outline(centre, length, width, yaw, sensor, step_deg=0.2):
+    """The plan-view points a scanning LiDAR at ``sensor`` returns off a box: one ray every
+    ``step_deg``, each stopping at the first face it meets (the near faces, densest nearest)."""
+    c, s = math.cos(yaw), math.sin(yaw)
+    half = np.array([[length / 2, width / 2], [-length / 2, width / 2], [-length / 2, -width / 2], [length / 2, -width / 2]])
+    corners = np.asarray(centre) + half @ np.array([[c, s], [-s, c]])
+    rel = corners - sensor
+    bearings = np.unwrap(np.arctan2(rel[:, 1], rel[:, 0]))
+    points = []
+    for a in np.arange(bearings.min(), bearings.max(), math.radians(step_deg)):
+        d = np.array([math.cos(a), math.sin(a)])
+        best = None
+        for k in range(4):
+            p, q = corners[k], corners[(k + 1) % 4]
+            e = q - p
+            den = d[0] * -e[1] + d[1] * e[0]
+            if abs(den) < 1e-12:
+                continue
+            w = p - sensor
+            t = (w[0] * -e[1] + w[1] * e[0]) / den  # along the ray
+            u = (d[0] * w[1] - d[1] * w[0]) / den  # along the face
+            if t > 0 and 0 <= u <= 1 and (best is None or t < best):
+                best = t
+        if best is not None:
+            points.append(sensor + best * d)
+    return np.array(points)
+
+
+def _cluster(points):
+    """A LidarMeasurement as ``detections.cluster_measurement`` makes one."""
+    from types import SimpleNamespace  # noqa: PLC0415
+
+    from mapless.detections import cluster_measurement  # noqa: PLC0415
+
+    sweep = SimpleNamespace(xyz=np.column_stack((points, np.zeros(len(points)))))
+    return cluster_measurement(sweep, np.arange(len(points)))
+
+
+def _crossed_and_stopped(config=None):
+    """A 4.2 x 2.0 m car crosses the ego's road at 2 m/s 20 m ahead and stops with its near
+    end 2.85 m left of the ego's line, as the live crossing car did; the ego creeps, then
+    passes it at 4 m/s. The tracker sees only the box's outline from the roof. Returns
+    [(time, ego x, track)] once the car has stopped."""
+    tracker = Tracker(config)
+    centre_x, stop_y, dt = 20.0, 3.85 + 2.1, 0.05
+    out, ego_x = [], 0.0
+    for k in range(int(10.5 / dt)):
+        t = k * dt
+        y = min(-6.0 + 2.0 * t, stop_y)
+        ego_x += (0.5 if t < 6.0 else 4.0) * dt
+        if ego_x > centre_x + 1.0:
+            break
+        pose = Pose2D(ego_x, 0.0, 0.0)
+        sensor = np.array([ego_x + 1.3, 0.0])  # the roof LiDAR
+        outline = _box_outline((centre_x, y), 4.2, 2.0, math.pi / 2, sensor)
+        tracks = tracker.update(t, pose, lidar=[_cluster(pose.to_body(outline))])
+        car = min(tracks, key=lambda tr: float(np.hypot(*(tr.position - (centre_x, y)))))
+        if y >= stop_y and t >= 7.0:
+            out.append((t, ego_x, car))
+    return out
+
+
+def test_a_stopped_car_beside_the_path_keeps_still_as_the_ego_draws_level():
+    """Live crossing car (r8, b15b76f, three runs out of three): stopped beside the path, it
+    was measured at its cluster's mean, which moved 1.2 m towards the path in 2 s as the ego
+    drew level and saw only its end face; the track read 0.3-0.6 m/s towards the path and
+    the ego braked from 3-4 m/s to a stop. Measured at its remembered box's centre, the
+    track keeps still and is predicted where it stands."""
+    from mapless.prediction import motion_state  # noqa: PLC0415
+
+    rows = _crossed_and_stopped()
+    assert rows and rows[-1][1] > 20.0  # the ego drew level with the car
+    assert len({tr.track_id for *_, tr in rows}) == 1
+    assert max(-float(tr.velocity[1]) for _, _, tr in rows) < 0.15  # never towards the path
+    settled = [(t, tr) for t, _, tr in rows if t >= 8.25]  # the crossing's own speed decayed
+    assert all(motion_state(tr) == "static" and float(np.hypot(*tr.velocity)) < 0.15 for _, tr in settled)
+    # ... at the car's centre, with the car's own box.
+    for _, tr in settled:
+        length, width, yaw = tr.footprint
+        assert float(np.hypot(*(tr.position - (20.0, 3.85 + 2.1)))) < 0.15
+        assert abs(length - 4.2) < 0.15 and abs(width - 2.0) < 0.15 and abs(math.cos(yaw)) < 0.05
+    # Measured at the cluster's mean (no remembered shape), the same car drifts towards the
+    # path at walking pace and is predicted to move, as live.
+    drifting = _crossed_and_stopped(TrackerConfig(shape_min_length_m=50.0, shape_max_length_m=60.0))
+    assert max(-float(tr.velocity[1]) for _, _, tr in drifting) > 0.5
+    assert any(motion_state(tr) == "moving" for _, _, tr in drifting)
+
+
+def test_the_l_shape_fit_finds_a_cars_box_where_the_principal_axis_does_not():
+    """``_rectangle``: an L of side and end (the crossing car from 20 m) and a single face."""
+    from mapless.tracking import _rectangle  # noqa: PLC0415
+
+    rng = np.random.default_rng(3)
+    for sensor_x, centre_y in ((1.3, -5.0), (1.3, 5.95), (12.0, 5.95), (24.0, 5.95)):
+        points = _box_outline((20.0, centre_y), 4.2, 2.0, math.pi / 2, np.array([sensor_x, 0.0])) + rng.normal(0.0, 0.03, (1, 2))
+        length, width, yaw = _rectangle(points)
+        assert abs(length - 4.2) < 0.15 and abs(abs(math.sin(yaw)) - 1.0) < 0.01, (sensor_x, centre_y, length, yaw)
+    face = _box_outline((20.0, 5.95), 4.2, 2.0, math.pi / 2, np.array([20.0, 0.0]))  # level with its end
+    length, width, _ = _rectangle(face)
+    assert abs(length - 2.0) < 0.1 and width < 0.15
