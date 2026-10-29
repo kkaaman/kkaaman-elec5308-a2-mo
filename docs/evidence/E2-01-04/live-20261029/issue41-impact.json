@@ -1,0 +1,6 @@
+{
+  "status": "NO_VALIDATED_DETECTOR_CORRECTION",
+  "reason": "Dataset measures parked genuine vehicle geometry, not aligned trash-can false-positive rejection. An occupied LiDAR cluster alone cannot establish semantic car correctness; no defensible change to all-track admission follows.",
+  "normal_acceptance_run": false,
+  "original_false_positive_preserved": true
+}

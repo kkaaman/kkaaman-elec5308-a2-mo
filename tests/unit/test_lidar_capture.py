@@ -257,29 +257,140 @@ def test_serialise_sweep_and_environment_validation(tmp_path):
         validate_environment("0.9.16", "0.9.16", "Town01")
 
 
-
 def test_capture_completion_requires_verified_cleanup_and_all_measurements():
     from scripts.capture_lidar_sweeps import final_capture_status
 
-    clean = {"settings_restored":True,"leaked_owned_ids":[]}
-    assert final_capture_status(None,[True],clean) == "COMPLETE"
+    clean = {"settings_restored": True, "leaked_owned_ids": []}
+    assert final_capture_status(None, [True], clean) == "COMPLETE"
     for error, checks, cleanup in (
-        (None,[True],dict(clean,settings_restored=False)),
-        (None,[True],dict(clean,leaked_owned_ids=[42])),
-        (None,[True,False],clean),
-        (None,[],clean),
-        ("capture failure",[True],clean),
+        (None, [True], dict(clean, settings_restored=False)),
+        (None, [True], dict(clean, leaked_owned_ids=[42])),
+        (None, [True, False], clean),
+        (None, [], clean),
+        ("capture failure", [True], clean),
     ):
-        assert final_capture_status(error,checks,cleanup) == "INCOMPLETE"
-
+        assert final_capture_status(error, checks, cleanup) == "INCOMPLETE"
 
 
 def test_capture_batch_pairs_all_distances_with_centre_and_both_roadsides():
     from scripts.capture_lidar_sweeps import capture_cases
 
-    cases=capture_cases([10,20,30],[0,4.5,-4.5])
-    assert len(cases)==9 and len(set(cases))==9
-    for distance in (10.,20.,30.):
-        assert {lateral for d,lateral in cases if d==distance}=={0.,4.5,-4.5}
+    cases = capture_cases([10, 20, 30], [0, 4.5, -4.5])
+    assert len(cases) == 9 and len(set(cases)) == 9
+    for distance in (10.0, 20.0, 30.0):
+        assert {lateral for d, lateral in cases if d == distance} == {0.0, 4.5, -4.5}
     with pytest.raises(ValueError):
-        capture_cases([float("nan")],[0])
+        capture_cases([float("nan")], [0])
+
+
+def test_known_car_check_excludes_road_search_padding_without_relaxing_face_tolerance():
+    config = LidarRig().config(0.05)
+    transform = tuple(map(tuple, np.eye(4)))
+    vehicle = np.array([[18.04, y, 0.6, 0.9] for y in np.linspace(-0.5, 0.5, 10)], np.float32)
+    road = np.array([[17.01, y, 0, 0.9] for y in np.linspace(-0.5, 0.5, 20)], np.float32)
+    sweep = LidarSweep("e", 1, 0.05, 1, np.vstack((vehicle, road)), transform, config)
+    result = known_object_check(sweep, center_ego_m=(20, 0, 0.75), extent_m=(4, 2, 1.5))
+    assert result["passed"] and result["excluded_search_points_below_surface"] == 20
+    displaced = LidarSweep(
+        "e", 2, 0.1, 2, vehicle + np.array([0.5, 0, 0, 0], np.float32), transform, config
+    )
+    assert not known_object_check(displaced, center_ego_m=(20, 0, 0.75), extent_m=(4, 2, 1.5))[
+        "passed"
+    ]
+    road_only = LidarSweep("e", 3, 0.15, 3, road, transform, config)
+    assert not known_object_check(road_only, center_ego_m=(20, 0, 0.75), extent_m=(4, 2, 1.5))[
+        "passed"
+    ]
+
+
+def test_cleanup_fence_observes_async_destruction_and_never_accepts_leak():
+    from scripts.capture_lidar_sweeps import verify_cleanup
+
+    class World:
+        present = True
+
+        def get_actors(self):
+            return [SimpleNamespace(id=7)] if self.present else []
+
+        def get_settings(self):
+            return SimpleNamespace(synchronous_mode=False)
+
+        def wait_for_tick(self, timeout):
+            self.present = False
+
+    world = World()
+    result = verify_cleanup(world, [7], {"synchronous_mode": False})
+    assert result["leaked_owned_ids"] == [] and result["observations"][0]["leaked_owned_ids"] == [7]
+    result = verify_cleanup(World(), [7], {"synchronous_mode": False}, timeout_s=0)
+    assert result["leaked_owned_ids"] == [7]
+
+
+def test_optional_raw_sensor_capture_is_exact_and_bounded(tmp_path):
+    owner = SimpleNamespace(timing=WorldTiming(), emergency_stop=lambda: None)
+    capture = LidarCapture(
+        owner,
+        object(),
+        "e",
+        rear_axle_offset_m=REAR_AXLE,
+        capacity=2,
+        raw_directory=tmp_path / "raw",
+    )
+    for i in range(3):
+        payload = raw([[i + 5, 0, -1, 0.8]])
+        capture._receive(SimpleNamespace(frame=i, timestamp=i * 0.05, raw_data=payload))
+    assert len(capture._raw_frames) == 2 and 0 not in capture._raw_frames
+    capture.read(2)
+    assert (tmp_path / "raw/sensor_000002.bin").read_bytes() == payload
+    assert (
+        capture.records[-1]["received_monotonic_s"]
+        <= capture.records[-1]["read_completed_monotonic_s"]
+    )
+
+
+def test_live_audit_empty_sweep_stays_unknown_and_never_clear(tmp_path):
+    import hashlib
+    import json
+    from dataclasses import asdict
+
+    from scripts.audit_lidar_live import audit
+
+    payload = b""
+    (tmp_path / "raw-sensor").mkdir()
+    (tmp_path / "raw-sensor/sensor.bin").write_bytes(payload)
+    array = np.empty((0, 4), np.float32)
+    np.save(tmp_path / "sweep.npy", array)
+    row = dict(
+        frame_id=1,
+        sim_time_s=0.05,
+        npy="sweep.npy",
+        sha256=hashlib.sha256((tmp_path / "sweep.npy").read_bytes()).hexdigest(),
+        target_distance_m=10,
+        target_lateral_m=0,
+        depth_valid=False,
+        depth_gap_m=None,
+    )
+    doc = dict(
+        schema_version=1,
+        origin="recorded",
+        episode_id="empty",
+        route_xy_m=[[0, 0], [60, 0]],
+        front_bumper_from_rear_axle_m=3.8,
+        config=asdict(LidarRig().config(0.05)),
+        sensor_to_ego=np.eye(4).tolist(),
+        sweeps=[row],
+        capture_records=[
+            dict(
+                frame_id=1,
+                raw_sensor_file="sensor.bin",
+                raw_sensor_sha256=hashlib.sha256(payload).hexdigest(),
+                received_monotonic_s=1,
+                read_completed_monotonic_s=1.01,
+            )
+        ],
+    )
+    (tmp_path / "sweeps.json").write_text(json.dumps(doc))
+    result = audit(tmp_path / "sweeps.json", tmp_path / "audit")
+    assert result["first_road_return_gap_m_min"] is None
+    assert not result["any_positive_clearance"] and result["near_0_1m_road_return_total"] == 0
+    data = np.load(tmp_path / "audit/processed_000001.npz")
+    assert not data["bin_state"].any() and not data["road_supported_bins"].any()

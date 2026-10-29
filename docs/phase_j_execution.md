@@ -1,5 +1,15 @@
 # Phase J final continuation report and CARLA RUN QUEUE
 
+> Live-session update29 October: the record below describes the earlier CARLA-OFF
+> continuation. Actual #103 acceptance evidence is now in
+> [live LiDAR validation](evidence/E2-01-04/live-20261029/README.md).
+> Final90-sweep matrix and recorded classification pass; earlier failures retained.
+> #40 remains blocked: first road return1.457m beyond bumper, no supported
+> from-bumper clearance. Next compatible live queue item is101.41's detector
+> false positive is unresolved; normal acceptance has not been rerun.
+
+
+
 29 October2026, Australia/Sydney. **CARLA remained OFF.** Original #40 uncommitted
 work remains intact. Contributor histories preserved through normal merges and
 pushes; no force push/rebase/squash/branch deletion. This supersedes the

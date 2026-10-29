@@ -100,3 +100,8 @@ demonstration for the autonomous perception and navigation library.
    :hidden:
 
    evidence/E3-wayfinder/phase-j-20261028/README
+
+.. toctree::
+   :hidden:
+
+   evidence/E2-01-04/live-20261029/README

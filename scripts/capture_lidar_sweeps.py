@@ -13,6 +13,7 @@ import argparse
 import hashlib
 import json
 import math
+import time
 import uuid
 from dataclasses import asdict
 from pathlib import Path
@@ -48,12 +49,13 @@ def expected_target_box(world_to_actor, vertices_world, rear_axle_offset_m):
     return [float(v) for v in (low + high) / 2], [float(v) for v in np.maximum(high - low, 1e-3)]
 
 
-def serialise_sweep(sweep, npy_name, directory, *, check, target, distance_m,
-                    lateral_m=0.0, front_bumper_m=None):
+def serialise_sweep(
+    sweep, npy_name, directory, *, check, target, distance_m, lateral_m=0.0, front_bumper_m=None
+):
     """Manifest row for one captured sweep; the array is saved alongside."""
     path = Path(directory) / npy_name
     np.save(path, sweep.points_xyzi)
-    geometry = isinstance(target,dict) and {"x_m","y_m","size_x_m","size_y_m"} <= set(target)
+    geometry = isinstance(target, dict) and {"x_m", "y_m", "size_x_m", "size_y_m"} <= set(target)
     return dict(
         frame_id=sweep.frame_id,
         sim_time_s=sweep.sim_time_s,
@@ -64,12 +66,21 @@ def serialise_sweep(sweep, npy_name, directory, *, check, target, distance_m,
         azimuth_coverage_deg=sweep.azimuth_coverage_deg(),
         target_distance_m=distance_m,
         target_lateral_m=lateral_m,
-        target_case="in_corridor" if abs(lateral_m) < 1.5 else "roadside_left" if lateral_m > 0 else "roadside_right",
-        expected_in_corridor=(None if not geometry else
-            abs(target["y_m"]) <= 1.5 + target["size_y_m"]/2),
-        expected_gap_m=(None if not geometry or front_bumper_m is None
-            or abs(target["y_m"]) > 1.5 + target["size_y_m"]/2 else
-            target["x_m"]-target["size_x_m"]/2-front_bumper_m),
+        target_case="in_corridor"
+        if abs(lateral_m) < 1.5
+        else "roadside_left"
+        if lateral_m > 0
+        else "roadside_right",
+        expected_in_corridor=(
+            None if not geometry else abs(target["y_m"]) <= 1.5 + target["size_y_m"] / 2
+        ),
+        expected_gap_m=(
+            None
+            if not geometry
+            or front_bumper_m is None
+            or abs(target["y_m"]) > 1.5 + target["size_y_m"] / 2
+            else target["x_m"] - target["size_x_m"] / 2 - front_bumper_m
+        ),
         objects=[target] if target is not None else [],
         known_object_check=check,
         depth_gap_m=None,
@@ -85,9 +96,11 @@ def validate_environment(client_version, server_version, map_name):
         raise ValueError("Town10HD_Opt required")
 
 
-def straight_site(map_):
+def straight_site(map_, site_index=None):
     """A spawn point followed by 60 m of single-successor, straight, non-junction road."""
     for index, pose in enumerate(map_.get_spawn_points()):
+        if site_index is not None and index != site_index:
+            continue
         waypoint = map_.get_waypoint(pose.location)
         for distance in range(2, 61, 2):
             options = waypoint.next(distance)
@@ -126,8 +139,7 @@ def collect(args):
     if world.get_settings().synchronous_mode:
         raise RuntimeError("Another client owns synchronous ticks")
     before = _settings_record(world.get_settings())
-    actors_before = {a.id for a in world.get_actors()}
-    site, spawn, waypoint = straight_site(map_)
+    site, spawn, waypoint = straight_site(map_, getattr(args, "site_index", None))
     cases = capture_cases(args.distances, args.lateral_offsets)
     if type(args.frames) is not int or args.frames < 1:
         raise ValueError("At least one sweep per case is required")
@@ -157,7 +169,7 @@ def collect(args):
         provenance=dict(capture_script=dict(path=str(source), sha256=sha256(source))),
         route_xy_m=[[0.0, 0.0], [60.0, 0.0]],
         sweeps=[],
-        planned_cases=[dict(distance_m=d,lateral_m=y) for d,y in cases],
+        planned_cases=[dict(distance_m=d, lateral_m=y) for d, y in cases],
         sweeps_per_case=args.frames,
     )
     owned_ids = []
@@ -191,7 +203,13 @@ def collect(args):
             owned_ids.append(target.id)
             target.set_simulate_physics(False)
             with LidarCapture(
-                owner, ego, episode, rear_axle_offset_m=offset, rig=rig, capacity=16
+                owner,
+                ego,
+                episode,
+                rear_axle_offset_m=offset,
+                rig=rig,
+                capacity=16,
+                raw_directory=args.output / "raw-sensor",
             ) as capture:
                 owned_ids.append(capture.sensor.id)
                 document["config"] = asdict(capture.config)
@@ -255,12 +273,7 @@ def collect(args):
         error = f"{type(exc).__name__}: {exc}"
         raise
     finally:
-        remaining = {a.id for a in world.get_actors()} - actors_before
-        document["cleanup"] = dict(
-            owned_ids=owned_ids,
-            leaked_owned_ids=sorted(set(owned_ids) & remaining),
-            settings_restored=_settings_record(world.get_settings()) == before,
-        )
+        document["cleanup"] = verify_cleanup(world, owned_ids, before)
         document["error"] = error
         checks = [row["known_object_check"]["passed"] for row in document["sweeps"]]
         document["known_object_checks_passed"] = int(sum(checks))
@@ -271,20 +284,55 @@ def collect(args):
     return document
 
 
+def verify_cleanup(world, owned_ids, before, *, timeout_s=5.0):
+    """Observe server destruction completion after restored asynchronous settings.
+
+    Does not tick, destroy unrelated actors or turn a timeout into PASS.
+    Initial actor snapshot and every observation are retained.
+    """
+    deadline = time.monotonic() + timeout_s
+    observations = []
+    while True:
+        present = sorted(set(owned_ids) & {a.id for a in world.get_actors()})
+        restored = _settings_record(world.get_settings()) == before
+        observations.append(dict(leaked_owned_ids=present, settings_restored=restored))
+        if (not present and restored) or time.monotonic() >= deadline:
+            return dict(
+                owned_ids=owned_ids,
+                leaked_owned_ids=present,
+                settings_restored=restored,
+                observations=observations,
+            )
+        try:
+            world.wait_for_tick(min(1.0, max(0.001, deadline - time.monotonic())))
+        except RuntimeError:
+            if time.monotonic() >= deadline:
+                continue
+
+
 def capture_cases(distances, lateral_offsets):
     """Batch known target distances and left/right offsets while ego stays parked."""
-    if (not distances or not lateral_offsets
-            or any(not math.isfinite(v) or not 5 <= v <= 40 for v in distances)
-            or any(not math.isfinite(v) or abs(v)>6 for v in lateral_offsets)):
+    if (
+        not distances
+        or not lateral_offsets
+        or any(not math.isfinite(v) or not 5 <= v <= 40 for v in distances)
+        or any(not math.isfinite(v) or abs(v) > 6 for v in lateral_offsets)
+    ):
         raise ValueError("Use finite 5..40 m distances and lateral offsets within +/-6 m")
-    return [(float(distance),float(lateral)) for distance in distances for lateral in lateral_offsets]
+    return [
+        (float(distance), float(lateral)) for distance in distances for lateral in lateral_offsets
+    ]
 
 
 def final_capture_status(error, checks, cleanup):
     """Acceptance data is complete only with all checks and clean restoration."""
-    complete = (error is None and bool(checks) and all(checks)
-                and cleanup.get("settings_restored") is True
-                and cleanup.get("leaked_owned_ids") == [])
+    complete = (
+        error is None
+        and bool(checks)
+        and all(checks)
+        and cleanup.get("settings_restored") is True
+        and cleanup.get("leaked_owned_ids") == []
+    )
     return "COMPLETE" if complete else "INCOMPLETE"
 
 
@@ -292,6 +340,11 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=2000)
+    parser.add_argument(
+        "--site-index",
+        type=int,
+        help="Alternate map spawn; still requires the same checked60m straight protocol",
+    )
     parser.add_argument(
         "--dt", type=float, default=0.05, help="fixed_delta_seconds; LiDAR spins at 1/dt"
     )
@@ -305,8 +358,13 @@ def main():
         default=list(DEFAULT_DISTANCES_M),
         help="target distances ahead of the ego spawn (metres)",
     )
-    parser.add_argument("--lateral-offsets",type=float,nargs="+",default=[0.0,4.5,-4.5],
-                        help="known target offsets: + left / - right, metres; default centre and both roadsides")
+    parser.add_argument(
+        "--lateral-offsets",
+        type=float,
+        nargs="+",
+        default=[0.0, 4.5, -4.5],
+        help="known target offsets: + left / - right, metres; default centre and both roadsides",
+    )
     parser.add_argument(
         "--mount-height",
         type=float,

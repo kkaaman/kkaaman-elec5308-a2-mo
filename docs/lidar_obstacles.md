@@ -262,3 +262,12 @@ replay records matched-target classifications/failures and scores the centred
 gap. Known roadside failures/occlusion remain visible. A chosen site's physical
 side clearance may invalidate a case; retain that failure rather than relabel it.
 All live data is still NOT_RUN; only the schema/geometry path is tested offline.
+
+## Live acceptance,29 October2026
+
+The [live record](evidence/E2-01-04/live-20261029/README.md) supersedes earlier
+pending-capture statements. Final90-sweep known-object matrix and90 recorded
+classifications pass; all360 attempted sweeps and failed outcomes are retained.
+Near-field road returns begin1.457m beyond the bumper,so this source supplies
+no positive from-bumper clearance for40. Sensor loss remains HOLD. E2-01..04
+obstacle-path acceptance is separate from53 extension admission and40/41.

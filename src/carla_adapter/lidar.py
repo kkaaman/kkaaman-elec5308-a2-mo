@@ -13,11 +13,13 @@ object check are plain NumPy so they are unit-tested without a server.
 
 from __future__ import annotations
 
+import hashlib
 import math
 import threading
 import time
 from collections import Counter
 from dataclasses import asdict, dataclass
+from pathlib import Path
 
 import numpy as np
 
@@ -160,7 +162,8 @@ def known_object_check(
     rear-axle frame (metres, full extents). Points inside the box grown by
     ``search_margin_m`` must number at least ``min_points``, the nearest observed X
     face among them must lie within ``tolerance_m`` of the expected near face, and
-    all intensities must lie in ``[0, 1]``. Returns a JSON-friendly dict with
+    search excludes the lowest0.15m above the known car box base to avoid road
+    contamination (evaluation only); all intensities must lie in ``[0, 1]``. Returns a JSON-friendly dict with
     ``passed``.
     """
     if not math.isfinite(search_margin_m) or search_margin_m < tolerance_m:
@@ -173,7 +176,10 @@ def known_object_check(
         raise ValueError("Expected XYZ centre and positive XYZ extent")
     low, high = centre - extent / 2 - search_margin_m, centre + extent / 2 + search_margin_m
     xyz = sweep.points_xyzi[:, :3]
-    inside = ((xyz >= low) & (xyz <= high)).all(axis=1)
+    # Known-car evaluation must not select the road within the padded search box.
+    # This truth-derived vertical crop is evaluation-only, never policy input.
+    minimum_surface_z = centre[2] - extent[2] / 2 + 0.15
+    inside = ((xyz >= low) & (xyz <= high)).all(axis=1) & (xyz[:, 2] >= minimum_surface_z)
     points = xyz[inside]
     expected_face = float(centre[0] - extent[0] / 2)
     observed_face = float(points[:, 0].min()) if len(points) else None
@@ -195,6 +201,10 @@ def known_object_check(
         near_face_error_m=error,
         tolerance_m=tolerance_m,
         search_margin_m=search_margin_m,
+        minimum_surface_z_m=float(minimum_surface_z),
+        excluded_search_points_below_surface=int(
+            (((xyz >= low) & (xyz <= high)).all(axis=1) & (xyz[:, 2] < minimum_surface_z)).sum()
+        ),
         observed_center_ego_m=None if not len(points) else [float(v) for v in points.mean(axis=0)],
         expected_center_ego_m=[float(v) for v in centre],
         intensity_min=None if sweep.point_count == 0 else float(intensity.min()),
@@ -286,7 +296,17 @@ class LidarCapture:
     ego frame; ``owner.timing.fixed_delta_seconds`` fixes the rotation frequency.
     """
 
-    def __init__(self, owner, vehicle, episode_id, *, rear_axle_offset_m, rig=None, capacity=8):
+    def __init__(
+        self,
+        owner,
+        vehicle,
+        episode_id,
+        *,
+        rear_axle_offset_m,
+        rig=None,
+        capacity=8,
+        raw_directory=None,
+    ):
         self.owner, self.vehicle = owner, vehicle
         self.rig = rig or LidarRig()
         self.dt_s = owner.timing.fixed_delta_seconds
@@ -296,6 +316,12 @@ class LidarCapture:
         self.sensor = None
         self.callback_errors = []
         self.records = []
+        self.raw_directory = None if raw_directory is None else Path(raw_directory)
+        if self.raw_directory is not None:
+            self.raw_directory.mkdir(parents=True, exist_ok=False)
+        self._raw_frames = {}
+        self._raw_lock = threading.Lock()
+        self._raw_capacity = capacity
 
     def __enter__(self):
         import carla
@@ -324,6 +350,11 @@ class LidarCapture:
             points, dropped = lidar_points_to_ego(
                 measurement.raw_data, self.sensor_to_ego, range_m=self.config.range_m
             )
+            if self.raw_directory is not None:
+                with self._raw_lock:
+                    self._raw_frames[measurement.frame] = bytes(measurement.raw_data)
+                    while len(self._raw_frames) > self._raw_capacity:
+                        del self._raw_frames[min(self._raw_frames)]
             self.queue.put(measurement.frame, measurement.timestamp, points, dropped)
         except Exception as error:
             self.callback_errors.append(str(error))
@@ -343,7 +374,25 @@ class LidarCapture:
             tuple(map(tuple, self.sensor_to_ego)),
             self.config,
         )
-        record = dict(sweep.summary(), dropped_nonfinite=dropped, fixed_delta_seconds=self.dt_s)
+        record = dict(
+            sweep.summary(),
+            dropped_nonfinite=dropped,
+            fixed_delta_seconds=self.dt_s,
+            received_monotonic_s=received,
+            read_completed_monotonic_s=time.monotonic(),
+        )
+        if self.raw_directory is not None:
+            with self._raw_lock:
+                payload = self._raw_frames.pop(frame)
+                for old in list(self._raw_frames):
+                    if old < frame:
+                        del self._raw_frames[old]
+            path = self.raw_directory / f"sensor_{frame:06d}.bin"
+            with path.open("xb") as stream:
+                stream.write(payload)
+            record["raw_sensor_file"] = path.name
+            record["raw_sensor_sha256"] = hashlib.sha256(payload).hexdigest()
+            record["raw_sensor_format"] = "float32 x,y,z,intensity; CARLA left-handed sensor frame"
         self.records.append(record)
         return sweep
 

@@ -1,5 +1,5 @@
 {
-  "scope": "Offline-reviewed optional LiDAR implementation; live capture/recorded replay still required by #52, so no merge or live admission",
+  "scope": "E2-01..04 reviewed optional LiDAR path with actual live known-object, classification and conservative fusion evidence; no positive-clearance/extension-driving admission",
   "classification": {
     "src/autonomy/lidar_fusion.py": {
       "category": "additional validated functionality",
@@ -11,7 +11,7 @@
     },
     "src/carla_adapter/lidar.py": {
       "category": "additional validated functionality",
-      "reason": "Optional bounded callback queue, one handedness reflection/rigid transform and full-sweep configuration; live transforms remain unmeasured"
+      "reason": "Full diff reviewed: exact optional bounded raw-byte retention and host receipt/read timestamps; known-car evaluation excludes ground in search padding without relaxing0.3m face tolerance; production transform/obstacle semantics unchanged"
     },
     "src/obstacle_perception/fusion.py": {
       "category": "additional validated functionality",
@@ -35,18 +35,17 @@
     }
   },
   "other_diff_review": [
-    "live capture checks cleanup before COMPLETE and returns nonzero for incomplete data",
-    "clustering memory and component/association work bounded; overflow produces invalid sweep",
-    "regressions reproduce unsupported 8m clearance from a wholly blind prefix; positive clearance now withheld",
-    "synthetic replay/fixture arrays checked; no actual LiDAR dataset claimed",
-    "narrow adapter/capture-test Ruff exemptions preserve core simulator boundary"
+    "Capture uses same90-sweep matrix; alternate site22 passes same60m straight checks; initial site10 failures retained",
+    "Cleanup observes server destruction after asynchronous settings restoration; no unrelated actors removed, leaks/timeouts remain failure",
+    "Read-only audit verifies90 exact raw transforms, preserves processed/cropped clouds/classes/bin states, and rejects stale/future frames",
+    "No clear bins or from-bumper clearance inferred from empty/no-return bins or descriptive clear_start8m; no baseline safety weakening"
   ],
   "existing_baseline_safety_contract_change": false,
   "status": "REVIEWED_LOADER_ONLY_REBIND_APPLIED",
   "pr": 103,
   "review_authority": "Explicit user delegation; Codex review, no new human approval",
   "reviewed_head": "d36b60785c3683b3a9d6a339194a754e38b7d6fa",
-  "canonical_base": "ed07850a9818d9d55e00b37fcd3eb26ed5aa27cb",
+  "canonical_base": "d0fc56f88a88468b587566896ae1909b931e9a95",
   "inventory_delta": {
     "added": [
       "src/autonomy/lidar_fusion.py",
@@ -63,9 +62,9 @@
     ]
   },
   "old_source_fingerprint": "9c9d4d0718ac841fb466f9d31c8de0cbcd871236e8b50b86018abdf30dc1c38b",
-  "new_source_fingerprint": "2b8daedd77c0977eb17eaebbae87a83ec0cf07a98bcbd43edbe8e5363fe3834b",
+  "new_source_fingerprint": "4bbcbe04975691ae8e98026611fd6be698426ba98729b3e3bfaf89aba2a566a9",
   "old_record_sha256": "5e5c274028315db2e964755165dba42147bd2552881a642c79d59610b63ddc17",
-  "new_record_sha256": "401013a2f5faa9502f25ae6ab4c8f955aa35aa0a14152e33b50307c7ebd02490",
+  "new_record_sha256": "50261533fa0235080c799add8926a5ca2669b068776bb825fc1cb8da022fce3a",
   "configuration_semantic_sha256": "2903124878485c8030e160f3598c381bf0197329f79d74773d84048a96c2e9ef",
   "configuration_file_sha256": "a4b5e669f9426db24d42d9a1d20114981c95bb15302af006b1196044696fe187",
   "actual_model_asset_sha256": "9b09cc8bf347f0fc8a5f7657480587f25db09b34bf33b0652110fb03a8ad4fef",
@@ -83,5 +82,6 @@
     ]
   },
   "actual_model_sha256": "9b09cc8bf347f0fc8a5f7657480587f25db09b34bf33b0652110fb03a8ad4fef",
-  "live_acceptance": false
+  "live_acceptance": false,
+  "recorded_live_evidence": "docs/evidence/E2-01-04/live-20261029/"
 }

@@ -74,7 +74,7 @@
         "src/carla_adapter/dataset_capture.py": "fe3240a133ab453972344d40332ddc036b228e09744fe0a128f3badcc650b0bf",
         "src/carla_adapter/depth_calibration.py": "e658985d15748abfca46998ca876239beed62704dd0c4dcc68bf8fbc8f0dcdd3",
         "src/carla_adapter/environment_check.py": "50d070c01f71148b159e93f5189bdbf6045585270d28a5b869963c46f778a6b5",
-        "src/carla_adapter/lidar.py": "774ecc1ac86a26ba1ec894c96cd4e1ba3abdcee6361363bfa69d7274f6ae1d65",
+        "src/carla_adapter/lidar.py": "1add8da7bcb64efa7be90735d95f6c433a745b14e1135d1d12a0e06cd9079422",
         "src/carla_adapter/longitudinal.py": "43198304502eb607d929efcebb47a5e07157d272deacf5221449e72562e03802",
         "src/carla_adapter/s0_runner.py": "f25eb879515d66d47fa7e67fb83ac9a555824d577dab6479778860b98c664542",
         "src/carla_adapter/scenario_verification.py": "03a5e1b72105476a07c9007f34fb4b3c599fe66a21a56a132f34b579cde3bbd2",
@@ -197,7 +197,7 @@
         "configs/weather/robustness_v1.json": "0bfc4770bfcdb6f5eff0276dd80d8ffbb9b4f296c383d5899e7e4eac87184874",
         "docs/evidence/BL-D-06/sources/depth-calibration.json": "89d64df2475790eea16a0fc2b862a9fcbafdf125c9f3fd5ef3f74453afc9cf5f"
       },
-      "scope_sha256": "2b8daedd77c0977eb17eaebbae87a83ec0cf07a98bcbd43edbe8e5363fe3834b"
+      "scope_sha256": "4bbcbe04975691ae8e98026611fd6be698426ba98729b3e3bfaf89aba2a566a9"
     },
     "issue41_runner": {
       "kind": "issue41_runner",

@@ -1,0 +1,22 @@
+[
+  {
+    "archive": "attempt-01.zip",
+    "members_verified": 94,
+    "sha256": "017a7c7c7b4376346c4bcacd7a42a9f257f79688b71786d796adea404f7b6e03"
+  },
+  {
+    "archive": "attempt-02.zip",
+    "members_verified": 184,
+    "sha256": "116bff4a504b213d7c4ae6a0a4fc01f5f16ddade84658fa4c060e1295b1b6122"
+  },
+  {
+    "archive": "attempt-03.zip",
+    "members_verified": 184,
+    "sha256": "0c525ae20a20e18e0bdc18cb0c5e8e0596638a6138cfd8b69e74448699e72be2"
+  },
+  {
+    "archive": "attempt-04.zip",
+    "members_verified": 275,
+    "sha256": "410d7bb312da886fcc40f15902f93d58d4ffa90f4c497b6351998a0ead6f7051"
+  }
+]
