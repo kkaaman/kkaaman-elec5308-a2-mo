@@ -12,6 +12,8 @@ margin, holds while the road is blocked, and resumes after perceived clearance.
 > A1 library, not A2 results.
 
 - **A1 starting point and setup checklist:** [docs/repository_setup.md](docs/repository_setup.md)
+- **Report outline and evidence:** [outline](docs/report_outline.md) and [dependency/evidence index](docs/evidence_index.md)
+- **Offline reproduction:** [runtime, model identities and checks](docs/reproduction.md)
 - **Decision log:** [docs/decisions.md](docs/decisions.md)
 - **BL-A-02 lane topology:** [export, offline loading and map validation](docs/lane-topology.md)
 - **E5-01–03 forward parking (P1):** [opt-in contracts, depth clearance and offline harness](docs/parking.md)

@@ -1,0 +1,59 @@
+{
+  "scope": "Implementation-scaffold scope of existing PR105: client/fallback/control composition and replay tools; remaining real deployment comparisons stay in #57",
+  "classification": {
+    "src/autonomy/hybrid_detector.py": {
+      "category": "additional validated functionality",
+      "reason": "Explicit optional adapter reuses canonical freshness/expiry/emergency/HOLD logic; source/session namespace reset never releases prior obstacle latch; no baseline entrypoint enabled"
+    },
+    "src/perception/async_detector.py": {
+      "category": "additional validated functionality",
+      "reason": "One bounded in-flight worker/zero queue; caller submit/poll never waits; late/reset/wrong-frame results rejected"
+    },
+    "src/perception/hybrid_detector.py": {
+      "category": "additional validated functionality",
+      "reason": "Concurrent warm local fallback, controlled-stop signal on dual miss and distinct-frame recovery hysteresis"
+    },
+    "src/perception/remote_detector.py": {
+      "category": "additional validated functionality",
+      "reason": "Strict JPEG/HTTP response identity, bounded sizes/timeouts, env secret, explicit session reset/recovery and separately measured reset cost; HTTP remains worker-only"
+    },
+    "src/perception/replay_accuracy.py": {
+      "category": "additional validated functionality",
+      "reason": "Offline class-aware one-to-one IoU metrics with explicit truth; no influence on operating decisions"
+    }
+  },
+  "other_diff_review": [
+    "benchmark requires>=200 explicit replay inputs; failures count in miss/accuracy denominators and missing endpoints remain NOT_RUN",
+    "truth annotations are optional explicit inputs; no synthetic replay is relabelled measured accuracy",
+    "source/session switches preserve HOLD and force reconfirmation; model/RGB identity mismatch uses existing fault latch",
+    "only an optional dependency group is added; frozen mission/model/sensor and operating entrypoint are unchanged"
+  ],
+  "existing_baseline_safety_contract_change": false,
+  "status": "REVIEWED_LOADER_ONLY_REBIND_APPLIED",
+  "pr": 105,
+  "review_authority": "Explicit owner delegation in continuation request; Codex review, not a new human approval",
+  "reviewed_head": "2b073a1dd5c24fa73abb1c96ab97dc18dbd0911d",
+  "canonical_base": "d0ceb4f2134b8b3a2eca4e422c1e42e532a29113",
+  "inventory_delta": {
+    "added": [
+      "src/autonomy/hybrid_detector.py",
+      "src/perception/async_detector.py",
+      "src/perception/hybrid_detector.py",
+      "src/perception/remote_detector.py",
+      "src/perception/replay_accuracy.py"
+    ],
+    "removed": [],
+    "changed": []
+  },
+  "old_source_fingerprint": "664c4d019ad385f1a6a6b360bf8a776ed4fa47c157230da3c751853f21984f5c",
+  "new_source_fingerprint": "f34a21469f2207fdbefe53eee91b7d3913cb7e522081e25747bddd70021ffea3",
+  "old_record_sha256": "d0668d09bdf5f5a7c90feec50e98d51b4971824944d1ed8b60bccf95bf7211eb",
+  "new_record_sha256": "bd505d3b75bb3bf64a412e9f2a8d06b98ec7f3fea7443645638f1c5897f83324",
+  "configuration_semantic_sha256": "2903124878485c8030e160f3598c381bf0197329f79d74773d84048a96c2e9ef",
+  "configuration_file_sha256": "a4b5e669f9426db24d42d9a1d20114981c95bb15302af006b1196044696fe187",
+  "actual_model_asset_sha256": "9b09cc8bf347f0fc8a5f7657480587f25db09b34bf33b0652110fb03a8ad4fef",
+  "camera_rig_sha256": "05a325d4a957d938e02cced63f4968b376ca82cb0aa2d362a8da781c87b16677",
+  "depth_policy_sha256": "052aa8a5890ed0d17fb902f14616d9158c32851bbd9971826aa843d85ac79dc6",
+  "frozen_values_scope_model_sensor_and_runner_unchanged": true,
+  "live_or_extension_operation_admitted": false
+}

@@ -1,0 +1,21 @@
+{
+  "run_id": 40652652932,
+  "head": "e4a5f2df5e90c85b6aaada57d5844f3c5c7abe22",
+  "job_ids": [
+    122696138034,
+    122696138394,
+    122696138500
+  ],
+  "runner_names": [
+    "",
+    "",
+    ""
+  ],
+  "executed_steps": [
+    0,
+    0,
+    0
+  ],
+  "annotations_verified": "recent failed account payments or spending-limit increase required",
+  "separate_local_admission_failures_waived": false
+}

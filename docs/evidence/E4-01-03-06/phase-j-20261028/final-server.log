@@ -1,0 +1,16 @@
+WARNING ⚠️ user config directory '/tmp/ultralytics/Ultralytics' is not writable, using '/tmp/Ultralytics'. Set YOLO_CONFIG_DIR to override.
+Creating new Ultralytics Settings v0.0.8 file ✅
+View Ultralytics Settings with 'yolo settings' or at '/tmp/Ultralytics/settings.json'
+Update Settings with 'yolo settings key=value', i.e. 'yolo settings runs_dir=path/to/dir'. For help see https://docs.ultralytics.com/usage/settings.
+INFO:     Started server process [1]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:37588 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:37598 - "POST /detect HTTP/1.1" 200 OK
+INFO:     127.0.0.1:37602 - "POST /detect HTTP/1.1" 200 OK
+INFO:     127.0.0.1:37616 - "POST /detect HTTP/1.1" 409 Conflict
+INFO:     127.0.0.1:37624 - "POST /reset HTTP/1.1" 200 OK
+INFO:     127.0.0.1:37626 - "POST /detect HTTP/1.1" 200 OK
+INFO:     127.0.0.1:37630 - "POST /reset HTTP/1.1" 200 OK
+INFO:     127.0.0.1:37632 - "POST /reset HTTP/1.1" 200 OK

@@ -55,3 +55,10 @@ or:
 .. code-block:: powershell
 
    python demo_fused_lane_following.py --town Town03
+
+Reproducible offline workflow
+-----------------------------
+
+See :doc:`reproduction` for recorded runtime versions, local assets, a disconnected
+installation recipe and explicit CARLA/GPU checks. A successful package installation
+alone does not establish driving acceptance.

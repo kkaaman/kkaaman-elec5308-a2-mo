@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "scope": "Recorded asset identities and partial historical runtime; not a complete validated environment lock.",
+  "python_reference": "3.12.10",
+  "carla_version": "0.9.16",
+  "runtime_evidence": "docs/evidence/baseline-batch/detector.json",
+  "recorded_packages": {
+    "ultralytics": "8.4.177",
+    "torch": "2.14.1",
+    "numpy": "2.5.4"
+  },
+  "assets": [
+    {
+      "name": "yolo26n",
+      "path": "yolo26n.pt",
+      "size_bytes": 5544453,
+      "sha256": "9b09cc8bf347f0fc8a5f7657480587f25db09b34bf33b0652110fb03a8ad4fef",
+      "validation": "sample-inference-verified",
+      "evidence": "docs/evidence/baseline-batch/detector.json"
+    },
+    {
+      "name": "segmentation",
+      "path": "segmentation_model.pth",
+      "size_bytes": 9505431,
+      "sha256": "a631440d3fe2ccd2554631bb49b1352c0efbbaffc2316caa79c288757e8dde2a",
+      "validation": "sample-inference-verified",
+      "evidence": "docs/evidence/RV-01-assets.json"
+    },
+    {
+      "name": "lane",
+      "path": "lane_unet_best.pth",
+      "size_bytes": 57385466,
+      "sha256": "10dca01621fb8e110f1d5b8419e81fb616a8ce1b75d6aface11f5793af88e8ff",
+      "validation": "identity-recorded; inference review pending",
+      "evidence": "docs/lane_recovery.md"
+    }
+  ]
+}

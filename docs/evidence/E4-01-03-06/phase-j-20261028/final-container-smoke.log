@@ -1,0 +1,42 @@
+{
+  "origin": "black-image-real-model-protocol-smoke",
+  "accuracy": "NOT_MEASURED",
+  "model_sha256": "9b09cc8bf347f0fc8a5f7657480587f25db09b34bf33b0652110fb03a8ad4fef",
+  "clients": [
+    {
+      "valid": true,
+      "source_id": "remote",
+      "run_id": "smoke-client-0",
+      "session_id": "8ef6035e-36d9-4391-a809-5113618343eb",
+      "detections": 0,
+      "timing": {
+        "session_reset_s": 2.8999966161791235e-07,
+        "encode_s": 0.009796226000617025,
+        "http_round_trip_s": 1.3275763089986867,
+        "decode_s": 5.6849999964470044e-05,
+        "server_duration_s": 1.3154381660006038,
+        "rtt_residual_s": 0.012138142998082913,
+        "total_s": 1.3374296749989298
+      }
+    },
+    {
+      "valid": true,
+      "source_id": "remote",
+      "run_id": "smoke-client-1",
+      "session_id": "de67d281-99b5-4710-be1c-2bc2b3e486f7",
+      "detections": 0,
+      "timing": {
+        "session_reset_s": 2.3000029614195228e-07,
+        "encode_s": 0.00017947900050785393,
+        "http_round_trip_s": 0.5263545089983381,
+        "decode_s": 5.332300133886747e-05,
+        "server_duration_s": 0.5243688099999417,
+        "rtt_residual_s": 0.0019856989983964013,
+        "total_s": 0.526587541000481
+      }
+    }
+  ],
+  "duplicate_status": 409,
+  "repeated_episode_valid": true,
+  "passed": true
+}

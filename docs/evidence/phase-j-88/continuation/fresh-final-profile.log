@@ -1,0 +1,849 @@
+Looking in links: /wheelhouse
+Processing /wheelhouse/alabaster-1.0.0-py3-none-any.whl (from -r /workspace/deploy/reproduction/requirements-linux-cpu.lock (line 2))
+Processing /wheelhouse/annotated_types-0.8.0-py3-none-any.whl (from -r /workspace/deploy/reproduction/requirements-linux-cpu.lock (line 3))
+Processing /wheelhouse/anyio-4.15.1-py3-none-any.whl (from -r /workspace/deploy/reproduction/requirements-linux-cpu.lock (line 4))
+Processing /wheelhouse/babel-2.18.0-py3-none-any.whl (from -r /workspace/deploy/reproduction/requirements-linux-cpu.lock (line 5))
+Processing /wheelhouse/build-1.6.1-py3-none-any.whl (from -r /workspace/deploy/reproduction/requirements-linux-cpu.lock (line 6))
+Processing /wheelhouse/certifi-2026.10.23-py3-none-any.whl (from -r /workspace/deploy/reproduction/requirements-linux-cpu.lock (line 7))
+Processing /wheelhouse/charset_normalizer-3.5.2-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (from -r /workspace/deploy/reproduction/requirements-linux-cpu.lock (line 8))
+Processing /wheelhouse/click-8.5.0-py3-none-any.whl (from -r /workspace/deploy/reproduction/requirements-linux-cpu.lock (line 9))
+Processing /wheelhouse/contourpy-1.4.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl (from -r /workspace/deploy/reproduction/requirements-linux-cpu.lock (line 10))
+Processing /wheelhouse/cycler-0.12.1-py3-none-any.whl (from -r /workspace/deploy/reproduction/requirements-linux-cpu.lock (line 11))
+Processing /wheelhouse/docutils-0.22.4-py3-none-any.whl (from -r /workspace/deploy/reproduction/requirements-linux-cpu.lock (line 12))
+Processing /wheelhouse/fastapi-0.115.0-py3-none-any.whl (from -r /workspace/deploy/reproduction/requirements-linux-cpu.lock (line 13))
+Processing /wheelhouse/filelock-4.2.4-py3-none-any.whl (from -r /workspace/deploy/reproduction/requirements-linux-cpu.lock (line 14))
+Processing /wheelhouse/fonttools-4.68.0-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl (from -r /workspace/deploy/reproduction/requirements-linux-cpu.lock (line 15))
+Processing /wheelhouse/fsspec-2026.9.0-py3-none-any.whl (from -r /workspace/deploy/reproduction/requirements-linux-cpu.lock (line 16))
+Processing /wheelhouse/h11-0.16.0-py3-none-any.whl (from -r /workspace/deploy/reproduction/requirements-linux-cpu.lock (line 17))
+Processing /wheelhouse/httpcore-1.0.9-py3-none-any.whl (from -r /workspace/deploy/reproduction/requirements-linux-cpu.lock (line 18))
+Processing /wheelhouse/httpx-0.28.1-py3-none-any.whl (from -r /workspace/deploy/reproduction/requirements-linux-cpu.lock (line 19))
+Processing /wheelhouse/idna-3.20-py3-none-any.whl (from -r /workspace/deploy/reproduction/requirements-linux-cpu.lock (line 20))
+Processing /wheelhouse/imagesize-2.0.1-py3-none-any.whl (from -r /workspace/deploy/reproduction/requirements-linux-cpu.lock (line 21))
+Processing /wheelhouse/iniconfig-2.3.1-py3-none-any.whl (from -r /workspace/deploy/reproduction/requirements-linux-cpu.lock (line 22))
+Processing /wheelhouse/jinja2-3.1.6-py3-none-any.whl (from -r /workspace/deploy/reproduction/requirements-linux-cpu.lock (line 23))
+Processing /wheelhouse/kiwisolver-1.5.1-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl (from -r /workspace/deploy/reproduction/requirements-linux-cpu.lock (line 24))
+Processing /wheelhouse/lap-0.5.13-cp312-cp312-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl (from -r /workspace/deploy/reproduction/requirements-linux-cpu.lock (line 25))
+Processing /wheelhouse/markdown_it_py-4.2.0-py3-none-any.whl (from -r /workspace/deploy/reproduction/requirements-linux-cpu.lock (line 26))
+Processing /wheelhouse/markupsafe-3.0.4-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (from -r /workspace/deploy/reproduction/requirements-linux-cpu.lock (line 27))
+Processing /wheelhouse/matplotlib-3.11.2-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl (from -r /workspace/deploy/reproduction/requirements-linux-cpu.lock (line 28))
+Processing /wheelhouse/mdit_py_plugins-0.6.1-py3-none-any.whl (from -r /workspace/deploy/reproduction/requirements-linux-cpu.lock (line 29))
+Processing /wheelhouse/mdurl-0.1.2-py3-none-any.whl (from -r /workspace/deploy/reproduction/requirements-linux-cpu.lock (line 30))
+Processing /wheelhouse/mpmath-1.3.0-py3-none-any.whl (from -r /workspace/deploy/reproduction/requirements-linux-cpu.lock (line 31))
+Processing /wheelhouse/myst_parser-5.1.0-py3-none-any.whl (from -r /workspace/deploy/reproduction/requirements-linux-cpu.lock (line 32))
+Processing /wheelhouse/networkx-3.7-py3-none-any.whl (from -r /workspace/deploy/reproduction/requirements-linux-cpu.lock (line 33))
+Processing /wheelhouse/numpy-2.5.2-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl (from -r /workspace/deploy/reproduction/requirements-linux-cpu.lock (line 34))
+Processing /wheelhouse/nvidia_ml_py-13.615.71-py3-none-any.whl (from -r /workspace/deploy/reproduction/requirements-linux-cpu.lock (line 35))
+Processing /wheelhouse/opencv_python-5.0.0.93-cp37-abi3-manylinux_2_28_x86_64.whl (from -r /workspace/deploy/reproduction/requirements-linux-cpu.lock (line 36))
+Processing /wheelhouse/packaging-26.3-py3-none-any.whl (from -r /workspace/deploy/reproduction/requirements-linux-cpu.lock (line 37))
+Processing /wheelhouse/pillow-12.3.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl (from -r /workspace/deploy/reproduction/requirements-linux-cpu.lock (line 38))
+Processing /wheelhouse/pluggy-1.7.0-py3-none-any.whl (from -r /workspace/deploy/reproduction/requirements-linux-cpu.lock (line 39))
+Processing /wheelhouse/polars-2.1.0-py3-none-any.whl (from -r /workspace/deploy/reproduction/requirements-linux-cpu.lock (line 40))
+Processing /wheelhouse/polars_runtime_32-2.1.0-cp311-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (from -r /workspace/deploy/reproduction/requirements-linux-cpu.lock (line 41))
+Processing /wheelhouse/psutil-7.2.2-cp36-abi3-manylinux2010_x86_64.manylinux_2_12_x86_64.manylinux_2_28_x86_64.whl (from -r /workspace/deploy/reproduction/requirements-linux-cpu.lock (line 42))
+Processing /wheelhouse/pydantic-2.14.1-py3-none-any.whl (from -r /workspace/deploy/reproduction/requirements-linux-cpu.lock (line 43))
+Processing /wheelhouse/pydantic_core-2.50.1-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (from -r /workspace/deploy/reproduction/requirements-linux-cpu.lock (line 44))
+Processing /wheelhouse/pygments-2.21.0-py3-none-any.whl (from -r /workspace/deploy/reproduction/requirements-linux-cpu.lock (line 45))
+Processing /wheelhouse/pyparsing-3.3.3-py3-none-any.whl (from -r /workspace/deploy/reproduction/requirements-linux-cpu.lock (line 46))
+Processing /wheelhouse/pyproject_hooks-1.3.3-py3-none-any.whl (from -r /workspace/deploy/reproduction/requirements-linux-cpu.lock (line 47))
+Processing /wheelhouse/pytest-9.2.0-py3-none-any.whl (from -r /workspace/deploy/reproduction/requirements-linux-cpu.lock (line 48))
+Processing /wheelhouse/python_dateutil-3.0.0-py2.py3-none-any.whl (from -r /workspace/deploy/reproduction/requirements-linux-cpu.lock (line 49))
+Processing /wheelhouse/pyyaml-6.0.3-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (from -r /workspace/deploy/reproduction/requirements-linux-cpu.lock (line 50))
+Processing /wheelhouse/requests-2.34.2-py3-none-any.whl (from -r /workspace/deploy/reproduction/requirements-linux-cpu.lock (line 51))
+Processing /wheelhouse/roman_numerals-4.1.0-py3-none-any.whl (from -r /workspace/deploy/reproduction/requirements-linux-cpu.lock (line 52))
+Processing /wheelhouse/ruff-0.17.3-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (from -r /workspace/deploy/reproduction/requirements-linux-cpu.lock (line 53))
+Processing /wheelhouse/setuptools-84.2.1-py3-none-any.whl (from -r /workspace/deploy/reproduction/requirements-linux-cpu.lock (line 54))
+Processing /wheelhouse/six-1.17.0-py2.py3-none-any.whl (from -r /workspace/deploy/reproduction/requirements-linux-cpu.lock (line 55))
+Processing /wheelhouse/snowballstemmer-3.1.1-py3-none-any.whl (from -r /workspace/deploy/reproduction/requirements-linux-cpu.lock (line 56))
+Processing /wheelhouse/sphinx-9.1.1-py3-none-any.whl (from -r /workspace/deploy/reproduction/requirements-linux-cpu.lock (line 57))
+Processing /wheelhouse/sphinxcontrib_applehelp-2.0.0-py3-none-any.whl (from -r /workspace/deploy/reproduction/requirements-linux-cpu.lock (line 58))
+Processing /wheelhouse/sphinxcontrib_devhelp-2.0.0-py3-none-any.whl (from -r /workspace/deploy/reproduction/requirements-linux-cpu.lock (line 59))
+Processing /wheelhouse/sphinxcontrib_htmlhelp-2.1.0-py3-none-any.whl (from -r /workspace/deploy/reproduction/requirements-linux-cpu.lock (line 60))
+Processing /wheelhouse/sphinxcontrib_jsmath-2.0.0-py3-none-any.whl (from -r /workspace/deploy/reproduction/requirements-linux-cpu.lock (line 61))
+Processing /wheelhouse/sphinxcontrib_qthelp-2.0.0-py3-none-any.whl (from -r /workspace/deploy/reproduction/requirements-linux-cpu.lock (line 62))
+Processing /wheelhouse/sphinxcontrib_serializinghtml-2.0.0-py3-none-any.whl (from -r /workspace/deploy/reproduction/requirements-linux-cpu.lock (line 63))
+Processing /wheelhouse/starlette-0.38.6-py3-none-any.whl (from -r /workspace/deploy/reproduction/requirements-linux-cpu.lock (line 64))
+Processing /wheelhouse/sympy-1.13.1-py3-none-any.whl (from -r /workspace/deploy/reproduction/requirements-linux-cpu.lock (line 65))
+Processing /wheelhouse/torch-2.6.0+cpu-cp312-cp312-linux_x86_64.whl (from -r /workspace/deploy/reproduction/requirements-linux-cpu.lock (line 66))
+Processing /wheelhouse/torchvision-0.21.0+cpu-cp312-cp312-linux_x86_64.whl (from -r /workspace/deploy/reproduction/requirements-linux-cpu.lock (line 67))
+Processing /wheelhouse/typing_extensions-4.16.0-py3-none-any.whl (from -r /workspace/deploy/reproduction/requirements-linux-cpu.lock (line 68))
+Processing /wheelhouse/typing_inspection-0.4.4-py3-none-any.whl (from -r /workspace/deploy/reproduction/requirements-linux-cpu.lock (line 69))
+Processing /wheelhouse/tzdata-2026.5-py2.py3-none-any.whl (from -r /workspace/deploy/reproduction/requirements-linux-cpu.lock (line 70))
+Processing /wheelhouse/ultralytics-8.4.177-py3-none-any.whl (from -r /workspace/deploy/reproduction/requirements-linux-cpu.lock (line 71))
+Processing /wheelhouse/ultralytics_platform-0.1.100-py3-none-any.whl (from -r /workspace/deploy/reproduction/requirements-linux-cpu.lock (line 72))
+Processing /wheelhouse/ultralytics_thop-2.2.3-py3-none-any.whl (from -r /workspace/deploy/reproduction/requirements-linux-cpu.lock (line 73))
+Processing /wheelhouse/urllib3-2.8.0-py3-none-any.whl (from -r /workspace/deploy/reproduction/requirements-linux-cpu.lock (line 74))
+Processing /wheelhouse/uvicorn-0.30.6-py3-none-any.whl (from -r /workspace/deploy/reproduction/requirements-linux-cpu.lock (line 75))
+Processing /wheelhouse/wheel-0.48.0-py3-none-any.whl (from -r /workspace/deploy/reproduction/requirements-linux-cpu.lock (line 76))
+Installing collected packages: nvidia-ml-py, mpmath, wheel, uvicorn, urllib3, ultralytics-thop, ultralytics-platform, ultralytics, tzdata, typing-inspection, typing_extensions, torchvision, torch, sympy, starlette, sphinxcontrib-serializinghtml, sphinxcontrib-qthelp, sphinxcontrib-jsmath, sphinxcontrib-htmlhelp, sphinxcontrib-devhelp, sphinxcontrib-applehelp, Sphinx, snowballstemmer, six, setuptools, ruff, roman-numerals, requests, PyYAML, python-dateutil, pytest, pyproject_hooks, pyparsing, Pygments, pydantic_core, pydantic, psutil, polars-runtime-32, polars, pluggy, pillow, packaging, opencv-python, numpy, networkx, myst-parser, mdurl, mdit-py-plugins, matplotlib, MarkupSafe, markdown-it-py, lap, kiwisolver, Jinja2, iniconfig, imagesize, idna, httpx, httpcore, h11, fsspec, fonttools, filelock, fastapi, docutils, cycler, contourpy, click, charset-normalizer, certifi, build, babel, anyio, annotated-types, alabaster
+Successfully installed Jinja2-3.1.6 MarkupSafe-3.0.4 PyYAML-6.0.3 Pygments-2.21.0 Sphinx-9.1.1 alabaster-1.0.0 annotated-types-0.8.0 anyio-4.15.1 babel-2.18.0 build-1.6.1 certifi-2026.10.23 charset-normalizer-3.5.2 click-8.5.0 contourpy-1.4.0 cycler-0.12.1 docutils-0.22.4 fastapi-0.115.0 filelock-4.2.4 fonttools-4.68.0 fsspec-2026.9.0 h11-0.16.0 httpcore-1.0.9 httpx-0.28.1 idna-3.20 imagesize-2.0.1 iniconfig-2.3.1 kiwisolver-1.5.1 lap-0.5.13 markdown-it-py-4.2.0 matplotlib-3.11.2 mdit-py-plugins-0.6.1 mdurl-0.1.2 mpmath-1.3.0 myst-parser-5.1.0 networkx-3.7 numpy-2.5.2 nvidia-ml-py-13.615.71 opencv-python-5.0.0.93 packaging-26.3 pillow-12.3.0 pluggy-1.7.0 polars-2.1.0 polars-runtime-32-2.1.0 psutil-7.2.2 pydantic-2.14.1 pydantic_core-2.50.1 pyparsing-3.3.3 pyproject_hooks-1.3.3 pytest-9.2.0 python-dateutil-3.0.0 requests-2.34.2 roman-numerals-4.1.0 ruff-0.17.3 setuptools-84.2.1 six-1.17.0 snowballstemmer-3.1.1 sphinxcontrib-applehelp-2.0.0 sphinxcontrib-devhelp-2.0.0 sphinxcontrib-htmlhelp-2.1.0 sphinxcontrib-jsmath-2.0.0 sphinxcontrib-qthelp-2.0.0 sphinxcontrib-serializinghtml-2.0.0 starlette-0.38.6 sympy-1.13.1 torch-2.6.0+cpu torchvision-0.21.0+cpu typing-inspection-0.4.4 typing_extensions-4.16.0 tzdata-2026.5 ultralytics-8.4.177 ultralytics-platform-0.1.100 ultralytics-thop-2.2.3 urllib3-2.8.0 uvicorn-0.30.6 wheel-0.48.0
+Looking in links: /wheelhouse
+Obtaining file:///workspace
+  Checking if build backend supports build_editable: started
+  Checking if build backend supports build_editable: finished with status 'done'
+  Preparing editable metadata (pyproject.toml): started
+  Preparing editable metadata (pyproject.toml): finished with status 'done'
+Building wheels for collected packages: elec5308-group7-autodrive
+  Building editable for elec5308-group7-autodrive (pyproject.toml): started
+  Building editable for elec5308-group7-autodrive (pyproject.toml): finished with status 'done'
+  Created wheel for elec5308-group7-autodrive: filename=elec5308_group7_autodrive-0.2.0.dev0-0.editable-py3-none-any.whl size=1856 sha256=360f1d8adc0ee31d0263804d125801aafc561f26698f9e5284dd11c37ec99e7e
+  Stored in directory: /tmp/pip-ephem-wheel-cache-25u3ze0w/wheels/b0/41/ab/4e04a8678980f3355548f1261923479fbf2a713a7393a7dea8
+Successfully built elec5308-group7-autodrive
+Installing collected packages: elec5308-group7-autodrive
+Successfully installed elec5308-group7-autodrive-0.2.0.dev0
+No broken requirements found.
+
+--- Installing the prepared offline runtime ---
+$ /tmp/fresh/bin/python -m pip install --isolated --no-index --only-binary=:all: --find-links /wheelhouse --no-deps --require-hashes -r /workspace/deploy/reproduction/requirements-linux-cpu.lock
+[OK] Installing the prepared offline runtime
+
+--- Installing local project without dependency resolution ---
+$ /tmp/fresh/bin/python -m pip install --isolated --no-index --only-binary=:all: --find-links /wheelhouse --no-deps --no-build-isolation -e /workspace
+[OK] Installing local project without dependency resolution
+
+--- Checking installed dependency consistency ---
+$ /tmp/fresh/bin/python -m pip check
+[OK] Checking installed dependency consistency
+Offline install finished; no LFS pull was attempted. Run --offline --check-only.
+CARLA, CUDA and inference require the separate checks in docs/reproduction.md.
+{
+  "scope": "validated Linux CPU dependency profile",
+  "profile": "linux-cpu",
+  "checks": [
+    {
+      "asset": "yolo26n.pt",
+      "status": "PASS"
+    },
+    {
+      "asset": "segmentation_model.pth",
+      "status": "PASS"
+    },
+    {
+      "asset": "lane_unet_best.pth",
+      "status": "PASS"
+    },
+    {
+      "package": "alabaster",
+      "expected": "1.0.0",
+      "installed": "1.0.0",
+      "status": "PASS"
+    },
+    {
+      "package": "annotated-types",
+      "expected": "0.8.0",
+      "installed": "0.8.0",
+      "status": "PASS"
+    },
+    {
+      "package": "anyio",
+      "expected": "4.15.1",
+      "installed": "4.15.1",
+      "status": "PASS"
+    },
+    {
+      "package": "babel",
+      "expected": "2.18.0",
+      "installed": "2.18.0",
+      "status": "PASS"
+    },
+    {
+      "package": "build",
+      "expected": "1.6.1",
+      "installed": "1.6.1",
+      "status": "PASS"
+    },
+    {
+      "package": "certifi",
+      "expected": "2026.10.23",
+      "installed": "2026.10.23",
+      "status": "PASS"
+    },
+    {
+      "package": "charset-normalizer",
+      "expected": "3.5.2",
+      "installed": "3.5.2",
+      "status": "PASS"
+    },
+    {
+      "package": "click",
+      "expected": "8.5.0",
+      "installed": "8.5.0",
+      "status": "PASS"
+    },
+    {
+      "package": "contourpy",
+      "expected": "1.4.0",
+      "installed": "1.4.0",
+      "status": "PASS"
+    },
+    {
+      "package": "cycler",
+      "expected": "0.12.1",
+      "installed": "0.12.1",
+      "status": "PASS"
+    },
+    {
+      "package": "docutils",
+      "expected": "0.22.4",
+      "installed": "0.22.4",
+      "status": "PASS"
+    },
+    {
+      "package": "fastapi",
+      "expected": "0.115.0",
+      "installed": "0.115.0",
+      "status": "PASS"
+    },
+    {
+      "package": "filelock",
+      "expected": "4.2.4",
+      "installed": "4.2.4",
+      "status": "PASS"
+    },
+    {
+      "package": "fonttools",
+      "expected": "4.68.0",
+      "installed": "4.68.0",
+      "status": "PASS"
+    },
+    {
+      "package": "fsspec",
+      "expected": "2026.9.0",
+      "installed": "2026.9.0",
+      "status": "PASS"
+    },
+    {
+      "package": "h11",
+      "expected": "0.16.0",
+      "installed": "0.16.0",
+      "status": "PASS"
+    },
+    {
+      "package": "httpcore",
+      "expected": "1.0.9",
+      "installed": "1.0.9",
+      "status": "PASS"
+    },
+    {
+      "package": "httpx",
+      "expected": "0.28.1",
+      "installed": "0.28.1",
+      "status": "PASS"
+    },
+    {
+      "package": "idna",
+      "expected": "3.20",
+      "installed": "3.20",
+      "status": "PASS"
+    },
+    {
+      "package": "imagesize",
+      "expected": "2.0.1",
+      "installed": "2.0.1",
+      "status": "PASS"
+    },
+    {
+      "package": "iniconfig",
+      "expected": "2.3.1",
+      "installed": "2.3.1",
+      "status": "PASS"
+    },
+    {
+      "package": "Jinja2",
+      "expected": "3.1.6",
+      "installed": "3.1.6",
+      "status": "PASS"
+    },
+    {
+      "package": "kiwisolver",
+      "expected": "1.5.1",
+      "installed": "1.5.1",
+      "status": "PASS"
+    },
+    {
+      "package": "lap",
+      "expected": "0.5.13",
+      "installed": "0.5.13",
+      "status": "PASS"
+    },
+    {
+      "package": "markdown-it-py",
+      "expected": "4.2.0",
+      "installed": "4.2.0",
+      "status": "PASS"
+    },
+    {
+      "package": "MarkupSafe",
+      "expected": "3.0.4",
+      "installed": "3.0.4",
+      "status": "PASS"
+    },
+    {
+      "package": "matplotlib",
+      "expected": "3.11.2",
+      "installed": "3.11.2",
+      "status": "PASS"
+    },
+    {
+      "package": "mdit-py-plugins",
+      "expected": "0.6.1",
+      "installed": "0.6.1",
+      "status": "PASS"
+    },
+    {
+      "package": "mdurl",
+      "expected": "0.1.2",
+      "installed": "0.1.2",
+      "status": "PASS"
+    },
+    {
+      "package": "mpmath",
+      "expected": "1.3.0",
+      "installed": "1.3.0",
+      "status": "PASS"
+    },
+    {
+      "package": "myst-parser",
+      "expected": "5.1.0",
+      "installed": "5.1.0",
+      "status": "PASS"
+    },
+    {
+      "package": "networkx",
+      "expected": "3.7",
+      "installed": "3.7",
+      "status": "PASS"
+    },
+    {
+      "package": "numpy",
+      "expected": "2.5.2",
+      "installed": "2.5.2",
+      "status": "PASS"
+    },
+    {
+      "package": "nvidia-ml-py",
+      "expected": "13.615.71",
+      "installed": "13.615.71",
+      "status": "PASS"
+    },
+    {
+      "package": "opencv-python",
+      "expected": "5.0.0.93",
+      "installed": "5.0.0.93",
+      "status": "PASS"
+    },
+    {
+      "package": "packaging",
+      "expected": "26.3",
+      "installed": "26.3",
+      "status": "PASS"
+    },
+    {
+      "package": "pillow",
+      "expected": "12.3.0",
+      "installed": "12.3.0",
+      "status": "PASS"
+    },
+    {
+      "package": "pluggy",
+      "expected": "1.7.0",
+      "installed": "1.7.0",
+      "status": "PASS"
+    },
+    {
+      "package": "polars",
+      "expected": "2.1.0",
+      "installed": "2.1.0",
+      "status": "PASS"
+    },
+    {
+      "package": "polars-runtime-32",
+      "expected": "2.1.0",
+      "installed": "2.1.0",
+      "status": "PASS"
+    },
+    {
+      "package": "psutil",
+      "expected": "7.2.2",
+      "installed": "7.2.2",
+      "status": "PASS"
+    },
+    {
+      "package": "pydantic",
+      "expected": "2.14.1",
+      "installed": "2.14.1",
+      "status": "PASS"
+    },
+    {
+      "package": "pydantic_core",
+      "expected": "2.50.1",
+      "installed": "2.50.1",
+      "status": "PASS"
+    },
+    {
+      "package": "Pygments",
+      "expected": "2.21.0",
+      "installed": "2.21.0",
+      "status": "PASS"
+    },
+    {
+      "package": "pyparsing",
+      "expected": "3.3.3",
+      "installed": "3.3.3",
+      "status": "PASS"
+    },
+    {
+      "package": "pyproject_hooks",
+      "expected": "1.3.3",
+      "installed": "1.3.3",
+      "status": "PASS"
+    },
+    {
+      "package": "pytest",
+      "expected": "9.2.0",
+      "installed": "9.2.0",
+      "status": "PASS"
+    },
+    {
+      "package": "python-dateutil",
+      "expected": "3.0.0",
+      "installed": "3.0.0",
+      "status": "PASS"
+    },
+    {
+      "package": "PyYAML",
+      "expected": "6.0.3",
+      "installed": "6.0.3",
+      "status": "PASS"
+    },
+    {
+      "package": "requests",
+      "expected": "2.34.2",
+      "installed": "2.34.2",
+      "status": "PASS"
+    },
+    {
+      "package": "roman-numerals",
+      "expected": "4.1.0",
+      "installed": "4.1.0",
+      "status": "PASS"
+    },
+    {
+      "package": "ruff",
+      "expected": "0.17.3",
+      "installed": "0.17.3",
+      "status": "PASS"
+    },
+    {
+      "package": "setuptools",
+      "expected": "84.2.1",
+      "installed": "84.2.1",
+      "status": "PASS"
+    },
+    {
+      "package": "six",
+      "expected": "1.17.0",
+      "installed": "1.17.0",
+      "status": "PASS"
+    },
+    {
+      "package": "snowballstemmer",
+      "expected": "3.1.1",
+      "installed": "3.1.1",
+      "status": "PASS"
+    },
+    {
+      "package": "Sphinx",
+      "expected": "9.1.1",
+      "installed": "9.1.1",
+      "status": "PASS"
+    },
+    {
+      "package": "sphinxcontrib-applehelp",
+      "expected": "2.0.0",
+      "installed": "2.0.0",
+      "status": "PASS"
+    },
+    {
+      "package": "sphinxcontrib-devhelp",
+      "expected": "2.0.0",
+      "installed": "2.0.0",
+      "status": "PASS"
+    },
+    {
+      "package": "sphinxcontrib-htmlhelp",
+      "expected": "2.1.0",
+      "installed": "2.1.0",
+      "status": "PASS"
+    },
+    {
+      "package": "sphinxcontrib-jsmath",
+      "expected": "2.0.0",
+      "installed": "2.0.0",
+      "status": "PASS"
+    },
+    {
+      "package": "sphinxcontrib-qthelp",
+      "expected": "2.0.0",
+      "installed": "2.0.0",
+      "status": "PASS"
+    },
+    {
+      "package": "sphinxcontrib-serializinghtml",
+      "expected": "2.0.0",
+      "installed": "2.0.0",
+      "status": "PASS"
+    },
+    {
+      "package": "starlette",
+      "expected": "0.38.6",
+      "installed": "0.38.6",
+      "status": "PASS"
+    },
+    {
+      "package": "sympy",
+      "expected": "1.13.1",
+      "installed": "1.13.1",
+      "status": "PASS"
+    },
+    {
+      "package": "torch",
+      "expected": "2.6.0+cpu",
+      "installed": "2.6.0+cpu",
+      "status": "PASS"
+    },
+    {
+      "package": "torchvision",
+      "expected": "0.21.0+cpu",
+      "installed": "0.21.0+cpu",
+      "status": "PASS"
+    },
+    {
+      "package": "typing_extensions",
+      "expected": "4.16.0",
+      "installed": "4.16.0",
+      "status": "PASS"
+    },
+    {
+      "package": "typing-inspection",
+      "expected": "0.4.4",
+      "installed": "0.4.4",
+      "status": "PASS"
+    },
+    {
+      "package": "tzdata",
+      "expected": "2026.5",
+      "installed": "2026.5",
+      "status": "PASS"
+    },
+    {
+      "package": "ultralytics",
+      "expected": "8.4.177",
+      "installed": "8.4.177",
+      "status": "PASS"
+    },
+    {
+      "package": "ultralytics-platform",
+      "expected": "0.1.100",
+      "installed": "0.1.100",
+      "status": "PASS"
+    },
+    {
+      "package": "ultralytics-thop",
+      "expected": "2.2.3",
+      "installed": "2.2.3",
+      "status": "PASS"
+    },
+    {
+      "package": "urllib3",
+      "expected": "2.8.0",
+      "installed": "2.8.0",
+      "status": "PASS"
+    },
+    {
+      "package": "uvicorn",
+      "expected": "0.30.6",
+      "installed": "0.30.6",
+      "status": "PASS"
+    },
+    {
+      "package": "wheel",
+      "expected": "0.48.0",
+      "installed": "0.48.0",
+      "status": "PASS"
+    },
+    {
+      "python": "3.12.16",
+      "reference": "3.12.10",
+      "status": "PASS"
+    }
+  ],
+  "status": "PASS"
+}
+...............                                                          [100%]
+=============================== warnings summary ===============================
+../tmp/fresh/lib/python3.12/site-packages/_pytest/cacheprovider.py:487
+  /tmp/fresh/lib/python3.12/site-packages/_pytest/cacheprovider.py:487: PytestCacheWarning: cache could not write path /workspace/.pytest_cache/v/cache/nodeids: [Errno 13] Permission denied: '/workspace/.pytest_cache/v/cache/nodeids'
+    config.cache.set("cache/nodeids", sorted(str(n) for n in self.cached_nodeids))
+
+../tmp/fresh/lib/python3.12/site-packages/_pytest/cacheprovider.py:439
+  /tmp/fresh/lib/python3.12/site-packages/_pytest/cacheprovider.py:439: PytestCacheWarning: cache could not write path /workspace/.pytest_cache/v/cache/lastfailed: [Errno 13] Permission denied: '/workspace/.pytest_cache/v/cache/lastfailed'
+    config.cache.set("cache/lastfailed", current_lastfailed)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+15 passed, 2 warnings in 0.11s
+Running Sphinx v9.1.1
+loading translations [en]... done
+making output directory... done
+myst v5.1.0: MdParserConfig(commonmark_only=False, gfm_only=False, enable_extensions=set(), disable_syntax=[], all_links_external=False, links_external_new_tab=False, url_schemes=('http', 'https', 'mailto', 'ftp'), ref_domains=None, fence_as_directive=set(), number_code_blocks=[], title_to_header=False, heading_anchors=0, heading_slug_func=None, html_meta={}, footnote_sort=True, footnote_transition=True, words_per_minute=200, substitutions={}, linkify_fuzzy_links=True, dmath_allow_labels=True, dmath_allow_space=True, dmath_allow_digits=True, dmath_double_inline=False, update_mathjax=True, mathjax_classes='tex2jax_process|mathjax_process|math|output_area', enable_checkboxes=False, strikethrough_single_tilde=False, colon_fence_exact_match=False, suppress_warnings=[], highlight_code_blocks=True)
+building [mo]: targets for 0 po files that are out of date
+writing output...
+building [html]: targets for 73 source files that are out of date
+updating environment: [new config] 73 added, 0 changed, 0 removed
+reading sources... [  1%] acceptance
+reading sources... [  3%] acceptance-logging
+reading sources... [  4%] api
+reading sources... [  5%] assets
+reading sources... [  7%] baseline_route
+reading sources... [  8%] baseline_threshold_freeze
+reading sources... [ 10%] batch_baseline
+reading sources... [ 11%] behaviour
+reading sources... [ 12%] carla_demo
+reading sources... [ 14%] carla_rgb_readback_fix
+reading sources... [ 15%] controller_audit
+reading sources... [ 16%] decisions
+reading sources... [ 18%] depth-association
+reading sources... [ 19%] detector_contracts
+reading sources... [ 21%] detector_lifecycle
+reading sources... [ 22%] evidence/BL-B-06-07/README
+reading sources... [ 23%] evidence/BL-B-06-07/accepted-20261025
+reading sources... [ 25%] evidence/BL-B-06-07/ai-journal
+reading sources... [ 26%] evidence/BL-C-05-refresh/README
+reading sources... [ 27%] evidence/BL-C-05-refresh/ai-journal
+reading sources... [ 29%] evidence/BL-D-06/README
+reading sources... [ 30%] evidence/BL-D-06/admission-rejection-investigation
+reading sources... [ 32%] evidence/BL-D-06/ai-journal
+reading sources... [ 33%] evidence/BL-D-06/operational-approach/README
+reading sources... [ 34%] evidence/BL-E-02/README
+reading sources... [ 36%] evidence/BL-E-03/README
+reading sources... [ 37%] evidence/E1-01-02/phase-j-20261028/README
+reading sources... [ 38%] evidence/E4-01-03-06/phase-j-20261028/README
+reading sources... [ 40%] evidence/E4-04-05-07-09/phase-j-20261028/README
+reading sources... [ 41%] evidence/E5-P1/README
+reading sources... [ 42%] evidence/E5-P1/ai-journal
+reading sources... [ 44%] evidence/E5-P1/phase-j-20261028/README
+reading sources... [ 45%] evidence/TEST-01-baseline
+reading sources... [ 47%] evidence/TEST-02/README
+reading sources... [ 48%] evidence/TEST-02/ai-journal
+reading sources... [ 49%] evidence/TEST-03/README
+reading sources... [ 51%] evidence/TEST-08/README
+reading sources... [ 52%] evidence/TEST-08/current/baseline_table
+reading sources... [ 53%] evidence/TEST-13/README
+reading sources... [ 55%] evidence/baseline-batch/README
+reading sources... [ 56%] evidence/phase-j-88/README
+reading sources... [ 58%] evidence_index
+reading sources... [ 59%] examples
+reading sources... [ 60%] gates/G0
+reading sources... [ 62%] gates/G1
+reading sources... [ 63%] gates/G1-admission-notes
+reading sources... [ 64%] geometry
+reading sources... [ 66%] getting_started
+reading sources... [ 67%] index
+reading sources... [ 68%] inference_service
+reading sources... [ 70%] interfaces
+reading sources... [ 71%] kinematic_world
+reading sources... [ 73%] lane-topology
+reading sources... [ 74%] lane_recovery
+reading sources... [ 75%] machines
+reading sources... [ 77%] mission_lifecycle
+reading sources... [ 78%] module_notes
+reading sources... [ 79%] parking
+reading sources... [ 81%] phase_j_execution
+reading sources... [ 82%] remote_inference
+reading sources... [ 84%] report_outline
+reading sources... [ 85%] repository_setup
+reading sources... [ 86%] reproduction
+reading sources... [ 88%] s0_navigation_validation
+reading sources... [ 89%] scenarios
+reading sources... [ 90%] simulator_boundary
+reading sources... [ 92%] stack_skeleton
+reading sources... [ 93%] steering_calibration
+reading sources... [ 95%] test01_a1_baseline
+reading sources... [ 96%] track_stabilisation
+reading sources... [ 97%] vehicle_adapter
+reading sources... [ 99%] weather_experiment
+reading sources... [100%] world_lifecycle
+
+looking for now-outdated files... none found
+pickling environment... done
+checking consistency... done
+preparing documents... done
+copying assets...
+copying downloadable files... [  1%] gates/G1-admission.json
+copying downloadable files... [  3%] ../../configs/mission_baseline.json
+copying downloadable files... [  4%] evidence/BL-D-06/operational-approach/provenance.json
+copying downloadable files... [  6%] evidence/BL-D-06/history/D007-rejection-decision.txt
+copying downloadable files... [  7%] evidence/BL-D-06/history/D007-rejection-review.json
+copying downloadable files... [  9%] evidence/BL-D-06/history/D005-decision.txt
+copying downloadable files... [ 10%] evidence/BL-C-05-refresh/capture-attempt.json
+copying downloadable files... [ 11%] evidence/BL-C-05-refresh/provenance.json
+copying downloadable files... [ 13%] evidence/BL-C-05-refresh/sequences.json
+copying downloadable files... [ 14%] evidence/BL-C-05-refresh/benchmark.json
+copying downloadable files... [ 16%] evidence/BL-C-05-refresh/analysis.json
+copying downloadable files... [ 17%] evidence/BL-C-05-refresh/frame-analysis.csv
+copying downloadable files... [ 19%] evidence/BL-C-05-refresh/capture-summary.json
+copying downloadable files... [ 20%] evidence/BL-C-05-refresh/artifact-manifest.json
+copying downloadable files... [ 21%] evidence/BL-C-05-refresh/regression.xml
+copying downloadable files... [ 23%] evidence/BL-D-06/operational-range-review.json
+copying downloadable files... [ 24%] evidence/BL-D-06/fresh-range-regression.xml
+copying downloadable files... [ 26%] evidence/BL-D-06/rejection-investigation-tests.xml
+copying downloadable files... [ 27%] evidence/BL-D-06/operational-approach/raw-evidence.zip
+copying downloadable files... [ 29%] evidence/BL-D-06/operational-approach/capture-command.json
+copying downloadable files... [ 30%] evidence/BL-D-06/operational-approach/review.json
+copying downloadable files... [ 31%] evidence/BL-D-06/operational-approach/measured-source.zip
+copying downloadable files... [ 33%] evidence/BL-D-06/operational-approach/artifact-manifest.json
+copying downloadable files... [ 34%] evidence/BL-D-06/operational-approach/attempt-index.json
+copying downloadable files... [ 36%] evidence/BL-D-06/operational-approach/preflight-01-report.json
+copying downloadable files... [ 37%] evidence/BL-D-06/operational-approach/background-preflight-01-report.json
+copying downloadable files... [ 39%] evidence/BL-D-06/review.json
+copying downloadable files... [ 40%] evidence/BL-D-06/operational-approach/regression.xml
+copying downloadable files... [ 41%] evidence/BL-D-06/operational-approach/raw-evidence.sha256
+copying downloadable files... [ 43%] evidence/BL-D-06/operational-approach/raw-evidence.manifest.json
+copying downloadable files... [ 44%] evidence/E5-P1/results.json
+copying downloadable files... [ 46%] evidence/E5-P1/provenance.json
+copying downloadable files... [ 47%] evidence/E5-P1/regression.xml
+copying downloadable files... [ 49%] evidence/E5-P1/phase-j-20261028/local-rebind-validation.json
+copying downloadable files... [ 50%] evidence/E5-P1/phase-j-20261028/local-control-pytest.log
+copying downloadable files... [ 51%] evidence/E5-P1/phase-j-20261028/local-candidate-pytest.log
+copying downloadable files... [ 53%] evidence/E5-P1/phase-j-20261028/local-candidate-regression.xml
+copying downloadable files... [ 54%] evidence/TEST-02/rgb-repair-regression.xml
+copying downloadable files... [ 56%] evidence/TEST-02/rgb-repair-results.json
+copying downloadable files... [ 57%] evidence/TEST-02/rgb-repair-evidence.zip
+copying downloadable files... [ 59%] evidence/TEST-02/rgb-repair-evidence.sha256
+copying downloadable files... [ 60%] evidence/TEST-02/environment.json
+copying downloadable files... [ 61%] evidence/TEST-02/results.json
+copying downloadable files... [ 63%] evidence/TEST-02/raw-evidence.zip
+copying downloadable files... [ 64%] evidence/TEST-02/raw-evidence.sha256
+copying downloadable files... [ 66%] evidence/TEST-02/regression.xml
+copying downloadable files... [ 67%] evidence/TEST-02/route.svg
+copying downloadable files... [ 69%] evidence/TEST-13/depth_calibration.json
+copying downloadable files... [ 70%] evidence/TEST-13/depth_analysis.json
+copying downloadable files... [ 71%] evidence/BL-E-03/longitudinal.json
+copying downloadable files... [ 73%] evidence/BL-C-04-06/sensor-wait-timing-review.json
+copying downloadable files... [ 74%] ../../configs/reproduction.json
+copying downloadable files... [ 76%] ../../.github/workflows/ci.yml
+copying downloadable files... [ 77%] ../../tests/unit/test_acceptance.py
+copying downloadable files... [ 79%] ../../tests/fixtures/acceptance/golden.json
+copying downloadable files... [ 80%] ../../tests/conftest.py
+copying downloadable files... [ 81%] gates/G1-admission-validation.json
+copying downloadable files... [ 83%] evidence/BL-A-02-double-check.json
+copying downloadable files... [ 84%] evidence/BL-A-02-validation.json
+copying downloadable files... [ 86%] evidence/phase-j-88/project-graph.json
+copying downloadable files... [ 87%] evidence/baseline-batch/detector.json
+copying downloadable files... [ 89%] evidence/BL-C-04-06/benchmark.json
+copying downloadable files... [ 90%] evidence/phase-j-88/pr106-module-notes.txt
+copying downloadable files... [ 91%] evidence/RV-05-regression.txt
+copying downloadable files... [ 93%] evidence/BL-C-04-06/capture-summary.json
+copying downloadable files... [ 94%] evidence/BL-C-04-06/depth-calibration.json
+copying downloadable files... [ 96%] evidence/BL-C-04-06/longitudinal.json
+copying downloadable files... [ 97%] evidence/BL-C-04-06/temporal-depth-tests.xml
+copying downloadable files... [ 99%] evidence/BL-C-04-06/sensor-failure-tests.xml
+copying downloadable files... [100%] evidence/BL-C-04-06/sensor-wait-tests.xml
+
+copying static files...
+Writing evaluated template result to /tmp/fresh-html/_static/basic.css
+Writing evaluated template result to /tmp/fresh-html/_static/language_data.js
+Writing evaluated template result to /tmp/fresh-html/_static/documentation_options.js
+Writing evaluated template result to /tmp/fresh-html/_static/alabaster.css
+copying static files: done
+copying extra files...
+copying extra files: done
+copying assets: done
+writing output... [  1%] acceptance
+writing output... [  3%] acceptance-logging
+writing output... [  4%] api
+writing output... [  5%] assets
+writing output... [  7%] baseline_route
+writing output... [  8%] baseline_threshold_freeze
+writing output... [ 10%] batch_baseline
+writing output... [ 11%] behaviour
+writing output... [ 12%] carla_demo
+writing output... [ 14%] carla_rgb_readback_fix
+writing output... [ 15%] controller_audit
+writing output... [ 16%] decisions
+writing output... [ 18%] depth-association
+writing output... [ 19%] detector_contracts
+writing output... [ 21%] detector_lifecycle
+writing output... [ 22%] evidence/BL-B-06-07/README
+writing output... [ 23%] evidence/BL-B-06-07/accepted-20261025
+writing output... [ 25%] evidence/BL-B-06-07/ai-journal
+writing output... [ 26%] evidence/BL-C-05-refresh/README
+writing output... [ 27%] evidence/BL-C-05-refresh/ai-journal
+writing output... [ 29%] evidence/BL-D-06/README
+writing output... [ 30%] evidence/BL-D-06/admission-rejection-investigation
+writing output... [ 32%] evidence/BL-D-06/ai-journal
+writing output... [ 33%] evidence/BL-D-06/operational-approach/README
+writing output... [ 34%] evidence/BL-E-02/README
+writing output... [ 36%] evidence/BL-E-03/README
+writing output... [ 37%] evidence/E1-01-02/phase-j-20261028/README
+writing output... [ 38%] evidence/E4-01-03-06/phase-j-20261028/README
+writing output... [ 40%] evidence/E4-04-05-07-09/phase-j-20261028/README
+writing output... [ 41%] evidence/E5-P1/README
+writing output... [ 42%] evidence/E5-P1/ai-journal
+writing output... [ 44%] evidence/E5-P1/phase-j-20261028/README
+writing output... [ 45%] evidence/TEST-01-baseline
+writing output... [ 47%] evidence/TEST-02/README
+writing output... [ 48%] evidence/TEST-02/ai-journal
+writing output... [ 49%] evidence/TEST-03/README
+writing output... [ 51%] evidence/TEST-08/README
+writing output... [ 52%] evidence/TEST-08/current/baseline_table
+writing output... [ 53%] evidence/TEST-13/README
+writing output... [ 55%] evidence/baseline-batch/README
+writing output... [ 56%] evidence/phase-j-88/README
+writing output... [ 58%] evidence_index
+writing output... [ 59%] examples
+writing output... [ 60%] gates/G0
+writing output... [ 62%] gates/G1
+writing output... [ 63%] gates/G1-admission-notes
+writing output... [ 64%] geometry
+writing output... [ 66%] getting_started
+writing output... [ 67%] index
+writing output... [ 68%] inference_service
+writing output... [ 70%] interfaces
+writing output... [ 71%] kinematic_world
+writing output... [ 73%] lane-topology
+writing output... [ 74%] lane_recovery
+writing output... [ 75%] machines
+writing output... [ 77%] mission_lifecycle
+writing output... [ 78%] module_notes
+writing output... [ 79%] parking
+writing output... [ 81%] phase_j_execution
+writing output... [ 82%] remote_inference
+writing output... [ 84%] report_outline
+writing output... [ 85%] repository_setup
+writing output... [ 86%] reproduction
+writing output... [ 88%] s0_navigation_validation
+writing output... [ 89%] scenarios
+writing output... [ 90%] simulator_boundary
+writing output... [ 92%] stack_skeleton
+writing output... [ 93%] steering_calibration
+writing output... [ 95%] test01_a1_baseline
+writing output... [ 96%] track_stabilisation
+writing output... [ 97%] vehicle_adapter
+writing output... [ 99%] weather_experiment
+writing output... [100%] world_lifecycle
+
+generating indices... genindex py-modindex done
+writing additional pages... search done
+copying images... [ 14%] evidence/TEST-02/route.svg
+copying images... [ 29%] evidence/E5-P1/left.png
+copying images... [ 43%] evidence/E5-P1/resume.png
+copying images... [ 57%] evidence/TEST-02/rgb-first-frame.png
+copying images... [ 71%] evidence/TEST-02/navigation-trace.png
+copying images... [ 86%] evidence/TEST-02/hold-regression.png
+copying images... [100%] evidence/BL-A-02-Town10HD.png
+
+dumping search index in English (code: en)... done
+dumping object inventory... done
+build succeeded.
+
+The HTML pages are in ../tmp/fresh-html.
