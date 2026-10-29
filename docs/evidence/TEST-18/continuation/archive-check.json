@@ -1,0 +1,12 @@
+[
+  {
+    "file": "windows-local-01.zip",
+    "sha256": "4ad991c3d12dad8d726a947f63768b5c37043ee77b09931774c281eeb851db3a",
+    "crc": "PASS"
+  },
+  {
+    "file": "development-evidence.zip",
+    "sha256": "2866498ffef0210cfb6a587ccc2653ceb5e7ebeb63202a1a4ea0ba4fc0a3c2d3",
+    "crc": "PASS"
+  }
+]

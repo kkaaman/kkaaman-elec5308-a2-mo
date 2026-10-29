@@ -1,0 +1,60 @@
+........................................................................ [  5%]
+........................................................................ [ 10%]
+........................................................................ [ 16%]
+........................................................................ [ 21%]
+..................................................................F..... [ 26%]
+........................................................................ [ 32%]
+........................................................................ [ 37%]
+........................................................................ [ 43%]
+........................................................................ [ 48%]
+..................................................................... [ 53%]
+........................................................................ [ 59%]
+........................................................................ [ 64%]
+........................................................................ [ 69%]
+........................................................................ [ 75%]
+........................................................................ [ 80%]
+........................................................................ [ 86%]
+........................................................................ [ 91%]
+........................................................................ [ 96%]
+..........................................                               [100%]
+=================================== FAILURES ===================================
+_______ test_matrix_cannot_admit_missing_extensions_and_exports_all_rows _______
+
+tmp_path = PosixPath('/tmp/pytest-of-alan/pytest-3/test_matrix_cannot_admit_missi0')
+
+    def test_matrix_cannot_admit_missing_extensions_and_exports_all_rows(tmp_path):
+>       report = suite.run_suite()
+                 ^^^^^^^^^^^^^^^^^
+
+tests/unit/test_all_flags_faults.py:30:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    def run_suite():
+        cases, blocked = [], []
+        def no_network(*args, **kwargs):
+            raise AssertionError("Network forbidden in TEST-18 offline harness")
+        with ExitStack() as scope:
+            for name in ("connect", "connect_ex"):
+                scope.enter_context(patch.object(socket.socket, name, no_network))
+            scope.enter_context(patch.object(socket, "create_connection", no_network))
+            for profile, behaviour, tracking in itertools.product(PROFILES, BEHAVIOURS, (False, True)):
+                if profile in ("remote", "hybrid"):
+                    blocked.append({"profile": profile, "behaviour": behaviour, "tracking": tracking,
+                                    "status": "BLOCKED", "reason": "Canonical client/hybrid/server implementations now exist; this fixture profile is not a selected/admitted production flag combination. E4-10 evidence and G3 flag admission pending"})
+                    continue
+                for fault in FAULTS:
+                    cases.append(run_case(profile, behaviour, tracking, fault))
+        if "carla" in sys.modules:
+>           raise RuntimeError("CARLA imported during offline suite")
+E           RuntimeError: CARLA imported during offline suite
+
+scripts/offline_fault_suite.py:264: RuntimeError
+=============================== warnings summary ===============================
+tests/unit/test_inference_server.py::test_fastapi_auth_health_reset_and_bounded_body
+  /tmp/phase-j/server-venv/lib/python3.12/site-packages/starlette/testclient.py:40: DeprecationWarning: The anyio.abc.BlockingPortal alias is deprecated, use anyio.from_thread.BlockingPortal instead.
+    _PortalFactoryType = typing.Callable[[], typing.ContextManager[anyio.abc.BlockingPortal]]
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/unit/test_all_flags_faults.py::test_matrix_cannot_admit_missing_extensions_and_exports_all_rows
+1 failed, 1334 passed, 1 deselected, 1 warning, 3 subtests passed in 33.39s
