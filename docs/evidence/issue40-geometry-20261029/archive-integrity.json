@@ -1,0 +1,43 @@
+{
+  "status": "PASS",
+  "archives": [
+    {
+      "name": "nearfield-01.tar.xz",
+      "sha256": "1814f1ff0de3c82deaf3fa570ca0d5bb5406a2db4aca1cc6b5178f7610fbe5d1",
+      "bytes": 10571320,
+      "members": 275,
+      "all_member_hashes_verified": true
+    },
+    {
+      "name": "qualification-01.tar.xz",
+      "sha256": "228b4eb4f49ad74d249f34c89247746435f94e93e4af4bd76a230657a403da0b",
+      "bytes": 7395820,
+      "members": 275,
+      "all_member_hashes_verified": true
+    },
+    {
+      "name": "screen-01.tar.xz",
+      "sha256": "55ec6892eb71ed53eb7f404eacd9d80c28449d814f1f5fcab5838019296abfe8",
+      "bytes": 5077168,
+      "members": 140,
+      "all_member_hashes_verified": true
+    },
+    {
+      "name": "site66-01.tar.xz",
+      "sha256": "3dc0568567e90773234ec4f10bba29724c623628503de06c448a20e91e72b5ce",
+      "bytes": 1108064,
+      "members": 21,
+      "all_member_hashes_verified": true
+    },
+    {
+      "name": "tolerance-01.tar.xz",
+      "sha256": "5247eebff18ec4d51153a0e0672437553a9e1f552332e6cd471864a1e08f4ae6",
+      "bytes": 10540256,
+      "members": 85,
+      "all_member_hashes_verified": true
+    }
+  ],
+  "archive_count": 5,
+  "total_sweeps": 288,
+  "failures_retained": true
+}

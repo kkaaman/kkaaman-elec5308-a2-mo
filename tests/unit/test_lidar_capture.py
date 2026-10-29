@@ -154,7 +154,7 @@ def test_capture_configures_blueprint_transforms_once_and_records_density(monkey
     fake_carla(monkeypatch)
     sensor, blueprint = FakeSensor(), FakeBlueprint()
     owner = fake_owner(sensor, blueprint)
-    rig = LidarRig(z_actor_m=2.0, channels=32, points_per_second=640_000)
+    rig = LidarRig(x_actor_m=0.0, z_actor_m=2.0, channels=32, points_per_second=640_000)
     scene = Scene(boxes=(SceneBox(20.0, 0.0, 4.0, 2.0, 1.5, label="car"),))
     with LidarCapture(owner, "vehicle", "e", rear_axle_offset_m=REAR_AXLE, rig=rig) as capture:
         assert blueprint.attributes["rotation_frequency"] == "20.0"
@@ -394,3 +394,62 @@ def test_live_audit_empty_sweep_stays_unknown_and_never_clear(tmp_path):
     assert not result["any_positive_clearance"] and result["near_0_1m_road_return_total"] == 0
     data = np.load(tmp_path / "audit/processed_000001.npz")
     assert not data["bin_state"].any() and not data["road_supported_bins"].any()
+
+
+def test_issue40_default_matches_qualified_configuration():
+    import json
+    from pathlib import Path
+
+    configuration = json.loads(
+        (Path(__file__).resolve().parents[2] / "configs/lidar_issue40.json").read_text()
+    )
+    rig = LidarRig()
+    assert rig == LidarRig(**configuration)
+    assert rig.x_actor_m > 2.425109  # measured Model3 bumper; external front mount
+    assert rig.z_actor_m > 1.479691  # above measured ego top, never inside road/body
+    assert rig.config(0.05).expected_points_per_sweep == 64000
+
+
+@pytest.mark.parametrize(
+    "axis, angle, vector, expected",
+    [
+        ("pitch_deg", -90, [1, 0, 0], [0, 0, -1]),
+        ("roll_deg", 90, [0, 1, 0], [0, 0, 1]),
+        ("yaw_deg", 90, [1, 0, 0], [0, 1, 0]),
+    ],
+)
+def test_mount_rotation_axis_signs(axis, angle, vector, expected):
+    rig = LidarRig(**{axis: angle})
+    assert rig.sensor_to_ego(REAR_AXLE)[:3, :3] @ vector == pytest.approx(expected, abs=1e-12)
+    location, rotation = rig.mount_arguments()
+    assert rotation[axis.removesuffix("_deg")] == (-angle if axis == "yaw_deg" else angle)
+    assert location["x"] == rig.x_actor_m
+    with pytest.raises(ValueError, match="finite"):
+        LidarRig(**{axis: float("nan")})
+
+
+def test_known_object_evaluation_excludes_ego_without_changing_sweep():
+    points = np.array([[3.6, 0.0, 0.7, 0.9]] * 20 + [[4.02, 0.0, 0.7, 0.9]] * 8, np.float32)
+    sweep = LidarSweep("e", 1, 0.05, 1, points, np.eye(4), LidarRig().config(0.05))
+    arguments = dict(center_ego_m=(6.0, 0.0, 0.75), extent_m=(4.0, 2.0, 1.5))
+    assert not known_object_check(sweep, **arguments)["passed"]
+    result = known_object_check(
+        sweep, **arguments, exclude_bounds=([-1.0, -1.0, 0.0], [3.8, 1.0, 1.5])
+    )
+    assert result["passed"] and result["excluded_ego_points"] == 20
+    assert sweep.point_count == 28 and np.array_equal(sweep.points_xyzi, points)
+    with pytest.raises(ValueError, match="ego evaluation"):
+        known_object_check(sweep, **arguments, exclude_bounds=([0, 0, 0], [0, 1, 1]))
+
+
+def test_capture_cli_uses_qualified_default_mount(monkeypatch, tmp_path):
+    from scripts import capture_lidar_sweeps as capture
+
+    captured = []
+    def collect(arguments):
+        captured.append(arguments)
+        return {"capture_status": "COMPLETE"}
+    monkeypatch.setattr(capture, "collect", collect)
+    monkeypatch.setattr(sys, "argv", ["capture", "--output", str(tmp_path / "new")])
+    assert capture.main() == 0
+    assert captured[0].mount_height == LidarRig().z_actor_m

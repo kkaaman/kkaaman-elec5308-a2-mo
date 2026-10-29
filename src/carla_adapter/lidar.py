@@ -30,21 +30,27 @@ from obstacle_perception.lidar import LidarConfig, LidarSweep, validate_rigid_tr
 class LidarRig:
     """Actor-relative mount (metres, degrees) and ray-cast blueprint settings.
 
+    Defaults are the #40 front-mounted geometry qualified in
+    ``docs/lidar_geometry_issue40.md``; #103 remains the capture-path provenance.
+    This configuration does not authorize positive clearance or RESUME.
+
     ``x_actor_m``/``y_actor_m``/``z_actor_m`` are in the ego actor frame (+Y left);
     ``yaw_deg`` is counterclockwise about +Z. Blueprint settings mirror CARLA's
     ``sensor.lidar.ray_cast`` attributes; ``rotation_frequency`` is not stored
     because it is always derived from the world timestep.
     """
 
-    x_actor_m: float = 0.0
+    x_actor_m: float = 2.5
     y_actor_m: float = 0.0
-    z_actor_m: float = 2.4
+    z_actor_m: float = 1.5
     yaw_deg: float = 0.0
-    channels: int = 32
+    pitch_deg: float = 0.0
+    roll_deg: float = 0.0
+    channels: int = 128
     range_m: float = 50.0
-    points_per_second: int = 640000
+    points_per_second: int = 1280000
     upper_fov_deg: float = 10.0
-    lower_fov_deg: float = -30.0
+    lower_fov_deg: float = -85.0
     horizontal_fov_deg: float = 360.0
     noise_stddev_m: float = 0.0
     dropoff_general_rate: float = 0.0
@@ -53,7 +59,7 @@ class LidarRig:
     atmosphere_attenuation_rate: float = 0.004
 
     def __post_init__(self):
-        for name in ("x_actor_m", "y_actor_m", "z_actor_m", "yaw_deg"):
+        for name in ("x_actor_m", "y_actor_m", "z_actor_m", "yaw_deg", "pitch_deg", "roll_deg"):
             if not math.isfinite(getattr(self, name)):
                 raise ValueError(f"{name} must be finite")
         for name in (
@@ -87,16 +93,17 @@ class LidarRig:
         """Rigid sensor-to-rear-axle transform; the actor origin sits ``rear_axle_offset_m`` ahead of the axle."""
         if not math.isfinite(rear_axle_offset_m):
             raise ValueError("rear_axle_offset_m must be finite")
-        yaw = math.radians(self.yaw_deg)
-        c, s = math.cos(yaw), math.sin(yaw)
-        return validate_rigid_transform(
-            [
-                [c, -s, 0.0, self.x_actor_m + rear_axle_offset_m],
-                [s, c, 0.0, self.y_actor_m],
-                [0.0, 0.0, 1.0, self.z_actor_m],
-                [0.0, 0.0, 0.0, 1.0],
-            ]
-        )
+        yaw, pitch, roll = map(math.radians, (self.yaw_deg, -self.pitch_deg, self.roll_deg))
+        cy, sy = math.cos(yaw), math.sin(yaw)
+        cp, sp = math.cos(pitch), math.sin(pitch)
+        cr, sr = math.cos(roll), math.sin(roll)
+        rz = np.array([[cy, -sy, 0], [sy, cy, 0], [0, 0, 1]])
+        ry = np.array([[cp, 0, sp], [0, 1, 0], [-sp, 0, cp]])
+        rx = np.array([[1, 0, 0], [0, cr, -sr], [0, sr, cr]])
+        matrix = np.eye(4)
+        matrix[:3, :3] = rz @ ry @ rx
+        matrix[:3, 3] = (self.x_actor_m + rear_axle_offset_m, self.y_actor_m, self.z_actor_m)
+        return validate_rigid_transform(matrix)
 
     def blueprint_attributes(self, dt_s):
         """``sensor.lidar.ray_cast`` attribute values as strings, one rotation per tick."""
@@ -123,7 +130,7 @@ class LidarRig:
     def mount_arguments(self):
         """CARLA ``Location``/``Rotation`` keyword values (left-handed: Y and yaw negated)."""
         return dict(x=self.x_actor_m, y=-self.y_actor_m, z=self.z_actor_m), dict(
-            pitch=0.0, yaw=-self.yaw_deg, roll=0.0
+            pitch=self.pitch_deg, yaw=-self.yaw_deg, roll=self.roll_deg
         )
 
     def to_dict(self):
@@ -154,7 +161,14 @@ def lidar_points_to_ego(raw, sensor_to_ego, *, range_m=None):
 
 
 def known_object_check(
-    sweep, *, center_ego_m, extent_m, tolerance_m=0.3, min_points=6, search_margin_m=1.0
+    sweep,
+    *,
+    center_ego_m,
+    extent_m,
+    tolerance_m=0.3,
+    min_points=6,
+    search_margin_m=1.0,
+    exclude_bounds=None,
 ):
     """Verify a known box shows up where expected in a vehicle-frame sweep.
 
@@ -162,9 +176,10 @@ def known_object_check(
     rear-axle frame (metres, full extents). Points inside the box grown by
     ``search_margin_m`` must number at least ``min_points``, the nearest observed X
     face among them must lie within ``tolerance_m`` of the expected near face, and
-    search excludes the lowest0.15m above the known car box base to avoid road
+    search excludes the lowest 0.15 m above the known car box base to avoid road
     contamination (evaluation only); all intensities must lie in ``[0, 1]``. Returns a JSON-friendly dict with
-    ``passed``.
+    ``passed``. Optional ``exclude_bounds`` removes the measured ego AABB from
+    this evaluation search only; it never removes production obstacle returns.
     """
     if not math.isfinite(search_margin_m) or search_margin_m < tolerance_m:
         raise ValueError("search_margin_m must be finite and at least tolerance_m")
@@ -180,6 +195,19 @@ def known_object_check(
     # This truth-derived vertical crop is evaluation-only, never policy input.
     minimum_surface_z = centre[2] - extent[2] / 2 + 0.15
     inside = ((xyz >= low) & (xyz <= high)).all(axis=1) & (xyz[:, 2] >= minimum_surface_z)
+    excluded_ego = np.zeros(len(xyz), dtype=bool)
+    if exclude_bounds is not None:
+        ego_low, ego_high = map(lambda v: np.asarray(v, dtype=float), exclude_bounds)
+        if (
+            ego_low.shape != (3,)
+            or ego_high.shape != (3,)
+            or not np.isfinite(ego_low).all()
+            or not np.isfinite(ego_high).all()
+            or (ego_high <= ego_low).any()
+        ):
+            raise ValueError("Finite ordered ego evaluation box required")
+        excluded_ego = ((xyz >= ego_low) & (xyz <= ego_high)).all(axis=1)
+        inside &= ~excluded_ego
     points = xyz[inside]
     expected_face = float(centre[0] - extent[0] / 2)
     observed_face = float(points[:, 0].min()) if len(points) else None
@@ -195,6 +223,7 @@ def known_object_check(
     return dict(
         passed=passed,
         points_in_box=int(len(points)),
+        excluded_ego_points=int(excluded_ego.sum()),
         min_points=min_points,
         expected_near_face_x_m=expected_face,
         observed_near_face_x_m=observed_face,
