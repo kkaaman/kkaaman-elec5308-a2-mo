@@ -48,6 +48,9 @@ class ObstacleConfig:
     gap_m: float = 1.0
     gap_per_m: float = 0.3
     beyond_line_m: float = 6.0  # held regions may be judged this far past the line's end (straight on)
+    # A raised (kerb-high) detection nearer than the obstacle points by no more than this is
+    # the same object's low parts: it is reported as tall as the obstacle (``height_m``).
+    same_object_m: float = 1.0
 
     def __post_init__(self):
         if not math.isfinite(self.margin_m) or self.margin_m < -0.5:
@@ -65,6 +68,7 @@ class PathObstacle:
     # the region a held stop must see clear before it is released.
     lateral_min_m: float | None = None
     lateral_max_m: float | None = None
+    height_m: float | None = None  # the tallest of those points above the road (None: not known)
 
 
 def project_onto_polyline(points, polyline):
@@ -178,11 +182,12 @@ def tube_bounds(line, s, half_m, body):
     return -half_m - np.where(kappa > 0, outer, 0.0), half_m + np.where(kappa < 0, outer, 0.0)
 
 
-def path_obstacle(obstacle_points_body, corridor, body, config=None, ref_m=None, floor=None):
+def path_obstacle(obstacle_points_body, corridor, body, config=None, ref_m=None, floor=None, heights=None):
     """Nearest obstacle in the corridor tube ahead of the rear axle, or None.
 
     ``ref_m``/``floor``: the cluster threshold is ``min_points * (ref_m / distance)^2``, at
     least ``floor`` (fewer points reach an object further away), instead of ``min_points``.
+    ``heights``: the points' heights above the road, for the obstacle's ``height_m``.
     """
     if not isinstance(corridor, Corridor) or not isinstance(body, VehicleBody):
         raise TypeError("path_obstacle(points, Corridor, VehicleBody, config)")
@@ -195,6 +200,7 @@ def path_obstacle(obstacle_points_body, corridor, body, config=None, ref_m=None,
     lo, hi = line.min(axis=0) - half - 1.0, line.max(axis=0) + half + 1.0
     near = np.all((pts >= lo) & (pts <= hi), axis=1)
     pts = pts[near]
+    tall = None if heights is None else np.asarray(heights, dtype=float)[near]
     if len(pts) == 0:
         return None
     s, lateral, outside = project_onto_polyline(pts, line)
@@ -213,7 +219,8 @@ def path_obstacle(obstacle_points_body, corridor, body, config=None, ref_m=None,
         return None
     i = int(dense[0])
     span = side[i : i + int(counts[i])]
-    return PathObstacle(float(along[i]), float(side[i]), int(counts[i]), float(span.min()), float(span.max()))
+    height = None if tall is None else float(tall[tube][order][i : i + int(counts[i])].max())
+    return PathObstacle(float(along[i]), float(side[i]), int(counts[i]), float(span.min()), float(span.max()), height)
 
 
 @dataclass(frozen=True)
@@ -243,17 +250,23 @@ def observe_path(sweep, corridor, body, config=None):
     if not isinstance(sweep, ClassifiedSweep):
         raise TypeError("sweep must be a ClassifiedSweep")
     c = config or ObstacleConfig()
-    obstacle = path_obstacle(sweep.of(PointClass.OBSTACLE), corridor, body, c)
+    is_obstacle = sweep.cls == PointClass.OBSTACLE
+    obstacle = path_obstacle(sweep.xyz[is_obstacle], corridor, body, c, heights=sweep.height_m[is_obstacle])
     # Raised points count only under the car's own body (no margin): a kerb beside the path
     # is the road's edge, not an obstacle; a brick under a wheel is. The band was the inner
     # 0.85 m and 12 points at any range: a 0.4 m brick under the left wheel was never seen
     # and was hit at 2 m/s (full review of 73ae759). Now the full body width, and a
     # threshold that falls with range as the rings spread.
+    is_raised = sweep.cls == PointClass.RAISED
     low = path_obstacle(
-        sweep.of(PointClass.RAISED), corridor, body, replace(c, min_points=c.raised_min_points, margin_m=c.raised_margin_m),
-        ref_m=c.raised_ref_m, floor=c.raised_min_points_far,
+        sweep.xyz[is_raised], corridor, body, replace(c, min_points=c.raised_min_points, margin_m=c.raised_margin_m),
+        ref_m=c.raised_ref_m, floor=c.raised_min_points_far, heights=sweep.height_m[is_raised],
     )
     if low is not None and (obstacle is None or low.distance_m < obstacle.distance_m):
+        if obstacle is not None and obstacle.distance_m - low.distance_m <= c.same_object_m:
+            # The low parts of what stands just behind them (a car's sills and wheels ahead
+            # of its body's nearest tall points): the same object, as tall as that is.
+            low = replace(low, height_m=obstacle.height_m)
         obstacle = low
     if not corridor.ok:
         return PathObservation(obstacle, 0.0)

@@ -650,3 +650,85 @@ def test_f7_01_the_radar_only_interval_counts_the_ticks_the_radar_actually_had_t
     log[25]["driver"]["tracks_near"] = []
     out = sc.score_radar_timeline(log, truths, BODY, 4.0)
     assert out["radar_only_s"] == pytest.approx(0.2) and out["radar_only_observed_s"] == pytest.approx(0.35) and out["radar_only_gaps"] == 1
+
+
+def test_f8_04_a_radar_restriction_counts_for_the_actor_only_through_a_track_on_it():
+    """Eighth review, F8-04: "radar" in the cap's reason was enough for the first
+    restriction, so an unrelated radar track's cap set it, and the room and deceleration
+    after it. Now the responsible track must be on the actor; other radar caps are
+    reported apart as possible false interventions."""
+    log, truths = crossing_car_run(0.3)
+    truths = [dict(a, speed_mps=0.0) if k <= 20 else a for k, a in enumerate(truths)]
+    _radar_tracks(log, truths, radar_from=22, lidar_from=30, provisional_at=24, full_at=28, cap_at=27)
+    # Ticks 23-26: a radar track elsewhere (id 41, not on the car) caps the car first.
+    for k in range(23, 27):
+        log[k]["driver"].update(cap_track=dict(track_id=41), speed_cap_mps=1.5, speed_cap_reason="provisional radar threat on the path")
+    out = sc.score_radar_timeline(log, truths, BODY, 4.0)
+    assert out["first_restriction_s"] == pytest.approx(27 * 0.05)  # the car's own track's cap
+    unmatched = out["unmatched_radar_restrictions"]
+    assert unmatched["ticks"] == 4 and unmatched["first_s"] == pytest.approx(23 * 0.05) and unmatched["tracks"] == [41]
+    # A radar cap with no responsible track logged is not the actor's either.
+    log, truths = crossing_car_run(0.3)
+    truths = [dict(a, speed_mps=0.0) if k <= 20 else a for k, a in enumerate(truths)]
+    _radar_tracks(log, truths, radar_from=22, lidar_from=30)
+    log[24]["driver"].update(cap_track=None, speed_cap_mps=1.0, speed_cap_reason="provisional radar threat on the path")
+    out = sc.score_radar_timeline(log, truths, BODY, 4.0)
+    assert out["first_restriction_s"] is None and out["unmatched_radar_restrictions"]["ticks"] == 1
+
+
+def test_f8_05_every_scripted_actor_is_recorded_and_the_tracks_kept_apart():
+    """Eighth review, F8-05: the braking lead's second car was driven but only the lead was
+    recorded, so nothing could say whether a track carried from one car to the other. Each
+    actor's truth now carries its role; the multi-actor score tracks each and finds two cars
+    taken as one, an identity carried across, and the lead handed from one to the other."""
+
+    class FakeCar:
+        is_alive = True
+
+        def __init__(self, x):
+            self.x = x
+
+        def get_transform(self):
+            return SimpleNamespace(location=SimpleNamespace(x=self.x, y=0.0, z=0.0), rotation=SimpleNamespace(yaw=0.0))
+
+        bounding_box = SimpleNamespace(location=SimpleNamespace(x=0.0, y=0.0), extent=SimpleNamespace(x=2.2, y=0.9))
+
+        def get_velocity(self):
+            return SimpleNamespace(x=3.0, y=0.0)
+
+    lead = sc.BrakingLeadCar(None, sc.ScenarioParams("braking_lead"), core_xy)
+    lead.actor, lead.second = FakeCar(20.0), FakeCar(30.0)
+    truths = lead.truths()
+    assert [a["role"] for a in truths] == ["lead", "second"] and truths[1]["centre_xy"][0] == pytest.approx(30.0)
+    lead.second = None
+    assert [a["role"] for a in lead.truths()] == ["lead"]
+    single = sc.ScriptedActor(None, sc.ScenarioParams("stop"), core_xy)
+    single.actor = FakeCar(10.0)
+    assert [a["role"] for a in single.truths()] == ["primary"]
+
+    # Two cars ahead, 10 m apart; track 5 on the lead, 6 on the second, the lead track
+    # followed. Ticks 20-24: the tracker takes both as one (track 5 nearest to both).
+    # From tick 40: track 6 is on the lead (an identity carried across) and leads.
+    log, sets = [], []
+    for k in range(60):
+        row = ego_row(k, 0.0, 0.0)
+        a_lead, a_second = dict(actor(20.0, 0.0), role="lead"), dict(actor(30.0, 0.0), role="second")
+        on_lead = 6 if k >= 40 else 5
+        near = [[on_lead, 20.0, 0.0, 0.0, 0.0, 4.4, 1.8, "C", "L"]]
+        near.append([5 if 20 <= k < 25 else 6 if k < 40 else 7, 30.0 if not 20 <= k < 25 else 30.0, 0.0, 0.0, 0.0, 4.4, 1.8, "C", "L"])
+        row["driver"] = dict(tracks_near=near, lead=dict(track_id=on_lead, x_m=20.0, y_m=0.0))
+        log.append(row)
+        sets.append([a_lead, a_second])
+    out = sc.score_multi_actor_tracking(log, sets, BODY)
+    assert out["available"] and out["roles"] == ["lead", "second"]
+    assert out["shared_track_ticks"] == 5
+    assert out["tracks_on_two_actors"] == {"5": ["lead", "second"], "6": ["lead", "second"]}
+    assert out["lead_by_role"] == {"lead": 60} and out["lead_hand_overs"] == 0
+    assert out["per_role"]["lead"]["id_switches"] == 1 and out["per_role"]["second"]["matched_share"] == 1.0
+    # The lead handed to the second car: counted, with the time.
+    for row in log[50:]:
+        row["driver"]["lead"] = dict(track_id=7, x_m=30.0, y_m=0.0)
+    out = sc.score_multi_actor_tracking(log, sets, BODY)
+    assert out["lead_by_role"] == {"lead": 50, "second": 10} and out["lead_hand_overs"] == 1
+    assert out["lead_hand_over_times"][0]["to_role"] == "second"
+    assert sc.score_multi_actor_tracking(log, [[a] for a in [dict(actor(20.0, 0.0), role="lead")] * 60], BODY)["available"] is False

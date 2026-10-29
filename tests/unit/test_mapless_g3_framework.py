@@ -1049,3 +1049,49 @@ def test_the_l_shape_fit_finds_a_cars_box_where_the_principal_axis_does_not():
     face = _box_outline((20.0, 5.95), 4.2, 2.0, math.pi / 2, np.array([20.0, 0.0]))  # level with its end
     length, width, _ = _rectangle(face)
     assert abs(length - 2.0) < 0.1 and width < 0.15
+
+
+def test_f8_01_rejected_radar_returns_do_not_keep_a_track_alive():
+    """Eighth review, F8-01: a radar return whose radial speed was rejected still counted as
+    a hit (hits, last hit, radar support), so a confirmed radar-only track fed nothing but
+    rejected returns stayed CONFIRMED, supported and a lead candidate for as long as they
+    came. Rejected, a return observes nothing: the track coasts, leaves the live set after
+    coast_s and is deleted after delete_s, as if unseen."""
+    from mapless.radar import RadarMeasurement
+
+    sensor_xy = np.array([2.5, 0.0])
+
+    def ret(xy, radial):
+        rel = np.asarray(xy, dtype=float) - sensor_xy
+        return RadarMeasurement("radar_front", np.asarray(xy, dtype=float), float(np.hypot(*rel)), float(math.atan2(rel[1], rel[0])), radial, 3, sensor_xy)
+
+    c = TrackerConfig()
+    tracker = Tracker(c)
+    x = 40.0
+    for k in range(20):  # a radar-only lead at 40 m, 2 m/s away, consistent
+        x += 2.0 * 0.05
+        tracks = tracker.update(k * 0.05, ORIGIN, radar=[ret((x, 0.0), 2.0)])
+    (track,) = tracks
+    assert track.status is TrackStatus.CONFIRMED and track.support == ("radar",)
+    hits = track.hits
+    # Then returns where it is, their radial speed alternately 2 m/s off either way: inside
+    # the association gate, outside the radial-speed test, never a one-sided manoeuvre run.
+    live_until = gone_at = None
+    rejected = 0
+    for k in range(20, 60):
+        t = k * 0.05
+        x += 2.0 * 0.05
+        tracks = tracker.update(t, ORIGIN, radar=[ret((x, 0.0), 4.0 if k % 2 else 0.0)])
+        mine = [tr for tr in tracks if tr.track_id == track.track_id]
+        if mine:
+            assert mine[0].hits == hits  # no hit counted
+            rejected += any(r[0] == track.track_id for r in tracker.radar_stats.get("doppler_rejected", []))
+            assert not tracker.radar_stats.get("doppler_manoeuvres")
+        if live_until is None and track.track_id not in {tr.track_id for tr in tracker.live()}:
+            live_until = t
+        if gone_at is None and not mine:
+            gone_at = t
+    first = 20 * 0.05
+    assert rejected >= 10  # associated and rejected, tick after tick
+    assert live_until is not None and live_until - first <= c.coast_s + 0.051  # no longer a lead candidate
+    assert gone_at is not None and gone_at - first <= c.delete_s + 0.051

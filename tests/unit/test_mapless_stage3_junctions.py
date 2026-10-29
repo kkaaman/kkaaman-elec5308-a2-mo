@@ -407,3 +407,70 @@ def test_an_object_on_the_latched_turn_is_waited_for_not_planned_around():
         feasible, verified, _ = _swept_check(grid, Pose2D(0.0, 0.0, 0.0), path, BODY, JunctionConfig(), 1.0, margin_m=0.05, hazard_tolerated_beyond_m=8.0, tolerate_occupied=True, why=why)
         assert why.get("label") == label and why["near"], (label, why)
         assert feasible == (label == "occupied")
+
+
+def test_f8_02_a_stale_oncoming_verdict_excuses_nothing():
+    """Eighth review, F8-02: the stack's oncoming verdict (excused footprints, clear) was
+    left as it was on a tick without perception, and the gate went on excusing the cells of
+    a car that might have started moving meanwhile. Stamped with its time, it is used only
+    while fresh (computed the tick before); older, its excuses lapse (every occupied cell
+    counts again) and a "not clear" stands."""
+    from mapless.driver import resolve_oncoming_override  # noqa: PLC0415
+
+    c = JunctionConfig()
+    frame = Pose2D(0.0, 0.0, 0.0)
+    path = _left_turn_path()
+    parked = (((31.0, 3.5), 4.5, 2.0, 0.0),)
+    verdict = dict(clear=True, excused=parked, note="oncoming lane: 1 tracks excused", time_s=10.0, generation=0)
+    # The car stands at 31 m, its cells all on the excused footprint: while the verdict is
+    # fresh (read a tick old) they are excused; two ticks without perception later, when it
+    # may have begun to pull away and the tracks no longer say, they are not: one missed
+    # tick is enough.
+    standing = _gate_grid([(30.0 + dx, 3.5 + dy) for dx in (0.0, 1.0, 2.0) for dy in (-0.5, 0.5)])
+    fresh = resolve_oncoming_override(verdict, 10.05, c.oncoming_override_max_age_s)
+    assert not fresh["stale"] and fresh["excused"] == parked
+    assert oncoming_gate(standing, frame, path, frame, BODY, c, 0.0, 2.0, excused=fresh["excused"]).clear
+    stale = resolve_oncoming_override(verdict, 10.10, c.oncoming_override_max_age_s)
+    assert stale["stale"] and stale["excused"] == () and stale["age_s"] == pytest.approx(0.10)
+    assert not oncoming_gate(standing, frame, path, frame, BODY, c, 0.0, 2.0, excused=stale["excused"]).clear
+    # A stale "not clear" is the cautious reading and stands; no verdict, no time: as given.
+    waiting = resolve_oncoming_override(dict(verdict, clear=False), 11.0, c.oncoming_override_max_age_s)
+    assert waiting["stale"] and waiting["clear"] is False
+    assert resolve_oncoming_override(None, 11.0, 0.1) is None
+    assert resolve_oncoming_override(dict(clear=True, excused=parked), 11.0, 0.1)["excused"] == parked
+
+
+# -- a refinement taken from a wrong far reading (PC1, Town03, r9_left_parked, b4280cd) ----
+def test_a_refinement_may_return_to_the_first_commits_line_beyond_the_cap():
+    """The first commit's line was right; a far reading 1.1 m off was taken; the right line,
+    read from nearer, then lay +1.5 m from the latched and was refused as "another road" for
+    good. A line within the cap of the first commit's is a correction back; one beyond both
+    is still refused."""
+    from mapless.corridor import CorridorEstimator
+    from mapless.junction import JunctionTurn
+
+    config = JunctionConfig()
+    turn = JunctionTurn(config, BODY, CorridorEstimator(CorridorConfig(keep_right_m=1.75)))
+    grid = TerrainGrid(TerrainConfig())
+    pose = Pose2D(0.0, 0.0, 0.0)
+    heading = math.pi / 2  # the exit runs along +y; its lateral offsets are along x
+    turn._entry = (pose, 0.0, 10.0)
+    turn._probe_odo = np.array([20.0, 10.0])
+    turn._first_exit_odo = np.array([20.0, 10.0])
+    turn._exit_odo = (np.array([21.2, 10.0]), heading)  # latched on the wrong reading
+    readings = []
+    turn.exit_line = lambda *a, **k: (readings[-1], "kerb", heading, dict(range_m=20.0))
+
+    def refine(x, now_s):
+        readings.append((x, 10.0))
+        turn._now = now_s
+        turn.replan_same_arc(grid, pose, now_s, min_shift_m=0.5)
+        return turn.refine_note
+
+    note = refine(19.6, 1.0)  # 1.6 m from the latched, 0.4 m from the first commit's
+    assert "not taken" not in note and "from the first commit's" in note
+    assert "for 0.0 s" in note
+    note = refine(19.6, 1.0 + config.refine_persist_s + 0.05)
+    assert "re-anchored" in note or "fresh arc" in note  # held: taken
+    turn._refine_candidate = None
+    assert "not taken" in refine(18.0, 2.0)  # 2.0 m from the first commit's and further from the latched: refused

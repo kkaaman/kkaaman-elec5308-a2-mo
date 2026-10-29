@@ -181,18 +181,23 @@ class TrackerConfig:
     # or a bike: a 5.9 x 4.1 m roadside blob on Town05 is no box to measure against.
     shape_min_views: int = 3
     shape_min_length_m: float = 3.0
-    shape_max_length_m: float = 7.0
+    shape_max_length_m: float = 6.0
     shape_min_width_m: float = 1.45
     shape_max_width_m: float = 2.6
     shape_full_view_m: float = 0.3  # a view within this of the remembered length shows the length: its axis is the box's
-    # A cluster is measured against the box only when it shows one of the box's faces whole
-    # (its span along one axis within shape_face_m of the box's size). A fragment of the
-    # object (a ring or two of it, the rest occluded) may be any part of it: it associates
-    # where it lies on the remembered box and does not move the track. Placed against the box
-    # as a face, a 0.4 m fragment of that Town05 blob put its centre metres off; the blob's
-    # next whole cluster then fitted a new track better, and the new track's jump read as a
-    # car at 4.9 m/s.
+    # A cluster is measured against the box when it shows one of the box's sides whole (its
+    # span along one axis within shape_face_m of the box's size) or at least shape_part
+    # of it along either axis. A smaller fragment of the object (a ring or two of it, the
+    # rest occluded) may be any part of it: it associates where it lies on the remembered
+    # box and does not move the track. Placed against the box, a 0.4 m fragment of that
+    # Town05 blob put its centre metres off; the blob's next whole cluster then fitted a new
+    # track better, and the new track's jump read as a car at 4.9 m/s. (Taken for a
+    # fragment, a 5.7 m stretch of a 6.7 m fence corner went to a clutter track instead,
+    # which slid at 5 m/s towards the path: hence the share.)
     shape_face_m: float = 0.5
+    shape_part: float = 0.5
+    shape_refit_every: int = 5  # a full shape memory is refitted every this many updates (``_worth_fitting``) ...
+    shape_fits_per_tick: int = 4  # ... and no more than this many clusters a tick are fitted, the nearest first
     shape_fragment_cost: float = 4.0  # added to a fragment's gating cost, so a whole cluster of the object is taken first
 
     def __post_init__(self):
@@ -237,6 +242,7 @@ class _Track:
     shape_yaw: float | None = None  # odometry yaw of the last view that showed the remembered length
     shape: tuple | None = None  # the remembered box (length, width, odometry yaw) it is measured against, once it has one
     visible_long: float | None = None  # the long side of the last cluster measured (the shape memory aside)
+    radar_rejected_s: float | None = None  # when a radar return associated with it last had its radial speed rejected (observed nothing)
 
 
 def _remembered_shape(track, config):
@@ -255,8 +261,26 @@ def _remembered_shape(track, config):
     return length, width, track.shape_yaw
 
 
-_RECT_COARSE = np.radians(np.arange(0.0, 90.0, 2.0))
-_RECT_FINE = np.radians(np.arange(-2.0, 2.01, 0.25))
+_RECT_COARSE = np.radians(np.arange(0.0, 90.0, 3.0))
+_RECT_FINE = np.radians(np.arange(-3.0, 3.01, 0.5))
+
+
+def _worth_fitting(track, long_side, config):
+    """Whether a cluster with this principal-axis long side is fitted into the track's shape
+    memory: a confirmed track's, vehicle-sized at all (from 0.6 of the shortest box to a
+    metre over the longest); while the memory fills, then every ``shape_refit_every``-th
+    update (the box's axes follow a turning car at that rate) or when the view is clearly
+    longer than any before. Every view of every such cluster cost 8 ms a tick on a Town10HD street
+    (29 fits: walls, hedges, parked cars)."""
+    c = config
+    if not track.confirmed or not 0.6 * c.shape_min_length_m <= long_side <= c.shape_max_length_m + 1.0:
+        return False
+    keep = c.shape_min_views + 2
+    # (The principal axis's extent runs over an L's diagonal, up to ~0.5 m over its box.)
+    return len(track.long_sides) < keep or track.hits % c.shape_refit_every == 0 or long_side > track.long_sides[0] + 0.6
+
+
+_RECT_MAX_POINTS = 48
 
 
 def _rectangle(points, d0=0.05):
@@ -267,13 +291,15 @@ def _rectangle(points, d0=0.05):
     synthetic crossing car, 4.2 x 2.0 m, read 4.4-4.6 m long 9-40 degrees off), and the
     smallest rectangle is no better: an L's hull is a right triangle, as small along its
     hypotenuse as along its legs."""
+    if len(points) > _RECT_MAX_POINTS:
+        points = points[:: int(math.ceil(len(points) / _RECT_MAX_POINTS))]  # the outline, evenly thinned
     best = None
     for angles in (_RECT_COARSE, None):
         if angles is None:
             angles = best + _RECT_FINE
         c, s = np.cos(angles), np.sin(angles)
-        along = points[:, :1] * c + points[:, 1:2] * s
-        across = -points[:, :1] * s + points[:, 1:2] * c
+        along = points @ np.vstack((c, s))
+        across = points @ np.vstack((-s, c))
         d1 = np.minimum(along.max(axis=0) - along, along - along.min(axis=0))
         d2 = np.minimum(across.max(axis=0) - across, across - across.min(axis=0))
         score = (1.0 / np.maximum(np.minimum(d1, d2), d0)).sum(axis=0)
@@ -294,25 +320,26 @@ def _remember_extent(track, extent_odo, config):
         track.shape_yaw = yaw
 
 
-def _shaped_measurement(points_odo, shape, sensor_xy, face_m=0.5):
+def _shaped_measurement(points_odo, shape, sensor_xy, face_m=0.5, part=0.5):
     """(centre, footprint, face) of a remembered box (length, width, yaw) placed against
     ``points_odo``, the cluster's points in plan (``TrackerConfig.shape_*``); ``face``:
-    the points span one of the box's sides whole, within ``face_m``."""
+    the points span one of the box's sides whole, within ``face_m``, or ``part`` of it
+    along either axis (else a fragment)."""
     length, width, yaw = shape
-    u = np.array([math.cos(yaw), math.sin(yaw)])
-    v = np.array([-u[1], u[0]])
-    centre, spans = np.zeros(2), []
-    for axis, size in ((u, length), (v, width)):
-        proj = points_odo @ axis
-        lo, hi = float(proj.min()), float(proj.max())
-        at = float(sensor_xy @ axis)
-        if hi - lo < size and not lo <= at <= hi:
-            middle = lo + 0.5 * size if at < lo else hi - 0.5 * size
+    cy, sy = math.cos(yaw), math.sin(yaw)
+    axes = np.array([[cy, -sy], [sy, cy]])  # columns: along the box, across it
+    proj = points_odo @ axes
+    lows, highs = proj.min(axis=0), proj.max(axis=0)
+    at = sensor_xy @ axes
+    middles, spans = [], []
+    for lo, hi, a, size in zip(lows.tolist(), highs.tolist(), at.tolist(), (length, width), strict=True):
+        if hi - lo < size and not lo <= a <= hi:
+            middles.append(lo + 0.5 * size if a < lo else hi - 0.5 * size)
         else:
-            middle = 0.5 * (lo + hi)
-        centre = centre + middle * axis
+            middles.append(0.5 * (lo + hi))
         spans.append(hi - lo)
-    face = spans[0] >= length - face_m or spans[1] >= width - face_m
+    centre = axes @ np.array(middles)
+    face = spans[0] >= min(length - face_m, part * length) or spans[1] >= min(width - face_m, part * width)
     return centre, (max(length, spans[0]), max(width, spans[1]), float(yaw)), face
 
 
@@ -509,7 +536,15 @@ class Tracker:
         lidar = list(lidar)
         if lidar:
             z_odo = pose.to_world(np.array([m.xy for m in lidar]))
-            plan_odo = [None if m.plan_xy is None or len(m.plan_xy) < 3 else pose.to_world(np.asarray(m.plan_xy, dtype=float)[:, :2]) for m in lidar]
+            has_plan = [m.plan_xy is not None and len(m.plan_xy) >= 3 for m in lidar]
+            plans = {}
+
+            def plan(j):
+                # A cluster's points in the odometry frame, converted once and only if needed.
+                if j not in plans:
+                    plans[j] = pose.to_world(np.asarray(lidar[j].plan_xy, dtype=float)[:, :2])
+                return plans[j]
+
             sensor = np.array([pose.x_m, pose.y_m])
             ids = list(self.tracks)
             cost = np.full((len(ids), len(lidar)), np.inf)
@@ -523,8 +558,8 @@ class Tracker:
                 if "lidar" not in t.seen and m.extent is not None and max(m.extent[0], m.extent[1]) < c.merge_min_extent_m and float(np.hypot(*t.x[2:])) > c.vru_max_speed_mps:
                     continue
                 z, penalty = z_odo[j], 0.0
-                if t.shape is not None and plan_odo[j] is not None:
-                    centre, fp, face = _shaped_measurement(plan_odo[j], t.shape, sensor, c.shape_face_m)
+                if t.shape is not None and has_plan[j]:
+                    centre, fp, face = _shaped_measurement(plan(j), t.shape, sensor, c.shape_face_m, c.shape_part)
                     if face:
                         shaped[(i, j)], z = (centre, fp), centre
                     else:
@@ -536,6 +571,13 @@ class Tracker:
                 y = z - t.x[:2]
                 cost[i, j] = float(y @ np.linalg.solve(S, y)) + penalty
             assigned = _assign(cost, CHI2_2D)
+            # The shape fits this tick, at most shape_fits_per_tick, nearest the car first.
+            wanted = []
+            for i, j in assigned:
+                t, m = self.tracks[ids[i]], lidar[j]
+                if has_plan[j] and m.extent is not None and _worth_fitting(t, max(m.extent[0], m.extent[1]), c):
+                    wanted.append((float(np.hypot(*(z_odo[j] - sensor))), i, j))
+            fit_now = {(i, j) for _, i, j in sorted(wanted)[: c.shape_fits_per_tick]}
             for i, j in assigned:
                 t, m = self.tracks[ids[i]], lidar[j]
                 H = np.zeros((2, 4))
@@ -544,12 +586,12 @@ class Tracker:
                 if m.extent is not None:
                     footprint = (m.extent[0], m.extent[1], pose.yaw_rad + m.extent[2])
                     t.visible_long = max(m.extent[0], m.extent[1])
-                    if plan_odo[j] is not None and t.visible_long >= 0.6 * c.shape_min_length_m:
-                        _remember_extent(t, _rectangle(plan_odo[j]), c)
+                    if (i, j) in fit_now:
+                        _remember_extent(t, _rectangle(plan(j)), c)
                 fragment = (i, j) in shaped and shaped[(i, j)][0] is None
                 if fragment:
                     footprint = t.shape  # the box stands; the fragment says nothing of where on it
-                elif plan_odo[j] is not None and "lidar" in t.seen:
+                elif has_plan[j] and "lidar" in t.seen and (t.shape is not None or t.shape_yaw is not None):
                     # The box the cluster is measured against: the one now remembered (None:
                     # none, or no longer a vehicle's). When it changes (first known, resized,
                     # turned, given up) the reference point changes with it: the track, its
@@ -558,15 +600,17 @@ class Tracker:
                     shape = _remembered_shape(t, c)
                     measured = shaped[(i, j)][0] if (i, j) in shaped else z_odo[j]
                     target, fp = z_odo[j], footprint
-                    if shape is not None:
-                        centre, fp_new, face = _shaped_measurement(plan_odo[j], shape, sensor, c.shape_face_m)
+                    if shape is not None and shape == t.shape and (i, j) in shaped:
+                        target, fp = shaped[(i, j)]  # the same box: measured against it already
+                    elif shape is not None:
+                        centre, fp_new, face = _shaped_measurement(plan(j), shape, sensor, c.shape_face_m, c.shape_part)
                         if face:
                             target, fp = centre, fp_new
                         else:
                             shape = t.shape  # shown only in part against the new box: wait for a whole view
                             target, fp = (shaped[(i, j)] if (i, j) in shaped else (z_odo[j], footprint))
-                    if shape != t.shape or not np.allclose(target, measured):
-                        offset = target - measured
+                    offset = target - measured
+                    if float(offset @ offset) > 1e-12:
                         self._shift_history(t, offset)
                         t.x[:2] = t.x[:2] + offset
                     t.shape, z, footprint = shape, target, fp
@@ -598,8 +642,8 @@ class Tracker:
                     if m.extent is not None:
                         t.footprint = (m.extent[0], m.extent[1], pose.yaw_rad + m.extent[2])
                         t.visible_long = max(m.extent[0], m.extent[1])
-                        if plan_odo[j] is not None and t.visible_long >= 0.6 * c.shape_min_length_m:
-                            _remember_extent(t, _rectangle(plan_odo[j]), c)
+                        if has_plan[j] and _worth_fitting(t, t.visible_long, c):
+                            _remember_extent(t, _rectangle(plan(j)), c)
                     hit.add(tid)
         # Radar: range, bearing, radial speed --------------------------------------------
         radar = list(radar)
@@ -670,6 +714,12 @@ class Tracker:
                         t.doppler_position_sum = position
                     t.doppler_sign, t.doppler_last_y = sign, float(y[2])
                     rejected.append((t.track_id, round(float(y[2]), 2), t.doppler_rejects))
+                    # ... and observes nothing (eighth review, F8-01): no hit, no support, no
+                    # freshness. A track whose returns are all rejected coasts and is deleted
+                    # as if unseen; counted, those returns kept a confirmed radar-only track
+                    # alive, supported and a lead candidate indefinitely.
+                    t.radar_rejected_s = time_s
+                    continue
                 self._absorb(t, None, "radar", time_s)
                 hit.add(ids[i])
             # Unassigned radar objects start tracks where the radar adds something: beyond

@@ -129,6 +129,25 @@ def refused_speed_limit(trajectory, state, lookahead_m=2.0):
     return float(speeds[window].min())
 
 
+def resolve_oncoming_override(override, now_s, max_age_s):
+    """The stack's oncoming-traffic verdict as the left-turn gate may use it now (eighth
+    review, F8-02). The stack computes it after each step from that tick's tracks, so the
+    gate normally reads it one tick old. Older (a tick or more without perception, which
+    leaves it as it was), it is no basis for excusing anything: its excused footprints are
+    dropped, so the LiDAR gate counts every occupied cell again, while a "not clear" stands,
+    being the more cautious of the two. Returns the override to use (None: none), with
+    ``stale`` and ``age_s`` when it carries a time."""
+    if override is None:
+        return None
+    when = override.get("time_s")
+    if when is None:
+        return override
+    age = float(now_s) - float(when)
+    if age <= max_age_s + 1e-9:
+        return dict(override, stale=False, age_s=age)
+    return dict(override, excused=(), stale=True, age_s=age)
+
+
 class MaplessDriver:
     """One car, one episode. Feed ``step()`` every tick in order."""
 
@@ -548,7 +567,9 @@ class MaplessDriver:
         if self._gate_frame is not None and c.junction.oncoming_check and corridor is self._turn_corridor and corridor is not None and not self._zone_entered:
             # A left turn on its way across the opposing lane: enter it only with the approach
             # seen clear (S5); once in it, clear it (the gate never stops the car there).
-            override = self.oncoming_override
+            override = resolve_oncoming_override(self.oncoming_override, t, c.junction.oncoming_override_max_age_s)
+            if override is not None and override.get("stale"):
+                d.update(turn_gate_override=f"stale ({override['age_s']:.2f} s): excuses dropped")
             gate = oncoming_gate(
                 self.grid, motion.odometry, corridor.centre_body, self._gate_frame, c.body, c.junction,
                 motion.speed_mps, c.planner.cruise_mps, excused=() if override is None else override.get("excused", ()),
@@ -585,6 +606,7 @@ class MaplessDriver:
             obstacle_points=None if obstacle is None else obstacle.points,
             obstacle_lateral_m=None if obstacle is None else obstacle.lateral_m,
             clear_to_m=None if observation is None else observation.clear_to_m,
+            sight_speed_mps=None if math.isinf(plan.sight_speed_mps) else round(plan.sight_speed_mps, 2),
             hold_state=plan.hold_state,
             hold_note=plan.hold_note or None,
             holds=self.planner.hold_count,
@@ -639,6 +661,12 @@ class MaplessDriver:
         if mode is DriveMode.DRIVING and self._turning:
             mode = DriveMode.TURNING
         return self._emit(result.command, mode, plan.stop_reason, d)
+
+    @property
+    def gate_frame(self):
+        """A left turn's entry lane (odometry pose on its centre, along it), latched as the
+        approach began; None otherwise."""
+        return self._gate_frame
 
     @property
     def clearing_opposing_lane(self):

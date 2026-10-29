@@ -885,8 +885,8 @@ read as the kerb; from 27 m the unseen strip between the last road return and th
 lies on the road side), the opposite of the synthetic world's geometry that chose it.
 
 **Instead of guessing on the next live run, the harness now records the sensor frames**
-(`--record-frames turns` by default: LiDAR as int16 cm, GNSS, IMU, speed and status per
-tick under `<run>/frames`, ~90 KB a tick) and `turn_truth.json` (the site's lane
+(`--record-frames turns` by default: LiDAR as int16 cm, each radar's returns as float32
+since 29 Oct, GNSS, IMU, speed and status per tick under `<run>/frames`, ~95 KB a tick) and `turn_truth.json` (the site's lane
 centrelines and kerb distances), and the drive log carries the latched and measured exit
 points and the kerb stations in odometry. `scripts/replay_mapless_frames.py` runs the
 same driver over the recording open loop, ties odometry to truth by a rigid fit, and
@@ -2531,7 +2531,7 @@ path", after the crossing car had cleared and stopped 1.9 m beside the path.
   - The views are fitted as L-shapes (`_rectangle`: the orientation whose rectangle has the
     points closest to its edges). A cluster's principal axis runs between an L's two faces,
     and the smallest rectangle is no better (an L's hull is a right triangle).
-  - Vehicle-sized means 3–7 m long and 1.45–2.6 m wide (wider than a group of walkers, no
+  - Vehicle-sized means 3–6 m long and 1.45–2.6 m wide (wider than a group of walkers, no
     wider than a lorry), not decided a pedestrian or a bike.
   - A cluster that shows none of the box's sides whole is a fragment. It associates where it
     lies on the box, behind any whole cluster of the object, and does not move the track.
@@ -2556,6 +2556,195 @@ path", after the crossing car had cleared and stopped 1.9 m beside the path.
     the median, against 1.4–1.5 m. Its speed held at 5.6–5.8 m/s as it passed, against a
     "deceleration" to 4.6 m/s. The car is released 17–21 ticks sooner once it has gone by.
   - Two left turns without traffic: identical.
+
+### Eighth technical review (29 Oct; the review names no commit)
+
+All findings were taken, and the open items it lists are now measured or enforced.
+
+**F8-01, a rejected radar return observes nothing.** A return whose radial speed the
+track's motion cannot explain was dropped as a measurement but still counted as a hit, as
+radar support and as freshness. A confirmed radar-only track whose returns were all
+rejected therefore stayed alive, supported and a lead candidate.
+- Now it observes nothing: no hit, no support, no update of the last-seen time.
+- Such a track coasts and is deleted as if unseen (test: a track fed only rejected returns
+  is gone within the coasting limit).
+
+**F8-02, the oncoming verdict expires.** The stack's verdict on the opposing lane (which
+tracks it excuses, whether it is clear) is now stamped with its time and frame generation.
+- The left-turn gate takes it as computed up to `JunctionConfig.oncoming_override_max_age_s`
+  (0.075 s, so the normal one-tick-old verdict is fresh).
+- Older, its excuses lapse: the LiDAR gate counts every occupied cell again. A "not clear"
+  still holds. The log says so (`turn_gate_override`).
+- A perception outage can therefore no longer keep a parked car excused.
+
+**F8-03, a young vehicle off the road is a provisional threat.** Off the road a vehicle was
+admitted as a crosser only after 30 hits (1.5 s: 7.5 m at 5 m/s for a car out of a
+driveway).
+- From 8 hits it is now admitted provisionally (`young_vehicle_off_the_road`) when:
+  - it is at least 1 m wide;
+  - its motion is not judged incoherent;
+  - its filter speed is borne out by its sustained motion;
+  - it shows no wider spread.
+- It is treated as a provisional radar threat: a floor of 1.5 m/s that falls to 0 as its
+  hits grow to 30, and never above the speed from which the car stops short at 4 m/s².
+- The fifth review's road-near test (a slow car beside the road is no threat) now reads
+  provisional for that track, and the scenery tests are unchanged.
+
+**F8-04, restrictions attributed by actor.** A radar restriction counts as the target
+actor's only when its cause track is one matched to that actor. Others are reported apart
+as possible false interventions (`unmatched_radar_restrictions`: ticks, seconds, the first,
+the tracks).
+
+**F8-05, every actor scored.** Scripted actors now report each of their cars with a role
+(the braking lead and the car ahead of it with `--actor-param second_gap_m=…`).
+- `multi_actor_tracking` (REPORT) scores each role's tracking:
+  - matched share and track ids;
+  - id switches;
+  - the ticks one track was the nearest match of two cars at once;
+  - track ids that moved from one car to the other;
+  - which car the lead was, and when that changed.
+
+**Timing, sensor to actuator.** The harness now stamps five wall-clock marks per tick:
+- the synchronous world tick returning;
+- the rig's frame read;
+- the step's start and end;
+- the command applied.
+
+`sensor_to_actuator` (REPORT) gives each interval's p50/p95/p99/max and the share of ticks
+over 50 ms. In synchronous CARLA the command still takes effect at the next world tick:
+these are what real time would cost.
+
+**P1, observability-limited speed now governs.** The car never drives faster than it can
+stop `stop_gap_m` short of where its view of the road ends:
+- The bound uses the tube seen clear, `clear_to_m`, and the measured brake lag of 0.25 s
+  (`PlannerConfig.sight_response_s`): `v·t + v²/2a ≤ clear − front − gap`.
+- What it has not seen is treated as standing where its view ends. A small object seen
+  late is covered by the same bound: the obstacle ends the clear tube.
+- The log carries `sight_speed_mps`. `evaluation.observability` reports the same bound
+  from each run's first detection.
+- On all 15 recorded r8 and r9 runs the bound lay below the car's speed only with an
+  obstacle in view, where the stop for it binds too: at the 2–4 m/s cruise it is a
+  guarantee, not a new behaviour.
+
+**P2, semantic wall-clock admission.** `SemanticWorker` refuses a result older than
+`max_wall_age_s` on the wall clock (`stale_wall`), as it refuses a stale one.
+- `StackConfig.semantic_max_wall_age_s` sets it. It is off (None) while the semantic layers
+  are shadow only, and must be set before any of them steers or sets a speed.
+- Learned segmentation still has no shown driving benefit: it remains experimental.
+
+**`_lidar_free` in a changing scene.** A new test drives an actor onto ground seen free
+0.2 s before.
+- The first LiDAR hit on it ends "seen empty" at once.
+- Ground seen 0.3 s or more ago no longer counts.
+- The window in which a radar return there is judged a ghost is at most the time to the
+  first LiDAR hit.
+
+### Live on PC 1 and PC 2 (29 Oct, `b4280cd`): the r9 batch
+
+| Run | Status | |
+|---|---|---|
+| Crossing car, Town05 `--site 1`, 4 m/s | MEASURED_PASS | no stop after the car cleared |
+| Radar-first crossing, Town10HD, LiDAR at 25 m, trigger 35 m, 2 m/s | MEASURED_PASS | radar alone 2.6 s |
+| Cut-in then brake, 4 m/s | MEASURED_PASS | separation 2.15 m |
+| Braking lead | MEASURED_PASS | separation 3.44 m |
+| Crossing car, Town05, PC 1 | MEASURED_PASS | |
+| Left turn, oncoming car pulling away (`--oncoming stopped`) | MEASURED_FAIL | separation 0.50 m, then held 130 s |
+| Left turn, parked car 4 m past the junction | MEASURED_FAIL | exit 1.58 m off, held 115 s |
+
+**Crossings.** The remembered box did what the r8 batch needed. No crossing run stopped
+for the crossing car after it had cleared: 0.6 s of other restrictions after the clear,
+none by the actor.
+
+**Step time.** On Town05 the whole step was 56–60 ms at p50 against 44–46 ms on
+`b15b76f`. The shape fits cost it: every vehicle-sized cluster of every track was fitted,
+every tick (29 fits, 8 ms a tick on a Town10HD street: walls, hedges, parked cars). The
+fits are now budgeted:
+- confirmed tracks only;
+- every fifth hit;
+- at most four a tick, nearest first;
+- at most 48 points a fit.
+
+Replayed here on the recorded frames (this machine is slower than PC 1 or PC 2), the
+tracking stage's p50:
+
+| | `b15b76f` | `b4280cd` | now |
+|---|---|---|---|
+| Town05 crossing (r9_cross4) | 18.8 ms | 29.0 ms | 20.8 ms |
+| Town10HD radar-first (r9_rf_35_2) | 7.8 ms | 14.9 ms | 10.8 ms |
+
+The whole step moved with it (Town05 p50 66.7 / 71.1 / 62.4 ms, within this machine's
+run-to-run spread). The live `sensor_to_actuator` marks come with the next runs.
+
+**The oncoming car: let go into its way.** The gate frame (the lane, latched as the
+approach began) was 1.4° off. Nineteen metres on, the gate had the body "in the opposing
+lane" while its corner was 0.6 m short of it.
+- The gate therefore latched "entered" and stopped looking. The oncoming car was then 44 m
+  out and just pulling away: beyond the gate's 40 m, and not yet tracked by the radar
+  (first tracked at 26 m; the radar was not recorded, so the replay cannot say why).
+- When the track appeared, the stack stopped the car at once, its corner 1.1 m clear of
+  the oncoming car's side. Right.
+- One tick later the clearing rule (S5: in the opposing lane, clear it rather than stop in
+  it) let it go, on the gate frame's word. It drove its corner to the lane's edge.
+- The LiDAR stop then held it there. The oncoming car passed 0.50 m away.
+- Fix: the clearing rule needs the car to be in the vehicle's way (`in_the_way_of`). Its
+  body, where it stands, must lie in the strip the vehicle drives along: the vehicle's
+  width (at least 1.8 m) plus 0.3 m either side.
+  - The strip is taken both along the track's velocity and along the lane (the gate frame's
+    direction), and must hold on both. 20 m out, a few degrees of a track's heading move
+    its strip a metre: a LiDAR-only track of this car read "in the way" for 0.35 s in the
+    replay, 1.2 m clear.
+  - The gate frame's place no longer decides it. Out of the way, the car waits.
+- The gate's view stays short of a crossing at 2 m/s (it needs 11 s; 40 m is 4.7 s at
+  30 km/h). Beyond it the stack's radar tracks must cover, and here they did not. The
+  recordings now carry the radars (frame schema 2), so the next run can be replayed with
+  them.
+
+**Then held for good: the blind zone.** The car that passed 1 m in front of the bumper was
+held. Its region could never show ground from there: the lowest ring the bonnet leaves
+meets the road 1.4 m or more past the bumper.
+- A height rule ("tall, and no longer seen") is no proof: a person who crouches there
+  drops below the rings, and the passing car's corner in the tube read only 0.8 m.
+- Fix: the stack says when what stood on a hold has left (`mark_departed`). The planner
+  then releases the hold without ground on its region, once it has gone unseen for 0.5 s
+  and the tube beyond is seen clear for the usual 1 s.
+- When the hold is last detected, the stack notes the LiDAR tracks within 0.5 m of its
+  near face. It is gone when every one of them is a vehicle, moving, LiDAR-supported now,
+  1.5 m clear of the face and driving away from it.
+- A walker, or a track lost, never releases a hold this way. The driver alone (no stack)
+  waits, as before.
+- The low parts of a car (sills, wheels), kerb-high and nearer than its body, were the
+  detection on some ticks and carried no height. They now count as the object behind
+  them (`ObstacleConfig.same_object_m`). The log has `obstacle_height_m` and
+  `hold_departures`.
+
+**The parked car: a refinement taken from a wrong far reading.** The first commit's exit
+line was right, and the readings agreed with it for 4 s. Then the stations near the
+junction read 1.2 m short, from 29 m across the junction, where the road's edge is between
+rings. That reading held 0.5 s and was taken: the path moved 1.1 m.
+- The right line, read from nearer, then lay +1.5 m from the latched one: "another road",
+  refused for good. The car ended 1.6 m off the exit lane.
+- Fix: a reading within the 1.5 m cap of the first commit's line is a correction back, not
+  another road.
+- A hold at 6.5 m on a 7.1 m corridor needed 8.5 m seen clear. The tube clearance is now
+  needed only to the line's end (0.5 m short), for every hold.
+- Open-loop replay: the right line is re-taken at 25.1 s.
+- Not changed: why stations at 29 m read short (the road-edge rule for a wide unseen
+  strip, at that grazing angle).
+
+**Open-loop stack replays, `b4280cd` against this commit** (12 recorded runs, LiDAR only:
+the recordings had no radar):
+- Town05 stop runs (three), the r6 plain left turn, the r7 oncoming left turn: the same
+  decisions on every tick, bar two ticks of a 2.0–2.4 m/s cap.
+- r9 Town05 crossing (PC 1): `b4280cd` stopped 18 ticks for the crossing car after it had
+  stopped beside the road (its track at 0.5–0.75 m/s). Now it reads 0.17–0.21 m/s, and no
+  stop. The PC 2 crossings: the same 8 conflict ticks each.
+- r9 oncoming left turn: the clearing rule let the car go on 104 ticks, now 5 (with its
+  corner at the lane's edge). The hold is released at 22.4 s, 1.45 s after its last
+  detection, not held to the end (2581 ticks → 29).
+- r9 parked left turn, r8 left turns: one to three ticks differ (a parked car's drift capped
+  one tick, out of its way).
+- The observability bound fell below 2 m/s only in the stop runs, with the stopped-for
+  obstacle in view; the stops are unchanged.
 
 ## Running Phase 0 live
 

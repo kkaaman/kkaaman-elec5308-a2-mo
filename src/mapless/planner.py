@@ -69,6 +69,25 @@ class PlannerConfig:
     stop_gap_m: float = 2.5
     validity_s: float = 0.5
     resume_clear_s: float = 1.0
+    # A held obstacle whose region cannot show ground (the LiDAR's near blind zone: its
+    # lowest unblocked ring meets the road beyond the bumper, so no sweep from where the car
+    # stands sees the road there) is released once the stack has seen it leave
+    # (``mark_departed``: every track on its region a vehicle that has driven clear of it)
+    # and it has gone unseen for departed_release_s, the tube beyond seen clear. A car that
+    # crossed 1 m in front of the bumper held the car at a left turn for 130 s, its region
+    # "0 ground points" for good (PC1, Town03, r9_left_oncoming, b4280cd). Its height is no
+    # proof: a person who crouches there drops below the rings.
+    departed_release_s: float = 0.5
+    # Observability-limited speed (eighth review, P1): the car never drives faster than it
+    # can stop stop_gap_m short of the end of the tube it sees clear (``clear_to_m``),
+    # reacting after sight_response_s (the measured brake lag, 0.1-0.25 s, BL-E-03) and
+    # braking at decel_mps2: v * t + v^2 / (2 a) <= clear - front - stop_gap. Something it
+    # has not seen is treated as standing where its view of the road ends. On every live
+    # run recorded (r8, r9: 15 runs) this bound lay below the car's speed only with an
+    # obstacle in view, where the stop for it binds as well; it is the guarantee, not a
+    # new behaviour, at the 2 m/s cruise. ``sight_governed`` False restores the old plan.
+    sight_governed: bool = True
+    sight_response_s: float = 0.25
     clear_beyond_m: float = 2.0
     clear_gap_s: float = 0.15  # clear observations further apart than this are not continuous
     hold_match_m: float = 2.0  # a detection this close along the path to a held obstacle is that obstacle ...
@@ -103,6 +122,19 @@ class Plan:
     # Every hold this tick, nearest first (``LanePlanner.hold_reports``): its id, state,
     # place and each release prerequisite (third review, F2).
     holds: tuple = ()
+    # The observability bound on this plan's speed (``sight_speed``), inf when not applied.
+    sight_speed_mps: float = math.inf
+
+
+def sight_speed(distance_m, decel_mps2, response_s, margin_m):
+    """The highest speed from which the car stops ``margin_m`` short of something
+    ``distance_m`` ahead of its front, reacting after ``response_s`` and braking at
+    ``decel_mps2`` (as ``evaluation.observability.supported_speed``)."""
+    room = float(distance_m) - float(margin_m)
+    if room <= 0.0:
+        return 0.0
+    a, t = float(decel_mps2), float(response_s)
+    return -a * t + math.sqrt(a * a * t * t + 2.0 * a * room)
 
 
 def curvature(coefficients, x):
@@ -144,6 +176,7 @@ class _Hold:
     clear_since_s: float | None = None
     clear_last_s: float | None = None  # the last clear observation: continuity is judged against it
     state: str = "blocked"
+    departed_s: float | None = None  # when the stack last saw the tracks on its region drive clear of it (``mark_departed``)
 
 
 class LanePlanner:
@@ -164,6 +197,19 @@ class LanePlanner:
     @property
     def hold_count(self):
         return len(self._holds)
+
+    def held_regions(self):
+        """Each hold as the stack judges departures on it: (id, the near face's lateral
+        extremes in odometry (2 x 2, a copy), when it was last detected)."""
+        return tuple((h.hold_id, h.span_xy.copy(), h.seen_s) for h in self._holds)
+
+    def mark_departed(self, hold_id, time_s):
+        """The stack saw what stood on hold ``hold_id``'s region drive clear of it at
+        ``time_s``: the hold may be released without ground on its region (see
+        ``departed_release_s``) once the tube beyond is seen clear for resume_clear_s."""
+        for hold in self._holds:
+            if hold.hold_id == hold_id:
+                hold.departed_s = float(time_s)
 
     def reset(self, keep_holds=False):
         """Forget the plan state. ``keep_holds``: keep the obstacle holds (the car stood still
@@ -339,22 +385,26 @@ class LanePlanner:
                 # re-acquired corridor): no longer an obstacle the car can drive into.
                 self._holds.remove(hold)
                 continue
-            needed = near - s_car + c.clear_beyond_m
-            # Past the line's end the path is not known yet: it is seen clear as far as it
-            # goes, and the held region itself, straight on, must show ground. The car
-            # cannot drive beyond the line; when it grows, its obstacle check looks again.
-            # Before, a hold 0.8 m past a 6.8 m corridor could never be cleared and the car
-            # stood at a junction mouth for good (live stack turn on ff1910b).
+            # Clear to clear_beyond_m past the held region, but never past the line's end:
+            # beyond it the path is not known yet. The car cannot drive past the line; when it
+            # grows, its obstacle check looks again. The held region itself must still show
+            # ground (or its object be seen to leave, below). A hold 0.8 m past a 6.8 m corridor
+            # could never be cleared (live stack turn on ff1910b); nor, while the clamp applied
+            # only to holds past the end, could one at 6.5 m on a 7.1 m corridor: it needed
+            # 8.5 m seen clear, the corridor showed 7.5, and the car stood for 115 s with the
+            # region's ground all seen (PC1, Town03, r9_left_parked, b4280cd).
             line_end = float(np.hypot(*np.diff(line, axis=0).T).sum()) - s_car
-            if near - s_car > line_end - c.clear_region_start_m:
-                needed = min(needed, line_end - 0.5)
+            needed = min(near - s_car + c.clear_beyond_m, line_end - 0.5)
             self._gather(hold, observation, corridor, line, near, lat_lo, lat_hi)
             hold.region_bins = None
             region = self._region_seen(observation, corridor, line, s_car, hold)
             hold.clear_to = None if observation is None else (observation.clear_to_m, needed)
             if observation is not None:
                 hold.note += f"; clear to {observation.clear_to_m:.1f} m of {needed:.1f}"
-            if observation is not None and observation.clear_to_m >= needed and region:
+            departed = not region and hold.departed_s is not None and hold.departed_s > hold.seen_s and now_s - hold.seen_s >= c.departed_release_s
+            if departed:
+                hold.note += "; its object seen to leave"
+            if observation is not None and observation.clear_to_m >= needed and (region or departed):
                 hold.state = "clear"
                 # Continuous means every tick: a gap (a fault, a missing sweep, the planner
                 # not called) restarts the count (review of 2b7e14d: one clear observation,
@@ -396,6 +446,11 @@ class LanePlanner:
         curve = np.sqrt(c.lateral_accel_mps2 / np.maximum(k, 1e-6))
         speed = np.minimum(c.cruise_mps if speed_cap_mps is None else min(c.cruise_mps, max(0.0, speed_cap_mps)), curve)
         speed = np.minimum(speed, np.sqrt(2.0 * c.decel_mps2 * np.maximum(0.0, stop_s - arcs)))
+        sight = math.inf
+        if c.sight_governed and observation is not None:
+            # From where the car is: the plan is made again every tick as the view grows.
+            sight = sight_speed(observation.clear_to_m - self.body.front_m, c.decel_mps2, c.sight_response_s, c.stop_gap_m)
+            speed = np.minimum(speed, sight)
         speed[arcs >= stop_s] = 0.0
         points, speeds = line[:end], speed[:end]
         if final_goal:
@@ -423,6 +478,7 @@ class LanePlanner:
             state,
             note,
             self.hold_reports(corridor, line, s_car, now_s, seen),
+            sight,
         )
 
     def hold_reports(self, corridor, line, s_car, now_s, seen=None, limit=4):

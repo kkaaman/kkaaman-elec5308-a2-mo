@@ -26,6 +26,9 @@ late command. ``SemanticWorker`` runs them on a thread of their own:
   on the wall clock when the stack took it (``last_take``), and counts results taken more
   than ``max_age_s`` old on the wall clock (``late_wall``: kept, the layers are shadow
   information, but counted).
+- **Wall-clock admission** (eighth review): with ``max_wall_age_s`` set, a result older
+  than that on the wall clock is refused (``stale_wall``) like a stale one. Required before
+  any semantic layer feeds steering or speed; off (None) while they are shadow only.
 
 ``stats`` reports all of it per tick for the log, with the worker's own stage times and
 the shares of jobs dropped, failed and results stale or late.
@@ -81,15 +84,17 @@ class SemanticWorker:
 
     ``shadow(model, pose, path_body)`` computes the semantic shadow for a build (the stack
     passes ``semantic_tube_support`` with its config); ``max_age_s``: the oldest result, in
-    simulation time behind the current tick, ``take`` still returns.
+    simulation time behind the current tick, ``take`` still returns; ``max_wall_age_s``: the
+    oldest on the wall clock, from submission (None: reported, not refused).
     """
 
-    def __init__(self, segmenter, painting_config, road_model_config, grid, shadow=None, max_age_s=0.5):
+    def __init__(self, segmenter, painting_config, road_model_config, grid, shadow=None, max_age_s=0.5, max_wall_age_s=None):
         self.segmenter = segmenter
         self.painting_config = painting_config
         self.builder = RoadModelBuilder(grid.view(), road_model_config)
         self.shadow = shadow
         self.max_age_s = max_age_s
+        self.max_wall_age_s = max_wall_age_s
         self._jobs = queue.Queue(maxsize=1)
         self._lock = threading.Lock()
         self._result = None
@@ -97,7 +102,7 @@ class SemanticWorker:
         self._busy = False
         self._idle = threading.Event()
         self._idle.set()
-        self.counts = dict(submitted=0, dropped=0, segmented=0, built=0, taken=0, stale_epoch=0, stale_age=0, late_wall=0, errors=0)
+        self.counts = dict(submitted=0, dropped=0, segmented=0, built=0, taken=0, stale_epoch=0, stale_age=0, stale_wall=0, late_wall=0, errors=0)
         self.last_take = None  # wall-clock timing of the last result taken (F7-04)
         self.last_error = None
         self.last_timing_ms = {}
@@ -139,8 +144,11 @@ class SemanticWorker:
             if time_s - result.time_s > self.max_age_s:
                 self.counts["stale_age"] += 1
                 return None
-            self.counts["taken"] += 1
             now = time.perf_counter()
+            if self.max_wall_age_s is not None and result.submitted_wall_s is not None and now - result.submitted_wall_s > self.max_wall_age_s:
+                self.counts["stale_wall"] += 1
+                return None
+            self.counts["taken"] += 1
             if result.submitted_wall_s is not None and result.completed_wall_s is not None:
                 age = now - result.submitted_wall_s
                 self.counts["late_wall"] += age > self.max_age_s
@@ -160,7 +168,7 @@ class SemanticWorker:
             shares = dict(
                 dropped_share=round(c["dropped"] / c["submitted"], 3) if c["submitted"] else None,
                 error_share=round(c["errors"] / c["submitted"], 3) if c["submitted"] else None,
-                stale_share=round((c["stale_epoch"] + c["stale_age"]) / c["built"], 3) if c["built"] else None,
+                stale_share=round((c["stale_epoch"] + c["stale_age"] + c["stale_wall"]) / c["built"], 3) if c["built"] else None,
                 late_share=round(c["late_wall"] / c["taken"], 3) if c["taken"] else None,
             )
             return dict(c, **shares, busy=self._busy, last_ms={k: round(v, 2) for k, v in self.last_timing_ms.items()}, last_take=self.last_take, last_error=self.last_error)
