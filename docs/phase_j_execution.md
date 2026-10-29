@@ -1,5 +1,13 @@
 # Phase J final continuation report and CARLA RUN QUEUE
 
+> Latest live outcome: [29 October CARLA session](live_session_20261029.md).
+> #103 merged at511120957efa67707549cfc81c800472bd4f4c96;52 closed.
+> #40 remains blocked by measured near-field clearance support. #101 has new
+> recorded overlays,S0/timing component evidence but remains open;41 normal
+> acceptance was not run. The older OFF-session tables below are historical.
+
+
+
 > Live-session update29 October: the record below describes the earlier CARLA-OFF
 > continuation. Actual #103 acceptance evidence is now in
 > [live LiDAR validation](evidence/E2-01-04/live-20261029/README.md).

@@ -1,0 +1,32 @@
+{
+  "pr": 103,
+  "head": "7c4c2e96b7e465d06640e2f109294fc244c64c7f",
+  "mergeable": true,
+  "checks": [
+    {
+      "name": "TEST-18 available fixtures (admission remains blocked)",
+      "status": "completed",
+      "conclusion": "failure",
+      "classification": "BILLING_NO_RUNNER_ZERO_STEPS"
+    },
+    {
+      "name": "docs",
+      "status": "completed",
+      "conclusion": "failure",
+      "classification": "BILLING_NO_RUNNER_ZERO_STEPS"
+    },
+    {
+      "name": "lint",
+      "status": "completed",
+      "conclusion": "failure",
+      "classification": "BILLING_NO_RUNNER_ZERO_STEPS"
+    },
+    {
+      "name": "test",
+      "status": "completed",
+      "conclusion": "failure",
+      "classification": "BILLING_NO_RUNNER_ZERO_STEPS"
+    }
+  ],
+  "absent_checks": null
+}
