@@ -790,6 +790,15 @@ def test_ml_the_shadow_reports_its_coverage_and_where_it_puts_the_roads_right_ed
     c = StackConfig()
     out = semantic_tube_support(LocalRoadModel(0.0, origin, cell, layers), Pose2D(0.0, 0.0, 0.0), path, c)
     assert out["right_edge_m"] == pytest.approx(2.0, abs=cell) and out["right_edge_stations"] > 40 and out["coverage"] == 1.0
+    # By section (seventh review, F7-06): every section sees the edge; none is missed.
+    assert set(out["sections"]) == {"near", "mid", "far"}
+    assert all(sec["right_edge_m"] == pytest.approx(2.0, abs=cell) and sec["missed"] == 0 for sec in out["sections"].values())
+    # Pavement only beyond 12 m ahead: the near stations see road right of the line and no edge.
+    patchy = {k: v.copy() for k, v in layers.items()}
+    patchy["pavement"][: int((12.0 - origin[0]) / cell), :] = 0.0
+    patchy["road"][: int((12.0 - origin[0]) / cell), :] = 2.0
+    out = semantic_tube_support(LocalRoadModel(0.0, origin, cell, patchy), Pose2D(0.0, 0.0, 0.0), path, c)
+    assert out["sections"]["near"]["missed"] > 0 and out["sections"]["near"]["edge_stations"] == 0 and out["sections"]["far"]["missed"] == 0
     plain = {k: np.zeros((n, n), dtype=np.float32) for k in LocalRoadModel.REQUIRED}
     plain["road"][:, int((0.0 - origin[1]) / cell):] = 2.0  # left of the path only
     out = semantic_tube_support(LocalRoadModel(0.0, origin, cell, plain), Pose2D(0.0, 0.0, 0.0), path, c)

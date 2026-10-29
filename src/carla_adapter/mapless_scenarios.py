@@ -691,7 +691,8 @@ def score_lead_tracking(log, actor_truths, body, dt_s=0.05, match_m=1.0):
       as the stack had it, against the actor's, over ticks with the actor as the lead;
     - ``gap_error_median_m``: the stack's gap minus the true one (negative: conservative);
     - ``brake_s``: when the actor began to brake (the first tick below its cruise, of a
-      drop past 0.3 m/s);
+      drop past 0.3 m/s), looked for from the tick it first led the car, against the
+      fastest it went from then on (None if it braked only before it led);
       ``brake_seen_s``: the first tick after it with the actor as the lead and its speed
       0.5 m/s below the actor's cruise, and ``brake_delay_s`` between them;
     - ``stopped_before_lead_s``: time the ego stood still while the lead still moved
@@ -706,7 +707,14 @@ def score_lead_tracking(log, actor_truths, body, dt_s=0.05, match_m=1.0):
     nees, nis = {}, []
     first = None
     speeds = [a["speed_mps"] if a else None for a in actor_truths]
-    cruise = max((v for v in speeds if v is not None), default=None)
+    # The actor's braking is looked for from the tick it first led the car, against the
+    # fastest it went from then on: a cut-in car slowing from its lane change to its
+    # following speed read as a brake 2.5 s before it led (live r7, braking cut-in).
+    led_from = next(
+        (k for k, (row, a) in enumerate(zip(log, actor_truths)) if a is not None and (row.get("driver") or {}).get("lead") and not row["driver"]["lead"].get("crossing") and lead_is_actor(row, a, match_m) is not False),
+        None,
+    )
+    cruise = None if led_from is None else max((v for v in speeds[led_from:] if v is not None), default=None)
     brake_tick = seen_tick = at_cruise = None
     stopped_ticks, moved = 0, False
     unmatched, positions = 0, False
@@ -714,7 +722,7 @@ def score_lead_tracking(log, actor_truths, body, dt_s=0.05, match_m=1.0):
         if actor is None:
             continue
         lead = (row.get("driver") or {}).get("lead")
-        if cruise is not None and brake_tick is None:
+        if cruise is not None and brake_tick is None and k >= led_from:
             if actor["speed_mps"] >= cruise - 0.1:
                 at_cruise = k
             elif at_cruise is not None and actor["speed_mps"] < cruise - 0.3:
@@ -967,15 +975,27 @@ def score_radar_timeline(log, actor_truths, body, cruise_mps, dt_s=0.05, match_m
     or a cap below cruise for a radar threat: ``first_restriction_s``), the first brake
     command (``first_brake_s``) and the actor entering the ego's band within 30 m
     (``entered_band_s``). ``lidar_before_moving_s``: the first tick a LiDAR track was on it
-    before it moved (a car the LiDAR had standing is no radar-first case). ``radar_only_s``:
-    how long the radar alone had it, moving, before the LiDAR did (0 when the LiDAR was
-    first); ``radar_first``: whether it did at all."""
+    before it moved (a car the LiDAR had standing is no radar-first case).
+
+    The radar-only interval, from the actor's moving off to the first LiDAR track on it,
+    counted from the ticks a radar-only track was actually on it (seventh review, F7-01:
+    the span from the first radar-only tick to the first LiDAR tick credited ticks the
+    radar had lost it): ``radar_only_span_s`` (that span), ``radar_only_observed_s`` (its
+    ticks with a radar-only track on the actor), ``radar_only_longest_s`` (the longest
+    unbroken run of them, which is ``radar_only_s``), ``radar_only_gaps`` and
+    ``radar_only_longest_gap_s`` (ticks in the span without one), and
+    ``threat_before_lidar`` (a provisional or full radar threat on it before the LiDAR
+    had it: the warning was there for the plan to use). ``radar_first``: a radar-only
+    run at all, with the LiDAR not on it standing. At the first restriction, the room
+    from the car's front to the crossing car (``restriction_room_m``), the speed then and
+    the deceleration a stop in that room needs (``restriction_decel_needed_mps2``)."""
     rows = [(k, a) for k, a in enumerate(actor_truths) if a is not None]
     if not rows or "tracks_near" not in (log[rows[0][0]].get("driver") or {}):
         return dict(available=False, note="no actor measurements or no tracks_near in the log")
     keys = ("first_radar", "first_radar_only", "first_lidar", "first_provisional_threat", "first_full_threat", "first_restriction", "first_brake", "entered_band")
     first = dict.fromkeys(keys)
     moving = lidar_before = None
+    alone = []  # (tick, radar-only track on it) from moving off until the LiDAR has it
     for k, a in rows:
         row = log[k]
         d = row.get("driver") or {}
@@ -995,10 +1015,13 @@ def score_radar_timeline(log, actor_truths, body, cruise_mps, dt_s=0.05, match_m
                 first[key] = k
         if any("R" in sup for sup in on.values()):
             mark("first_radar")
-        if not lidar and any(sup == "R" for sup in on.values()):
+        radar_only = not lidar and any(sup == "R" for sup in on.values())
+        if radar_only:
             mark("first_radar_only")
         if lidar:
             mark("first_lidar")
+        if first["first_lidar"] is None:
+            alone.append((k, radar_only))
         for entry in d.get("radar_threats") or ():
             tid, kind = (entry[0], entry[1]) if isinstance(entry, (list, tuple)) else (entry, "full")
             if tid in on:
@@ -1018,8 +1041,46 @@ def score_radar_timeline(log, actor_truths, body, cruise_mps, dt_s=0.05, match_m
     out = dict(available=True, match_m=match_m, actor_moving_s=at(moving), lidar_before_moving_s=at(lidar_before)) | {f"{key}_s": at(k) for key, k in first.items()}
     radar, lidar = first["first_radar_only"], first["first_lidar"]
     radar_first = lidar_before is None and radar is not None and (lidar is None or radar < lidar)
-    end = lidar if lidar is not None else len(log)
-    out |= dict(radar_first=radar_first, radar_only_s=round((end - radar) * dt_s, 2) if radar_first else 0.0)
+    span = [hit for k, hit in alone if radar is not None and k >= radar]
+    runs, gaps, run, gap = [], [], 0, 0
+    for hit in span:
+        if hit:
+            run += 1
+            if gap:
+                gaps.append(gap)
+            gap = 0
+        else:
+            gap += 1
+            if run:
+                runs.append(run)
+            run = 0
+    runs += [run] if run else []
+    gaps += [gap] if gap else []  # lost before the LiDAR had it: a gap too
+    threat = first["first_provisional_threat"], first["first_full_threat"]
+    before = [k for k in threat if k is not None and (lidar is None or k < lidar)]
+    out |= dict(
+        radar_first=radar_first,
+        radar_only_span_s=round(len(span) * dt_s, 2) if radar_first else 0.0,
+        radar_only_observed_s=round(sum(runs) * dt_s, 2) if radar_first else 0.0,
+        radar_only_longest_s=round(max(runs, default=0) * dt_s, 2) if radar_first else 0.0,
+        radar_only_gaps=len(gaps) if radar_first else 0,
+        radar_only_longest_gap_s=round(max(gaps, default=0) * dt_s, 2) if radar_first else 0.0,
+        threat_before_lidar=bool(before),
+    )
+    out["radar_only_s"] = out["radar_only_longest_s"]
+    k = first["first_restriction"]
+    if k is not None and actor_truths[k] is not None:
+        # Whether the restriction came with room to stop (seventh review, F7-03): the car's
+        # front to the crossing car's near side, and the deceleration a stop there needs.
+        row, a = log[k], actor_truths[k]
+        _, dx, _ = _ahead_in_band(row["truth"], a, body, 1.0)
+        room = dx - body.front_m - min(a["extent_m"])
+        v = row["truth"]["speed_mps"]
+        out |= dict(
+            restriction_room_m=round(room, 2),
+            restriction_speed_mps=round(v, 2),
+            restriction_decel_needed_mps2=None if room <= 0.1 else round(v * v / (2.0 * room), 2),
+        )
     out["from_actor_moving_s"] = {key: None if k is None else round((k - moving) * dt_s, 2) for key, k in first.items()}
     return out
 
@@ -1036,7 +1097,7 @@ EXERCISE_CONDITION = {
 # which the LiDAR saw the car first, or a cut-in that brakes before the hand-over, is not
 # the variant it is filed as).
 EXERCISE_VARIANT = {
-    "radar_first": "and the radar alone tracked the crossing car for radar_first_min_s or more before the LiDAR did",
+    "radar_first": "and the radar alone tracked the moving crossing car without a break for radar_first_min_s or more before the LiDAR did, with a radar threat on it in that time",
     "cut_brake": "and the cut-in car braked (0.5 m/s or more below its speed then) after it became the lead",
 }
 
@@ -1067,9 +1128,11 @@ def score_exercised(name, log, actor_truths, body, cruise_mps, dt_s=0.05, handov
     if variant == "radar_first":
         timeline = score_radar_timeline(log, actor_truths, body, cruise_mps, dt_s)
         need = (params or {}).get("radar_first_min_s", 0.25)
-        out["radar_only_s"] = timeline.get("radar_only_s")
+        out |= {k: timeline.get(k) for k in ("radar_only_s", "radar_only_observed_s", "radar_only_span_s", "radar_only_gaps", "threat_before_lidar")}
         if not timeline.get("available") or (timeline.get("radar_only_s") or 0.0) < need:
-            return out | dict(exercised=False, note=f"the radar alone had the car for {timeline.get('radar_only_s')} s before the LiDAR (needs {need:g} s)")
+            return out | dict(exercised=False, note=f"the radar alone had the car for at most {timeline.get('radar_only_s')} s unbroken before the LiDAR (needs {need:g} s)")
+        if not timeline.get("threat_before_lidar"):
+            return out | dict(exercised=False, note="no radar threat on the car before the LiDAR had it")
         return out
     # cut_brake: the actor's speed falls 0.5 m/s below its speed at the hand-over, after it.
     start = next((k for k, row in enumerate(log) if out.get("lead_from_s") is not None and round(row["time_s"], 2) >= out["lead_from_s"]), None)
@@ -1155,7 +1218,7 @@ COMPLETION_REQUIRED = {
     "crossing_pedestrian": "yield while the walker is in the path, then resume and reach the goal",
     "braking_lead": "hold behind the stopped lead for --hold-s with the gap at or above the separation threshold, or reach the goal",
     "cut_in": "a gap at or above the separation threshold once the cut-in is complete, then reach the goal (or, if the car braked to a stop, hold behind it)",
-    "crossing_vehicle": "yield while the crossing car is in the path, then resume and reach the goal",
+    "crossing_vehicle": "yield while the crossing car is in the path if the car would otherwise reach it before it clears (a second's margin), then resume and reach the goal",
 }
 
 
@@ -1209,6 +1272,25 @@ def score_completion(name, log, actor_truths, body, end, held_s, min_separation_
             return out | dict(passed=False)
         if cleared is None:
             return out | dict(passed=None, note="the " + ("crossing car" if vehicle else "walker") + " had not cleared the path when the run ended")
+        if vehicle:
+            # A crossing car must be yielded to only if the car, holding the speed it was
+            # making, would have reached it before it cleared the path (and a second's
+            # margin): one that crosses well ahead and is gone first needs no stop (live
+            # r7: a 5 m/s crossing 13 m ahead of a 2 m/s car failed for want of a yield).
+            row, actor, _ = rows[first]
+            _, dx, _ = _ahead_in_band(row["truth"], actor, body, 1.0)
+            reach_s = max(0.0, dx - body.front_m - min(actor["extent_m"])) / max(entry_speed, 0.1)
+            clear_s = rows[cleared][0]["time_s"] - t_entry
+            needed = reach_s <= clear_s + 1.0
+            # Gave way: the car's front reached the crossing point a second or more after the
+            # crossing car had cleared the path (slowing enough is giving way; a stop is not).
+            s0 = row["truth"].get("s_m")
+            to_go = dx - body.front_m - min(actor["extent_m"])
+            reach = None if s0 is None else next((i for i in range(first, len(rows)) if rows[i][0]["truth"]["s_m"] - s0 >= to_go), None)
+            after_s = None if reach is None else rows[reach][0]["time_s"] - rows[cleared][0]["time_s"]
+            gave_way = s0 is not None and (reach is None or after_s >= 1.0)
+            out |= dict(yield_needed=needed, reach_at_entry_speed_s=round(reach_s, 2), clear_s=round(clear_s, 2), gave_way=gave_way, reached_crossing_after_clear_s=None if after_s is None else round(after_s, 2))
+            return out | dict(passed=(yielded or gave_way or not needed) and resumed and reached)
         return out | dict(passed=yielded and resumed and reached)
     if name == "cut_in":
         cut = next((i for i, (row, actor, _) in enumerate(rows) if _ahead_in_band(row["truth"], actor, body, 0.5)[0]), None)

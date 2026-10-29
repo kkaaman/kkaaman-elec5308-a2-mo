@@ -238,6 +238,10 @@ class StackConfig:
     # (its twin, which the LiDAR track covers).
     radar_provisional_travel_m: float = 0.5
     radar_provisional_cap_mps: float = 1.5
+    # The floor falls linearly to zero as the track's travel grows from the provisional
+    # threshold to the full one, and is never above the speed from which the car stops short
+    # of the conflict at radar_provisional_hard_decel_mps2 (seventh review, F7-03).
+    radar_provisional_hard_decel_mps2: float = 4.0
     radar_twin_m: float = 3.5
     # Both travels at least radar_travel_bearing_sigmas bearing sigmas across the range it is
     # at: the Doppler bears out motion along the line of sight, not across it, where a
@@ -399,6 +403,7 @@ class MaplessStack:
         self._radar_threats = []
         self._incoherent = 0
         self._semantic = None
+        self._semantic_take = None
         self._structures = []
         self._unreachable = []
         coverage = {s.name: s.state.value for s in frame.status}
@@ -435,6 +440,7 @@ class MaplessStack:
                 result = self.semantic_worker.take(t, self._epoch)
                 if result is not None:
                     self._model, self._semantic = result.model, result.semantic
+                    self._semantic_take = self.semantic_worker.last_take
                 timing["semantic_submit"] = (time.perf_counter() - begun) * 1000
             else:
                 painted = None
@@ -546,6 +552,7 @@ class MaplessStack:
             incoherent_vehicles=self._incoherent,
             semantic_shadow=self._semantic,
             semantic_worker=None if self.semantic_worker is None else self.semantic_worker.stats(),
+            semantic_take=self._semantic_take,  # this tick's result taken: its simulation and wall-clock age (F7-04)
             oncoming=self._oncoming,
             frame_generation=self.frame_generation,
             stack_timing_ms=record.timing_ms,
@@ -673,7 +680,7 @@ class MaplessStack:
             # As predicted from here on: a radar-only threat with its assumed footprint
             # (F5-06), an incoherent vehicle-sized track standing still (4.3).
             in_lane = lane_band(pose, path_body, c)
-            provisional = {tr.track_id for tr in tracks if provisional_radar(tr, c)}
+            provisional = {tr.track_id: tr for tr in tracks if provisional_radar(tr, c)}
             tracks = [_as_predicted(tr, c, in_lane) for tr in tracks]
             others = conflict_candidates(tracks, predictions, lead_id, c.prediction)
             admitted = {}
@@ -714,8 +721,13 @@ class MaplessStack:
                 conflict_cap = conflict_speed_cap([p], xy, s_now, body, c)
                 why = "predicted conflict on the path"
                 if p.track_id in provisional:
-                    # A provisional radar threat slows the car, never stops it (F6-02).
-                    conflict_cap, why = max(conflict_cap, c.radar_provisional_cap_mps), "provisional radar threat on the path"
+                    # A provisional radar threat slows the car to its floor, which falls as
+                    # the evidence grows, and lower still where only hard braking would stop
+                    # short of the conflict (seventh review, F7-03; F6-02's floor alone kept
+                    # the car at 1.5 m/s into a conflict it could no longer stop for).
+                    hard = conflict_speed_cap([p], xy, s_now, body, replace(c, conflict_decel_mps2=c.radar_provisional_hard_decel_mps2))
+                    floor = provisional_floor(provisional[p.track_id], c, (pose.x_m, pose.y_m))
+                    conflict_cap, why = max(conflict_cap, min(floor, hard)), "provisional radar threat on the path"
                 passing = roadside_cap(track, xy, s_now, body, tube_half, c)
                 if passing is not None and passing > conflict_cap:
                     conflict_cap, why = passing, "passing a road user standing at the roadside"
@@ -925,6 +937,19 @@ def radar_travel_floor(track, config, ego_xy=None):
         return 0.0
     rng = float(np.hypot(*(np.asarray(track.position, dtype=float) - np.asarray(ego_xy, dtype=float))))
     return config.radar_travel_bearing_sigmas * config.radar.bearing_sigma_rad * rng
+
+
+def provisional_floor(track, config, ego_xy=None):
+    """The floor under a provisional radar threat's conflict cap (``radar_threat``):
+    ``radar_provisional_cap_mps`` at the provisional threshold of travel, falling linearly
+    to 0 at the full one (both at least the track's bearing-noise floor from ``ego_xy``),
+    so the restriction tightens with the evidence instead of in one step at 2 m."""
+    floor_m = radar_travel_floor(track, config, ego_xy)
+    lo = max(config.radar_provisional_travel_m, floor_m)
+    hi = max(config.radar_threat_min_travel_m, floor_m)
+    travelled = track.travelled_m or 0.0
+    evidence = 1.0 if hi <= lo else min(1.0, max(0.0, (travelled - lo) / (hi - lo)))
+    return config.radar_provisional_cap_mps * (1.0 - evidence)
 
 
 def provisional_radar(track, config):
@@ -1451,7 +1476,25 @@ def semantic_tube_support(model, pose, path_body, config, ahead_m=25.0, step_m=0
     r, p, m = road[i, j], pavement[i, j], marking[i, j]
     evidence = (r + p + m) > 0
     n = int(evidence.sum())
-    edge, stations = _semantic_right_edge(model, pose, centre, normal, half, step_m)
+    edges, with_road = _semantic_right_edges(model, pose, centre, normal, half, step_m)
+    found = np.isfinite(edges)
+    edge = round(float(np.median(edges[found])), 2) if found.any() else None
+    stations = int(found.sum())
+    # By section of the path ahead (seventh review, F7-06: one aggregate hid where the
+    # segmenter is blind): each section's band coverage, its right edge, and the stations
+    # where road was seen right of the line but no edge (``missed``).
+    ahead = s - s_car
+    band_ahead = np.repeat(ahead, len(offsets))[inside]
+    sections = {}
+    for name, lo, hi in SEMANTIC_SECTIONS:
+        st = (ahead >= lo) & (ahead < hi)
+        cells = (band_ahead >= lo) & (band_ahead < hi)
+        sections[name] = dict(
+            coverage=None if not cells.any() else round(float(evidence[cells].mean()), 3),
+            right_edge_m=round(float(np.median(edges[st & found])), 2) if (st & found).any() else None,
+            edge_stations=int((st & found).sum()),
+            missed=int((st & with_road & ~found).sum()),
+        )
     return dict(
         cells=int(inside.sum()),
         with_evidence=n,
@@ -1463,14 +1506,19 @@ def semantic_tube_support(model, pose, path_body, config, ahead_m=25.0, step_m=0
         pavement_share=None if n == 0 else round(float(np.mean(p[evidence] > np.maximum(r[evidence], m[evidence]))), 2),
         right_edge_m=edge,
         right_edge_stations=stations,
+        sections=sections,
     )
 
 
-def _semantic_right_edge(model, pose, centre, normal, half_m, step_m, beyond_m=4.0, scan_m=0.25):
+SEMANTIC_SECTIONS = (("near", 0.0, 10.0), ("mid", 10.0, 20.0), ("far", 20.0, 1e9))  # m ahead of the car
+
+
+def _semantic_right_edges(model, pose, centre, normal, half_m, step_m, beyond_m=4.0, scan_m=0.25):
     """Where the segmenter puts the road's right edge along the path: at each station,
     scanning right from the path line out to ``half_m + beyond_m``, the midpoint between
     the last road cell and the first pavement cell after at least two road cells. Returns
-    (median distance right of the line, stations with an edge), or (None, 0)."""
+    (per-station distance right of the line, NaN where none; per-station whether the scan
+    saw road at all)."""
     offsets = -np.arange(0.0, half_m + beyond_m + 1e-9, scan_m)
     body = (centre[:, None, :] + offsets[None, :, None] * normal[:, None, :]).reshape(-1, 2)
     ij = np.floor((pose.to_world(body) - np.asarray(model.origin_xy, dtype=float)) / model.cell_m).astype(int)
@@ -1482,20 +1530,20 @@ def _semantic_right_edge(model, pose, centre, normal, half_m, step_m, beyond_m=4
     lab = np.where((rv + pv + mv) <= 0, 0, np.where(pv > np.maximum(rv, mv), 2, 1))
     label[inside] = lab
     label = label.reshape(len(centre), len(offsets))
-    edges = []
-    for row in label:
+    edges = np.full(len(centre), np.nan)
+    with_road = np.zeros(len(centre), dtype=bool)
+    for i, row in enumerate(label):
         roads = np.flatnonzero(row == 1)
         pav = np.flatnonzero(row == 2)
+        with_road[i] = len(roads) >= 2
         if len(roads) < 2:
             continue
         after = pav[pav > roads[1]]
         if not len(after):
             continue
         last_road = roads[roads < after[0]].max()
-        edges.append(-0.5 * (offsets[last_road] + offsets[after[0]]))
-    if not edges:
-        return None, 0
-    return round(float(np.median(edges)), 2), len(edges)
+        edges[i] = -0.5 * (offsets[last_road] + offsets[after[0]])
+    return edges, with_road
 
 
 def _sigma_along(track, heading_rad):

@@ -25,7 +25,7 @@ def ego_row(tick, s, speed, offset=0.0, goal_distance=None, dt=0.05):
     return dict(
         tick=tick,
         time_s=tick * dt,
-        truth=dict(rear_axle_xy=[s, offset], yaw_rad=0.0, speed_mps=speed, goal_distance_m=GOAL - s if goal_distance is None else goal_distance),
+        truth=dict(rear_axle_xy=[s, offset], yaw_rad=0.0, speed_mps=speed, s_m=s, goal_distance_m=GOAL - s if goal_distance is None else goal_distance),
     )
 
 
@@ -546,6 +546,10 @@ def test_f6_02_the_radar_timeline_says_when_each_sensor_and_the_stack_had_the_cr
     assert out["first_provisional_threat_s"] == pytest.approx(24 * 0.05) and out["first_full_threat_s"] == pytest.approx(28 * 0.05)
     assert out["first_restriction_s"] == pytest.approx(25 * 0.05) and out["first_brake_s"] == pytest.approx(25 * 0.05)
     assert out["from_actor_moving_s"]["first_radar_only"] == pytest.approx(0.05)  # the car moved off at tick 21
+    # The room left at the first restriction (F7-03): the car's front to the crossing car.
+    room = 30.0 - log[25]["truth"]["rear_axle_xy"][0] - BODY.front_m - 0.9
+    assert out["restriction_room_m"] == pytest.approx(room, abs=0.01)
+    assert out["restriction_decel_needed_mps2"] == pytest.approx(log[25]["truth"]["speed_mps"] ** 2 / (2 * room), abs=0.01)
     # The LiDAR first: no radar-only interval.
     log, truths = crossing_car_run(0.3)
     _radar_tracks(log, truths, radar_from=30, lidar_from=30)
@@ -559,12 +563,15 @@ def test_f6_06_a_radar_first_variant_is_exercised_only_with_a_radar_only_interva
     crossing needs only the band entry, as before."""
     params = sc.ScenarioParams("crossing_vehicle", radar_first=1.0).record()
     log, truths = crossing_car_run(0.3)
-    _radar_tracks(log, truths, radar_from=22, lidar_from=30)
+    _radar_tracks(log, truths, radar_from=22, lidar_from=30, provisional_at=24)
     ex = sc.score_exercised("crossing_vehicle", log, truths, BODY, 4.0, params=params)
     assert ex["exercised"] is True and ex["variant"] == "radar_first" and ex["radar_only_s"] == pytest.approx(0.4)
-    _radar_tracks(log, truths, radar_from=28, lidar_from=30)  # 0.1 s alone
+    _radar_tracks(log, truths, radar_from=28, lidar_from=30, provisional_at=28)  # 0.1 s alone
     ex = sc.score_exercised("crossing_vehicle", log, truths, BODY, 4.0, params=params)
     assert ex["exercised"] is False and "radar alone" in ex["note"]
+    _radar_tracks(log, truths, radar_from=22, lidar_from=30)  # alone long enough, but no threat to plan with
+    ex = sc.score_exercised("crossing_vehicle", log, truths, BODY, 4.0, params=params)
+    assert ex["exercised"] is False and "no radar threat" in ex["note"]
     assert sc.score_exercised("crossing_vehicle", log, truths, BODY, 4.0, params=sc.ScenarioParams("crossing_vehicle").record())["exercised"] is True
 
 
@@ -594,3 +601,52 @@ def test_f6_06_a_cut_in_that_brakes_is_exercised_only_if_it_brakes_after_the_han
     log, truths = run(brake_at=80)
     ex = sc.score_exercised("cut_in", log, truths, BODY, 4.0, params=params)
     assert ex["exercised"] is True and ex["braked_after_hand_over_s"] == pytest.approx(80 * 0.05)
+
+
+def test_a_crossing_car_gone_before_the_car_gets_there_needs_no_yield():
+    """Live r7 (dd9344c): a car crossing at 5 m/s 13 m ahead of a car at 2 m/s cleared the
+    path in 1.25 s, the car would have needed 9 s to get there, and the run failed for want
+    of a yield. A yield is needed only if the car, at the speed it was making, would reach
+    the crossing car before it cleared; slowing so that it arrives after it has gone is
+    giving way. Paired: holding 4 m/s into a 2 m/s crossing 30 m ahead still fails."""
+    log, truths = [], []
+    s = 0.0
+    for tick in range(400):
+        y = min(8.0, -6.0 + 6.0 * 0.05 * max(0, tick - 20))
+        s += 2.0 * 0.05
+        log.append(ego_row(tick, s, 2.0))
+        truths.append(actor(40.0, y, yaw_rad=math.pi / 2, extent=(2.1, 0.9), speed=6.0 if y < 8.0 else 0.0))
+    log[-1]["truth"]["goal_distance_m"] = 0.5
+    done = sc.score_completion("crossing_vehicle", log, truths, BODY, "finished", 0.0)
+    assert done["yield_needed"] is False and done["passed"] is True and not done["yielded"]
+    log, truths = crossing_car_run(4.0)
+    done = sc.score_completion("crossing_vehicle", log, truths, BODY, "finished", 0.0)
+    assert done["yield_needed"] is True and done["gave_way"] is False and done["passed"] is False
+    # Slowing to 1.2 m/s (not a yield by the walker's rule) so as to arrive once it has gone: gave way.
+    log, truths = crossing_car_run(1.2)
+    done = sc.score_completion("crossing_vehicle", log, truths, BODY, "finished", 0.0)
+    assert done["gave_way"] is True and done["passed"] is True
+
+
+def test_f7_01_the_radar_only_interval_counts_the_ticks_the_radar_actually_had_the_car():
+    """Seventh review, F7-01: the radar-only time was the span from the first radar-only
+    tick to the first LiDAR tick, so a radar that had the car for one tick and lost it was
+    credited the whole span. Now the run of ticks with a radar-only track on the car is
+    what counts (``radar_only_s`` is the longest unbroken run), and the span, the ticks
+    observed and the gaps are reported beside it."""
+    log, truths = crossing_car_run(0.3)
+    truths = [dict(a, speed_mps=0.0) if k <= 20 else a for k, a in enumerate(truths)]
+    _radar_tracks(log, truths, radar_from=22, lidar_from=30, provisional_at=22)
+    for k in range(23, 30):  # the radar has it on tick 22 only
+        log[k]["driver"]["tracks_near"] = []
+    out = sc.score_radar_timeline(log, truths, BODY, 4.0)
+    assert out["radar_first"] is True and out["radar_only_span_s"] == pytest.approx(0.4)
+    assert out["radar_only_s"] == pytest.approx(0.05) and out["radar_only_observed_s"] == pytest.approx(0.05)
+    assert out["radar_only_gaps"] == 1 and out["radar_only_longest_gap_s"] == pytest.approx(0.35)
+    ex = sc.score_exercised("crossing_vehicle", log, truths, BODY, 4.0, params=sc.ScenarioParams("crossing_vehicle", radar_first=1.0).record())
+    assert ex["exercised"] is False
+    # Broken once: two runs of 3 and 4 ticks; the longest counts.
+    _radar_tracks(log, truths, radar_from=22, lidar_from=30, provisional_at=22)
+    log[25]["driver"]["tracks_near"] = []
+    out = sc.score_radar_timeline(log, truths, BODY, 4.0)
+    assert out["radar_only_s"] == pytest.approx(0.2) and out["radar_only_observed_s"] == pytest.approx(0.35) and out["radar_only_gaps"] == 1

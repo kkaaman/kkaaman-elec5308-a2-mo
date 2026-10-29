@@ -19,8 +19,16 @@ late command. ``SemanticWorker`` runs them on a thread of their own:
   no older than ``max_age_s`` in simulation time (``stale_epoch``, ``stale_age``).
 - **Failure stays off the control path.** An exception in the worker is counted and kept
   (``errors``, ``last_error``); the stack drives on without semantic layers.
+- **Wall-clock age, beside simulation time** (seventh review, F7-04: in synchronous
+  CARLA a result can be recent in simulation time and old in real time). Each job carries
+  its submission time on the wall clock; each result its start and completion, so ``take``
+  reports how long the job waited in the queue, how long it ran and how old its input was
+  on the wall clock when the stack took it (``last_take``), and counts results taken more
+  than ``max_age_s`` old on the wall clock (``late_wall``: kept, the layers are shadow
+  information, but counted).
 
-``stats`` reports all of it per tick for the log, with the worker's own stage times.
+``stats`` reports all of it per tick for the log, with the worker's own stage times and
+the shares of jobs dropped, failed and results stale or late.
 """
 
 from __future__ import annotations
@@ -28,7 +36,7 @@ from __future__ import annotations
 import queue
 import threading
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 import numpy as np
 
@@ -50,6 +58,7 @@ class SemanticJob:
     grid: object  # TerrainGrid.view() then; TerrainGrid.snapshot() when ``build``
     build: bool = False
     path_body: np.ndarray | None = None  # the planned path then, for the semantic shadow
+    submitted_wall_s: float | None = None  # time.perf_counter() at submission (set by ``submit`` when not given)
 
 
 @dataclass(frozen=True)
@@ -62,6 +71,9 @@ class SemanticResult:
     model: object
     semantic: dict | None
     timing_ms: dict = field(default_factory=dict)
+    submitted_wall_s: float | None = None
+    started_wall_s: float | None = None
+    completed_wall_s: float | None = None
 
 
 class SemanticWorker:
@@ -85,7 +97,8 @@ class SemanticWorker:
         self._busy = False
         self._idle = threading.Event()
         self._idle.set()
-        self.counts = dict(submitted=0, dropped=0, segmented=0, built=0, taken=0, stale_epoch=0, stale_age=0, errors=0)
+        self.counts = dict(submitted=0, dropped=0, segmented=0, built=0, taken=0, stale_epoch=0, stale_age=0, late_wall=0, errors=0)
+        self.last_take = None  # wall-clock timing of the last result taken (F7-04)
         self.last_error = None
         self.last_timing_ms = {}
         self._closed = False
@@ -98,6 +111,8 @@ class SemanticWorker:
         model and ``job`` does not: then ``job`` is dropped. Never blocks."""
         if self._closed:
             return
+        if job.submitted_wall_s is None:
+            job = replace(job, submitted_wall_s=time.perf_counter())
         with self._lock:
             self.counts["submitted"] += 1
             self._idle.clear()
@@ -125,12 +140,30 @@ class SemanticWorker:
                 self.counts["stale_age"] += 1
                 return None
             self.counts["taken"] += 1
+            now = time.perf_counter()
+            if result.submitted_wall_s is not None and result.completed_wall_s is not None:
+                age = now - result.submitted_wall_s
+                self.counts["late_wall"] += age > self.max_age_s
+                self.last_take = dict(
+                    frame_id=result.frame_id,
+                    sim_age_s=round(time_s - result.time_s, 3),
+                    wall_age_ms=round(age * 1000, 1),
+                    queue_wait_ms=round((result.started_wall_s - result.submitted_wall_s) * 1000, 1),
+                    run_ms=round((result.completed_wall_s - result.started_wall_s) * 1000, 1),
+                )
             return result
 
     def stats(self):
         """Counters, the worker's last stage times and its last error, for the log."""
         with self._lock:
-            return dict(self.counts, busy=self._busy, last_ms={k: round(v, 2) for k, v in self.last_timing_ms.items()}, last_error=self.last_error)
+            c = self.counts
+            shares = dict(
+                dropped_share=round(c["dropped"] / c["submitted"], 3) if c["submitted"] else None,
+                error_share=round(c["errors"] / c["submitted"], 3) if c["submitted"] else None,
+                stale_share=round((c["stale_epoch"] + c["stale_age"]) / c["built"], 3) if c["built"] else None,
+                late_share=round(c["late_wall"] / c["taken"], 3) if c["taken"] else None,
+            )
+            return dict(c, **shares, busy=self._busy, last_ms={k: round(v, 2) for k, v in self.last_timing_ms.items()}, last_take=self.last_take, last_error=self.last_error)
 
     def wait_idle(self, timeout_s=5.0):
         """Block until every submitted job is done (for tests and orderly shut-down)."""
@@ -172,6 +205,7 @@ class SemanticWorker:
 
     def _do(self, job):
         timing = {}
+        started = time.perf_counter()
         self.builder.grid = job.grid
         if job.epoch != self._epoch:
             # The odometry frame was rebuilt (or the stack reset): the evidence gathered in
@@ -196,7 +230,7 @@ class SemanticWorker:
             model = self.builder.build(job.pose, job.time_s)
             semantic = self.shadow(model, job.pose, job.path_body) if self.shadow is not None and job.path_body is not None else None
             timing["road_model"] = (time.perf_counter() - begun) * 1000
-            result = SemanticResult(job.frame_id, job.time_s, job.epoch, model, semantic, dict(timing))
+            result = SemanticResult(job.frame_id, job.time_s, job.epoch, model, semantic, dict(timing), job.submitted_wall_s, started, time.perf_counter())
             with self._lock:
                 self._result = result
                 self.counts["built"] += 1

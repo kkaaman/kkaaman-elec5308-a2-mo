@@ -67,6 +67,11 @@ class JunctionConfig:
     exit_search_far_m: float = 25.0  # ... to this far
     exit_min_edges: int = 3  # stations with a kerb point ...
     exit_min_span_m: float = 2.0  # ... over at least this length (the direction is the prior's unless many more agree), agreeing ...
+    # ... less this: three stations a metre apart span 2 m only nominally. Re-projected into a
+    # probe frame that moves by centimetres tick to tick, they read 1.99-2.06 m, and a car at a
+    # left turn's mouth, where only the exit kerb's first three stations are in view, lost its
+    # measurement on the 1.99 and held there for good (PC Temp, Town03, 36b49ef and dd9344c).
+    exit_span_tolerance_m: float = 0.25
     exit_max_mad_m: float = 0.4  # ... this well
     exit_use_fitted_heading: bool = False  # apply the fitted kerb direction to the exit heading (off: reported only)
     exit_near_band_m: float = 8.0  # the lateral position is read from the stations within this of the nearest
@@ -78,7 +83,7 @@ class JunctionConfig:
     exit_min_road_width_m: float = 0.5  # a run of road cells this wide counts as the exit road (far lanes are sampled by a ring or two)
     median_max_m: float = 2.5  # road again within this beyond a raised strip: the strip is a median, the kerb lies further out
     refine_max_shift_m: float = 1.5  # a re-measured exit line further than this from the latched is another road, not a correction
-    memory_s: float = 2.0  # exit-kerb stations remembered for the line fit
+    memory_s: float = 2.0  # exit-kerb stations remembered for the line fit, for this long in motion (a standstill does not age them)
     road_memory_s: float = 10.0  # road cells count as observed for this long
     observed_share: float = 0.4  # of a pose's footprint cells seen as road: the pose is observed
     gap_m: float = 1.0  # unobserved poses allowed over this length ...
@@ -475,8 +480,10 @@ class JunctionTurn:
         self.body = body
         self.estimator = estimator  # for keep_right and the grid ages
         self._radius = None
-        self._kerb = []  # (time, odometry xy of exit-kerb points found per tick)
+        self._kerb = []  # (time, moving clock, odometry xy of exit-kerb points found per tick)
         self._now = 0.0
+        self._moving_s = 0.0  # time spent moving (standing_s 0), the exit kerb's memory's clock
+        self._last_now = None
         # Time the car has stood still (set by the driver each tick, 0 while moving). At a
         # standstill the LiDAR's rings hit the same cells over and over and the cells between
         # them are never refreshed, so a freshness window measured from now would let the
@@ -599,69 +606,85 @@ class JunctionTurn:
             if abs(kerb) <= c.exit_max_distance_m:
                 found.append((float(stations[i]), kerb))
         self.last_measured_odo = None
+        if self._last_now is not None and self.standing_s <= 0.0:
+            self._moving_s += max(0.0, self._now - self._last_now)
+        self._last_now = self._now
         if found:
-            self._kerb.append((self._now, probe.to_world(np.array(found))))
-        self._kerb = [(t, k) for t, k in self._kerb if self._now - t <= c.memory_s]
-        if not self._kerb:
-            return tuple(exit_point_body), "route", exit_heading_body, None
-        remembered = probe.to_body(np.vstack([k for _, k in self._kerb]))
-        stations, kerb_y = remembered[:, 0], remembered[:, 1]
-        ok = np.isfinite(kerb_y)
-        if ok.sum() >= c.exit_min_edges and np.ptp(stations[ok]) >= c.exit_min_span_m:
-            x, y = np.asarray(stations[ok], dtype=float), np.asarray(kerb_y[ok], dtype=float)
-            # The exit heading prior (a right angle to the entry lane's fitted direction) can be
-            # a few degrees off: the kerb stations then run skewed across the probe frame, and a
-            # median over them (centred ~14 m out) would absorb the skew into the lateral
-            # position (0.95 m on a 2.4 degree error, read by the review of 1931070). So a line
-            # is fitted when there are enough stations and its value at the exit point itself
-            # anchors the lateral position whatever the skew; its direction corrects the
-            # heading when it is clearly not the stations' range bias (>= exit_min_heading_deg).
-            # The exit heading is the prior's (a right angle to the entry lane's direction,
-            # read from the kerb beside the car, good to well under a degree). A line fitted
-            # through the stations reads a slope anyway: the kerb estimate's bias grows with
-            # range (far stations are sampled by a ring or two), and on the left turn of seed
-            # 5308 a fitted -4 degrees sent the exit straight 1.6 m off a straight kerb. So
-            # the fitted direction is only reported (``heading_fix_deg``) unless
-            # ``exit_use_fitted_heading`` is set or ``use_fitted_heading`` asks for it (a repair
-            # of a latched path blocked at its exit straight, where a prior a few degrees
-            # off is the likeliest cause), and the lateral position comes from the
-            # nearest stations (within ``exit_near_band_m`` of the nearest), where the
-            # estimate is best and a residual skew costs least.
-            slope, anchored = 0.0, None
-            fitted_deg = 0.0
-            if ok.sum() >= 8 and np.ptp(x) >= 10.0:
-                fitted_slope, fitted_intercept = np.polyfit(x, y, 1)
-                inliers = np.abs(y - (fitted_slope * x + fitted_intercept)) <= 0.6
-                if inliers.sum() >= c.exit_min_edges and not inliers.all():
-                    fitted_slope, fitted_intercept = np.polyfit(x[inliers], y[inliers], 1)
-                fitted_deg = math.degrees(math.atan(fitted_slope))
-                if (c.exit_use_fitted_heading or use_fitted_heading) and c.exit_min_heading_deg <= abs(fitted_deg) <= c.exit_max_heading_deg:
-                    slope, anchored = float(fitted_slope), float(fitted_intercept)
-            residual = y - slope * x
-            near = x <= x.min() + c.exit_near_band_m
-            intercept = float(np.median(residual[near])) if anchored is None else anchored
-            keep = np.abs(residual - intercept) <= 0.6
-            if keep.sum() >= c.exit_min_edges:
-                if anchored is None:
-                    intercept = float(np.median(residual[keep & near])) if (keep & near).sum() >= c.exit_min_edges else float(np.median(residual[keep]))
-                mad = float(np.median(np.abs(residual[keep] - intercept)))
-                distance = -intercept / math.hypot(1.0, slope)  # +: the kerb is right of the probe
-                if mad <= c.exit_max_mad_m and abs(distance) <= c.exit_max_distance_m:
-                    lateral = intercept + keep_right * math.hypot(1.0, slope)
-                    heading = exit_heading_body + math.atan(slope)
-                    ch, sh = math.cos(exit_heading_body), math.sin(exit_heading_body)
-                    point = (exit_point_body[0] - sh * lateral, exit_point_body[1] + ch * lateral)
-                    kept_body = pose.to_body(probe.to_world(np.column_stack((x[keep], y[keep]))))
-                    self.last_measured_odo = (pose.to_world(np.array([point]))[0], probe.to_world(np.column_stack((x[keep], y[keep]))))
-                    fit = dict(
-                        stations=int(keep.sum()),
-                        mad=round(mad, 3),
-                        kerb_from_probe_m=round(float(distance), 2),
-                        heading_fix_deg=round(math.degrees(math.atan(slope)), 1),
-                        fitted_skew_deg=round(fitted_deg, 1),
-                        range_m=round(float(np.median(np.hypot(kept_body[:, 0], kept_body[:, 1]))), 1),  # the kerb stations' distance from the car
-                    )
-                    return point, "kerb", heading, fit
+            self._kerb.append((self._now, self._moving_s, probe.to_world(np.array(found))))
+        # Remembered for memory_s of motion, not of standing (as the grid's freshness is): at
+        # a left turn's mouth the exit kerb's far stations are out of view, and a car that
+        # stopped there forgot what it had measured on the approach and never measured it
+        # again (PC Temp, Town03: held 25 s at the mouth, "exit lane not measured"). Once it
+        # moves on, all of it ages as before and is replaced from nearer within memory_s.
+        self._kerb = [(t, m, k) for t, m, k in self._kerb if self._moving_s - m <= c.memory_s]
+        # The stations of the last memory_s first, as before; only if they make no line (a
+        # car standing at the mouth with the far stations out of view) the ones kept from
+        # before the standstill too. Read from farther away they carry more of the range
+        # bias, so a car that has a line from where it stands keeps reading it from there
+        # (Stage 3, S7: the standstill's view, 1.3 m, was right where the approach read 1.1).
+        recent = [k for t, _, k in self._kerb if self._now - t <= c.memory_s]
+        retained = [k for *_, k in self._kerb]
+        for entries in [recent, retained] if len(retained) > len(recent) else [recent]:
+            if not entries:
+                continue
+            remembered = probe.to_body(np.vstack(entries))
+            stations, kerb_y = remembered[:, 0], remembered[:, 1]
+            ok = np.isfinite(kerb_y)
+            if ok.sum() >= c.exit_min_edges and np.ptp(stations[ok]) >= c.exit_min_span_m - c.exit_span_tolerance_m:
+                x, y = np.asarray(stations[ok], dtype=float), np.asarray(kerb_y[ok], dtype=float)
+                # The exit heading prior (a right angle to the entry lane's fitted direction) can be
+                # a few degrees off: the kerb stations then run skewed across the probe frame, and a
+                # median over them (centred ~14 m out) would absorb the skew into the lateral
+                # position (0.95 m on a 2.4 degree error, read by the review of 1931070). So a line
+                # is fitted when there are enough stations and its value at the exit point itself
+                # anchors the lateral position whatever the skew; its direction corrects the
+                # heading when it is clearly not the stations' range bias (>= exit_min_heading_deg).
+                # The exit heading is the prior's (a right angle to the entry lane's direction,
+                # read from the kerb beside the car, good to well under a degree). A line fitted
+                # through the stations reads a slope anyway: the kerb estimate's bias grows with
+                # range (far stations are sampled by a ring or two), and on the left turn of seed
+                # 5308 a fitted -4 degrees sent the exit straight 1.6 m off a straight kerb. So
+                # the fitted direction is only reported (``heading_fix_deg``) unless
+                # ``exit_use_fitted_heading`` is set or ``use_fitted_heading`` asks for it (a repair
+                # of a latched path blocked at its exit straight, where a prior a few degrees
+                # off is the likeliest cause), and the lateral position comes from the
+                # nearest stations (within ``exit_near_band_m`` of the nearest), where the
+                # estimate is best and a residual skew costs least.
+                slope, anchored = 0.0, None
+                fitted_deg = 0.0
+                if ok.sum() >= 8 and np.ptp(x) >= 10.0:
+                    fitted_slope, fitted_intercept = np.polyfit(x, y, 1)
+                    inliers = np.abs(y - (fitted_slope * x + fitted_intercept)) <= 0.6
+                    if inliers.sum() >= c.exit_min_edges and not inliers.all():
+                        fitted_slope, fitted_intercept = np.polyfit(x[inliers], y[inliers], 1)
+                    fitted_deg = math.degrees(math.atan(fitted_slope))
+                    if (c.exit_use_fitted_heading or use_fitted_heading) and c.exit_min_heading_deg <= abs(fitted_deg) <= c.exit_max_heading_deg:
+                        slope, anchored = float(fitted_slope), float(fitted_intercept)
+                residual = y - slope * x
+                near = x <= x.min() + c.exit_near_band_m
+                intercept = float(np.median(residual[near])) if anchored is None else anchored
+                keep = np.abs(residual - intercept) <= 0.6
+                if keep.sum() >= c.exit_min_edges:
+                    if anchored is None:
+                        intercept = float(np.median(residual[keep & near])) if (keep & near).sum() >= c.exit_min_edges else float(np.median(residual[keep]))
+                    mad = float(np.median(np.abs(residual[keep] - intercept)))
+                    distance = -intercept / math.hypot(1.0, slope)  # +: the kerb is right of the probe
+                    if mad <= c.exit_max_mad_m and abs(distance) <= c.exit_max_distance_m:
+                        lateral = intercept + keep_right * math.hypot(1.0, slope)
+                        heading = exit_heading_body + math.atan(slope)
+                        ch, sh = math.cos(exit_heading_body), math.sin(exit_heading_body)
+                        point = (exit_point_body[0] - sh * lateral, exit_point_body[1] + ch * lateral)
+                        kept_body = pose.to_body(probe.to_world(np.column_stack((x[keep], y[keep]))))
+                        self.last_measured_odo = (pose.to_world(np.array([point]))[0], probe.to_world(np.column_stack((x[keep], y[keep]))))
+                        fit = dict(
+                            stations=int(keep.sum()),
+                            mad=round(mad, 3),
+                            kerb_from_probe_m=round(float(distance), 2),
+                            heading_fix_deg=round(math.degrees(math.atan(slope)), 1),
+                            fitted_skew_deg=round(fitted_deg, 1),
+                            range_m=round(float(np.median(np.hypot(kept_body[:, 0], kept_body[:, 1]))), 1),  # the kerb stations' distance from the car
+                        )
+                        return point, "kerb", heading, fit
         return tuple(exit_point_body), "route", exit_heading_body, None
 
     def plan(self, grid, pose, corridor, exit_point_body, exit_heading_body, time_s):

@@ -769,8 +769,8 @@ def test_f6_02_a_radar_only_car_is_a_provisional_threat_after_half_a_metre_and_a
 
     c = StackConfig()
 
-    def radar_car(travelled, recent=2.0):
-        t = track(77, 6.0, -4.0, 0.0, 2.0, fp=None, travelled=travelled, recent=recent)
+    def radar_car(travelled, recent=2.0, x=11.0):
+        t = track(77, x, -4.0, 0.0, 2.0, fp=None, travelled=travelled, recent=recent)
         return replace(t, support=("radar",))
 
     def run(t, free=False, others=()):
@@ -787,10 +787,10 @@ def test_f6_02_a_radar_only_car_is_a_provisional_threat_after_half_a_metre_and_a
     (cap, reason), preds = run(young)
     assert len(preds) == 1 and cap == pytest.approx(c.radar_provisional_cap_mps) and "provisional" in reason
     (cap, reason), _ = run(sure)
-    assert cap is not None and cap < c.radar_provisional_cap_mps
+    assert cap is not None and cap < c.radar_provisional_cap_mps  # 11 m out: the conflict cap's own 1.41 m/s
     # Free ground seen where it stands: a ghost. A LiDAR track beside it: its twin.
     assert run(young, free=True)[1] == ()
-    twin = replace(track(5, 6.5, -3.0, 0.0, 2.0, fp=(4.5, 1.9, math.pi / 2), travelled=0.6), support=("lidar",))
+    twin = replace(track(5, 11.5, -3.0, 0.0, 2.0, fp=(4.5, 1.9, math.pi / 2), travelled=0.6), support=("lidar",))
     assert radar_threat(young, never, c, lidar_tracks=[twin]) is None
     far = replace(twin, state=np.array([30.0, 10.0, 0.0, 0.0]))
     assert radar_threat(young, never, c, lidar_tracks=[far]) == "provisional"
@@ -798,7 +798,7 @@ def test_f6_02_a_radar_only_car_is_a_provisional_threat_after_half_a_metre_and_a
     # 1.2 sigma (the live crossing run's parked car); 7 m out, 0.6 m is 2.4.
     drift = replace(radar_car(2.1), state=np.array([46.0, -5.0, 0.0, -2.5]))
     assert radar_threat(drift, never, c, ego_xy=(0.0, 0.0)) is None and radar_threat(drift, never, c) == "full"
-    assert radar_threat(young, never, c, ego_xy=(0.0, 0.0)) == "provisional"  # 7.2 m out: floor 0.5 m
+    assert radar_threat(replace(young, state=np.array([6.0, -4.0, 0.0, 2.0])), never, c, ego_xy=(0.0, 0.0)) == "provisional"  # 7.2 m out: floor 0.5 m
 
 
 def test_f6_03_off_the_road_a_car_is_judged_by_its_track_not_its_speed():
@@ -831,3 +831,40 @@ def test_f6_03_off_the_road_a_car_is_judged_by_its_track_not_its_speed():
     assert not moves_as_a_car_off_the_road(car(c.offroad_vehicle_max_mps + 1.0), c)
     assert not moves_as_a_car_off_the_road(replace(car(5.0), hits=c.offroad_vehicle_min_hits - 1), c)
     assert not moves_as_a_car_off_the_road(_coherent(car(5.0), coherence=(1.0, 0.03, 0.9)), c)
+
+
+def test_f7_03_the_provisional_floor_falls_with_the_evidence_and_where_only_hard_braking_would_stop():
+    """Seventh review, F7-03: the provisional radar threat's 1.5 m/s floor held whatever the
+    evidence and however close the conflict, so a car crossing close ahead, still short of
+    the full evidence and out of the LiDAR's view, could not bring the car below 1.5 m/s.
+    The floor now falls linearly to 0 as the travel grows from the provisional threshold to
+    the full one, and is never above the speed from which the car stops short of the
+    conflict at radar_provisional_hard_decel_mps2. Paired: 11 m out on 0.6 m of travel the
+    floor still holds the car at 1.5 m/s (the clutter it is there for)."""
+    from dataclasses import replace  # noqa: PLC0415
+
+    from mapless.stack import provisional_floor  # noqa: PLC0415
+
+    c = StackConfig()
+
+    def radar_car(travelled, x):
+        return replace(track(77, x, -4.0, 0.0, 2.0, fp=None, travelled=travelled, recent=0.0), support=("radar",))
+
+    assert provisional_floor(radar_car(0.5, 11.0), c) == pytest.approx(1.5)
+    assert provisional_floor(radar_car(1.25, 11.0), c) == pytest.approx(0.75)
+    assert provisional_floor(radar_car(2.0, 11.0), c) == pytest.approx(0.0)
+    # From the car, 11.7 m out: the bearing floor (0.82 m) is where the evidence starts.
+    assert provisional_floor(radar_car(0.8, 11.0), c, ego_xy=(0.0, 0.0)) == pytest.approx(1.5)
+    assert provisional_floor(radar_car(1.41, 11.0), c, ego_xy=(0.0, 0.0)) == pytest.approx(0.75, abs=0.02)
+
+    def run(t):
+        stack = make_stack(cruise=4.0)
+        preds = tuple(predict_all(predictable_tracks([t], lambda xy: np.zeros(len(xy), dtype=bool), c), c.prediction))
+        return stack._speed_cap(SimpleNamespace(speed_mps=4.0), Pose2D(0, 0, 0), [t], preds, 10.0)
+
+    cap, reason = run(radar_car(0.6, 11.0))
+    assert cap == pytest.approx(1.5) and "provisional" in reason  # the floor holds
+    cap, _ = run(radar_car(1.9, 11.0))
+    assert cap < 1.5  # evidence near full: the conflict's own cap
+    cap, reason = run(radar_car(0.6, 8.0))
+    assert cap == 0.0 and "provisional" in reason  # too close to stop from 1.5 m/s: no floor

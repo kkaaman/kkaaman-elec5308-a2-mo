@@ -617,6 +617,16 @@ STEP_TARGET_MS = 50.0  # the declared real-time budget: one 20 Hz tick
 BRAKE_LAG_S = 0.25  # the longest brake lag measured open loop (BL-E-03: 0.1-0.25 s)
 
 
+def stop_obstacle_m(speed_mps, settled_ticks=100, dt_s=0.05, start_m=15.0, stop_short_m=8.0, base_m=35.0):
+    """How far along the lane the stop scenario's parked car must stand for lane keeping to
+    collect its ``settled_ticks`` (seventh review, F7-05: at 4 m/s the 35 m default gave 94
+    of the 100): ``start_m`` before they count, ``settled_ticks`` at ``speed_mps``, and the
+    ``stop_short_m`` the car holds short of the car's centre. Never under ``base_m`` (the
+    sample-size requirement is kept, the route is lengthened), rounded up to 5 m."""
+    need = start_m + settled_ticks * dt_s * speed_mps + stop_short_m
+    return float(max(base_m, 5.0 * math.ceil(need / 5.0)))
+
+
 def step_time_report(step_times_s, log, target_ms=STEP_TARGET_MS, response_s=None, brake_lag_s=BRAKE_LAG_S, dt_s=0.05, semantic_mode=None):
     """The driver step's wall-clock time against the 50 ms tick (third review: p95 and the
     worst case are first-class, so a passing drive cannot hide a missed deadline): p50,
@@ -625,11 +635,14 @@ def step_time_report(step_times_s, log, target_ms=STEP_TARGET_MS, response_s=Non
     ``driver_timing_ms`` as ``driver.<stage>``). Wall-clock in synchronous mode:
     a slow tick slows the simulation's real-time rate, not the simulated car.
 
-    Which time governs actuation (sixth review, F6-01: ``actuation_governed_by``): the
-    command reaches the vehicle when the step returns, so with ``semantic_mode`` "inline"
-    the whole step's (the semantic work included), with "thread" the control path's (the
-    worker's own stage times are in the log's ``semantic_worker``). The response budget is
-    taken on that time."""
+    Which time governs actuation (``actuation_governed_by``): the command reaches the
+    vehicle when the step returns, so in both modes the whole step's measured wall time
+    (seventh review, F7-02: in "thread" mode the sixth review's version took the control
+    stages' sum, which leaves out the job hand-off's copies, locking, the diagnostics and
+    the record). The control stages' sum stays as a decomposition (``control_path_ms``),
+    with what the stage timers do not see (``uninstrumented_ms``, the step's time less
+    every stage's, where the two line up tick for tick). The response budget is taken on
+    the whole step."""
     times = np.array(step_times_s, dtype=float) * 1000
     if not len(times):
         return dict(note="no timed steps")
@@ -664,20 +677,24 @@ def step_time_report(step_times_s, log, target_ms=STEP_TARGET_MS, response_s=Non
         c, o = np.array(control), np.array(optional)
         inline = semantic_mode != "thread"
         out["semantic_mode"] = semantic_mode or "inline"
-        out["actuation_governed_by"] = "the whole step (semantic work inline)" if inline else "the control path (semantic work on its worker thread)"
+        out["actuation_governed_by"] = "the whole step: " + ("the semantic work runs inside it" if inline else "the semantic work runs on its worker thread, outside it")
         out["control_path_ms"] = dict(p50=round(float(np.median(c)), 1), p95=round(float(np.percentile(c, 95)), 1), max=round(float(c.max()), 1), over_target_share=round(float(np.mean(c > target_ms)), 3), stages=list(CONTROL_STAGES))
         out["optional_ms"] = dict(p50=round(float(np.median(o)), 1), p95=round(float(np.percentile(o, 95)), 1), max=round(float(o.max()), 1), stages=list(OPTIONAL_STAGES))
+        if len(log) == len(times):
+            staged = np.array([sum((row.get("driver") or {}).get("stack_timing_ms", {}).values()) for row in log])
+            rest = times - staged
+            out["uninstrumented_ms"] = dict(p50=round(float(np.median(rest)), 1), p95=round(float(np.percentile(rest, 95)), 1), max=round(float(rest.max()), 1))
         if response_s:
             # What the 50 ms is for (fifth review, F5-05): in real time, a road user's change
             # reaches the brakes after the tick that sees it (the cap applies on the next),
             # the control path's own time and the brake's lag. The following rule's worst
             # case allows response_s for all of it. Synchronous CARLA hides the processing
             # time; this says whether the budget would hold if it did not.
-            governing = np.array(times) if inline else c
+            governing = np.array(times)
             worst = dt_s + float(np.percentile(governing, 99)) / 1000.0 + brake_lag_s
             out["response_budget"] = dict(
                 tick_s=dt_s,
-                governing="whole step" if inline else "control path",
+                governing="whole step",
                 governing_p99_s=round(float(np.percentile(governing, 99)) / 1000.0, 3),
                 control_path_p99_s=round(float(np.percentile(c, 99)) / 1000.0, 3),
                 brake_lag_s=brake_lag_s,
@@ -686,6 +703,32 @@ def step_time_report(step_times_s, log, target_ms=STEP_TARGET_MS, response_s=Non
                 within=bool(worst <= response_s),
             )
     return out
+
+
+def semantic_worker_report(log):
+    """The semantic worker over the run (seventh review, F7-04), or None inline: its final
+    counters and shares (jobs dropped and failed, results stale or late on the wall
+    clock), and over the results the stack took, their simulation age, wall-clock age (from
+    the job's submission to its use), queue wait and run time (p50, p95, max)."""
+    stats = [s for s in ((r.get("driver") or {}).get("semantic_worker") for r in log) if s]
+    if not stats:
+        return None
+    takes = [t for t in ((r.get("driver") or {}).get("semantic_take") for r in log) if t]
+
+    def summary(key):
+        v = np.array([t[key] for t in takes if t.get(key) is not None], dtype=float)
+        return None if not len(v) else dict(p50=round(float(np.median(v)), 3), p95=round(float(np.percentile(v, 95)), 3), max=round(float(v.max()), 3))
+
+    last = stats[-1]
+    keys = ("submitted", "dropped", "segmented", "built", "taken", "stale_epoch", "stale_age", "late_wall", "errors", "dropped_share", "error_share", "stale_share", "late_share")
+    return {k: last.get(k) for k in keys} | dict(
+        takes=len(takes),
+        sim_age_s=summary("sim_age_s"),
+        wall_age_ms=summary("wall_age_ms"),
+        queue_wait_ms=summary("queue_wait_ms"),
+        run_ms=summary("run_ms"),
+        last_error=last.get("last_error"),
+    )
 
 
 def semantic_shadow_report(log, kerb_distance_m=None):
@@ -697,7 +740,8 @@ def semantic_shadow_report(log, kerb_distance_m=None):
     lane-centre-to-kerb distance (``kerb_distance_m``, the evaluator's truth), the error of
     the road's right edge it shows (``right_edge_m`` minus the kerb distance: positive, the
     edge put beyond the kerb). None without a stack."""
-    rows = [s for s in ((r.get("driver") or {}).get("semantic_shadow") for r in log) if s]
+    pairs = [(r.get("mode"), s) for r, s in ((r, (r.get("driver") or {}).get("semantic_shadow")) for r in log) if s]
+    rows = [s for _, s in pairs]
     if not rows:
         return None
     shares = [s["road_share"] for s in rows if s.get("road_share") is not None]
@@ -716,6 +760,24 @@ def semantic_shadow_report(log, kerb_distance_m=None):
         right_edge_ticks=len(edges),
         note="logged only: no rule reads the segmenter's output",
     )
+    # By section of the path ahead and by the driver's mode, the visibility conditions
+    # differ (seventh review, F7-06): coverage, the edge's signed error and the share of
+    # stations where road was seen right of the line but no edge.
+    def group(items, key=None):
+        cov = [x.get("coverage") for x in items if x.get("coverage") is not None]
+        edge = [x.get("right_edge_m") for x in items if x.get("right_edge_m") is not None]
+        found = sum(x.get("edge_stations", x.get("right_edge_stations", 0)) or 0 for x in items)
+        missed = sum(x.get("missed", 0) or 0 for x in items)
+        res = dict(ticks=len(items), coverage_median=round(float(np.median(cov)), 3) if cov else None, edge_ticks=len(edge), missed_share=round(missed / (missed + found), 3) if missed + found else None)
+        if edge and kerb_distance_m is not None:
+            err = np.array(edge) - float(kerb_distance_m)
+            res |= dict(edge_error_median_m=round(float(np.median(err)), 2), edge_error_mae_m=round(float(np.mean(np.abs(err))), 2))
+        return res
+
+    sections = sorted({name for s in rows for name in (s.get("sections") or {})})
+    if sections:
+        out["by_section"] = {name: group([s["sections"][name] for s in rows if name in (s.get("sections") or {})]) for name in sections}
+    out["by_mode"] = {mode: group([s for m, s in pairs if m == mode]) for mode in sorted({m for m, _ in pairs if m})}
     if edges and kerb_distance_m is not None:
         err = np.array(edges) - float(kerb_distance_m)
         out["right_edge_error_m"] = dict(
@@ -1159,7 +1221,10 @@ class MaplessDrive:
         else:
             settled = [r for r in startup if r["truth"]["s_m"] > s0 + 15.0 and r["truth"]["speed_mps"] > 0.3]
             if len(settled) < 100:
-                checks.append(check("lane_keeping", INCOMPLETE, settled_ticks=len(settled)))
+                note = {}
+                if args.scenario == "stop" and args.obstacle_m < stop_obstacle_m(args.speed):
+                    note = dict(note=f"--obstacle-m {args.obstacle_m:g} is short of the {stop_obstacle_m(args.speed):g} m lane keeping needs at {args.speed:g} m/s")
+                checks.append(check("lane_keeping", INCOMPLETE, settled_ticks=len(settled), **note))
             else:
                 off = np.abs([r["truth"]["lane_offset_m"] for r in settled])
                 p95, worst = float(np.percentile(off, 95)), float(off.max())
@@ -1244,6 +1309,9 @@ class MaplessDrive:
         following = next((r for name, r in (self.report.get("braking_assumptions") or {}).items() if name.startswith("following")), None)
         semantic_mode = (self.report.get("stack") or {}).get("semantic_mode")
         checks.append(check("driver_step_time", REPORT, **step_time_report(step_times, log, response_s=None if following is None else following["response_s"], semantic_mode=semantic_mode)))
+        worker = semantic_worker_report(log)
+        if worker is not None:
+            checks.append(check("semantic_worker", REPORT, **worker))
         shadow = semantic_shadow_report(log, kerb_distance_m=self.site.get("kerb_distance_m") if isinstance(self.site, dict) else None)
         if shadow is not None:
             checks.append(check("semantic_shadow", REPORT, **shadow))
@@ -1292,7 +1360,12 @@ def main(argv=None, stack=False):
         help="Lane centre's distance left of the kerb (m); default: measured at start-up",
     )
     parser.add_argument("--goal-m", type=float, default=60.0, help="Route length (m); the site needs this + 15 m without a junction")
-    parser.add_argument("--obstacle-m", type=float, default=35.0, help="stop: parked car this far along the lane")
+    parser.add_argument(
+        "--obstacle-m",
+        type=float,
+        default=None,
+        help="stop: parked car this far along the lane (default: 35 m, or as far as lane keeping needs for its 100 settled ticks at --speed)",
+    )
     parser.add_argument(
         "--obstacle-blueprint",
         default=PARKED_CAR,
@@ -1341,6 +1414,8 @@ def main(argv=None, stack=False):
         parser.error("Output folder exists; choose a new one")
     if args.segmenter not in (None, "constant") and not Path(args.segmenter).is_file():
         parser.error(f"--segmenter {args.segmenter} not found (checkpoints are not in git; copy it from the PC that trained it, or omit --segmenter)")
+    if args.obstacle_m is None:
+        args.obstacle_m = stop_obstacle_m(args.speed)
     if args.scenario == "stop" and not 15 <= args.obstacle_m <= args.goal_m - 10:
         parser.error("--obstacle-m must be at least 15 m and 10 m short of the goal")
     if args.oncoming != "none" and args.scenario != "turn_left":

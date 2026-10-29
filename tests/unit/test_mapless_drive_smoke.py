@@ -391,17 +391,23 @@ def test_step_time_report_gives_the_tail_the_deadline_share_and_each_stage():
     out = step_time_report(times, log)
     assert out["control_path_ms"]["p50"] == pytest.approx(42.0) and out["control_path_ms"]["over_target_share"] == 0.0
     assert out["optional_ms"]["max"] == pytest.approx(36.0)
-    # The reaction budget: a tick, the governing time's p99 and the brake lag within
-    # response_s. With the semantic work on its thread the control path governs actuation
-    # (sixth review, F6-01); inline, the whole step does.
-    out = step_time_report(times, log, response_s=0.5, semantic_mode="thread")
-    assert out["actuation_governed_by"].startswith("the control path") and out["response_budget"]["governing"] == "control path"
-    assert out["response_budget"]["worst_s"] == pytest.approx(0.05 + 0.042 + 0.25) and out["response_budget"]["within"] is True
-    out = step_time_report(times, log, response_s=0.5)
-    assert out["semantic_mode"] == "inline" and out["actuation_governed_by"].startswith("the whole step")
-    assert out["response_budget"]["worst_s"] == pytest.approx(0.05 + float(np.percentile(np.array(times) * 1000, 99)) / 1000 + 0.25, abs=1e-3)
+    # The reaction budget: a tick, the whole step's p99 and the brake lag within response_s.
+    # The command goes out when the step returns, so the whole step governs actuation in
+    # both modes (seventh review, F7-02); the control stages are a decomposition.
+    whole = 0.05 + float(np.percentile(np.array(times) * 1000, 99)) / 1000 + 0.25
+    for mode in ("thread", None):
+        out = step_time_report(times, log, response_s=0.5, semantic_mode=mode)
+        assert out["actuation_governed_by"].startswith("the whole step") and out["response_budget"]["governing"] == "whole step"
+        assert out["response_budget"]["worst_s"] == pytest.approx(whole, abs=1e-3)
+        assert out["response_budget"]["control_path_p99_s"] == pytest.approx(0.042)
+    assert out["semantic_mode"] == "inline"
+    # What the stage timers do not see: the step's time less every stage's.
+    staged = np.array([sum(r["driver"]["stack_timing_ms"].values()) for r in log])
+    assert out["uninstrumented_ms"]["p50"] == pytest.approx(float(np.median(np.array(times) * 1000 - staged)), abs=0.06)
+    slow_times = [0.25] * 100
     slow = [dict(driver=dict(stack_timing_ms=dict(drive=150.0, detect=50.0, track=20.0, plan=10.0))) for _ in range(100)]
-    assert step_time_report(times, slow, response_s=0.5, semantic_mode="thread")["response_budget"]["within"] is False
+    out = step_time_report(slow_times, slow, response_s=0.5, semantic_mode="thread")
+    assert out["response_budget"]["within"] is False and out["uninstrumented_ms"]["p50"] == pytest.approx(20.0)
 
 
 def test_a_run_that_passes_every_gate_without_exercising_its_target_is_not_a_pass():
@@ -443,3 +449,35 @@ def test_semantic_shadow_report_summarises_the_agreement_and_is_none_without_it(
     assert out["coverage_median"] == pytest.approx(0.8) and out["pavement_share_mean"] == pytest.approx(0.1) and out["right_edge_ticks"] == 30
     assert out["right_edge_error_m"]["median"] == pytest.approx(0.25) and out["right_edge_error_m"]["mae"] == pytest.approx(0.25)
     assert "right_edge_error_m" not in semantic_shadow_report(log)
+    # Seventh review, F7-06: by section of the path ahead and by the driver's mode.
+    near = dict(coverage=0.9, right_edge_m=1.8, edge_stations=18, missed=2)
+    far = dict(coverage=0.3, right_edge_m=2.6, edge_stations=2, missed=8)
+    log = [dict(mode="turning" if k < 10 else "driving", driver=dict(semantic_shadow=dict(cells=100, with_evidence=60, coverage=0.6, road_share=1.0, pavement_share=0.0, right_edge_m=2.0, right_edge_stations=20, sections=dict(near=near, far=far)))) for k in range(30)]
+    out = semantic_shadow_report(log, kerb_distance_m=1.75)
+    assert out["by_section"]["near"]["missed_share"] == pytest.approx(0.1) and out["by_section"]["far"]["missed_share"] == pytest.approx(0.8)
+    assert out["by_section"]["near"]["edge_error_median_m"] == pytest.approx(0.05) and out["by_section"]["far"]["edge_error_median_m"] == pytest.approx(0.85)
+    assert out["by_mode"]["turning"]["ticks"] == 10 and out["by_mode"]["driving"]["ticks"] == 20
+
+
+def test_f7_04_the_run_report_summarises_the_workers_takes():
+    from carla_adapter.mapless_drive import semantic_worker_report  # noqa: PLC0415
+
+    stats = dict(submitted=10, dropped=1, segmented=6, built=4, taken=4, stale_epoch=0, stale_age=0, late_wall=1, errors=0, dropped_share=0.1, error_share=0.0, stale_share=0.0, late_share=0.25)
+    log = [dict(driver=dict(semantic_worker=stats, semantic_take=dict(sim_age_s=0.05, wall_age_ms=40.0 + 10 * k, queue_wait_ms=1.0, run_ms=30.0) if k % 2 else None)) for k in range(8)]
+    out = semantic_worker_report(log)
+    assert out["takes"] == 4 and out["dropped_share"] == 0.1 and out["late_share"] == 0.25
+    assert out["wall_age_ms"]["max"] == 110.0 and out["run_ms"]["p50"] == 30.0
+    assert semantic_worker_report([dict(driver=dict(semantic_worker=None))]) is None
+
+
+def test_f7_05_the_stop_scenario_is_long_enough_for_lane_keepings_sample():
+    """Seventh review, F7-05: at 4 m/s the 35 m stop left lane keeping 94 of its 100
+    settled ticks (live, PC Temp). The default distance now grows with the speed so the
+    sample is collected; the requirement itself stays at 100 ticks."""
+    from carla_adapter.mapless_drive import stop_obstacle_m  # noqa: PLC0415
+
+    assert stop_obstacle_m(2.0) == 35.0  # unchanged where it was enough
+    assert stop_obstacle_m(4.0) == 45.0
+    for v in (2.0, 3.0, 4.0, 5.0):
+        settled_m = stop_obstacle_m(v) - 15.0 - 8.0
+        assert settled_m / v / 0.05 >= 100
