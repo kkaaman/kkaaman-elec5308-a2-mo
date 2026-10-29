@@ -23,3 +23,5 @@ python scripts/wayfinder_replay.py --origin baseline_start --destination baselin
 Use a new output directory. Required schema: schema_version1, origin recorded,
 run_id, steps(time_s,x_m,y_m,yaw_rad,speed_mps). Retain capture/source/config
 provenance and real stopped samples. A declared origin alone is not acceptance.
+
+Superseding continuation29 October: actual recorded TEST-02 data recovered from its committed archive. See recorded-test02 for24 HUDs/3 paused samples and provenance. Original FAIL retained. Component/replay scope complete; RV-06 integration and live-overlay demonstration remain in the broader issue54/55. Canonical refreshed binding recorded separately.

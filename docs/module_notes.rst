@@ -1098,6 +1098,72 @@ Why: Use explicit graph connectivity and reusable routes rather than simulator o
 
 Declared public classes/functions: ``GovernorConfig``, ``stopping_distance``, ``speed_for_distance``, ``SpeedGovernor``.
 
+planning/wayfinder/__init__.py
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Role (source summary)::
+
+    Wayfinder v1: A* on the exported lane graph, named destinations and guidance (E3-01..03).
+
+Why: Use explicit graph connectivity and reusable routes rather than simulator objects in control.
+
+No public top-level classes/functions declared; see exports/source.
+
+planning/wayfinder/astar.py
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Role (source summary)::
+
+    A* over the exported ``LaneGraph`` with length cost and a planar heuristic (E3-01).
+
+Why: Use explicit graph connectivity and reusable routes rather than simulator objects in control.
+
+Declared public classes/functions: ``edge_length_m``, ``euclidean_xy_m``, ``SearchResult``, ``shortest_path``.
+
+planning/wayfinder/guidance.py
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Role (source summary)::
+
+    Turn-by-turn guidance state: remaining distance, next manoeuvre and ETA (E3-03).
+
+Why: Use explicit graph connectivity and reusable routes rather than simulator objects in control.
+
+Declared public classes/functions: ``SpeedPolicy``, ``GuidanceState``, ``RouteTracker``, ``format_distance``, ``format_eta``.
+
+planning/wayfinder/minimap.py
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Role (source summary)::
+
+    Route mini-map rendered with OpenCV, an existing project dependency (E3-03).
+
+Why: Use explicit graph connectivity and reusable routes rather than simulator objects in control.
+
+Declared public classes/functions: ``MiniMapStyle``, ``render_minimap``, ``save_png``.
+
+planning/wayfinder/pois.py
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Role (source summary)::
+
+    Named points of interest snapped to legal lane-boundary nodes (E3-02).
+
+Why: Use explicit graph connectivity and reusable routes rather than simulator objects in control.
+
+Declared public classes/functions: ``lane_of_node``, ``PointOfInterest``, ``PoiRegistry``.
+
+planning/wayfinder/route.py
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Role (source summary)::
+
+    Continuous routes between named destinations for the route manager (E3-02).
+
+Why: Use explicit graph connectivity and reusable routes rather than simulator objects in control.
+
+Declared public classes/functions: ``RoutePlanningError``, ``DestinationCheck``, ``Maneuver``, ``WayfinderRoute``, ``check_destination``, ``plan_route``, ``plan_named_route``.
+
 segmentation/__init__.py
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
