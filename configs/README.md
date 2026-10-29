@@ -20,7 +20,7 @@ paths.
 | `models.yaml` | Model manifest: files, checksums, versions | BL-C-03 (Ricky) |
 | `sensors.yaml` | Camera, depth and LiDAR rig | E2-01 (Mohammad) |
 | `vehicle_<blueprint>.yaml` | Measured vehicle geometry and actuator response | BL-E-02/03 (Abdullah) |
-| `destinations.yaml` | Named Wayfinder destinations | E3-03 (Abdullah) |
+| `wayfinder/pois_town10hd.json` | Named Wayfinder destinations snapped to lane nodes; `fixture_pairs_town10hd.json` lists the tested origin/destination pairs | E3-02/03 (Abdullah) |
 | `release.yaml` | Demo and release configuration | G3-01 (Alan), G4-01 (Mohammad) |
 | `scenarios/` | S0–S5, L1, P1/P2, WF1 and fault scenarios | BL-B-06 (Mohammad), scenario owners |
 | `weather/` | Weather presets for E1 | E1-01 (Alan) |

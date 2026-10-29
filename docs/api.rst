@@ -61,6 +61,21 @@ implemented capability.
 .. automodule:: planning.lane_graph_audit
    :members:
 
+.. automodule:: planning.wayfinder.astar
+   :members:
+
+.. automodule:: planning.wayfinder.pois
+   :members:
+
+.. automodule:: planning.wayfinder.route
+   :members:
+
+.. automodule:: planning.wayfinder.guidance
+   :members:
+
+.. automodule:: planning.wayfinder.minimap
+   :members:
+
 .. automodule:: carla_adapter.topology
    :members:
 
