@@ -1,0 +1,26 @@
+{
+  "pr": 102,
+  "head": "cd7f6ddf2b2193f90322f5b41b576e05247cd873",
+  "mergeable": true,
+  "checks": [
+    {
+      "name": "docs",
+      "status": "completed",
+      "conclusion": "failure",
+      "classification": "BILLING_NO_RUNNER_ZERO_STEPS"
+    },
+    {
+      "name": "test",
+      "status": "completed",
+      "conclusion": "failure",
+      "classification": "BILLING_NO_RUNNER_ZERO_STEPS"
+    },
+    {
+      "name": "lint",
+      "status": "completed",
+      "conclusion": "failure",
+      "classification": "BILLING_NO_RUNNER_ZERO_STEPS"
+    }
+  ],
+  "absent_checks": null
+}

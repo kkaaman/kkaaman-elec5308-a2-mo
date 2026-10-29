@@ -29,6 +29,7 @@ demonstration for the autonomous perception and navigation library.
    assets
    acceptance
    acceptance-logging
+   evidence/TEST-18/README
    scenarios
    depth-association
    interfaces
