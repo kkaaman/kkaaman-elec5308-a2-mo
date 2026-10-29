@@ -163,6 +163,28 @@ Why: Keep frame, detector and command contracts independent of the world impleme
 
 Declared public classes/functions: ``EgoPose``, ``CameraCalibration``, ``FrameBundle``, ``GraphNode``, ``GraphEdge``, ``LaneGraph``, ``Diagnostics``, ``ControlPacket``, ``World``, ``AutonomyStack``.
 
+autonomy/lidar_fusion.py
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+Role (source summary)::
+
+    Fuse LiDAR tracks with the RGB-D corridor observation for the governor (E2-04).
+
+Why: Keep frame, detector and command contracts independent of the world implementation.
+
+Declared public classes/functions: ``LidarCorridorSource``, ``rgbd_report``, ``FusedObservationProvider``.
+
+autonomy/lidar_replay.py
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+Role (source summary)::
+
+    Replay a recorded or synthetic LiDAR sweep set through the obstacle path (E2 evidence).
+
+Why: Keep frame, detector and command contracts independent of the world implementation.
+
+Declared public classes/functions: ``depth_report``, ``replay_manifest``, ``replay_path``.
+
 autonomy/mission.py
 ~~~~~~~~~~~~~~~~~~~
 
@@ -316,6 +338,17 @@ Role (source summary)::
 Why: Contain simulator ownership and coordinate conversion at the boundary; keep the core reusable.
 
 Declared public classes/functions: ``check_versions``, ``main``.
+
+carla_adapter/lidar.py
+~~~~~~~~~~~~~~~~~~~~~~
+
+Role (source summary)::
+
+    CARLA ray-cast LiDAR capture delivering vehicle-frame :class:`LidarSweep` packets (E2-02).
+
+Why: Contain simulator ownership and coordinate conversion at the boundary; keep the core reusable.
+
+Declared public classes/functions: ``LidarRig``, ``lidar_points_to_ego``, ``known_object_check``, ``SweepQueue``, ``LidarCapture``.
 
 carla_adapter/longitudinal.py
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -811,6 +844,50 @@ Role (source summary)::
 Why: Turn sensor detections/depth into explicit observations without introducing evaluation truth.
 
 Declared public classes/functions: ``canonical_box``.
+
+obstacle_perception/fusion.py
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Role (source summary)::
+
+    Conservative multi-source corridor fusion (E2-04).
+
+Why: Turn sensor detections/depth into explicit observations without introducing evaluation truth.
+
+Declared public classes/functions: ``SourceCorridorReport``, ``FusedCorridorReport``, ``fuse_corridor_reports``.
+
+obstacle_perception/lidar.py
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Role (source summary)::
+
+    Vehicle-frame LiDAR sweep contract (E2-01).
+
+Why: Turn sensor detections/depth into explicit observations without introducing evaluation truth.
+
+Declared public classes/functions: ``LidarConfig``, ``validate_rigid_transform``, ``LidarSweep``.
+
+obstacle_perception/lidar_obstacles.py
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Role (source summary)::
+
+    LiDAR obstacles: ground removal, corridor crop, bounded clustering, tracking (E2-03/E2-04).
+
+Why: Turn sensor detections/depth into explicit observations without introducing evaluation truth.
+
+Declared public classes/functions: ``EgoBody``, ``LidarObstaclePolicy``, ``GroundSegmentation``, ``road_profile``, ``interpolate_profile``, ``remove_ground``, ``EgoRoutePose``, ``project_points``, ``corridor_mask``, ``ClusteringBudgetError``, ``cluster_points``, ``seen_clear_distance``, ``LidarCluster``, ``LidarObstacleBatch``, ``lidar_metadata``, ``footprints_overlap``, ``extract_obstacles``, ``LidarTrackObservation``, ``LidarTrackBatch``, ``LidarTrackFilter``, ``track_obstacles``.
+
+obstacle_perception/lidar_synthetic.py
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Role (source summary)::
+
+    Deterministic synthetic LiDAR sweeps for fixtures and offline tests (E2-01/E2-03).
+
+Why: Turn sensor detections/depth into explicit observations without introducing evaluation truth.
+
+Declared public classes/functions: ``SceneBox``, ``Scene``, ``fixture_config``, ``default_sensor_to_ego``, ``ray_directions``, ``cast_sweep``, ``synthetic_sweep``, ``approach_sequence``, ``sha256_bytes``, ``build_fixture``, ``load_fixture_sweep``.
 
 obstacle_perception/parking_clearance.py
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
