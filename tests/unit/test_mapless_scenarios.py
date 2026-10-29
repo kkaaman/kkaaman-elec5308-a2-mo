@@ -511,3 +511,86 @@ def test_a_cut_in_car_that_brakes_to_a_stop_may_be_held_behind():
     assert done["passed"] is True and done["lead_stopped"] is True
     log, truths, _ = cut_in_run(3.0, finish=False)
     assert sc.score_completion("cut_in", log, truths, BODY, "held at the obstacle", 5.0)["passed"] is False
+
+
+def _radar_tracks(log, truths, radar_from, lidar_from, provisional_at=None, full_at=None, cap_at=None):
+    """Log, on each tick, the stack's tracks on the crossing car: radar alone from
+    ``radar_from``, LiDAR and radar from ``lidar_from``; its radar threats and cap."""
+    for k, (row, a) in enumerate(zip(log, truths)):
+        s = row["truth"]["rear_axle_xy"][0]
+        near = []
+        if k >= radar_from:
+            near.append([9, a["centre_xy"][0] - s, a["centre_xy"][1], 0.0, 2.0, None, None, "C", "R" if k < lidar_from else "LR"])
+        threats = []
+        if provisional_at is not None and k >= provisional_at and (full_at is None or k < full_at):
+            threats = [[9, "provisional"]]
+        elif full_at is not None and k >= full_at:
+            threats = [[9, "full"]]
+        capped = cap_at is not None and k >= cap_at
+        row["driver"] = dict(
+            tracks_near=near, radar_threats=threats, cap_track=dict(track_id=9) if capped else None,
+            speed_cap_mps=1.5 if capped else None, speed_cap_reason="provisional radar threat on the path" if capped else "",
+        )
+        row["command"] = [0.0, 0.0, 0.3 if capped else 0.0]
+
+
+def test_f6_02_the_radar_timeline_says_when_each_sensor_and_the_stack_had_the_crossing_car():
+    """Sixth review, F6-02: a radar-first crossing run records when the radar, the LiDAR and
+    the stack's restriction each had the car, and how long the radar had it alone."""
+    log, truths = crossing_car_run(0.3)
+    truths = [dict(a, speed_mps=0.0) if k <= 20 else a for k, a in enumerate(truths)]  # standing until it moves off
+    _radar_tracks(log, truths, radar_from=22, lidar_from=30, provisional_at=24, full_at=28, cap_at=25)
+    out = sc.score_radar_timeline(log, truths, BODY, 4.0)
+    assert out["radar_first"] is True and out["radar_only_s"] == pytest.approx(8 * 0.05)
+    assert out["first_radar_only_s"] == pytest.approx(22 * 0.05) and out["first_lidar_s"] == pytest.approx(30 * 0.05)
+    assert out["first_provisional_threat_s"] == pytest.approx(24 * 0.05) and out["first_full_threat_s"] == pytest.approx(28 * 0.05)
+    assert out["first_restriction_s"] == pytest.approx(25 * 0.05) and out["first_brake_s"] == pytest.approx(25 * 0.05)
+    assert out["from_actor_moving_s"]["first_radar_only"] == pytest.approx(0.05)  # the car moved off at tick 21
+    # The LiDAR first: no radar-only interval.
+    log, truths = crossing_car_run(0.3)
+    _radar_tracks(log, truths, radar_from=30, lidar_from=30)
+    out = sc.score_radar_timeline(log, truths, BODY, 4.0)
+    assert out["radar_first"] is False and out["radar_only_s"] == 0.0 and out["first_radar_only_s"] is None
+
+
+def test_f6_06_a_radar_first_variant_is_exercised_only_with_a_radar_only_interval():
+    """Sixth review, F6-06: the radar-first crossing (``radar_first`` 1) is exercised only
+    if the radar alone had the car for ``radar_first_min_s`` before the LiDAR; the plain
+    crossing needs only the band entry, as before."""
+    params = sc.ScenarioParams("crossing_vehicle", radar_first=1.0).record()
+    log, truths = crossing_car_run(0.3)
+    _radar_tracks(log, truths, radar_from=22, lidar_from=30)
+    ex = sc.score_exercised("crossing_vehicle", log, truths, BODY, 4.0, params=params)
+    assert ex["exercised"] is True and ex["variant"] == "radar_first" and ex["radar_only_s"] == pytest.approx(0.4)
+    _radar_tracks(log, truths, radar_from=28, lidar_from=30)  # 0.1 s alone
+    ex = sc.score_exercised("crossing_vehicle", log, truths, BODY, 4.0, params=params)
+    assert ex["exercised"] is False and "radar alone" in ex["note"]
+    assert sc.score_exercised("crossing_vehicle", log, truths, BODY, 4.0, params=sc.ScenarioParams("crossing_vehicle").record())["exercised"] is True
+
+
+def test_f6_06_a_cut_in_that_brakes_is_exercised_only_if_it_brakes_after_the_hand_over():
+    """Sixth review, F6-06: the cut-in that brakes (``cut_brake_after_s`` 0 or more) is the
+    hand-over and then the braking: braking before the car became the lead, or never, is
+    not that variant."""
+    def run(brake_at):
+        log, truths = [], []
+        for tick in range(200):
+            s = tick * 0.2
+            row = ego_row(tick, s, 4.0)
+            speed = 3.0 if brake_at is None or tick < brake_at else 1.5
+            a = actor(s + 12.0, 0.0 if tick >= 50 else 3.5, speed=speed)
+            capped = 40 <= tick < 50
+            lead = dict(track_id=4, x_m=12.0, y_m=0.0) if tick >= 50 else None
+            row["driver"] = dict(lead=lead, speed_cap_mps=1.0 if capped else None, speed_cap_reason="predicted conflict on the path" if capped else "")
+            log.append(row)
+            truths.append(a)
+        return log, truths
+
+    params = sc.ScenarioParams("cut_in", cut_brake_after_s=1.0).record()
+    log, truths = run(brake_at=None)
+    assert sc.score_exercised("cut_in", log, truths, BODY, 4.0)["exercised"] is True  # the plain cut-in
+    ex = sc.score_exercised("cut_in", log, truths, BODY, 4.0, params=params)
+    assert ex["exercised"] is False and ex["variant"] == "cut_brake"
+    log, truths = run(brake_at=80)
+    ex = sc.score_exercised("cut_in", log, truths, BODY, 4.0, params=params)
+    assert ex["exercised"] is True and ex["braked_after_hand_over_s"] == pytest.approx(80 * 0.05)

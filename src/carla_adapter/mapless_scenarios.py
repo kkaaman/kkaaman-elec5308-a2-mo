@@ -168,6 +168,12 @@ class ScenarioParams:
     side_m: float = 6.0
     cross_mps: float = 2.0
     clear_beyond_m: float = 2.0
+    # With radar_first at 1, the run is the radar-first variant (sixth review, F6-06): it is
+    # exercised only if the radar tracked the car alone, before any LiDAR track on it, for
+    # radar_first_min_s or more (``score_radar_timeline``); a far trigger_m and side_m set
+    # it up. At 0 the plain crossing.
+    radar_first: float = 0.0
+    radar_first_min_s: float = 0.25
 
     def record(self):
         return asdict(self)
@@ -948,6 +954,76 @@ def score_behaviour(name, log, actor_truths, body, cruise_mps, dt_s=0.05, gap0_m
     return out
 
 
+def score_radar_timeline(log, actor_truths, body, cruise_mps, dt_s=0.05, match_m=1.5):
+    """When the stack knew what about the actor once it moved (sixth review, F6-02: whether
+    the radar's warning came early enough to matter). Reported, not gated.
+
+    From ``actor_moving_s`` (the actor at 0.3 m/s or faster) on, times (s, run clock) of the
+    first track on its box (within ``match_m``) with radar support (``first_radar_s``),
+    radar alone (no LiDAR-supported track on it that tick: ``first_radar_only_s``) and LiDAR
+    support (``first_lidar_s``); the first tick the stack predicted a radar-only track on
+    it as a provisional or a full threat (``first_provisional_threat_s``,
+    ``first_full_threat_s``), the first restriction it set (the cap's track on the actor,
+    or a cap below cruise for a radar threat: ``first_restriction_s``), the first brake
+    command (``first_brake_s``) and the actor entering the ego's band within 30 m
+    (``entered_band_s``). ``lidar_before_moving_s``: the first tick a LiDAR track was on it
+    before it moved (a car the LiDAR had standing is no radar-first case). ``radar_only_s``:
+    how long the radar alone had it, moving, before the LiDAR did (0 when the LiDAR was
+    first); ``radar_first``: whether it did at all."""
+    rows = [(k, a) for k, a in enumerate(actor_truths) if a is not None]
+    if not rows or "tracks_near" not in (log[rows[0][0]].get("driver") or {}):
+        return dict(available=False, note="no actor measurements or no tracks_near in the log")
+    keys = ("first_radar", "first_radar_only", "first_lidar", "first_provisional_threat", "first_full_threat", "first_restriction", "first_brake", "entered_band")
+    first = dict.fromkeys(keys)
+    moving = lidar_before = None
+    for k, a in rows:
+        row = log[k]
+        d = row.get("driver") or {}
+        on = {}
+        for e in d.get("tracks_near") or ():
+            if ego_to_actor_distance(row["truth"], a, (e[1], e[2])) <= match_m:
+                on[e[0]] = e[8] if len(e) > 8 else ""
+        lidar = any("L" in sup for sup in on.values())
+        if moving is None and a["speed_mps"] >= 0.3:
+            moving = k
+        if moving is None:
+            if lidar and lidar_before is None:
+                lidar_before = k
+            continue
+        def mark(key):
+            if first[key] is None:
+                first[key] = k
+        if any("R" in sup for sup in on.values()):
+            mark("first_radar")
+        if not lidar and any(sup == "R" for sup in on.values()):
+            mark("first_radar_only")
+        if lidar:
+            mark("first_lidar")
+        for entry in d.get("radar_threats") or ():
+            tid, kind = (entry[0], entry[1]) if isinstance(entry, (list, tuple)) else (entry, "full")
+            if tid in on:
+                mark("first_provisional_threat" if kind == "provisional" else "first_full_threat")
+        cap = d.get("speed_cap_mps")
+        cause = (d.get("cap_track") or {}).get("track_id")
+        if cap is not None and cap < cruise_mps - 0.25 and (cause in on or "radar" in (d.get("speed_cap_reason") or "")):
+            mark("first_restriction")
+        if (row.get("command") or [0, 0, 0])[2] >= 0.05 and row["truth"]["speed_mps"] >= 0.3:
+            mark("first_brake")
+        inside, dx, _ = _ahead_in_band(row["truth"], a, body, 0.5)
+        if inside and dx <= 30.0:
+            mark("entered_band")
+    if moving is None:
+        return dict(available=True, match_m=match_m, actor_moving_s=None, note="the actor never moved")
+    at = lambda k: None if k is None else round(log[k]["time_s"], 2)  # noqa: E731
+    out = dict(available=True, match_m=match_m, actor_moving_s=at(moving), lidar_before_moving_s=at(lidar_before)) | {f"{key}_s": at(k) for key, k in first.items()}
+    radar, lidar = first["first_radar_only"], first["first_lidar"]
+    radar_first = lidar_before is None and radar is not None and (lidar is None or radar < lidar)
+    end = lidar if lidar is not None else len(log)
+    out |= dict(radar_first=radar_first, radar_only_s=round((end - radar) * dt_s, 2) if radar_first else 0.0)
+    out["from_actor_moving_s"] = {key: None if k is None else round((k - moving) * dt_s, 2) for key, k in first.items()}
+    return out
+
+
 EXERCISE_CONDITION = {
     "braking_lead": "the lead slows by 0.5 m/s or more while within 50 m ahead",
     "crossing_pedestrian": "the walker enters the ego's band (0.5 m margin) within 30 m ahead",
@@ -956,14 +1032,55 @@ EXERCISE_CONDITION = {
     "oncoming_stopped": "the oncoming car pulls away while the ego stands within 40 m of it",
     "oncoming_parked": "the ego comes within 25 m of the parked oncoming car",
 }
+# A variant's condition on top of its scenario's (sixth review, F6-06: a radar-first run in
+# which the LiDAR saw the car first, or a cut-in that brakes before the hand-over, is not
+# the variant it is filed as).
+EXERCISE_VARIANT = {
+    "radar_first": "and the radar alone tracked the crossing car for radar_first_min_s or more before the LiDAR did",
+    "cut_brake": "and the cut-in car braked (0.5 m/s or more below its speed then) after it became the lead",
+}
 
 
-def score_exercised(name, log, actor_truths, body, cruise_mps, dt_s=0.05, handover_window_s=1.0):
+def exercise_variant(name, params):
+    """The variant of ``name`` that ``params`` (``ScenarioParams.record()``) set up, or None."""
+    params = params or {}
+    if name == "crossing_vehicle" and params.get("radar_first", 0.0) >= 0.5:
+        return "radar_first"
+    if name == "cut_in" and params.get("cut_brake_after_s", -1.0) >= 0.0:
+        return "cut_brake"
+    return None
+
+
+def score_exercised(name, log, actor_truths, body, cruise_mps, dt_s=0.05, handover_window_s=1.0, params=None):
     """Whether the run exercised what its scenario is for (fourth review, 9.1): a pass on a
     run that never reached the targeted transition is no evidence for it. The live cut-in
     passed with the car pulling away, so the conflict-to-following hand-over (R1) never
     happened. Reported as ``exercised`` with the condition and, when it was not met, what
-    was missing."""
+    was missing. Given ``params``, a variant's own condition too (``EXERCISE_VARIANT``)."""
+    variant = exercise_variant(name, params)
+    out = _score_exercised(name, log, actor_truths, body, cruise_mps, dt_s, handover_window_s)
+    if variant is None:
+        return out
+    out = out | dict(variant=variant, condition=out["condition"] + " " + EXERCISE_VARIANT[variant])
+    if not out.get("exercised"):
+        return out
+    if variant == "radar_first":
+        timeline = score_radar_timeline(log, actor_truths, body, cruise_mps, dt_s)
+        need = (params or {}).get("radar_first_min_s", 0.25)
+        out["radar_only_s"] = timeline.get("radar_only_s")
+        if not timeline.get("available") or (timeline.get("radar_only_s") or 0.0) < need:
+            return out | dict(exercised=False, note=f"the radar alone had the car for {timeline.get('radar_only_s')} s before the LiDAR (needs {need:g} s)")
+        return out
+    # cut_brake: the actor's speed falls 0.5 m/s below its speed at the hand-over, after it.
+    start = next((k for k, row in enumerate(log) if out.get("lead_from_s") is not None and round(row["time_s"], 2) >= out["lead_from_s"]), None)
+    at = actor_truths[start]["speed_mps"] if start is not None and actor_truths[start] is not None else None
+    braked = None if at is None else next((k for k in range(start, len(log)) if actor_truths[k] is not None and actor_truths[k]["speed_mps"] <= at - 0.5), None)
+    if braked is None:
+        return out | dict(exercised=False, note="the cut-in car did not brake after it became the lead")
+    return out | dict(braked_after_hand_over_s=round(log[braked]["time_s"], 2))
+
+
+def _score_exercised(name, log, actor_truths, body, cruise_mps, dt_s=0.05, handover_window_s=1.0):
     out = dict(condition=EXERCISE_CONDITION.get(name, "none defined"))
     rows = [(k, a) for k, a in enumerate(actor_truths) if a is not None]
     if name not in EXERCISE_CONDITION or not rows:

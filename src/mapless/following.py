@@ -104,11 +104,13 @@ class FollowingController:
         self.config = config or FollowingConfig()
         self._target = None
         self._accel = 0.0
+        self._lead_id = None
         self.last = {}
         self.continuation = None  # how the last lead was placed past the line's end (None: on the line)
 
     def reset(self):
         self._target, self._accel = None, 0.0
+        self._lead_id = None
 
     def start_from(self, speed_mps):
         """Begin following from ``speed_mps`` rather than the car's speed: the restriction
@@ -208,7 +210,7 @@ class FollowingController:
         pts = line[-1] + np.cumsum(np.column_stack((steps * np.cos(h), steps * np.sin(h))), axis=0)
         return np.vstack((line[-1], pts))
 
-    def target_speed(self, cruise_mps, ego_speed_mps, gap_m, lead_speed_mps, dt_s, held_cap_mps=None, keep_gap=True):
+    def target_speed(self, cruise_mps, ego_speed_mps, gap_m, lead_speed_mps, dt_s, held_cap_mps=None, keep_gap=True, lead_id=None):
         """The speed to hold: the cruise speed, the gap-keeping speed and the worst-case cap,
         whichever is lowest, approached within the acceleration and jerk limits; None while
         following does not restrict the car.
@@ -226,8 +228,17 @@ class FollowingController:
         above it.
 
         ``keep_gap=False``: the worst case only, not the gap (a lead whose place on the car's
-        way is uncertain: ``continuation``)."""
+        way is uncertain: ``continuation``).
+
+        ``lead_id``: the followed track. The target and its acceleration belong to that lead:
+        when another becomes the lead, following starts again from the car's speed (or a
+        restriction set for the new lead, as above), so a near slow lead's low target does
+        not carry over to a far one that replaced it (sixth review, F6-05). The new lead's
+        own worst case applies from the first tick."""
         c = self.config
+        if lead_id is not None and lead_id != self._lead_id:
+            self.reset()
+            self._lead_id = lead_id
         desired_gap = c.gap0_m + c.headway_s * ego_speed_mps
         # Close a gap error over the headway time, around the lead's own speed.
         gap_speed = max(0.0, lead_speed_mps + (gap_m - desired_gap) / c.headway_s)
