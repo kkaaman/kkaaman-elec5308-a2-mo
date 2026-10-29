@@ -270,9 +270,16 @@ def test_lead_tracking_reports_speed_error_brake_delay_and_false_stops():
         truths.append(actor(lead_s + 2.4, 0.0, speed=lead_v))
         seen_v = truths[max(0, tick - 6)]["speed_mps"] + 0.1  # 0.3 s late, 0.1 m/s high
         gap = lead_s - ego_s - BODY.front_m
-        row["driver"] = dict(lead=dict(track_id=1, gap_m=round(gap - 0.5, 2), speed_mps=seen_v, support=["lidar", "radar"]) if tick >= 20 else None)
+        row["driver"] = dict(lead=dict(track_id=1, gap_m=round(gap - 0.5, 2), speed_mps=seen_v, speed_sigma_mps=0.2, lidar_nis=0.05, support=["lidar", "radar"]) if tick >= 20 else None)
         log.append(row)
     out = sc.score_lead_tracking(log, truths, BODY)
+    # Ninth review, N9-03: consistency by phase. Cruising 0.1 m/s high against sigma 0.2:
+    # NEES 0.25; braking, 0.3 s late at 3 m/s^2 (0.9 m/s): overconfident; a NIS far under 2.
+    phases = out["speed_nees_by_phase"]
+    assert set(phases) == {"acquired", "cruise", "braking", "stopped"}
+    assert phases["cruise"]["mean"] == pytest.approx(0.25, abs=0.05) and phases["braking"]["mean"] > 3.84
+    assert out["lidar_nis_verdict"] == "conservative"
+    assert out["brake_achieved_mps2"] == pytest.approx(3.0, rel=0.1)  # 2 m/s to rest at 3 m/s^2
     assert out["first_lead_s"] == pytest.approx(1.0)
     assert out["brake_s"] == pytest.approx(10.0, abs=0.01)
     assert out["brake_delay_s"] == pytest.approx(0.5, abs=0.01)  # 0.3 s late, then 0.5 m/s below cruise
@@ -732,3 +739,20 @@ def test_f8_05_every_scripted_actor_is_recorded_and_the_tracks_kept_apart():
     assert out["lead_by_role"] == {"lead": 50, "second": 10} and out["lead_hand_overs"] == 1
     assert out["lead_hand_over_times"][0]["to_role"] == "second"
     assert sc.score_multi_actor_tracking(log, [[a] for a in [dict(actor(20.0, 0.0), role="lead")] * 60], BODY)["available"] is False
+
+
+def test_n9_scripted_braking_follows_the_asked_deceleration():
+    """PC 2, r10_lead_pair: the fixed pedal stopped the lead from 2.8 m/s in 0.15 s (about
+    18 m/s^2) where 3 m/s^2 was asked. Against a plant whose brake is as strong as CARLA's
+    at low speed (25 m/s^2 at full pedal), the profile control keeps the asked rate within
+    15% at 1, 3 and 4 m/s^2, and holds the car once stopped."""
+    for decel in (1.0, 3.0, 4.0):
+        v, t, stopped_at = 6.0, 0.0, None
+        while t < 10.0:
+            brake = sc.braking_profile_control(v, 6.0, t, decel)
+            v = max(0.0, v - 25.0 * brake * 0.05)
+            t += 0.05
+            if v == 0.0 and stopped_at is None:
+                stopped_at = t
+        assert stopped_at is not None and abs(6.0 / stopped_at - decel) <= 0.15 * decel, (decel, stopped_at)
+        assert sc.braking_profile_control(0.0, 6.0, 20.0, decel) == 1.0

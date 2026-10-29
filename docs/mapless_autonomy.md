@@ -2643,11 +2643,11 @@ stop `stop_gap_m` short of where its view of the road ends:
 
 | Run | Status | |
 |---|---|---|
-| Crossing car, Town05 `--site 1`, 4 m/s | MEASURED_PASS | no stop after the car cleared |
-| Radar-first crossing, Town10HD, LiDAR at 25 m, trigger 35 m, 2 m/s | MEASURED_PASS | radar alone 2.6 s |
-| Cut-in then brake, 4 m/s | MEASURED_PASS | separation 2.15 m |
-| Braking lead | MEASURED_PASS | separation 3.44 m |
-| Crossing car, Town05, PC 1 | MEASURED_PASS | |
+| Crossing car, Town10HD `--site 1`, 4 m/s (PC 2) | MEASURED_PASS | no stop after the car cleared |
+| Radar-first crossing, Town10HD, LiDAR at 25 m, trigger 35 m, 2 m/s (PC 2) | MEASURED_PASS | radar alone 2.6 s |
+| Cut-in then brake, Town10HD, 4 m/s (PC 2) | MEASURED_PASS | separation 2.15 m |
+| Braking lead, Town10HD (PC 2) | MEASURED_PASS | separation 3.44 m |
+| Crossing car, Town05 `--site 1`, 4 m/s (PC 1) | MEASURED_PASS | |
 | Left turn, oncoming car pulling away (`--oncoming stopped`) | MEASURED_FAIL | separation 0.50 m, then held 130 s |
 | Left turn, parked car 4 m past the junction | MEASURED_FAIL | exit 1.58 m off, held 115 s |
 
@@ -2655,8 +2655,8 @@ stop `stop_gap_m` short of where its view of the road ends:
 for the crossing car after it had cleared: 0.6 s of other restrictions after the clear,
 none by the actor.
 
-**Step time.** On Town05 the whole step was 56–60 ms at p50 against 44–46 ms on
-`b15b76f`. The shape fits cost it: every vehicle-sized cluster of every track was fitted,
+**Step time.** On PC 2 (Town10HD) the whole step was 56–60 ms at p50 against 44–46 ms
+on `b15b76f`. The shape fits cost it: every vehicle-sized cluster of every track was fitted,
 every tick (29 fits, 8 ms a tick on a Town10HD street: walls, hedges, parked cars). The
 fits are now budgeted:
 - confirmed tracks only;
@@ -2669,11 +2669,11 @@ tracking stage's p50:
 
 | | `b15b76f` | `b4280cd` | now |
 |---|---|---|---|
-| Town05 crossing (r9_cross4) | 18.8 ms | 29.0 ms | 20.8 ms |
-| Town10HD radar-first (r9_rf_35_2) | 7.8 ms | 14.9 ms | 10.8 ms |
+| Town10HD crossing (r9_cross4) | 18.8 ms | 29.0 ms | 20.8 ms |
+| Town10HD radar-first, LiDAR at 25 m (r9_rf_35_2) | 7.8 ms | 14.9 ms | 10.8 ms |
 
-The whole step moved with it (Town05 p50 66.7 / 71.1 / 62.4 ms, within this machine's
-run-to-run spread). The live `sensor_to_actuator` marks come with the next runs.
+The whole step moved with it (crossing p50 66.7 / 71.1 / 62.4 ms, within this machine's
+run-to-run spread). The live step and `sensor_to_actuator` times are in the r10 section.
 
 **The oncoming car: let go into its way.** The gate frame (the lane, latched as the
 approach began) was 1.4° off. Nineteen metres on, the gate had the body "in the opposing
@@ -2733,18 +2733,238 @@ rings. That reading held 0.5 s and was taken: the path moved 1.1 m.
 
 **Open-loop stack replays, `b4280cd` against this commit** (12 recorded runs, LiDAR only:
 the recordings had no radar):
-- Town05 stop runs (three), the r6 plain left turn, the r7 oncoming left turn: the same
+- Town05 braking-lead runs (three), the r6 plain left turn, the r7 oncoming left turn: the same
   decisions on every tick, bar two ticks of a 2.0–2.4 m/s cap.
 - r9 Town05 crossing (PC 1): `b4280cd` stopped 18 ticks for the crossing car after it had
   stopped beside the road (its track at 0.5–0.75 m/s). Now it reads 0.17–0.21 m/s, and no
-  stop. The PC 2 crossings: the same 8 conflict ticks each.
+  stop. The PC 2 crossings (Town10HD): the same 8 conflict ticks each.
 - r9 oncoming left turn: the clearing rule let the car go on 104 ticks, now 5 (with its
   corner at the lane's edge). The hold is released at 22.4 s, 1.45 s after its last
   detection, not held to the end (2581 ticks → 29).
 - r9 parked left turn, r8 left turns: one to three ticks differ (a parked car's drift capped
   one tick, out of its way).
-- The observability bound fell below 2 m/s only in the stop runs, with the stopped-for
-  obstacle in view; the stops are unchanged.
+- The observability bound fell below 2 m/s only in the Town05 braking-lead runs, with the
+  stopping lead in view; the stops are unchanged.
+
+### Live on PC 1 and PC 2 (29 Oct, `a73f5e0`): the r10 batch, all eight passed
+
+| Run | Status | |
+|---|---|---|
+| Left turn, oncoming car pulling away (Town03, PC 1) | MEASURED_PASS | separation 1.36 m; footprint −0.53 m; exit 0.05 m off |
+| Left turn, parked car 4 m past the junction | MEASURED_PASS | footprint −0.44 m; exit 0.01 m off |
+| Left turn, no traffic | MEASURED_PASS | exit 0.00 m off |
+| Crossing car, Town05 `--site 1`, 4 m/s (PC 1) | MEASURED_PASS | separation 2.75 m |
+| Braking lead, a second car 8 m ahead of it (Town10HD, PC 2) | MEASURED_PASS | separation 3.47 m; both cars tracked on 96% of ticks |
+| Crossing car, Town10HD `--site 1`, 4 m/s | MEASURED_PASS | separation 2.73 m |
+| Radar-first crossing, LiDAR at 25 m, trigger 35 m, 2 m/s | MEASURED_PASS | radar alone 2.6 s, threat before the LiDAR |
+| Cut-in then brake, 4 m/s | MEASURED_PASS | separation 2.22 m |
+
+**The oncoming left turn.** The gate again read "clear for 40 m" with the oncoming car
+standing 46 m out.
+- This time the exit reading dropped to "route" for a few ticks (14.25 s). The car slowed
+  at the mouth and reached the gate's entry later.
+- At 16.85 s the radar picked the car up, 30 m out and moving. The stack's verdict said
+  not clear, and the gate held the car at the mouth, 1.36 m from the passing car.
+- The hold on the latched path was released by the new departure rule at 21.15 s. The gate
+  then waited for the passed car's cells to fade (24.1 s), and the car turned.
+- **Why the radar was late.** The recordings now hold the radar. Along the oncoming car's
+  bearing the front radar had no return between 30 and 50 m on any of 100 ticks: road at
+  5–30 m, buildings beyond 50 m at 1.7° or more up. From 0.7 m up, the road beyond about
+  30 m is out of its sight on this site; the LiDAR, 2.2 m up, sees further.
+- So here a car standing 45 m out is beyond the radar and beyond the gate's 40 m. The gate
+  cannot see what the crossing needs (11 s at 2 m/s), and this pass came from timing. The
+  r9 fixes (clearing only in a vehicle's way, holds released on departure) keep it safe
+  when the timing is against it. The report now says how far short the gate's view was
+  (`oncoming_gate_view`: on this run, every one of its 155 clear verdicts).
+
+**Step time, PC 2 (Town10HD).** The whole step against r9 on `b4280cd`, p50:
+
+| | r9 | r10 |
+|---|---|---|
+| crossing, 4 m/s | 60.2 ms | 42.6 ms |
+| braking lead (r10 with the second car) | 56.2 ms | 39.7 ms |
+| cut-in then brake | 58.3 ms | 48.8 ms |
+| radar-first | 39.1 ms | 28.9 ms |
+
+- Over 50 ms: 1–46% of ticks.
+- PC 1's last two runs were about 35% slower in every stage, the code included or not (the
+  same left turn: 43.9 ms with traffic, 62.7 ms without). That is the machine's load.
+
+**Sensor to actuator** (the five wall-clock marks), PC 2, p50: 64–89 ms.
+- Delivery, from the world tick to the frame assembled (four cameras, the LiDAR, three
+  radars): 26–31 ms.
+- The frame recorder: 8–9 ms (only with `--record-frames`).
+- The step, then 0.06 ms to apply the command.
+- Over 50 ms on 95–97% of ticks. Delivery is the largest fixed cost. In synchronous CARLA
+  it slows real time, not the simulated car.
+
+**The braking lead's identity: ninth review, N9-01, seen live.**
+- The scripted lead stopped from 2.8 m/s in 0.15 s, about 18 m/s². 3 m/s² was asked: the
+  fixed pedal (`brake_mps2 / 8`) is far stronger than that at low speed. The cut-in car
+  braked at 14 m/s².
+- The lead's radar return was rejected (its radial speed far from the track's). A second
+  return off the lead, unclaimed, started a radar track. That track took the next returns,
+  then the LiDAR cluster: its large uncertainty made it the cheapest match.
+- The lead's own track coasted at 2.6 m/s and was dropped. The new one read the stop at
+  once (0 m/s), but as a new lead with no history. For 0.35 s its noisy first motion read
+  "moving", so it was predicted as a crossing conflict; for a tick the car even yielded to
+  it as a road user crossing (cap 0.8 m/s).
+- Separation stayed 3.47 m: the LiDAR obstacle stop does not wait for the tracker.
+- The report's brake delay read 0.5 s. It had skipped every tick whose lead was predicted as
+  crossing. It now takes the lead's speed on those ticks too: 0.15 s on r10 (the new
+  track's), 0.2 s on r9, and 0.15 s for both cut-ins.
+- The fixes are in the ninth review's section below.
+
+**Two cars ahead.** Each car was tracked on 96% of ticks. No track stood on both, none moved
+from one car to the other, and the lead was the lead car on every tick: no hand-over to the
+car ahead of it.
+
+**Replay with the radar.** The stack replayed over these recordings, radar included, makes
+the live decisions: the same cap on 534 of 535 ticks (two cars), 513 of 517 (radar-first),
+441 of 449 (crossing) and 380 of 390 (cut-in).
+
+### Ninth technical review (29 Oct): all taken
+
+**N9-01, the radar's rejection must not cost the braking lead.** The review asked whether
+rejecting a return whole loses a hard-braking lead. On r10 it did (above).
+- **Fix: the object's other returns are its own.** An unclaimed radar return is not
+  started as a track when it lies on a LiDAR-placed track's object (inside its footprint
+  grown by 1 m, or up to 3.5 m behind its face), and that track's own return this tick was
+  rejected with a radial speed within 1 m/s of this one's. The returns agree with each
+  other, not with the track: the object's motion changed.
+  - They then go to the track, whose rejection run is taken as a manoeuvre in 0.15 s.
+  - A different object's returns behind a parked car are untouched: the parked car's own
+    return is not rejected.
+  - Counted per tick (`radar_stats.same_object`).
+- Replayed on r10_lead_pair with the radar: the lead keeps its one track (no id switch).
+  Its speed reads 0.26 m/s at 10.1 s, 0.05 s after the lead came to rest, and 0.06 m/s by
+  10.2 s. No twin is started, and the brake is seen 0.15 s after it began.
+- **The scripted brake now follows the asked rate** (`braking_profile_control`): the brake in
+  proportion to the speed over a constant-deceleration profile, and full once stopped.
+  - Against a plant as strong as CARLA's at low speed, it holds 1, 3 and 4 m/s² within 15%.
+  - `lead_tracking` reports the rate achieved (`brake_achieved_mps2`: 18.5 and 13.9 m/s² on
+    r10).
+- **The review's braking matrix, as tests** (a lead 20 m ahead, its LiDAR face and two
+  radar returns off it each tick):
+
+| Case | Result |
+|---|---|
+| 1 m/s² from 6 m/s | one track on the lead throughout; speed within 0.3 m/s of the truth |
+| 4 m/s² | one track; the radial-speed test rejects from the second tick, and the estimate trails by up to 1.1 m/s until the run is taken as a manoeuvre |
+| 18 m/s² from 2.8 m/s (the scripted stop) | one track; under 0.6 m/s 0.3 s after the stop |
+| radar gone for 1 s while braking | the LiDAR carries the track; within 0.6 m/s |
+| both sensors gone for 0.5 s | out of the live set after 0.3 s, its velocity uncertainty growing; back under the same id |
+| corrupted Doppler on a lone radar track | F8-01's test: no hit, no freshness, deleted |
+
+- Not covered: 18 m/s² from 6 m/s. The LiDAR gate is left within 0.25 s and a new track
+  takes the stopped car, while the old one only coasts. No car brakes that hard.
+- A wider radial-speed test (8 m/s² of change between updates) took the 4 m/s² case to a
+  0.7 m/s lag. It also let scattered Doppler through on five existing tests, so it was not
+  kept.
+
+**N9-02, greedy against optimal association.** `TrackerConfig.assignment = "optimal"` is
+the gated global nearest neighbour.
+- It finds the least total cost, each track or measurement left unassigned costing the
+  gate. It is solved exactly per group of gated pairs (Kuhn-Munkres), and the groups are a
+  few tracks and clusters each.
+- The review's example (track 1 at 1.0 and 2.0, track 2 at 1.5 and out of gate) keeps both
+  tracks. On 200 random gated matrices it is never worse in total cost.
+- Benchmarked on eight recorded runs, actor-matched (below). The default stays greedy.
+
+Open-loop stack replays of the recorded runs (radar included for r10; actor-matched
+identity switches as `actor_tracking` scores them; ticks capped under 0.5 m/s; the
+tracking stage's p50 on this machine):
+
+| Run | greedy switches | optimal switches | greedy caps | optimal caps | tracking p50 |
+|---|---|---|---|---|---|
+| r10 two cars ahead | 0 | 0 | 0 | 0 | 42.5 / 44.5 ms |
+| r10 crossing, Town10HD | 0 | 1 | 3 | 0 | 33.4 / 33.9 ms |
+| r10 cut-in | 0 | 0 | 20 | 20 | 46.3 / 47.4 ms |
+| r10 radar-first | 0 | 9 | 1 | 15 | 18.0 / 18.1 ms |
+| r10 crossing, Town05 | 10 | 5 | 0 | 0 | 15.3 / 15.8 ms |
+| r10 oncoming left turn | 0 | 0 | 80 | 76 | 29.5 / 29.1 ms |
+| r9 crossing, Town05 (no radar) | 0 | 0 | 0 | 0 | 6.5 / 6.6 ms |
+| r8 oncoming left turn (no radar) | 1 | 0 | 66 | 66 | 18.9 / 20.2 ms |
+
+- Optimal is better on the Town05 crossing (the crossing car's fragments) and the r8 turn.
+- It is worse on the radar-first run: the radar-only crossing car's returns spread over
+  ten tracks, and 14 more ticks were capped.
+- Elsewhere the two are the same. The cost is 0.1–2 ms.
+- With one or two road users near the car there is little for a global assignment to
+  resolve, and where it changed the outcome it did not improve it on balance: 15 switches
+  against 11. Greedy stays; the option stays for a denser scene.
+
+**N9-03, is the tracker's confidence calibrated?** `lead_tracking` now gives the lead
+speed's NEES by phase:
+- the first second of a lead track (acquired);
+- cruising;
+- the actor braking;
+- stopped.
+
+It also gives the LiDAR NIS's verdict (about 2 when its stated noise is right).
+
+| | acquired | cruise | braking | stopped | LiDAR NIS |
+|---|---|---|---|---|---|
+| r10 two cars | 2.13 (40 ticks) | 0.04 | 83 (2 ticks) | 0.72 | 0.03 |
+| r10 cut-in | 0.01 | 0.08 | 28 (1 tick) | 0.70 | 0.06 |
+| r9 braking lead | 3.35 | 0.04 | 83 (2 ticks) | 1.18 | 0.04 |
+
+- Cruising, the speed's stated uncertainty is about five times the error (NEES 0.04 where 1
+  is consistent): the 1.5 m/s² process noise.
+- In the scripted 18 m/s² stop the filter is overconfident for the tick or two before the
+  rejection run opens its variance.
+- Stopped, it is consistent. The LiDAR's 0.3 m position noise is conservative: NIS 0.03–0.06
+  where 2 is consistent. Its position updates are slower than they need be.
+- Not changed: a manoeuvre mode (an interacting multiple model) or tuned noise. These
+  numbers are the baseline for either, and the evaluator keeps truth to itself.
+
+**Section 3, the eighth review's safety regressions**, where each now stands:
+
+| Concern | Covered by |
+|---|---|
+| Oncoming override after sensor loss | F8-02: the verdict is stamped and its excuses lapse after 0.075 s (test). New: `--drop-sensor NAME:START:END` takes a sensor out of the live frames for a window (status MISSING, recorded, in the report): the live T4 |
+| Fast emerging vehicle taken for scenery | F8-03: provisional from 8 hits (test); live T5 below |
+| Radar-first attribution | F8-04: `unmatched_radar_restrictions`, 0 on r10's radar-first run |
+| Multi-vehicle evaluation | F8-05: `multi_actor_tracking`, two cars on r10 (above) |
+| Provisional radar restriction strength | F7-03: the floor falls to 0 and never exceeds a 4 m/s² stop. On r10's radar-first run the first restriction had 20.5 m of room, 0.21 m/s² needed |
+| Object observability | the planner's speed bound (eighth review, P1); the cone runs measure the envelope |
+
+**Section 4, real time.** Measured above, on r10:
+- the whole step p50 29–49 ms on PC 2, p95 42–66 ms;
+- sensor to actuator p50 64–89 ms, mostly the sensor data's delivery to the client;
+- the semantic worker's results 70–96 ms old on the wall clock (constant segmenter).
+
+The v2 segmenter on the worker, with no frame recording, is in r11. The LiDAR obstacle stop
+stays on the command path. Nothing required before the command is left out of the step.
+
+**Section 5, ML.** Unchanged and not claimed:
+- the learned segmentation runs in shadow (configuration B);
+- `semantic_shadow` measures its coverage and edge error by section;
+- no configuration C (semantic-assisted) exists yet.
+
+The review's suggested experiment (a road edge hidden by a parked car, or an ambiguous
+junction exit) fits the r9 parked-car refinement: the stations read short at 29 m are a
+known geometric failure to test it on. Model checkpoints are hashed in every report
+(`stack.segmenter_sha256`), and the seed is now recorded (`seed`).
+
+**Section 6, the test matrix.**
+
+| | | Where |
+|---|---|---|
+| T1 | rejected Doppler | F8-01 test |
+| T2 | hard-braking lead | N9-01 tests; live braking lead at 1, 3 and 4 m/s² (r11) |
+| T3 | close cars | live, second car at 3 and 8 m (r11) |
+| T4 | oncoming car during sensor loss | live, `--drop-sensor roof` across the gate (r11) |
+| T5 | driveway exit | live crossing car from off the road, two seeds (r11) |
+| T6 | stationary Town05 structure | the r3b/r4/r6 replays; live straight run on the same site (r11) |
+| T7 | radar-first | r8, r9, r10 |
+| T8 | radar-first with clutter | `unmatched_radar_restrictions` on every radar-first run |
+| T9 | lead change | cut-in; two cars |
+| T10 | small obstacle | cone at 2 and 4 m/s (r11) |
+| T11 | threaded semantics | r11 with the v2 segmenter, inline against threaded |
+| T12 | semantic-assisted following | not implemented |
+
+The evaluator already keeps PASS, FAIL, NOT_EXERCISED and INCOMPLETE apart.
 
 ## Running Phase 0 live
 

@@ -96,6 +96,7 @@ from evaluation.junction_truth import TurnSite, score_turn, truth_sample
 from evaluation.observability import observability
 from mapless.corridor import CorridorConfig
 from mapless.driver import DriveMode, DriverConfig, MaplessDriver
+from mapless.frame import SensorState, SensorStatus
 from mapless.obstacles import project_onto_polyline
 from mapless.planner import PlannerConfig
 from mapless.satnav import Command, RoutePoint, SatNavRoute
@@ -628,6 +629,62 @@ def stop_obstacle_m(speed_mps, settled_ticks=100, dt_s=0.05, start_m=15.0, stop_
     return float(max(base_m, 5.0 * math.ceil(need / 5.0)))
 
 
+def gate_view_report(log):
+    """How far a left turn's oncoming gate could see against what the crossing needed
+    (r9, r10: 40 m is 4.7 s at 30 km/h; the crossing at 2 m/s needs about 11 s, so beyond the
+    LiDAR the stack's radar tracks must cover the rest, and on Town03 the front radar saw the
+    oncoming car only from 33 m). Ticks the gate was evaluated, read clear, and read clear
+    with its view short of the need; the view and the need when the car entered the
+    opposing lane. None when no gate ran."""
+    rows = [r["driver"] for r in log if (r.get("driver") or {}).get("turn_gate_required_s") is not None]
+    if not rows:
+        return None
+    clear = [d for d in rows if d.get("turn_gate_view_s") is not None and not str(d.get("turn_gate") or "").startswith(("waiting", "in the opposing lane"))]
+    short = [d for d in clear if d["turn_gate_view_s"] < d["turn_gate_required_s"]]
+    last = rows[-1]
+    return dict(
+        evaluated_ticks=len(rows),
+        clear_ticks=len(clear),
+        clear_with_view_short_ticks=len(short),
+        worst_shortfall_s=round(max((d["turn_gate_required_s"] - d["turn_gate_view_s"] for d in short), default=0.0), 1),
+        at_entry=dict(view_s=last.get("turn_gate_view_s"), required_s=last.get("turn_gate_required_s"), note=last.get("turn_gate")),
+        note="beyond the gate's view the stack's tracks must cover the crossing's need",
+    )
+
+
+def parse_outages(items):
+    """``--drop-sensor NAME:START:END`` (seconds from the run's first frame) as a list of
+    (name, start_s, end_s)."""
+    out = []
+    for item in items:
+        name, start, end = item.rsplit(":", 2)
+        start, end = float(start), float(end)
+        if not name or not 0.0 <= start < end:
+            raise ValueError(f"--drop-sensor {item!r}: NAME:START:END with 0 <= START < END")
+        out.append((name, start, end))
+    return out
+
+
+def drop_sensors(frame, outages, elapsed_s):
+    """``frame`` with the sensors of an outage active at ``elapsed_s`` removed and their
+    status MISSING (ninth review, T4: a sensor lost as the car decides, e.g. the LiDAR while
+    a left turn's gate reads the oncoming lane). The recording keeps the frame as dropped,
+    so a replay sees the same outage."""
+    gone = {name for name, start, end in outages if start <= elapsed_s < end}
+    if not gone:
+        return frame
+    status = tuple(SensorStatus(s.name, s.kind, SensorState.MISSING, None, "injected outage") if s.name in gone else s for s in frame.status)
+    return dataclasses.replace(
+        frame,
+        cameras=tuple(c for c in frame.cameras if c.name not in gone),
+        lidars=tuple(sweep for sweep in frame.lidars if sweep.name not in gone),
+        radars=tuple(r for r in frame.radars if r.name not in gone),
+        imu=None if "imu" in gone else frame.imu,
+        gnss=None if "gnss" in gone else frame.gnss,
+        status=status,
+    )
+
+
 def sensor_to_actuator_report(marks, target_ms=STEP_TARGET_MS):
     """The whole path from sensing to actuation on the wall clock, per tick (eighth review,
     section 5: the step's time is the autonomy's computation only, so it is no measured
@@ -1101,6 +1158,7 @@ class MaplessDrive:
                 driver = MaplessDriver(self.suite, self.route, config, DT_S)
                 self.report["braking_assumptions"] = braking_assumptions(config.planner.decel_mps2)
             start_time = None
+            outages = parse_outages(args.drop_sensor)  # injected sensor outages (ninth review, T4)
             actor_truths = []
             actor_sets = []  # every scripted actor's truth (F8-05), when there are several
             latencies = []  # the per-tick wall-clock marks (sensor_to_actuator_report)
@@ -1114,8 +1172,10 @@ class MaplessDrive:
                 if args.follow:
                     self._follow_with_spectator()
                 sf = rig.read(frame, true_forward_speed(snap, self.ego.id), sim_time_s=snap.timestamp.elapsed_seconds)
-                assembled = time.perf_counter()
                 start_time = sf.sim_time_s if start_time is None else start_time
+                if outages:
+                    sf = drop_sensors(sf, outages, sf.sim_time_s - start_time)
+                assembled = time.perf_counter()
                 if recorder is not None:
                     recorder.record(tick, sf)
                 begun = time.perf_counter()
@@ -1258,6 +1318,9 @@ class MaplessDrive:
             for name, passed, values in score_turn(log, self.turn_site, turning, end=self.report["end"], s_offset_m=LANE_BACK_M):
                 status = INCOMPLETE if passed is None else (PASS if passed else FAIL)
                 checks.append(check(name, status, **values))
+            gate = gate_view_report(log)
+            if gate is not None:
+                checks.append(check("oncoming_gate_view", REPORT, **gate))
         else:
             settled = [r for r in startup if r["truth"]["s_m"] > s0 + 15.0 and r["truth"]["speed_mps"] > 0.3]
             if len(settled) < 100:
@@ -1443,6 +1506,13 @@ def main(argv=None, stack=False):
     parser.add_argument("--follow", action="store_true", help="Keep the CARLA spectator camera 8 m behind and 5 m above the car")
     parser.add_argument("--seed", type=int, default=5308)
     parser.add_argument(
+        "--drop-sensor",
+        action="append",
+        default=[],
+        metavar="NAME:START:END",
+        help="inject an outage: sensor NAME (roof, radar_front, gnss, imu, ...) missing from START to END s after the first frame",
+    )
+    parser.add_argument(
         "--record-frames",
         choices=("none", "turns", "all"),
         default="turns",
@@ -1497,6 +1567,8 @@ def main(argv=None, stack=False):
         source_root=str(Path(__file__).resolve().parents[2]),  # the checkout actually imported
         overrides=parse_overrides(args.set),
         noise="disabled" if args.no_noise else "as configured",
+        seed=args.seed,  # the rig's noise seed, default or not (ninth review: map, site, seed and parameters with every run)
+        injected_outages=[dict(sensor=n, start_s=a, end_s=b) for n, a, b in parse_outages(args.drop_sensor)],
         status="INCOMPLETE",
         checks=[],
     )

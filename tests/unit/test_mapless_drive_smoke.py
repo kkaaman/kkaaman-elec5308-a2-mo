@@ -542,3 +542,35 @@ def test_frame_recordings_keep_the_radars_and_read_old_ones_without(tmp_path):
     (tmp_path / "frames/meta.json").write_text(json.dumps(meta), encoding="utf-8")
     ((_, old),) = list(iter_frames(tmp_path / "frames"))
     assert old.radars == () and {s.name for s in old.status} == {lidar} and len(old.lidars) == 1
+
+
+def test_an_injected_sensor_outage_is_driven_through_and_recorded(monkeypatch, tmp_path):
+    """Ninth review, T4: ``--drop-sensor NAME:START:END`` takes a sensor out of the frames
+    for that window (status MISSING, "injected outage"), as recorded, and says so in the
+    report. Half a second without the LiDAR on a straight: the driver brakes for the
+    stale view and drives on when it returns."""
+    out, report = run_drive(monkeypatch, tmp_path, "--scenario", "straight", "--goal-m", "40", "--snapshot-every", "0", "--record-frames", "all", "--drop-sensor", "roof:4.0:4.5")
+    assert report["injected_outages"] == [dict(sensor="roof", start_s=4.0, end_s=4.5)]
+    rows = [json.loads(r) for r in (out / "drive_log.jsonl").read_text(encoding="utf-8").splitlines()]
+    from carla_adapter.frame_record import iter_frames  # noqa: PLC0415
+
+    frames = list(iter_frames(out / "frames"))
+    start = frames[0][1].sim_time_s
+    dark = [tick for tick, f in frames if 4.0 <= f.sim_time_s - start - 1e-6 < 4.5]
+    assert len(dark) == 10 and all(not f.lidars and f.status_of("roof").state.value == "missing" for tick, f in frames if tick in dark)
+    by_tick = {r["tick"]: r for r in rows}
+    assert any(by_tick[k]["mode"] == "fault" and "LiDAR" in by_tick[k]["reason"] for k in dark)  # the stale view is braked for
+    assert report["end"] == "finished"  # ... and driven on from
+    with pytest.raises(ValueError):
+        drive.parse_outages(["roof:3:2"])
+
+
+def test_the_oncoming_gate_report_counts_clear_verdicts_on_a_short_view():
+    rows = [dict(driver=dict(turn_gate="oncoming lane clear for 40 m", turn_gate_required_s=11.1, turn_gate_view_s=4.7)) for _ in range(5)]
+    rows += [dict(driver=dict(turn_gate="waiting: track 241 in the oncoming lane", turn_gate_required_s=10.0, turn_gate_view_s=4.7))]
+    rows += [dict(driver=dict(turn_gate="oncoming lane clear for 40 m", turn_gate_required_s=4.0, turn_gate_view_s=4.7))]
+    rows += [dict(driver=dict(turn_gate="in the opposing lane: clearing it", turn_gate_required_s=7.9, turn_gate_view_s=4.7)), dict(driver={})]
+    out = drive.gate_view_report(rows)
+    assert out["evaluated_ticks"] == 8 and out["clear_ticks"] == 6 and out["clear_with_view_short_ticks"] == 5
+    assert out["worst_shortfall_s"] == pytest.approx(6.4) and out["at_entry"]["required_s"] == 7.9
+    assert drive.gate_view_report([dict(driver={})]) is None

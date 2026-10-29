@@ -217,6 +217,20 @@ class ScriptedActor:
         self.actor = None
 
 
+def braking_profile_control(speed_mps, start_mps, elapsed_s, decel_mps2, gain=1.5):
+    """The brake that holds a scripted car to a constant-deceleration stop: the speed the
+    profile asks for by the next tick (``start_mps`` less ``decel_mps2`` times the time
+    braking, that tick included), and
+    the brake in proportion to the excess, full once stopped (a hold). A fixed pedal
+    (brake_mps2 / 8, "CARLA's brake ~8 m/s^2 at 1") stopped the lead at 2.8 m/s within 0.15
+    s, about 18 m/s^2 against the 3 m/s^2 asked for: CARLA's brake is far stronger at low
+    speed (PC 2, r10_lead_pair, a73f5e0; ninth review, N9-01's braking matrix)."""
+    target = max(0.0, start_mps - decel_mps2 * elapsed_s)
+    if target <= 0.0 and speed_mps < 0.3:
+        return 1.0
+    return float(np.clip(gain * (speed_mps - target), 0.0, 1.0))
+
+
 class BrakingLeadCar(ScriptedActor):
     """M05: a lead car that brakes to a stop at ``brake_at_m``; with ``second_gap_m`` at 0
     or more, a second car ahead of it in the lane that holds its speed and brakes with it."""
@@ -242,11 +256,16 @@ class BrakingLeadCar(ScriptedActor):
                 raise RuntimeError("Could not place the second car ahead of the lead: try another --actor-param second_gap_m")
         return self.actor
 
-    def _drive(self, actor, braking):
-        """Hold lead_mps along the lane, or brake at brake_mps2 (CARLA's brake ~8 m/s^2 at 1)."""
+    def _drive(self, actor, braking, tick=0):
+        """Hold lead_mps along the lane, or brake at brake_mps2 (``braking_profile_control``)."""
         carla, p = self.carla, self.params
         if braking:
-            actor.apply_control(carla.VehicleControl(throttle=0.0, brake=min(1.0, p.brake_mps2 / 8.0)))
+            v = actor.get_velocity()
+            speed = math.hypot(v.x, v.y)
+            starts = self.__dict__.setdefault("_brake_starts", {})
+            start_tick, start_speed = starts.setdefault(id(actor), (tick, speed))
+            brake = braking_profile_control(speed, start_speed, (tick - start_tick + 1) * 0.05, p.brake_mps2)
+            actor.apply_control(carla.VehicleControl(throttle=0.0, brake=brake))
             return
         t = actor.get_transform()
         x, y = self.core_xy(t.location)
@@ -270,9 +289,9 @@ class BrakingLeadCar(ScriptedActor):
         s = float(np.argmin(np.hypot(lane[:, 0] - x, lane[:, 1] - y)))
         if s >= p.brake_at_m:
             self.braking = True
-        self._drive(self.actor, self.braking)
+        self._drive(self.actor, self.braking, tick)
         if self.second is not None:
-            self._drive(self.second, self.braking)
+            self._drive(self.second, self.braking, tick)
 
     def roles(self):
         return [("lead", self.actor)] + ([("second", self.second)] if getattr(self, "second", None) is not None else [])
@@ -340,7 +359,9 @@ class CutInCar(BrakingLeadCar):
         brake = 0.0 if speed < target + 0.5 else 0.3
         if self.cut_start is not None and p.cut_brake_after_s >= 0.0 and (tick - self.cut_start) * 0.05 >= p.cut_in_s + p.cut_brake_after_s:
             self.braking = True
-            throttle, brake = 0.0, min(1.0, p.brake_mps2 / 8.0)
+            starts = self.__dict__.setdefault("_brake_starts", {})
+            start_tick, start_speed = starts.setdefault(id(self.actor), (tick, speed))
+            throttle, brake = 0.0, braking_profile_control(speed, start_speed, (tick - start_tick + 1) * 0.05, p.brake_mps2)
         self.actor.apply_control(carla.VehicleControl(throttle=throttle, brake=brake, steer=float(np.clip(-bearing / math.radians(35), -1, 1))))
 
 
@@ -718,6 +739,7 @@ def score_lead_tracking(log, actor_truths, body, dt_s=0.05, match_m=1.0):
     gaps = separations(log, actor_truths, body)
     errors, gap_errors, support = [], [], {}
     nees, nis = {}, []
+    by_phase, lead_since = {}, {}
     first = None
     speeds = [a["speed_mps"] if a else None for a in actor_truths]
     # The actor's braking is looked for from the tick it first led the car, against the
@@ -744,6 +766,12 @@ def score_lead_tracking(log, actor_truths, body, dt_s=0.05, match_m=1.0):
         goal = row["truth"].get("goal_distance_m")
         if moved and row["truth"]["speed_mps"] < 0.05 and actor["speed_mps"] > 0.5 and (goal is None or goal > 5.0):
             stopped_ticks += 1  # after the car first moved, short of the goal: neither the start-up wait nor the goal stop is a false stop
+        if lead and lead.get("crossing") and brake_tick is not None and seen_tick is None and k >= brake_tick:
+            # A stopped lead whose last motion still reads "moving" is predicted as a crossing
+            # conflict where it stands for a few ticks (r10 cut-in: 0.45 s): its speed still
+            # shows the stop being seen.
+            if lead_is_actor(row, actor, match_m) is not False and lead["speed_mps"] < cruise - 0.5:
+                seen_tick = k
         if not lead or lead.get("crossing"):
             continue
         is_actor = lead_is_actor(row, actor, match_m)
@@ -760,14 +788,33 @@ def score_lead_tracking(log, actor_truths, body, dt_s=0.05, match_m=1.0):
         support[key] = support.get(key, 0) + 1
         sigma = lead.get("speed_sigma_mps")
         if sigma:
-            nees.setdefault(key, []).append(((lead["speed_mps"] - actor["speed_mps"]) / max(sigma, 1e-3)) ** 2)
+            value = ((lead["speed_mps"] - actor["speed_mps"]) / max(sigma, 1e-3)) ** 2
+            nees.setdefault(key, []).append(value)
+            # ... and by phase (ninth review, N9-03): the first second of a lead track (an
+            # acquisition, a hand-over or a merge), the actor braking, stopped, or neither.
+            since = lead_since.setdefault(lead.get("track_id"), k)
+            if k - since < round(1.0 / dt_s):
+                phase = "acquired"
+            elif brake_tick is not None and k >= brake_tick:
+                phase = "braking" if actor["speed_mps"] > 0.05 else "stopped"
+            else:
+                phase = "cruise"
+            by_phase.setdefault(phase, []).append(value)
         if lead.get("lidar_nis") is not None:
             nis.append(lead["lidar_nis"])
         if brake_tick is not None and seen_tick is None and k >= brake_tick and lead["speed_mps"] < cruise - 0.5:
             seen_tick = k
     e = np.abs(np.array(errors)) if errors else None
     t = lambda k: None if k is None else round(log[k]["time_s"], 2)  # noqa: E731
+    # The braking the actor achieved (ninth review: the scripted pedal gave about 18 m/s^2
+    # where 3 was asked): from the tick it first fell below cruise to the first at rest.
+    achieved = None
+    if brake_tick is not None and cruise:
+        stop_k = next((k for k in range(brake_tick, len(speeds)) if speeds[k] is not None and speeds[k] < 0.1), None)
+        if stop_k is not None and stop_k > brake_tick:
+            achieved = round(cruise / ((stop_k - brake_tick + 1) * dt_s), 2)
     return dict(
+        brake_achieved_mps2=achieved,
         matching="lead matched to the actor within %.1f m" % match_m if positions else "unavailable: the log has no lead positions",
         first_lead_s=None if first is None else round(first[0], 2),
         first_lead_truth_gap_m=None if first is None or first[1] is None else round(first[1], 2),
@@ -784,7 +831,11 @@ def score_lead_tracking(log, actor_truths, body, dt_s=0.05, match_m=1.0):
         # (one degree of freedom: mean about 1, 95% under 3.84 when consistent; much more is
         # overconfidence), and the LiDAR innovations' (two: about 2).
         speed_nees={k: dict(ticks=len(v), mean=round(float(np.mean(v)), 2), within_95=round(float(np.mean(np.array(v) <= 3.84)), 2)) for k, v in nees.items()},
+        speed_nees_by_phase={k: dict(ticks=len(v), mean=round(float(np.mean(v)), 2), within_95=round(float(np.mean(np.array(v) <= 3.84)), 2)) for k, v in sorted(by_phase.items())},
         lidar_nis_mean=round(float(np.mean(nis)), 2) if nis else None,
+        # 2 when the LiDAR's position noise is right; far under it, the stated noise is
+        # conservative (slower position updates), far over it, overconfident.
+        lidar_nis_verdict=None if not nis else ("conservative" if np.mean(nis) < 0.5 else "overconfident" if np.mean(nis) > 6.0 else "consistent"),
         ticks=len(errors),
         unmatched_lead_ticks=unmatched,
     )

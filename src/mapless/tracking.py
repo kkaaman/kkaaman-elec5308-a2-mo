@@ -19,8 +19,8 @@ change, and for a track the LiDAR holds, the return anywhere on its measured ext
 return comes off a corner or a wheel arch, not the centroid; within 0.8 m only, the rest
 spawned radar-only twins every tick). The radial speed is then checked on its own (6.63):
 a return that fails it is dropped whole and counted. Assignment is one to one, nearest
-normalised distance first (an optimal assignment can replace ``_assign`` without touching
-the rest).
+normalised distance first, or with ``TrackerConfig.assignment`` "optimal" the least total
+cost per group of gated pairs (``_assign_optimal``).
 
 Lifecycle: tentative on the first hit; confirmed at 3 hits in 5 frames; coasts up to
 ``coast_s`` without a hit, predicted forward; deleted after ``delete_s``. Only a track
@@ -64,6 +64,10 @@ class LidarMeasurement:
 @dataclass(frozen=True)
 class TrackerConfig:
     process_accel_mps2: float = 1.5  # white acceleration driving the CV model
+    # One-to-one association (ninth review, N9-02): "greedy", the cheapest gated pair first,
+    # or "optimal", the least total cost with a pair left unassigned costing the gate
+    # (``_assign_optimal``). Benchmarked on the recorded runs before any change of default.
+    assignment: str = "greedy"
     initial_speed_sigma_mps: float = 5.0
     confirm_hits: int = 3  # hits ...
     confirm_window: int = 5  # ... within this many frames
@@ -205,6 +209,8 @@ class TrackerConfig:
             raise ValueError("TrackerConfig: confirm_hits <= confirm_window and coast_s < delete_s")
         if self.shape_min_views < 1 or not 0 < self.shape_min_length_m <= self.shape_max_length_m:
             raise ValueError("TrackerConfig: shape_min_views >= 1 and 0 < shape_min_length_m <= shape_max_length_m")
+        if self.assignment not in ("greedy", "optimal"):
+            raise ValueError("TrackerConfig.assignment: greedy or optimal")
 
 
 @dataclass
@@ -443,8 +449,12 @@ def _normalised(probabilities):
     return p / p.sum() if p.sum() > 0 else np.ones(len(CLASSES)) / len(CLASSES)
 
 
-def _assign(cost, gate):
-    """One-to-one assignment, cheapest pair first; cost above ``gate`` never assigns."""
+def _assign(cost, gate, method="greedy"):
+    """One-to-one assignment; cost above ``gate`` never assigns. "greedy": cheapest pair
+    first. "optimal": the least total cost, a pair left unassigned costing ``gate``
+    (``_assign_optimal``)."""
+    if method == "optimal":
+        return _assign_optimal(cost, gate)
     pairs = []
     if cost.size == 0:
         return pairs
@@ -458,6 +468,93 @@ def _assign(cost, gate):
         pairs.append((int(i), int(j)))
         used_rows.add(i)
         used_cols.add(j)
+    return pairs
+
+
+def _hungarian(a):
+    """Rows-to-columns assignment of the square matrix ``a`` (finite) with the least total
+    cost (Kuhn-Munkres with potentials, O(n^3)). Returns the column of each row."""
+    n = a.shape[0]
+    u, v = np.zeros(n + 1), np.zeros(n + 1)
+    p, way = np.zeros(n + 1, dtype=int), np.zeros(n + 1, dtype=int)
+    for i in range(1, n + 1):
+        p[0], j0 = i, 0
+        minv, used = np.full(n + 1, np.inf), np.zeros(n + 1, dtype=bool)
+        while True:
+            used[j0] = True
+            i0, delta, j1 = p[j0], np.inf, 0
+            for j in range(1, n + 1):
+                if not used[j]:
+                    cur = a[i0 - 1, j - 1] - u[i0] - v[j]
+                    if cur < minv[j]:
+                        minv[j], way[j] = cur, j0
+                    if minv[j] < delta:
+                        delta, j1 = minv[j], j
+            for j in range(n + 1):
+                if used[j]:
+                    u[p[j]] += delta
+                    v[j] -= delta
+                else:
+                    minv[j] -= delta
+            j0 = j1
+            if p[j0] == 0:
+                break
+        while j0:
+            j1 = way[j0]
+            p[j0] = p[j1]
+            j0 = j1
+    col = np.zeros(n, dtype=int)
+    for j in range(1, n + 1):
+        if p[j]:
+            col[p[j] - 1] = j - 1
+    return col
+
+
+def _assign_optimal(cost, gate):
+    """Gated global nearest neighbour (ninth review, N9-02): the one-to-one assignment with
+    the least total cost, each track or measurement left unassigned costing ``gate``, solved
+    per connected group of gated pairs (a group is a few tracks and clusters around one
+    object or two, so the exact solve stays cheap). Greedy took the cheapest pair first: a
+    track's best measurement could be another's only one."""
+    pairs = []
+    if cost.size == 0:
+        return pairs
+    ok = cost <= gate
+    rows, cols = cost.shape
+    parent = list(range(rows + cols))
+
+    def find(k):
+        while parent[k] != k:
+            parent[k] = parent[parent[k]]
+            k = parent[k]
+        return k
+
+    for i, j in zip(*np.nonzero(ok)):
+        parent[find(int(i))] = find(rows + int(j))
+    groups = {}
+    for i, j in zip(*np.nonzero(ok)):
+        groups.setdefault(find(int(i)), (set(), set()))
+        groups[find(int(i))][0].add(int(i))
+        groups[find(int(i))][1].add(int(j))
+    big = 1e6
+    for r_set, c_set in groups.values():
+        r, c = sorted(r_set), sorted(c_set)
+        if len(r) == 1 or len(c) == 1:
+            sub = cost[np.ix_(r, c)]
+            k = int(np.argmin(sub))
+            pairs.append((r[k // len(c)], c[k % len(c)]))
+            continue
+        nr, nc = len(r), len(c)
+        a = np.full((nr + nc, nc + nr), big)
+        sub = cost[np.ix_(r, c)]
+        a[:nr, :nc] = np.where(sub <= gate, sub, big)
+        a[np.arange(nr), nc + np.arange(nr)] = gate  # row i left unassigned
+        a[nr + np.arange(nc), np.arange(nc)] = gate  # column j left unassigned
+        a[nr:, nc:] = 0.0
+        col = _hungarian(a)
+        for k in range(nr):
+            if col[k] < nc and sub[k, col[k]] <= gate:
+                pairs.append((r[k], c[col[k]]))
     return pairs
 
 
@@ -570,7 +667,7 @@ class Tracker:
                 S = t.P[:2, :2] + np.eye(2) * m.sigma_m**2
                 y = z - t.x[:2]
                 cost[i, j] = float(y @ np.linalg.solve(S, y)) + penalty
-            assigned = _assign(cost, CHI2_2D)
+            assigned = _assign(cost, CHI2_2D, c.assignment)
             # The shape fits this tick, at most shape_fits_per_tick, nearest the car first.
             wanted = []
             for i, j in assigned:
@@ -671,8 +768,9 @@ class Tracker:
                     if d2 <= CHI2_3D:
                         cost[i, j] = d2
                         models[(i, j)] = (z, h, H, Rt, y, S, sensor_odo)
-            assigned = _assign(cost, CHI2_3D)
+            assigned = _assign(cost, CHI2_3D, c.assignment)
             rejected, manoeuvres = [], []
+            disowned = []  # (LiDAR-placed track, the radial speed of its rejected return) this tick
             for i, j in assigned:
                 t = self.tracks[ids[i]]
                 z, h, H, Rt, y, S, sensor_odo = models[(i, j)]
@@ -714,6 +812,8 @@ class Tracker:
                         t.doppler_position_sum = position
                     t.doppler_sign, t.doppler_last_y = sign, float(y[2])
                     rejected.append((t.track_id, round(float(y[2]), 2), t.doppler_rejects))
+                    if t.seen.get("lidar") == time_s and t.footprint is not None and max(t.footprint[0], t.footprint[1]) >= c.merge_min_extent_m:
+                        disowned.append((t, radar[j].radial_speed_mps))
                     # ... and observes nothing (eighth review, F8-01): no hit, no support, no
                     # freshness. A track whose returns are all rejected coasts and is deleted
                     # as if unseen; counted, those returns kept a confirmed radar-only track
@@ -725,7 +825,8 @@ class Tracker:
             # Unassigned radar objects start tracks where the radar adds something: beyond
             # the LiDAR's object range, or moving. Static near returns no track claims are clutter.
             assigned_cols = {j for _, j in assigned}
-            spawned = skipped = 0
+            spawned = skipped = same_object = 0
+            sensor = np.array([pose.x_m, pose.y_m])
             for j, m in enumerate(radar):
                 if j not in assigned_cols:
                     static = abs(m.radial_speed_mps) < c.radar_spawn_min_speed_mps
@@ -733,10 +834,21 @@ class Tracker:
                         skipped += 1
                         continue
                     obj_odo = pose.to_world(m.xy[None])[0]
+                    if any(abs(m.radial_speed_mps - rs) <= c.doppler_agree_mps and self._on_object(obj_odo, t, sensor) for t, rs in disowned):
+                        # Another return off an object whose own return this tick had its
+                        # radial speed rejected, agreeing with that one: the object's motion
+                        # changed (its returns agree with each other, not with the track), not
+                        # a second object (ninth review, N9-01). Started as a track, it took
+                        # the next returns and the LiDAR cluster from the braking lead, which
+                        # then coasted at 2.6 m/s: its stop was seen 0.3 s later (PC 2,
+                        # r10_lead_pair, a73f5e0). Left alone, the returns go to the track and
+                        # its rejection run is accepted as a manoeuvre.
+                        same_object += 1
+                        continue
                     tid = self._spawn(obj_odo, 1.0, None, time_s, "radar")
                     hit.add(tid)
                     spawned += 1
-            self.radar_stats = dict(objects=len(radar), associated=len(assigned), doppler_rejected=rejected[:5], doppler_manoeuvres=manoeuvres[:5], spawned=spawned, clutter_skipped=skipped)
+            self.radar_stats = dict(objects=len(radar), associated=len(assigned), doppler_rejected=rejected[:5], doppler_manoeuvres=manoeuvres[:5], spawned=spawned, clutter_skipped=skipped, same_object=same_object)
         else:
             self.radar_stats = {}
         self._merge_radar_twins(time_s, pose)
@@ -890,11 +1002,25 @@ class Tracker:
         if blocked and self.radar_stats is not None:
             self.radar_stats = dict(self.radar_stats, twins_kept=blocked[:8])  # [radar id, LiDAR id, distance, why]
 
+    def _on_object(self, xy, lidar_track, sensor):
+        """Whether the odometry point ``xy`` lies on ``lidar_track``'s object as the twin
+        merge reads it: within its footprint grown by ``merge_margin_m``, or behind its face
+        (``_behind_face``)."""
+        c = self.config
+        length, width, yaw = lidar_track.footprint
+        rel = np.asarray(xy, dtype=float) - lidar_track.x[:2]
+        along = abs(rel[0] * math.cos(yaw) + rel[1] * math.sin(yaw)) - length / 2
+        across = abs(-rel[0] * math.sin(yaw) + rel[1] * math.cos(yaw)) - width / 2
+        return (along <= c.merge_margin_m and across <= c.merge_margin_m) or self._behind_face_xy(xy, lidar_track, sensor)
+
     def _behind_face(self, radar_track, lidar_track, sensor):
-        """Whether ``radar_track`` lies behind ``lidar_track``'s face as the sensor sees it:
+        return self._behind_face_xy(radar_track.x[:2], lidar_track, sensor)
+
+    def _behind_face_xy(self, xy, lidar_track, sensor):
+        """Whether the odometry point ``xy`` lies behind ``lidar_track``'s face as the sensor sees it:
         the LiDAR track's extent along the line of sight is a face (under
-        ``merge_face_depth_m``), and the radar track is no more than ``merge_depth_m`` beyond
-        it along that line and within its half-extent across it plus ``merge_margin_m``."""
+        ``merge_face_depth_m``), and the point is no more than ``merge_depth_m`` beyond it
+        along that line and within its half-extent across it plus ``merge_margin_m``."""
         c = self.config
         if sensor is None:
             return False
@@ -909,7 +1035,7 @@ class Tracker:
         wide = 0.5 * (length * abs(math.sin(rel)) + width * abs(math.cos(rel)))  # ... and across it
         if 2.0 * deep > c.merge_face_depth_m:
             return False
-        off = radar_track.x[:2] - lidar_track.x[:2]
+        off = np.asarray(xy, dtype=float) - lidar_track.x[:2]
         beyond = float(off @ u) - deep
         aside = abs(float(off @ np.array([-u[1], u[0]])))
         return -c.merge_margin_m <= beyond <= c.merge_depth_m and aside <= wide + c.merge_margin_m
