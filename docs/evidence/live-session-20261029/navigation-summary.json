@@ -1,0 +1,540 @@
+{
+  "scenario": "S0",
+  "status": "PASS",
+  "required_runs": 5,
+  "recorded_runs": 5,
+  "passed_runs": 5,
+  "failed_runs": 0,
+  "worst_run_metrics": {
+    "route_completion": 1,
+    "collisions": 0,
+    "unplanned_lane_invasions": 0,
+    "mean_abs_cte_m": 0.020446294555183937,
+    "cruise_speed_rms_mps": 0.11125701255861821,
+    "capture_to_apply_p95_ms": 13.648008750010376,
+    "false_stops": 0
+  },
+  "failures": [],
+  "evidence_issues": [],
+  "frozen_provenance": {
+    "route_sha256": "78b0235ad8788d03101bc027dfefa0f6bc6b89e309e4192ed3121742e14df06a",
+    "config_sha256": "db4603159786627df63f7ea1c065e1e60cfdef5d8580af1e340cf447a1188562"
+  },
+  "runs": [
+    {
+      "scenario": "S0",
+      "status": "PASS",
+      "completed": true,
+      "failure_reason": null,
+      "failures": [],
+      "failed_metrics": [],
+      "sample_count": 1016,
+      "route_install_count": 1,
+      "cleanup_ok": true,
+      "metrics": {
+        "route_completion": {
+          "value": 1,
+          "unit": "fraction",
+          "status": "PASS",
+          "sample_count": 1,
+          "rule": ">=",
+          "limit": 1.0,
+          "evidence_issues": []
+        },
+        "mean_abs_cte_m": {
+          "value": 0.020446294555183937,
+          "unit": "m",
+          "status": "PASS",
+          "sample_count": 1006,
+          "rule": "<=",
+          "limit": 0.3,
+          "evidence_issues": []
+        },
+        "cruise_speed_rms_mps": {
+          "value": 0.11125701255861821,
+          "unit": "m/s",
+          "status": "PASS",
+          "sample_count": 562,
+          "rule": "<=",
+          "limit": 0.5,
+          "evidence_issues": []
+        },
+        "collisions": {
+          "value": 0,
+          "unit": "count",
+          "status": "PASS",
+          "sample_count": 0,
+          "rule": "=",
+          "limit": 0,
+          "evidence_issues": [],
+          "raw_event_count": 0,
+          "excluded_legal_event_count": 0
+        },
+        "unplanned_lane_invasions": {
+          "value": 0,
+          "unit": "count",
+          "status": "PASS",
+          "sample_count": 0,
+          "rule": "=",
+          "limit": 0,
+          "evidence_issues": [],
+          "raw_event_count": 0,
+          "excluded_legal_event_count": 0
+        },
+        "capture_to_apply_p95_ms": {
+          "value": 7.000030499852983,
+          "unit": "ms",
+          "status": "PASS",
+          "sample_count": 1016,
+          "rule": "<=",
+          "limit": 100.0,
+          "evidence_issues": []
+        },
+        "false_stops": {
+          "value": 0,
+          "unit": "count",
+          "status": "PASS",
+          "sample_count": 1016,
+          "rule": "=",
+          "limit": 0,
+          "evidence_issues": []
+        }
+      },
+      "report_only": {
+        "status": "REPORTED",
+        "frame_age_max": 2,
+        "frame_age_sample_count": 1016,
+        "real_time_factor_min": 3.1888847688489292,
+        "real_time_factor_median": 7.534886883661365,
+        "real_time_factor_sample_count": 1016,
+        "evidence_issues": []
+      },
+      "evidence_issues": [],
+      "definitions": {
+        "cte_motion_rule": "speed_mps > 0.1 and phase != goal; mean absolute signed rear-axle CTE",
+        "cruise_rule": "phase == cruise and stable_cruise is True; no speed-error selection",
+        "percentile_rule": "linear interpolation at (n - 1) * 0.95",
+        "false_stop_rule": "target_speed_mps < 0.1 for >= 1 simulation second outside goal",
+        "collision_deduplication": "one contact_id per continuous contact; retain raw callbacks",
+        "lane_exclusion_rule": "predeclared_legal is True and nonempty legal_manoeuvre_id only",
+        "latency_scope": "host-monotonic capture receipt to command application only"
+      },
+      "run_id": "run-01",
+      "route_sha256": "78b0235ad8788d03101bc027dfefa0f6bc6b89e309e4192ed3121742e14df06a",
+      "config_sha256": "db4603159786627df63f7ea1c065e1e60cfdef5d8580af1e340cf447a1188562",
+      "formal_acceptance": true
+    },
+    {
+      "scenario": "S0",
+      "status": "PASS",
+      "completed": true,
+      "failure_reason": null,
+      "failures": [],
+      "failed_metrics": [],
+      "sample_count": 1016,
+      "route_install_count": 1,
+      "cleanup_ok": true,
+      "metrics": {
+        "route_completion": {
+          "value": 1,
+          "unit": "fraction",
+          "status": "PASS",
+          "sample_count": 1,
+          "rule": ">=",
+          "limit": 1.0,
+          "evidence_issues": []
+        },
+        "mean_abs_cte_m": {
+          "value": 0.020446294555183937,
+          "unit": "m",
+          "status": "PASS",
+          "sample_count": 1006,
+          "rule": "<=",
+          "limit": 0.3,
+          "evidence_issues": []
+        },
+        "cruise_speed_rms_mps": {
+          "value": 0.11125701255861821,
+          "unit": "m/s",
+          "status": "PASS",
+          "sample_count": 562,
+          "rule": "<=",
+          "limit": 0.5,
+          "evidence_issues": []
+        },
+        "collisions": {
+          "value": 0,
+          "unit": "count",
+          "status": "PASS",
+          "sample_count": 0,
+          "rule": "=",
+          "limit": 0,
+          "evidence_issues": [],
+          "raw_event_count": 0,
+          "excluded_legal_event_count": 0
+        },
+        "unplanned_lane_invasions": {
+          "value": 0,
+          "unit": "count",
+          "status": "PASS",
+          "sample_count": 0,
+          "rule": "=",
+          "limit": 0,
+          "evidence_issues": [],
+          "raw_event_count": 0,
+          "excluded_legal_event_count": 0
+        },
+        "capture_to_apply_p95_ms": {
+          "value": 11.978926000210777,
+          "unit": "ms",
+          "status": "PASS",
+          "sample_count": 1016,
+          "rule": "<=",
+          "limit": 100.0,
+          "evidence_issues": []
+        },
+        "false_stops": {
+          "value": 0,
+          "unit": "count",
+          "status": "PASS",
+          "sample_count": 1016,
+          "rule": "=",
+          "limit": 0,
+          "evidence_issues": []
+        }
+      },
+      "report_only": {
+        "status": "REPORTED",
+        "frame_age_max": 2,
+        "frame_age_sample_count": 1016,
+        "real_time_factor_min": 2.5467502217283173,
+        "real_time_factor_median": 7.105549863231329,
+        "real_time_factor_sample_count": 1016,
+        "evidence_issues": []
+      },
+      "evidence_issues": [],
+      "definitions": {
+        "cte_motion_rule": "speed_mps > 0.1 and phase != goal; mean absolute signed rear-axle CTE",
+        "cruise_rule": "phase == cruise and stable_cruise is True; no speed-error selection",
+        "percentile_rule": "linear interpolation at (n - 1) * 0.95",
+        "false_stop_rule": "target_speed_mps < 0.1 for >= 1 simulation second outside goal",
+        "collision_deduplication": "one contact_id per continuous contact; retain raw callbacks",
+        "lane_exclusion_rule": "predeclared_legal is True and nonempty legal_manoeuvre_id only",
+        "latency_scope": "host-monotonic capture receipt to command application only"
+      },
+      "run_id": "run-02",
+      "route_sha256": "78b0235ad8788d03101bc027dfefa0f6bc6b89e309e4192ed3121742e14df06a",
+      "config_sha256": "db4603159786627df63f7ea1c065e1e60cfdef5d8580af1e340cf447a1188562",
+      "formal_acceptance": true
+    },
+    {
+      "scenario": "S0",
+      "status": "PASS",
+      "completed": true,
+      "failure_reason": null,
+      "failures": [],
+      "failed_metrics": [],
+      "sample_count": 1016,
+      "route_install_count": 1,
+      "cleanup_ok": true,
+      "metrics": {
+        "route_completion": {
+          "value": 1,
+          "unit": "fraction",
+          "status": "PASS",
+          "sample_count": 1,
+          "rule": ">=",
+          "limit": 1.0,
+          "evidence_issues": []
+        },
+        "mean_abs_cte_m": {
+          "value": 0.020446294555183937,
+          "unit": "m",
+          "status": "PASS",
+          "sample_count": 1006,
+          "rule": "<=",
+          "limit": 0.3,
+          "evidence_issues": []
+        },
+        "cruise_speed_rms_mps": {
+          "value": 0.11125701255861821,
+          "unit": "m/s",
+          "status": "PASS",
+          "sample_count": 562,
+          "rule": "<=",
+          "limit": 0.5,
+          "evidence_issues": []
+        },
+        "collisions": {
+          "value": 0,
+          "unit": "count",
+          "status": "PASS",
+          "sample_count": 0,
+          "rule": "=",
+          "limit": 0,
+          "evidence_issues": [],
+          "raw_event_count": 0,
+          "excluded_legal_event_count": 0
+        },
+        "unplanned_lane_invasions": {
+          "value": 0,
+          "unit": "count",
+          "status": "PASS",
+          "sample_count": 0,
+          "rule": "=",
+          "limit": 0,
+          "evidence_issues": [],
+          "raw_event_count": 0,
+          "excluded_legal_event_count": 0
+        },
+        "capture_to_apply_p95_ms": {
+          "value": 13.648008750010376,
+          "unit": "ms",
+          "status": "PASS",
+          "sample_count": 1016,
+          "rule": "<=",
+          "limit": 100.0,
+          "evidence_issues": []
+        },
+        "false_stops": {
+          "value": 0,
+          "unit": "count",
+          "status": "PASS",
+          "sample_count": 1016,
+          "rule": "=",
+          "limit": 0,
+          "evidence_issues": []
+        }
+      },
+      "report_only": {
+        "status": "REPORTED",
+        "frame_age_max": 2,
+        "frame_age_sample_count": 1016,
+        "real_time_factor_min": 1.61220121422244,
+        "real_time_factor_median": 5.244453851043463,
+        "real_time_factor_sample_count": 1016,
+        "evidence_issues": []
+      },
+      "evidence_issues": [],
+      "definitions": {
+        "cte_motion_rule": "speed_mps > 0.1 and phase != goal; mean absolute signed rear-axle CTE",
+        "cruise_rule": "phase == cruise and stable_cruise is True; no speed-error selection",
+        "percentile_rule": "linear interpolation at (n - 1) * 0.95",
+        "false_stop_rule": "target_speed_mps < 0.1 for >= 1 simulation second outside goal",
+        "collision_deduplication": "one contact_id per continuous contact; retain raw callbacks",
+        "lane_exclusion_rule": "predeclared_legal is True and nonempty legal_manoeuvre_id only",
+        "latency_scope": "host-monotonic capture receipt to command application only"
+      },
+      "run_id": "run-03",
+      "route_sha256": "78b0235ad8788d03101bc027dfefa0f6bc6b89e309e4192ed3121742e14df06a",
+      "config_sha256": "db4603159786627df63f7ea1c065e1e60cfdef5d8580af1e340cf447a1188562",
+      "formal_acceptance": true
+    },
+    {
+      "scenario": "S0",
+      "status": "PASS",
+      "completed": true,
+      "failure_reason": null,
+      "failures": [],
+      "failed_metrics": [],
+      "sample_count": 1016,
+      "route_install_count": 1,
+      "cleanup_ok": true,
+      "metrics": {
+        "route_completion": {
+          "value": 1,
+          "unit": "fraction",
+          "status": "PASS",
+          "sample_count": 1,
+          "rule": ">=",
+          "limit": 1.0,
+          "evidence_issues": []
+        },
+        "mean_abs_cte_m": {
+          "value": 0.020446294555183937,
+          "unit": "m",
+          "status": "PASS",
+          "sample_count": 1006,
+          "rule": "<=",
+          "limit": 0.3,
+          "evidence_issues": []
+        },
+        "cruise_speed_rms_mps": {
+          "value": 0.11125701255861821,
+          "unit": "m/s",
+          "status": "PASS",
+          "sample_count": 562,
+          "rule": "<=",
+          "limit": 0.5,
+          "evidence_issues": []
+        },
+        "collisions": {
+          "value": 0,
+          "unit": "count",
+          "status": "PASS",
+          "sample_count": 0,
+          "rule": "=",
+          "limit": 0,
+          "evidence_issues": [],
+          "raw_event_count": 0,
+          "excluded_legal_event_count": 0
+        },
+        "unplanned_lane_invasions": {
+          "value": 0,
+          "unit": "count",
+          "status": "PASS",
+          "sample_count": 0,
+          "rule": "=",
+          "limit": 0,
+          "evidence_issues": [],
+          "raw_event_count": 0,
+          "excluded_legal_event_count": 0
+        },
+        "capture_to_apply_p95_ms": {
+          "value": 11.546191250317861,
+          "unit": "ms",
+          "status": "PASS",
+          "sample_count": 1016,
+          "rule": "<=",
+          "limit": 100.0,
+          "evidence_issues": []
+        },
+        "false_stops": {
+          "value": 0,
+          "unit": "count",
+          "status": "PASS",
+          "sample_count": 1016,
+          "rule": "=",
+          "limit": 0,
+          "evidence_issues": []
+        }
+      },
+      "report_only": {
+        "status": "REPORTED",
+        "frame_age_max": 2,
+        "frame_age_sample_count": 1016,
+        "real_time_factor_min": 2.458985269494555,
+        "real_time_factor_median": 6.617884650239793,
+        "real_time_factor_sample_count": 1016,
+        "evidence_issues": []
+      },
+      "evidence_issues": [],
+      "definitions": {
+        "cte_motion_rule": "speed_mps > 0.1 and phase != goal; mean absolute signed rear-axle CTE",
+        "cruise_rule": "phase == cruise and stable_cruise is True; no speed-error selection",
+        "percentile_rule": "linear interpolation at (n - 1) * 0.95",
+        "false_stop_rule": "target_speed_mps < 0.1 for >= 1 simulation second outside goal",
+        "collision_deduplication": "one contact_id per continuous contact; retain raw callbacks",
+        "lane_exclusion_rule": "predeclared_legal is True and nonempty legal_manoeuvre_id only",
+        "latency_scope": "host-monotonic capture receipt to command application only"
+      },
+      "run_id": "run-04",
+      "route_sha256": "78b0235ad8788d03101bc027dfefa0f6bc6b89e309e4192ed3121742e14df06a",
+      "config_sha256": "db4603159786627df63f7ea1c065e1e60cfdef5d8580af1e340cf447a1188562",
+      "formal_acceptance": true
+    },
+    {
+      "scenario": "S0",
+      "status": "PASS",
+      "completed": true,
+      "failure_reason": null,
+      "failures": [],
+      "failed_metrics": [],
+      "sample_count": 1016,
+      "route_install_count": 1,
+      "cleanup_ok": true,
+      "metrics": {
+        "route_completion": {
+          "value": 1,
+          "unit": "fraction",
+          "status": "PASS",
+          "sample_count": 1,
+          "rule": ">=",
+          "limit": 1.0,
+          "evidence_issues": []
+        },
+        "mean_abs_cte_m": {
+          "value": 0.020446294555183937,
+          "unit": "m",
+          "status": "PASS",
+          "sample_count": 1006,
+          "rule": "<=",
+          "limit": 0.3,
+          "evidence_issues": []
+        },
+        "cruise_speed_rms_mps": {
+          "value": 0.11125701255861821,
+          "unit": "m/s",
+          "status": "PASS",
+          "sample_count": 562,
+          "rule": "<=",
+          "limit": 0.5,
+          "evidence_issues": []
+        },
+        "collisions": {
+          "value": 0,
+          "unit": "count",
+          "status": "PASS",
+          "sample_count": 0,
+          "rule": "=",
+          "limit": 0,
+          "evidence_issues": [],
+          "raw_event_count": 0,
+          "excluded_legal_event_count": 0
+        },
+        "unplanned_lane_invasions": {
+          "value": 0,
+          "unit": "count",
+          "status": "PASS",
+          "sample_count": 0,
+          "rule": "=",
+          "limit": 0,
+          "evidence_issues": [],
+          "raw_event_count": 0,
+          "excluded_legal_event_count": 0
+        },
+        "capture_to_apply_p95_ms": {
+          "value": 6.7760279999902195,
+          "unit": "ms",
+          "status": "PASS",
+          "sample_count": 1016,
+          "rule": "<=",
+          "limit": 100.0,
+          "evidence_issues": []
+        },
+        "false_stops": {
+          "value": 0,
+          "unit": "count",
+          "status": "PASS",
+          "sample_count": 1016,
+          "rule": "=",
+          "limit": 0,
+          "evidence_issues": []
+        }
+      },
+      "report_only": {
+        "status": "REPORTED",
+        "frame_age_max": 2,
+        "frame_age_sample_count": 1016,
+        "real_time_factor_min": 2.4396925453314764,
+        "real_time_factor_median": 7.426453151491246,
+        "real_time_factor_sample_count": 1016,
+        "evidence_issues": []
+      },
+      "evidence_issues": [],
+      "definitions": {
+        "cte_motion_rule": "speed_mps > 0.1 and phase != goal; mean absolute signed rear-axle CTE",
+        "cruise_rule": "phase == cruise and stable_cruise is True; no speed-error selection",
+        "percentile_rule": "linear interpolation at (n - 1) * 0.95",
+        "false_stop_rule": "target_speed_mps < 0.1 for >= 1 simulation second outside goal",
+        "collision_deduplication": "one contact_id per continuous contact; retain raw callbacks",
+        "lane_exclusion_rule": "predeclared_legal is True and nonempty legal_manoeuvre_id only",
+        "latency_scope": "host-monotonic capture receipt to command application only"
+      },
+      "run_id": "run-05",
+      "route_sha256": "78b0235ad8788d03101bc027dfefa0f6bc6b89e309e4192ed3121742e14df06a",
+      "config_sha256": "db4603159786627df63f7ea1c065e1e60cfdef5d8580af1e340cf447a1188562",
+      "formal_acceptance": true
+    }
+  ]
+}

@@ -1,0 +1,234 @@
+{
+  "date": "2026-10-29",
+  "main_before_report": "511120957efa67707549cfc81c800472bd4f4c96",
+  "merged_this_live_session": [
+    103
+  ],
+  "issues_closed_this_live_session": [
+    52
+  ],
+  "open_prs": [
+    {
+      "headRefName": "feat/RV-06-08-TEST-22-lane-monitor-sensor-docs-timing",
+      "headRefOid": "d49fc698786033e4e3042e0942572df567a4e9ae",
+      "number": 101,
+      "title": "Feat/rv 06 08 test 22 lane monitor sensor docs timing",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/pull/101"
+    },
+    {
+      "headRefName": "feat/41-perception-control-integration",
+      "headRefOid": "3d643fce96a8c517b0a54da1e877740420af157a",
+      "number": 99,
+      "title": "[BL-F-06/07] Add shared perception-control cycle groundwork",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/pull/99"
+    }
+  ],
+  "open_issues": [
+    {
+      "number": 85,
+      "title": "IND-SAV: Complete private individual submission readiness",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/85"
+    },
+    {
+      "number": 84,
+      "title": "IND-ZHA: Complete private individual submission readiness",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/84"
+    },
+    {
+      "number": 83,
+      "title": "IND-ALA: Complete private individual submission readiness",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/83"
+    },
+    {
+      "number": 82,
+      "title": "IND-RIC: Complete private individual submission readiness",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/82"
+    },
+    {
+      "number": 81,
+      "title": "IND-ABD: Complete private individual submission readiness",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/81"
+    },
+    {
+      "number": 80,
+      "title": "IND-MOH: Complete private individual submission readiness",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/80"
+    },
+    {
+      "number": 79,
+      "title": "REV/COM Week 3: Complete peer review, integration and cross-training",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/79"
+    },
+    {
+      "number": 78,
+      "title": "REV/COM Week 2: Complete peer review, integration and cross-training",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/78"
+    },
+    {
+      "number": 76,
+      "title": "DEMO-04 / *-R2: Run rehearsal two and final cross-module Q&A",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/76"
+    },
+    {
+      "number": 75,
+      "title": "DEMO-03 / *-R1: Run rehearsal one and random cross-module Q&A",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/75"
+    },
+    {
+      "number": 74,
+      "title": "DOC-13 / TEST-21: Package Wayfinder evidence and validate demo cold-start fallback",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/74"
+    },
+    {
+      "number": 73,
+      "title": "DEMO-01: Write the eight-minute live demonstration script",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/73"
+    },
+    {
+      "number": 72,
+      "title": "DOC-10 / DOC-11 / DOC-16: Audit claims and package navigation/parking evidence",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/72"
+    },
+    {
+      "number": 71,
+      "title": "DOC-07 / TEST-12: Document design limitations and reproduce the demo on the backup machine",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/71"
+    },
+    {
+      "number": 70,
+      "title": "TEST-20: Validate final sensors and held-green mission constraints",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/70"
+    },
+    {
+      "number": 68,
+      "title": "DEMO-02 / DOC-14: Capture backup evidence and document LiDAR/segmentation results",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/68"
+    },
+    {
+      "number": 67,
+      "title": "TEST-11 / G4-01: Regress combined extensions and freeze the demo configuration",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/67"
+    },
+    {
+      "number": 66,
+      "title": "DOC-09 / DOC-15 / DOC-17 / DOC-18: Assemble the final report and Q&A release package",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/66"
+    },
+    {
+      "number": 65,
+      "title": "DOC-02 / DOC-04 / DOC-06: Draft the report scope, evidence and figures",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/65"
+    },
+    {
+      "number": 64,
+      "title": "DOC-08 / DOC-12 / TEST-19 / G5-01: Verify and prepare the final release",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/64"
+    },
+    {
+      "number": 63,
+      "title": "TEST-18: Run the offline all-flags fault suite",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/63"
+    },
+    {
+      "number": 62,
+      "title": "DOC-01 / DOC-03 / DOC-05: Maintain the report evidence index and reproducible documentation",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/62"
+    },
+    {
+      "number": 61,
+      "title": "E5-04\\u201305 / E5-08\\u201309: Evaluate reverse parking or record the cut",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/61"
+    },
+    {
+      "number": 60,
+      "title": "E5-06\\u201307: Validate and admit forward parking",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/60"
+    },
+    {
+      "number": 58,
+      "title": "E4-08 / E4-10\\u201313: Validate failover and decide hybrid admission",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/58"
+    },
+    {
+      "number": 57,
+      "title": "E4-04\\u201305 / E4-07 / E4-09: Build the nonblocking client, fallback and latency evidence",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/57"
+    },
+    {
+      "number": 55,
+      "title": "E3-04\\u201306: Validate Wayfinder and decide deferred routing scope",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/55"
+    },
+    {
+      "number": 54,
+      "title": "E3-01\\u201303: Build Wayfinder v1 on the exported lane graph",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/54"
+    },
+    {
+      "number": 53,
+      "title": "E2-05\\u201306: Validate and admit the LiDAR extension",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/53"
+    },
+    {
+      "number": 51,
+      "title": "E1-04\\u201305: Validate and admit the weather extension",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/51"
+    },
+    {
+      "number": 50,
+      "title": "E1-03: Measure detector robustness across weather conditions",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/50"
+    },
+    {
+      "number": 49,
+      "title": "E1-01\\u201302: Establish the weather robustness test matrix",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/49"
+    },
+    {
+      "number": 48,
+      "title": "G3-01 / PROC-04: Freeze the baseline and record deferred behaviour scope",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/48"
+    },
+    {
+      "number": 47,
+      "title": "TEST-08: Aggregate the complete baseline acceptance evidence",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/47"
+    },
+    {
+      "number": 46,
+      "title": "RV-07 / TEST-06 / TEST-16: Validate navigation and controller fail-safe behaviour",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/46"
+    },
+    {
+      "number": 45,
+      "title": "RV-08 / TEST-05 / TEST-17: Validate sensor behaviour and runtime cost",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/45"
+    },
+    {
+      "number": 44,
+      "title": "TEST-04 / TEST-15: Validate stop-resume and HOLD fail-safe behaviour",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/44"
+    },
+    {
+      "number": 43,
+      "title": "BL-C-07 / TEST-09: Harden tracking and audit perception performance",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/43"
+    },
+    {
+      "number": 42,
+      "title": "RV-06 / TEST-07 / TEST-10 / TEST-22: Finish lane-monitor and bend-obstacle integration",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/42"
+    },
+    {
+      "number": 41,
+      "title": "BL-F-06\u201307 / BL-E-04 / G2-01: Integrate perception-to-control in CARLA",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/41"
+    },
+    {
+      "number": 40,
+      "title": "BL-D-08\u201309: Implement and validate stop-hold-resume behaviour",
+      "url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/40"
+    }
+  ],
+  "CARLA": "left running,0.9.16,Town10HD_Opt,asynchronous,no actors remaining"
+}

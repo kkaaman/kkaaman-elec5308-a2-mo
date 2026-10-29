@@ -105,3 +105,8 @@ demonstration for the autonomous perception and navigation library.
    :hidden:
 
    evidence/E2-01-04/live-20261029/README
+
+.. toctree::
+   :maxdepth: 1
+
+   live_session_20261029
