@@ -152,7 +152,9 @@ def test_f7_04_results_carry_their_wall_clock_age_and_late_ones_are_counted():
         result = w.take(0.05, epoch=0)
         assert result is not None
         take = w.last_take
-        assert take["wall_age_ms"] >= 100.0 and take["run_ms"] >= 100.0 and take["queue_wait_ms"] >= 0.0 and take["sim_age_s"] == 0.0
+        # The job is held 0.12 s from its submission; how much of that is queue wait and how
+        # much run time depends on when the worker thread picked it up (87 ms run under load).
+        assert take["wall_age_ms"] >= 100.0 and take["queue_wait_ms"] + take["run_ms"] >= 100.0 and take["queue_wait_ms"] >= 0.0 and take["sim_age_s"] == 0.0
         stats = w.stats()
         assert stats["late_wall"] == 1 and stats["late_share"] == 1.0 and stats["dropped_share"] == 0.0 and stats["error_share"] == 0.0
     finally:

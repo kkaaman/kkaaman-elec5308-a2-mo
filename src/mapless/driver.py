@@ -587,7 +587,12 @@ class MaplessDriver:
                     d.update(turn_gate="waiting: " + note)
                 else:
                     d.update(turn_gate=note)
-                d.update(turn_gate_entry_m=round(gate.entry_m, 2), turn_gate_required_s=round(gate.required_s, 1), turn_gate_cells=gate.cells)
+                d.update(
+                    turn_gate_entry_m=round(gate.entry_m, 2),
+                    turn_gate_required_s=round(gate.required_s, 1),
+                    turn_gate_view_s=round(gate.checked_m / c.junction.oncoming_mps, 1),  # how long the view covers at oncoming_mps
+                    turn_gate_cells=gate.cells,
+                )
         lap("junction")
         if not corridor.ok:
             return self._fault(f"no corridor: {corridor.reason}", d, motion, t, dt)

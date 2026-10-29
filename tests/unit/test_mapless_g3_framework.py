@@ -1095,3 +1095,111 @@ def test_f8_01_rejected_radar_returns_do_not_keep_a_track_alive():
     assert rejected >= 10  # associated and rejected, tick after tick
     assert live_until is not None and live_until - first <= c.coast_s + 0.051  # no longer a lead candidate
     assert gone_at is not None and gone_at - first <= c.delete_s + 0.051
+
+
+# -- ninth review, N9-01: the radar's rejection must not cost the braking lead ----------------
+def _braking_lead(decel, radar_gap=None, both_gap=None, ticks=200, dt=0.05, v0=6.0):
+    """A lead 20 m ahead at ``v0`` that brakes at ``decel`` (m/s^2) from 1.0 s, the ego
+    standing still. Each tick: its LiDAR face, and two radar
+    returns off it that agree with each other, at the face and 2 m deeper. ``radar_gap``
+    / ``both_gap``: (start, end) times without the radar, or without any sensor. Returns
+    the truth and, per tick, the LiDAR track's id, speed and whether it was live."""
+    from mapless.radar import RadarMeasurement
+
+    sensor_xy = np.array([2.5, 0.0])
+
+    def ret(xy, radial):
+        rel = np.asarray(xy, dtype=float) - sensor_xy
+        return RadarMeasurement("radar_front", np.asarray(xy, dtype=float), float(np.hypot(*rel)), float(math.atan2(rel[1], rel[0])), radial, 3, sensor_xy)
+
+    tracker = Tracker(TrackerConfig())
+    x, v, out = 20.0, v0, []
+    face_id = None
+    for k in range(ticks):
+        t = k * dt
+        if t >= 1.0:
+            v = max(0.0, v - decel * dt)
+        x += v * dt
+        lidar = [LidarMeasurement(np.array([x, 0.0]), (0.4, 1.8, 0.0), {"car": 0.9, "unknown": 0.1})]
+        radar = [ret((x, 0.3), v), ret((x + 2.0, -0.4), v)]
+        if radar_gap is not None and radar_gap[0] <= t < radar_gap[1]:
+            radar = []
+        if both_gap is not None and both_gap[0] <= t < both_gap[1]:
+            lidar, radar = [], []
+        tracks = tracker.update(t, ORIGIN, lidar=lidar, radar=radar)
+        live = {tr.track_id for tr in tracker.live()}
+        if face_id is None and lidar:
+            face_id = min((abs(tr.position[0] - x), tr.track_id) for tr in tracks if "lidar" in tr.support)[1]
+        mine = next((tr for tr in tracks if tr.track_id == face_id), None)
+        on_face = sorted(tr.track_id for tr in tracks if "lidar" in tr.support and tr.status is TrackStatus.CONFIRMED and abs(tr.position[0] - x) < 1.0)
+        out.append(dict(t=t, v=v, x=x, speed=None if mine is None else float(np.hypot(*mine.velocity)), live=face_id in live, on_face=on_face, P=None if mine is None else float(np.trace(tracker.tracks[face_id].P[2:, 2:]))))
+    return face_id, out
+
+
+@pytest.mark.parametrize(("decel", "v0", "tol"), [(1.0, 6.0, 0.3), (4.0, 6.0, 1.1), (18.0, 2.8, None)])
+def test_n9_01_a_braking_lead_keeps_its_track_and_its_speed_is_followed(decel, v0, tol):
+    """Ninth review, N9-01 (and PC 2, r10_lead_pair, a73f5e0): the scripted lead stopped at
+    about 18 m/s^2, its radar return's radial speed was rejected, and a second return off it
+    started a radar track that took the radar and the LiDAR cluster; the lead's own track
+    coasted at 2.6 m/s and its stop was seen 0.3 s late. One track stays on the face
+    throughout. Its speed follows a 1 m/s^2 stop from 6 m/s within 0.3 m/s; at 4 m/s^2 the
+    radial-speed test rejects the radar from the second tick and the estimate trails by up to
+    1.1 m/s until the rejection run is taken as a manoeuvre (0.15 s). The scripted 18 m/s^2 stop
+    from 2.8 m/s (beyond hard braking: taken as a manoeuvre) reads under 0.6 m/s 0.3 s after
+    it. From 6 m/s at 18 m/s^2 the LiDAR gate is left within 0.25 s and a new track takes
+    the stopped car: no physical car stops so, and the old track only coasts."""
+    face_id, out = _braking_lead(decel, v0=v0)
+    assert all(r["on_face"] == [face_id] for r in out[10:])  # one confirmed LiDAR track on the lead, its own
+    tracked = [r for r in out if r["t"] >= 0.5]
+    stop_s = 1.0 + v0 / decel
+    if tol is None:
+        assert max(r["speed"] for r in tracked if r["t"] >= stop_s + 0.3) < 0.6
+    else:
+        assert max(abs(r["speed"] - r["v"]) for r in tracked) <= tol
+    stopped = [r for r in tracked if r["t"] >= stop_s + 0.5]
+    assert stopped and max(r["speed"] for r in stopped) < 0.3
+
+
+def test_n9_01_without_the_radar_the_lidar_keeps_the_track_and_both_lost_it_coasts_then_returns():
+    """The radar gone for a second while the lead brakes: the LiDAR carries the track and its
+    speed. Both sensors gone for 0.5 s (beyond coast_s, within delete_s): the track leaves
+    the live set, its velocity uncertainty grows, and the next view takes it back under
+    the same id."""
+    face_id, out = _braking_lead(1.0, radar_gap=(1.5, 2.5))
+    gap = [r for r in out if 1.5 <= r["t"] < 2.5]
+    assert all(r["on_face"] == [face_id] and abs(r["speed"] - r["v"]) <= 0.6 for r in gap)  # the LiDAR alone trails a little more
+    c = TrackerConfig()
+    face_id, out = _braking_lead(1.0, both_gap=(2.0, 2.5))
+    during = [r for r in out if 2.0 <= r["t"] < 2.5]
+    assert any(not r["live"] for r in during if r["t"] >= 2.0 + c.coast_s + 0.05)
+    assert during[-1]["P"] > during[0]["P"]
+    back = [r for r in out if r["t"] >= 2.6]
+    assert back[0]["on_face"] == [face_id] and back[0]["live"]
+
+
+def test_n9_02_optimal_assignment_keeps_both_tracks_where_greedy_drops_one():
+    """Ninth review, N9-02: track 1 is 1.0 from A and 2.0 from B, track 2 1.5 from A and
+    outside its gate for B. Greedy takes 1-A and leaves track 2 unassigned; the optimal
+    assignment takes 1-B and 2-A. Gated pairs only, and the same result where there is no
+    conflict."""
+    from mapless.tracking import _assign
+
+    cost = np.array([[1.0, 2.0], [1.5, np.inf]])
+    assert sorted(_assign(cost, 9.21)) == [(0, 0)]
+    assert sorted(_assign(cost, 9.21, "optimal")) == [(0, 1), (1, 0)]
+    clear = np.array([[0.5, np.inf, np.inf], [np.inf, 2.0, np.inf], [np.inf, np.inf, 20.0]])
+    assert sorted(_assign(clear, 9.21, "optimal")) == sorted(_assign(clear, 9.21)) == [(0, 0), (1, 1)]
+    rng = np.random.default_rng(5308)
+    for _ in range(200):  # never worse in total cost or in pairs than greedy
+        c = rng.uniform(0.0, 14.0, size=(4, 5))
+        c[rng.uniform(size=c.shape) < 0.4] = np.inf
+        g, o = _assign(c, 9.21), _assign(c, 9.21, "optimal")
+        assert len({i for i, _ in o}) == len(o) and len({j for _, j in o}) == len(o)
+        assert all(c[i, j] <= 9.21 for i, j in o)
+
+        def total(pairs, cc=c):
+            return sum(cc[i, j] for i, j in pairs) + 9.21 * (cc.shape[0] - len(pairs) + cc.shape[1] - len(pairs))
+
+        assert total(o) <= total(g) + 1e-9
+    with pytest.raises(ValueError):
+        TrackerConfig(assignment="fast")
