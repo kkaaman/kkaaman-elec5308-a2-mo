@@ -3100,6 +3100,124 @@ replayed from r10 on): 24,309 ticks.
   parked-car turns, on other ticks than before (live at 21.85 and 25.0 s). r10's turn with
   no traffic gains one: 0.2 s at 19.35 s, a coasting 5 m "car" 27 m out at 4.9 m/s.
 
+### Tenth technical review (30 Oct): all taken
+
+The review could not see the code. It sets out the invariants the fixes must keep, and asks
+for transition tests. Each invariant is now a test (`tests/unit/test_mapless_tenth_review.py`
+unless named). Two of them failed and are fixed (2C), and one gap is closed (2B).
+Replayed over 13 recordings (the r8, r10 and r11 left turns, crossings, leads, the cut-in,
+the cone), the stack's caps, modes and stops are the same on every tick: the new rules act
+only when a blocker or lead is lost, which none of those recordings has.
+
+**2A, radar rejection.** A return whose radial speed is rejected observes nothing (F8-01):
+no hit, no support, no freshness. Three consistent rejections in a row are taken as a
+manoeuvre (N9-01).
+- Compared with keeping the return's range and bearing (`TrackerConfig.doppler_reject_policy
+  = "position"`, still no freshness). The case: a braking lead, the LiDAR lost at 0.8 s, the
+  radar alone to 3 s, at 1–12 m/s², with and without 0.3 m of scatter on the returns.
+  - Both kept one track throughout and saw the stop on the same tick.
+  - Speed RMSE while braking: the same to within 0.01 m/s up to 8 m/s²; at 12 m/s², 0.79
+    against 0.84 m/s.
+  - Replayed over the seven recordings with radar and a braking or crossing car (the r9
+    and r10 radar-first crossings, r10's crossing, braking cut-in and close pair, r11's
+    leads at 3 and 4 m/s²): not one tick's cap or stop differs.
+- The default stays "drop". The review's other properties: a rejected return is not
+  freshness (F8-01's test); a hard-braking lead keeps its track (N9-01's matrix); a lost
+  track does not lift the cap (2C below); the driver's LiDAR obstacle stop never depends on
+  the tracker.
+
+**2B, junction clearance.** The driver takes the stack's oncoming verdict only while it is
+fresh (F8-02): one tick old. Older, its excuses lapse and a "not clear" stands.
+- **The gap.** A radar-only car 41 m from the crossing blocks the turn. The radar drops
+  out; the track coasts, then is deleted. The verdict alone then reads clear, with the car
+  still beyond the LiDAR's 40 m.
+- **Fix:** a blocker that is no longer observed and was not seen to leave (deleted, or held by
+  no sensor) keeps the verdict "not clear" for 3 s after it last blocked
+  (`StackConfig.oncoming_lost_hold_s`). At 30 km/h that brings a car from 40 to 65 m out
+  into the LiDAR's view. A blocker observed driving away, parked or too far releases it at
+  once, as before. The note says which track is held.
+- Replayed on r10's oncoming turn with the radar cut from 17.2 s, 0.2 s after it first saw
+  the car: the LiDAR had taken the same track over by 17.25 s, nothing was lost, and every
+  verdict is the same. On Town03 the radar sees the car only about 0.25 s before the
+  LiDAR, so a live run exercises the hold only if both lose it. r12 runs the standing car
+  4 m past the junction, pulling away with the radar out (the stationary-to-moving
+  transition the review describes).
+
+**2C, restrictions continuous across transitions.** The suite runs the stack's cap logic
+closed loop. It checks that the permitted speed never rises faster than the car's own
+1 m/s² while the hazard stands, across six transitions:
+- a crossing car becoming the followed lead;
+- the followed lead's track replaced (coasting old track, tentative new one);
+- the lead lost for 0.5 s;
+- a radar-only crosser handed to the LiDAR;
+- a standing car moving off into the path (the tracker in the loop);
+- a stop hold released while another conflict's zero cap stands (the planner).
+
+Two of them lifted the restriction:
+- **The lead lost for 0.5 s.** After its 0.3 s coast the cap went to cruise for 0.2 s. A
+  followed lead whose track is gone, not seen to leave the lane, is now followed for 1 s
+  where it would be at its last speed: the lower of its last cap and the worst-case cap
+  behind it (`lead_memory_s`). A new lead ends that at once.
+- **A radar-only crosser at the LiDAR's first fix.** The radar track was dropped as the twin
+  of a LiDAR track whose motion was not known yet, and the cap went from 2.8 m/s to none
+  for three ticks before the two merged. The radar track now carries the threat until its
+  twin's motion is known.
+
+**3, admission and prediction.**
+- **Paired test** (the review's suggestion): the same roadside place, 5 m left and 22 m
+  ahead. A 9 m fence whose visible stretch slides as the car passes never restricts it. A
+  car pulling out of a driveway there at 2 m/s restricts it 0.65 s after it moves, the
+  same with the leading-edge rule off, and the car stops short.
+- **Prediction coverage.** The stack logs each predicted region at 1 and 2 s
+  (`predictions_near`). The new `prediction_coverage` check reports, per horizon:
+  - the share of ticks whose actor's true position, that far on, was inside the region;
+  - the centre error and the worst miss;
+  - the region's area over the actor's own (how conservative it is).
+
+**4, the 50 ms requirement.** Every run already reports the step's p50, p95, p99 and maximum,
+the deadline share, sensor to actuator, and the semantic results' age.
+- New, for the review's three configurations:
+  - `--semantic off`, the geometric stack alone. It drives exactly as inline (test).
+  - `--cpu-load N`: N processes spinning a core each.
+  - `--gpu-load`: back-to-back matrix products on the CUDA device.
+- **`latency_budget`** puts each rule's assumed response beside the measured sensor-to-actuator
+  p99 plus one tick: 0.15–0.24 s on r11 (0.62 s worst, inline v2's first inference).
+  - Following (0.5 s) and the observability bound (0.25 s) cover it.
+  - The planner's ramp and the conflict cap assume no response. Their margins (2.5 m stop
+    gap, 2.0 m conflict margin) carry the lag: 0.6–1.0 m at 4 m/s. The check reports that
+    distance.
+
+**5, observability.** The planner applies the bound every tick (eighth review, P1).
+- **`sight_bound`** counts the ticks the car was more than 0.3 m/s over it.
+- **The cone report's `reliable`** gives the range the detection held from (every 1 s
+  window 80% seen, no gap over three ticks), not only the first sighting, with the speed it
+  supports.
+
+**6, ML.** Unchanged, and not claimed. The learned segmentation runs in shadow. On r11 the
+v2 segmenter put the right edge 0.76 m inside the kerb (near section, MAE 0.86 m), against
+the geometric kerb's few centimetres. That is not good enough to assist, so there is no
+configuration C. The experiment the review describes (hard cases: occluded kerbs and
+junction exits like the r9/r11 parked-car turn; held-out locations; seeds) is the test it
+would have to pass.
+
+**7, the release gate.**
+
+| Test | Where |
+|---|---|
+| Rejected radar Doppler | F8-01 test; N9-01 matrix; 2A comparison |
+| Temporarily lost oncoming observation | 2B test; F8-02 test; r10 replay with the radar cut; r12 radar out from 16.5 s, and a standing car pulling away with no radar (`oncoming_gate_view.lost_blocker_held_ticks`: 0 is not exercised) |
+| Conflict-to-following hand-over | 2C suite (six transitions) |
+| Static Town05 scenery | r11 Town05 plain, no restriction; the r3b/r4/r6 replays |
+| Fast emerging real vehicle | paired driveway test; r12 crossings seed 2 and 3 |
+| Radar-first crossing | r10, r12 `rf_35_2`; `radar_timeline` |
+| Multi-vehicle tracking | `multi_actor_tracking` per role (r10 8 m, r11 3 m) |
+| Small obstacle | cone `observability` with `reliable`; `sight_bound` |
+| Full threaded execution | `driver_step_time`, `sensor_to_actuator`, `latency_budget`; r12 off / thread / thread under load |
+| Semantic-assisted driving | not implemented (6) |
+
+The evaluator keeps PASS, FAIL, NOT_EXERCISED and INCOMPLETE apart. A transition that
+never occurred is `NOT_EXERCISED`, never a pass.
+
 ## Running Phase 0 live
 
 Run with CARLA 0.9.16 and no other clients:

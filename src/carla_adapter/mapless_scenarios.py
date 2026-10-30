@@ -742,6 +742,56 @@ def score_actor_tracking(log, actor_truths, body, dt_s=0.05, match_m=1.0, view_a
     )
 
 
+def score_prediction_coverage(log, actor_truths, body, dt_s=0.05, match_m=1.0, horizons_s=(1.0, 2.0)):
+    """Whether the predictor's occupied region held where the actor went, and how much
+    bigger than the actor it was (tenth review, 3: false negatives and conservatism). On
+    each tick the actor is matched to a logged track (within ``match_m`` of its box, as
+    ``score_actor_tracking``) and that track was predicted (``predictions_near``): the
+    actor's true centre ``h`` seconds on, in this tick's vehicle frame, inside the region
+    predicted for ``h``? Per horizon: ticks judged, the share covered, the median and largest
+    distance from the region's centre, the largest of the misses outside the region, and
+    the median region area over the actor's footprint. Reported, not gated."""
+    rows = [(k, row, actor) for k, (row, actor) in enumerate(zip(log, actor_truths)) if actor is not None]
+    if not rows or not any("predictions_near" in (row.get("driver") or {}) for _, row, _ in rows):
+        return dict(available=False, note="the log has no predictions_near (recorded before the tenth review)")
+    out = {}
+    for h in horizons_s:
+        ahead = int(round(h / dt_s))
+        judged = covered = 0
+        errors, outside, ratios = [], [], []
+        for k, row, actor in rows:
+            d = row.get("driver") or {}
+            preds = [p for p in d.get("predictions_near") or () if abs(p[1] - h) < 1e-6]
+            if not preds or k + ahead >= len(log) or actor_truths[k + ahead] is None:
+                continue
+            hits = sorted((ego_to_actor_distance(row["truth"], actor, (e[1], e[2])), e[0]) for e in d.get("tracks_near") or ())
+            hits = [tid for dist, tid in hits if dist <= match_m]
+            pred = next((p for p in preds if p[0] in hits), None)
+            if pred is None:
+                continue
+            fx, fy = _ego_frame(row["truth"], actor_truths[k + ahead]["centre_xy"])
+            _, _, cx, cy, hl, hw, heading = pred
+            c, s = math.cos(heading), math.sin(heading)
+            along, across = c * (fx - cx) + s * (fy - cy), -s * (fx - cx) + c * (fy - cy)
+            judged += 1
+            inside = abs(along) <= hl and abs(across) <= hw
+            covered += inside
+            errors.append(math.hypot(fx - cx, fy - cy))
+            if not inside:
+                outside.append(math.hypot(max(abs(along) - hl, 0.0), max(abs(across) - hw, 0.0)))
+            ex, ey = actor["extent_m"]
+            ratios.append((hl * hw) / max(ex * ey, 1e-6))
+        out[f"{h:g}s"] = dict(
+            judged_ticks=judged,
+            covered_share=round(covered / judged, 3) if judged else None,
+            centre_error_median_m=round(float(np.median(errors)), 2) if errors else None,
+            centre_error_max_m=round(float(np.max(errors)), 2) if errors else None,
+            worst_miss_m=round(float(np.max(outside)), 2) if outside else None,
+            area_over_actor_median=round(float(np.median(ratios)), 2) if ratios else None,
+        )
+    return dict(available=True, match_m=match_m, horizons=out)
+
+
 def score_lead_tracking(log, actor_truths, body, dt_s=0.05, match_m=1.0):
     """What the stack knew about the lead, against the evaluator's truth (G3: radar must
     earn its place). Reported, not gated:

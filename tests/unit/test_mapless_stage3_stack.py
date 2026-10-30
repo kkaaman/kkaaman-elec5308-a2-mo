@@ -787,7 +787,7 @@ def test_f6_02_a_radar_only_car_is_a_provisional_threat_after_half_a_metre_and_a
     ``radar_provisional_cap_mps``; from 2 m, a full one, which may stop it. Paired: not
     where the LiDAR saw free ground there (the old test, "the LiDAR saw the place", let a
     hit on the car itself count), nor within ``radar_twin_m`` of a LiDAR-supported track
-    (its twin)."""
+    whose motion is known (its twin; tenth review, 2C)."""
     from dataclasses import replace  # noqa: PLC0415
 
     from mapless.stack import provisional_radar, radar_threat  # noqa: PLC0415
@@ -815,8 +815,13 @@ def test_f6_02_a_radar_only_car_is_a_provisional_threat_after_half_a_metre_and_a
     assert cap is not None and cap < c.radar_provisional_cap_mps  # 11 m out: the conflict cap's own 1.41 m/s
     # Free ground seen where it stands: a ghost. A LiDAR track beside it: its twin.
     assert run(young, free=True)[1] == ()
-    twin = replace(track(5, 11.5, -3.0, 0.0, 2.0, fp=(4.5, 1.9, math.pi / 2), travelled=0.6), support=("lidar",))
+    twin = replace(track(5, 11.5, -3.0, 0.0, 2.0, fp=(4.5, 1.9, math.pi / 2), travelled=3.0), support=("lidar",))
     assert radar_threat(young, never, c, lidar_tracks=[twin]) is None
+    # ... once the twin's motion is known (tenth review, 2C): a LiDAR cluster too new for its
+    # motion to be corroborated leaves the threat with the radar track, whose motion is.
+    unsure = replace(twin, travelled_m=0.6)
+    assert radar_threat(young, never, c, lidar_tracks=[unsure]) == "provisional"
+    assert radar_threat(young, never, c, lidar_tracks=[replace(unsure, recent_speed_mps=0.0)]) is None  # seen standing
     far = replace(twin, state=np.array([30.0, 10.0, 0.0, 0.0]))
     assert radar_threat(young, never, c, lidar_tracks=[far]) == "provisional"
     # Across the line of sight its motion is its bearing's noise: 46 m out, 2 m of travel is
