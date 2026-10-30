@@ -472,6 +472,8 @@ def test_f8_02_a_stale_oncoming_verdict_excuses_nothing():
     stale = resolve_oncoming_override(verdict, 10.10, c.oncoming_override_max_age_s)
     assert stale["stale"] and stale["excused"] == () and stale["age_s"] == pytest.approx(0.10)
     assert not oncoming_gate(standing, frame, path, frame, BODY, c, 0.0, 2.0, excused=stale["excused"]).clear
+    # ... and its "clear" lapses with them (review of 519b8fe, F-02): the car waits for a fresh verdict.
+    assert stale["clear"] is False and "waiting" in stale["note"]
     # A stale "not clear" is the cautious reading and stands; no verdict, no time: as given.
     waiting = resolve_oncoming_override(dict(verdict, clear=False), 11.0, c.oncoming_override_max_age_s)
     assert waiting["stale"] and waiting["clear"] is False

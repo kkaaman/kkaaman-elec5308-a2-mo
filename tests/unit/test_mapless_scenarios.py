@@ -564,6 +564,20 @@ def test_f6_02_the_radar_timeline_says_when_each_sensor_and_the_stack_had_the_cr
     assert out["radar_first"] is False and out["radar_only_s"] == 0.0 and out["first_radar_only_s"] is None
 
 
+def test_a_braking_lead_is_exercised_only_when_a_track_had_it_as_it_braked():
+    """Review of 519b8fe, F-11: the hand-over this scenario is for needs the lead in the
+    stack's tracks as it brakes. A lead that braked 45 m out, beyond the LiDAR's objects,
+    with no track on it is not exercised, whatever the speed trace says."""
+    log = [dict(ego_row(t, t * 0.2, 4.0), driver=dict(tracks_near=[])) for t in range(100)]
+    truths = [actor(t * 0.2 + 45.0, 0.0, speed=max(0.0, 6.0 - 0.1 * t)) for t in range(100)]  # brakes from the first tick
+    ex = sc.score_exercised("braking_lead", log, truths, BODY, 4.0)
+    assert ex["exercised"] is False and "no track" in ex["note"]
+    for row, a in zip(log, truths):
+        row["driver"]["tracks_near"] = [[9, a["centre_xy"][0] - row["truth"]["rear_axle_xy"][0], 0.0, a["speed_mps"], 0.0, 4.4, 1.9, "C", "L"]]
+    ex = sc.score_exercised("braking_lead", log, truths, BODY, 4.0)
+    assert ex["exercised"] is True
+
+
 def test_f6_06_a_radar_first_variant_is_exercised_only_with_a_radar_only_interval():
     """Sixth review, F6-06: the radar-first crossing (``radar_first`` 1) is exercised only
     if the radar alone had the car for ``radar_first_min_s`` before the LiDAR; the plain
@@ -824,6 +838,13 @@ def test_t10_prediction_coverage_checks_the_region_against_where_the_actor_went(
         r = out["horizons"][h]
         assert r["judged_ticks"] == 100 - int(float(h[:-1]) / 0.05) and r["covered_share"] == 1.0 and r["worst_miss_m"] is None
         assert r["area_over_actor_median"] > 1.0  # conservatism: the region against the actor's own footprint
+    # The whole body, not only its centre (review of 519b8fe, F-06): at 1 s the region's
+    # half width 1.3 m covers the 0.95 m half-width car; at 2 s the half length 3.0 m covers
+    # the 2.2 m half length. Both whole.
+    assert out["horizons"]["1s"]["body_covered_share"] == 1.0 and out["horizons"]["2s"]["body_covered_share"] == 1.0
+    narrow = [dict(r, driver=dict(r["driver"], predictions_near=[p[:5] + [0.9, 0.0] for p in r["driver"]["predictions_near"]])) for r in log]
+    thin = sc.score_prediction_coverage(narrow, truths, BODY)
+    assert thin["horizons"]["1s"]["covered_share"] == 1.0 and thin["horizons"]["1s"]["body_covered_share"] == 0.0  # centre in, the near face out
     still = sc.score_prediction_coverage(*log_for(False), BODY)
     assert still["horizons"]["2s"]["covered_share"] == 0.0 and still["horizons"]["2s"]["worst_miss_m"] == pytest.approx(4.0 - 3.0, abs=0.01)
     assert still["horizons"]["1s"]["covered_share"] == 1.0  # 2 m on is still within a 2.8 m half length

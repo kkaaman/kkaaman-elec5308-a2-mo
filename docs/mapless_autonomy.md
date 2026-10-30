@@ -4,26 +4,29 @@ Branch `feature/mapless-autonomy`, built from `feature/shadow-localisation`. Thi
 extension: the frozen baseline is unchanged. The sections below the status table are
 the working record, oldest first; the table is the current state.
 
-## Current status (27 Oct)
+## Current status (31 Oct)
 
 "Implemented" means the code exists; "offline" that it passes the harness and replay
 tests; "live" that it has passed on CARLA at least once; "repeated" that it has passed on
-more than one site or run without retuning.
+more than one site or run without retuning. The live batches are r6–r11 (29–30 Oct); their
+reports and `route.json` files are the evidence that travels with each batch.
 
 | Gate | Scope | Implemented | Offline | Live | Repeated | Open |
 |---|---|---|---|---|---|---|
 | G0 | Rig v2, health, calibration gate | yes | yes | MEASURED_PASS, both PCs | yes | — |
 | G1a | Local trajectory controller | yes | yes | yes (inside G1b) | yes | — |
-| G1b | Straight, curve, obstacle stop at 2 m/s, sensor-only | yes | yes | MEASURED_PASS (Town10HD) | straight at 4 m/s; stack runs; stop and curve again on the Stage 1 code | railing-kerb calibration (Town05) fixed offline, not yet live; Stage 1 stopping cases (holds, clearance, low objects, bends) offline only |
-| G1c | Commanded 90° turn | yes | yes | right (Town10HD) and left (Town03) MEASURED_PASS | no | Stage 3 (oncoming gate, standstill at the mouth, medians, exact arcs, evaluator outline) offline only; far exit-kerb bias (up to 1 m on the synthetic verge); skewed junctions unsupported (sites now within 10° of a right angle); exit-line uncertainty not reported |
-| G2 | Segmenter, painting, road model, stack | yes | yes | stack straight and stop MEASURED_PASS (Town10HD site 1) | no | segmentation does not yet place the lane; S0–S5 × 5 not run; segmenter retrained on corrected labels (`road_seg_b0_v2.pt`, mIoU 0.879), the old checkpoint refused by the loader |
-| G3 | Tracker, radar, prediction, following, M04–M06 | yes | yes | braking lead, cut-in, crossing pedestrian MEASURED_PASS (Town10HD site 1), again on `6b1f705` with no false yields; braking lead at 4 m/s MEASURED_PASS with and without radar (Town05 site 0) | no | A/B/C ablation with a lead still moving beyond LiDAR range (in A6/B6 it had stopped before either sensor saw it: first tracked at 30.5 m LiDAR-only, 34.5 m with radar, both static, so nothing was followed); the radar adds ~45 ms of tracking (155 tracks against 61); grades are outside the terrain model's scope; split LiDAR clusters and a separate radar track per parked car; a car within the tight link (0.3 m + 1 cm/m) of a long structure stays part of it and is left to the LiDAR obstacle stop; Stage 2 identity fixes (radar association, twins, lead body, reachability, structure split) offline only |
-| G4–G6 | Urban behaviours, learning, final report | no | — | — | — | — |
+| G1b | Straight, curve, obstacle stop, sensor-only | yes | yes | MEASURED_PASS (Town10HD, Town05) | straight at 4 m/s, stops with a car and a cone, the curve once | the curve again; sensor outages are injected, not met |
+| G1c | Commanded 90° turn | yes | yes | right (Town10HD) and left (Town03) MEASURED_PASS; r8–r11 left turns with oncoming and parked cars | the Town03 left turn, five batches | one right-turn site; skewed junctions unsupported (sites within 10° of a right angle); the exit-kerb far bias |
+| G2 | Segmenter, painting, road model, stack; S0–S5 × 5 on the baseline route | yes; the mission scenario and its aggregator (31 Oct) | yes (fake world) | the stack's straight, stop, leads, crossings, turns; **the gate not run** | no | r12 runs the gate; the segmenter is shadow only (v2 right edge 0.76 m inside the kerb) and part of no decision |
+| G3 | Tracker, radar, prediction, following, M04–M06 | yes | yes | braking lead, cut-in, crossing walker and car, radar-first: MEASURED_PASS, r8–r11 | the leads and crossings, four batches | the A/B/C ablation with a lead still moving beyond the LiDAR's reach; rear radars admitted, no behaviour reads them |
+| G4 | Lights, junction yielding, lane changes, faults, mixed route | the left turn's oncoming gate; the junction crossed straight (31 Oct); injected sensor outages | yes | the oncoming turns (r8–r11); the outages (r11) | the oncoming turn | lights (M07), lane changes (M09–M11), the mixed route (M13), a two-lane opposing carriageway at the gate |
+| G5 | Learning | the segmenter trained (mIoU 0.879, Town02 held out) | — | shadow only | — | no learned component affects a command; no configuration C |
+| G6 | Held-out Town07, weather | no | — | — | — | the domain (kerb on the right, right-angle junctions) is narrower than Town07's roads: a kerbless corridor first |
 
-Stack compute on the lab PCs (27 Oct, `e401188`, v2 segmenter): 58–62 ms p50 and about
-215 ms p95 per 50 ms tick on Town10HD, 140 ms p50 and 295–310 ms p95 on Town05. The
-segmentation is 56 ms p50 and 150–180 ms p95 on the ticks it runs; clustering is 19 ms on
-Town10HD and 78 ms on Town05. The 50 ms budget is not met.
+Compute on the lab PCs (r11, `84fb071`): step p50 29–49 ms, p95 55–76 ms (117 ms on the
+parked-car turn, 126 ms with the v2 segmenter inline); 11–80% of steps over 50 ms. The
+budget is not met; from `519b8fe`'s successor every run says so in its status
+(`MEASURED_PASS_OVER_BUDGET`).
 
 ## Goal and label
 
@@ -3218,6 +3221,126 @@ would have to pass.
 The evaluator keeps PASS, FAIL, NOT_EXERCISED and INCOMPLETE apart. A transition that
 never occurred is `NOT_EXERCISED`, never a pass.
 
+### Eleventh review (31 Oct, an independent read of `519b8fe`): all confirmed findings taken
+
+The review was made cold: a reader with the code and this document, none of the author's
+conclusions. It is kept whole in the project (`claude/reviews/review11_519b8fe.md`). 0
+critical, 3 high, 9 medium, 9 low; 17 confirmed against the code, 4 suspected (F-08, F-10,
+F-22 need a run; F-14 is about what the repository holds). Verified sound: the import and
+string firewall (static and transitive), the sensor-only ego motion (no pose, yaw or scale
+leak), the min-of-caps rule in the planner and controller, held caps on perception-less
+ticks, the obstacle hold and release logic, the tracker's state bounds.
+
+**F-01 (high): the 2B hold was dropped on any tick without a gate.** The stack cleared its
+lost-blocker record whenever the driver's gate was absent, and the gate is absent whenever
+the turn plan is not measured, as it was for 0.25 s at the mouth on r10 and r11. A blocker
+lost in that moment would have been forgotten. The record now expires on its own clock
+(`_oncoming_update`); the 2B test drives the stack through a gate-less tick.
+
+**F-02 (medium): a stale "clear" was still clear.** An oncoming verdict older than a tick
+lost its excuses but kept its "clear"; one read with a radar-only car 50 m out stayed clear
+with the tracks gone. Stale, it is "not clear" now: the car waits at the mouth for a fresh
+verdict (`resolve_oncoming_override`).
+
+**F-04 (high): the deadline and the observability bound could not fail a run.** Every
+run's status was a behaviour verdict; the 50 ms deadline and the bound were reports. CARLA
+runs synchronously, so a slow step costs the car nothing in simulation time, and every live
+pass so far was obtained with effectively unbounded compute per tick. Now:
+- `sight_bound` is a gate: a tick over the bound by more than 0.3 m/s with the brake off
+  fails the run. Ticks over it while braking are reported apart: the bound falls in steps as
+  an obstacle stop closes in, faster than 1 m/s² follows (5–14 such ticks on the r10 and
+  r11 crossings, none with the brake off).
+- `real_time` is a verdict of its own: more than 5% of steps over 50 ms gives the run
+  **MEASURED_PASS_OVER_BUDGET**, never a plain pass. On the r10 and r11 reports that is 17
+  of 19 runs (the shares were 0.11–0.84; `rf_35_2` and the Town05 plain run were on time).
+  The 20 Hz requirement is measured, and now named in every result, not enforced.
+
+**F-07 (high): the routes were exact.** Every sat-nav point sat on the lane centre, with
+the junction entry on the lane's last waypoint, and no test moved one. Now
+`--route-noise SIGMA_M` moves every point but the first by Gaussian noise (seeded,
+recorded in the route's provenance), and the synthetic turns are tested with the entry
+point 3 m along and 1.5 m across, both ways; the crossing with its entry 4 m off. All
+turn where the kerb says the junction is. r12 runs the turns and the mission at 2 m.
+
+**F-05, F-06, F-11 (medium, the evaluator).** `reliable_from` judged the partial windows
+at the end of a run, so one miss on the last tick before the stop made the whole reliable
+range None (fixed: only full windows). `prediction_coverage` tested the actor's centre, not
+its body (added: `body_covered_share`, the four true corners inside). A braking lead was
+"exercised" with no track on it (now: a track within 1 m, or the lead role, at the braking
+tick; a lead that braked 45 m out with nothing to follow is NOT_EXERCISED, as A6/B6 should
+have been).
+
+**Low.** The dead `prev_cause` branch; a NaN path point raising in `classify_sweep`
+(dropped now); `_outside_lead_s` growing for the episode (pruned to live tracks);
+`first_occupied_arc` computed three times per candidate (once); the unread
+`RadarConfig.range_sigma_m`/`rate_sigma_mps` (removed: the tracker's own sigmas are the
+ones used). Left as the record says: the walker yield from a standstill (F-12, the
+`behaviour` report attributes it), the `--keep-right` pass (F-16), the unlogged dropped hold
+(F-17), tolerated non-monotonic time (F-18), the unused helpers (F-19), the long functions.
+
+**Suspected, open.** F-08 (the leading-edge direction is noisy below 2 m/s: count the ticks
+an id enters and leaves `edge_held` on the r11 seed-2 recording), F-10 (the path profile's
+3–10 ms: time `classify` with `path_profile=False` on the parked turns), F-22 (no motion
+compensation within a sweep: 0.2 m of smear at 4 m/s). F-14: the replays and the 2A
+comparison rest on recordings the repository does not hold; the reports and `route.json`
+of every live run are the evidence that travels, and r12 is the first batch on this code.
+
+### G2's gate on the harness, and the junction crossed straight (31 Oct)
+
+The plan's G2 gate is S0–S5 × 5 seeds on the baseline route. Nothing could run it: the
+harness drove single junction-free lanes and single turns, and the baseline route (the A1
+run's lane chain: a 62 m bend, 125 m of straight, straight through junction 468, on to the
+end) crosses a junction without turning, which the driver did not do ("STRAIGHT keeps kerb
+following for now").
+
+**The crossing (`src/mapless/crossing.py`).** On the synthetic crossroads kerb following
+followed the right kerb into the side road's fillet, each station within the continuity
+limit of the last, and stopped for the side road's hedge a metre into the mouth. So, as
+the turn code latches the lane heading before the mouth, the crossing latches the lane
+line: from 30 m before the route's STRAIGHT point to 15 m before it, each tick, a straight
+line through the corridor's centre at the car along the car's own track over the last 40 m
+(the kerb fit's slope at the car is already tilted 1.5 degrees by the fillet 15 m on; the
+track is not). From 12 m before the entry the car follows that line instead of the fit: a
+straight corridor with no edges, valid as far as the road along it is observed, so the
+obstacle stop and the planner's ramp work on it as on any corridor. From 8 m past the exit
+point (the exit kerb begins past its fillet) kerb following is seeded with the line and
+asked for its own fit; it is handed back when the fit has kerb evidence and lies within
+1.5 m and 7 degrees of the line at the car (the fit grabbed the far fillet first: a 2.6 m
+jump at the first hand-back). 25 m past the exit with no kerb the ordinary "no corridor"
+fault stands. The context is kept while the route moves past the exit point.
+- Tests (`test_mapless_crossing.py`): a 14 m crossroads and both T-junctions at 4 m/s
+  (crossed at speed, offset under 0.6 m, exit lane p95 under 0.3 m), a 20 m junction with
+  10 m fillets, the entry point 4 m off either way, and the failure kept as the record
+  (line never followed: into the mouth, stopped).
+- Not done here: looking for traffic. A junction crossed on a STRAIGHT is a give-way or a
+  signalled one; the lights (M07) and crossing traffic at it are G4's.
+
+**The mission scenario (`--scenario mission`, `src/carla_adapter/mapless_mission.py`).**
+The simulator side resolves the baseline's lane chain on the live map with the baseline's
+own topology export and mission builder (`configs/missions/a1_test01.json`), places the
+obstacle of `--acceptance S0`..`S5` as the baseline places it (class, route s, lateral
+offset, after the turn exit; `configs/scenarios`), and hands the car a sparse sat-nav route:
+LANEFOLLOW every 25 m, STRAIGHT at the junction's entry, LANEFOLLOW 5 m into its exit and
+at the goal. The chain is the evaluator's truth lane (extended 15 m past the goal). S1, S2
+and S5 remove the obstacle after the car has held 2 s behind it, as the baseline does; the
+car must see the road clear and drive on.
+- Gates per scenario (`score_mission`): S0 and S3 the goal (S3 also no stop for the
+  roadside car); S1, S2, S5 the hold within the harness's 1.5–5 m band at a standstill (the
+  plan's 2.5–6 m reported beside it) and `resume` (moved off after the removal, goal
+  reached); S4 the hold kept to the end. With the lane gates, `sight_bound`, `real_time`
+  and the rest.
+- `scripts/aggregate_mapless_acceptance.py` reads every mission report under a folder and
+  gives the gate's verdict: MEASURED_PASS only with five seeds per scenario, every run
+  passing, one commit and one mission; over-budget runs counted and named.
+- Tested on the harness's fake world (S1: hold 4 m short, removed after the hold, moved
+  off in 1.4 s, finished; S4 held; S0 the route) and the resolver on a stand-in chain.
+  The real chain (its bend, its junction 468) is r12's.
+
+**r12** (not yet run when this was written; the tenth review's batch, re-issued on this
+code). PC 1: the G2 batch, S0–S5 at the five frozen seeds (5308–5312), 30 runs at 2 m/s
+with the route noise at 2 m, then `aggregate_mapless_acceptance.py`; and the Town03 turns.
+PC 2: the leads, cut-in, radar-first, cone and the three timing configurations.
+
 ## Running Phase 0 live
 
 Run with CARLA 0.9.16 and no other clients:
@@ -3268,6 +3391,11 @@ python scripts/train_mapless_segmentation.py --run ... --evaluate models\road_se
 
 # 7. G2/G3 stack on the drive harness (after G1c; --admission A|B|C, --segmenter <checkpoint>, --detector yolo)
 python scripts/run_mapless_stack.py --scenario straight --admission B --output "$HOME\Documents\Group7_runs\stack_straight"
+
+# 8. G2's gate: the baseline route (Town10HD) with its S0-S5 obstacle scenarios, five seeds each
+#    (--mission for another chain; --route-noise moves the sat-nav points; --acceptance S0..S5)
+python scripts/run_mapless_stack.py --map Town10HD_Opt --scenario mission --acceptance S1 --seed 5308 --admission B --route-noise 2 --record-frames all --output "$HOME\Documents\Group7_runs\g2\S1_5308"
+python scripts/aggregate_mapless_acceptance.py "$HOME\Documents\Group7_runs\g2"
 ```
 
 **Phase 0 gate:**

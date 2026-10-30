@@ -156,6 +156,29 @@ def test_exit_point_off_by_three_metres_is_corrected_by_the_kerb():
     assert measured and abs(measured[-1]["kerb_from_probe_m"]) > 1.0  # the kerb, not the route point, placed the lane
 
 
+@pytest.mark.parametrize("side, dx, dy", [pytest.param(-1, 3.0, 1.5, id="right-late-wide"), pytest.param(1, -3.0, -1.5, id="left-early-inside")])
+def test_entry_point_a_satnav_distance_off_still_turns_at_the_kerbs_junction(side, dx, dy):
+    """Review of 519b8fe, F-07: the routes were exact lane-centre points with the entry on
+    the lane's last waypoint, and nothing moved the entry point. A sat-nav's point sits
+    metres from the junction box: 3 m along the road and 1.5 m across, either way. The car
+    still turns where the kerb says the junction is, and reaches the exit lane."""
+    world, _ = junction_world(side)
+    route = world.route(goal_after_turn(world))
+    plane = world.plane
+    moved = []
+    for p in route.points:
+        if p.command in (Command.LEFT, Command.RIGHT):
+            x, y = plane.to_local(p.latitude_deg, p.longitude_deg)
+            p = RoutePoint(*plane.to_geodetic(x + dx, y + dy), p.command)
+        moved.append(p)
+    log = drive(world, SatNavRoute(route.name, tuple(moved)))
+    truth, last = log[-1]
+    assert last.mode is DriveMode.FINISHED and abs(truth.s_m - goal_after_turn(world)) < 3.0
+    assert not any(t.collision for t, _ in log) and any(s.mode is DriveMode.TURNING for _, s in log)
+    exit_leg = [t for t, _ in log if t.s_m > world.path.starts[2][3] + 8]
+    assert exit_leg and np.percentile(np.abs([t.lane_offset_m for t in exit_leg]), 95) < 0.3
+
+
 def test_obstacle_on_the_inner_corner_rejects_the_turn():
     # A car parked across the exit lane just past the corner: no radius clears it, so the
     # car waits at the junction mouth instead of turning into it.

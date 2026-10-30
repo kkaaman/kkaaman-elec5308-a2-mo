@@ -54,7 +54,7 @@ class VehicleControl:
         self.throttle, self.steer, self.brake = throttle, steer, brake
 
 
-LANE_TYPE = SimpleNamespace(Driving="Driving", Sidewalk="Sidewalk", Shoulder="Shoulder")
+LANE_TYPE = SimpleNamespace(Driving="Driving", Sidewalk="Sidewalk", Shoulder="Shoulder", Any="Any")
 
 
 def fake_carla_module():
@@ -150,6 +150,9 @@ class Actor:
 
     def destroy(self):
         self.is_alive = False
+        box = getattr(self, "box", None)
+        if box is not None and box in self.world.road.boxes:
+            self.world.road.boxes.remove(box)  # a removed obstacle leaves the LiDAR's world too
         return True
 
 
@@ -196,7 +199,7 @@ class World:
         pass
 
     def get_blueprint_library(self):
-        return SimpleNamespace(find=lambda blueprint_id: SimpleNamespace(id=blueprint_id))
+        return SimpleNamespace(find=lambda blueprint_id: SimpleNamespace(id=blueprint_id, has_attribute=lambda name: False))
 
     def try_spawn_actor(self, blueprint, transform):
         self.next_id += 1
@@ -210,7 +213,8 @@ class World:
         else:
             e = EXTENTS[blueprint.id]
             loc = transform.location
-            self.road.boxes.append((loc.x, -loc.y, -math.radians(transform.rotation.yaw), e[0], e[1], 2 * e[2]))
+            actor.box = (loc.x, -loc.y, -math.radians(transform.rotation.yaw), e[0], e[1], 2 * e[2])
+            self.road.boxes.append(actor.box)
         return actor
 
     def spawn_actor(self, blueprint, transform, attach_to=None, attachment_type=None):
@@ -314,9 +318,9 @@ def run_drive(monkeypatch, tmp_path, *extra):
 def test_straight_drive_reaches_the_goal_and_passes(monkeypatch, tmp_path):
     out, report = run_drive(monkeypatch, tmp_path, "--scenario", "straight", "--goal-m", "60", "--snapshot-every", "100", "--record-frames", "all")
     by_name = {c["check"]: c for c in report["checks"]}
-    failed = [c for c in report["checks"] if c["status"] not in ("PASS", "REPORT")]
+    failed = [c for c in report["checks"] if c["status"] not in ("PASS", "REPORT", drive.OVER_BUDGET)]
     assert not failed, json.dumps(failed, indent=2)
-    assert report["status"] == "MEASURED_PASS" and report["end"] == "finished"
+    assert report["status"] in ("MEASURED_PASS", "MEASURED_PASS_OVER_BUDGET") and report["end"] == "finished"  # this machine's steps may miss 50 ms
     assert by_name["goal"]["goal_distance_m"] <= 3.0
     calibration = by_name["calibration"]
     assert calibration["map_lane_centre_to_kerb_m"] == pytest.approx(1.75)
@@ -356,6 +360,44 @@ def test_stop_scenario_holds_short_of_the_parked_car(monkeypatch, tmp_path):
     assert by_name["obstacle_stop"]["status"] == "PASS"
     assert 1.5 <= by_name["obstacle_stop"]["gap_m"] <= 5.0
     assert by_name["no_collision"]["status"] == "PASS"
+
+
+def _fake_mission_site(length_m=90.0, obstacle_s_m=None):
+    from carla_adapter.mapless_mission import MissionSite  # noqa: PLC0415
+
+    xs = np.arange(0.0, length_m + 0.5, 1.0)
+    pts = np.column_stack((xs, np.full(len(xs), LANE_WIDTH / 2)))
+    arcs = np.concatenate(([0.0], np.cumsum(np.hypot(*np.diff(pts, axis=0).T))))
+    return MissionSite("fake_mission", pts, arcs, (), length_m - 10.0, LANE_WIDTH, LANE_WIDTH / 2, "sidewalk", [], ("7:0:-1",), obstacle_s_m)
+
+
+def run_mission(monkeypatch, tmp_path, acceptance, *extra, obstacle_s_m=None):
+    monkeypatch.setattr(drive, "resolve_mission", lambda carla, carla_map, path: _fake_mission_site(obstacle_s_m=obstacle_s_m))
+    return run_drive(monkeypatch, tmp_path, "--scenario", "mission", "--acceptance", acceptance, "--hold-s", "3", "--snapshot-every", "0", *extra)
+
+
+def test_mission_s1_holds_behind_the_car_resumes_when_it_leaves_and_finishes(monkeypatch, tmp_path):
+    """G2's gate on the harness: the baseline route as a sat-nav route, the S1 car at the
+    scenario's s, removed after the 2 s hold; the car resumes and reaches the goal."""
+    out, report = run_mission(monkeypatch, tmp_path, "S1", obstacle_s_m=40.0)
+    by_name = {c["check"]: c for c in report["checks"]}
+    assert report["acceptance"] == dict(scenario="S1", seed=5308, mission="fake_mission", route_noise_m=0.0)
+    assert report["obstacle"]["s_m"] == 40.0 and report["obstacle"]["remove_after_hold_s"] == 2.0
+    assert by_name["obstacle_stop"]["status"] == "PASS" and 1.5 <= by_name["obstacle_stop"]["gap_m"] <= 5.0
+    assert by_name["resume"]["status"] == "PASS" and by_name["resume"]["moved_off_s"] < 6.0
+    assert report["end"] == "finished" and report["status"] in ("MEASURED_PASS", "MEASURED_PASS_OVER_BUDGET")
+    route = json.loads((out / "route.json").read_text(encoding="utf-8"))
+    assert route["provenance"]["source"] == "baseline mission lane chain" and [p["command"] for p in route["points"]][-1] == "LANEFOLLOW"
+
+
+def test_mission_s4_holds_for_good_and_s0_drives_the_route(monkeypatch, tmp_path):
+    _, report = run_mission(monkeypatch, tmp_path, "S4", obstacle_s_m=40.0)
+    by_name = {c["check"]: c for c in report["checks"]}
+    assert report["end"] == "held at the obstacle" and by_name["held"]["status"] == "PASS" and by_name["obstacle_stop"]["status"] == "PASS"
+    assert "resume" not in by_name
+    _, report = run_mission(monkeypatch, tmp_path / "s0", "S0")
+    by_name = {c["check"]: c for c in report["checks"]}
+    assert "obstacle" not in report and by_name["goal"]["status"] == "PASS" and report["end"] == "finished"
 
 
 def test_curve_scenario_refuses_a_map_without_curves(monkeypatch, tmp_path):
@@ -433,6 +475,11 @@ def test_a_run_that_passes_every_gate_without_exercising_its_target_is_not_a_pas
     assert run_status(base + [c("separation", FAIL), c("exercised", NOT_EXERCISED)]) == "MEASURED_FAIL"
     assert run_status(base + [c("separation", INCOMPLETE), c("exercised", NOT_EXERCISED)]) == "INCOMPLETE"
     assert run_status([c("behaviour", REPORT), c("exercised", NOT_EXERCISED)]) == "INCOMPLETE"
+    # The deadline missed is its own verdict, not a behaviour failure (review of 519b8fe, F-04).
+    assert run_status(base + [c("real_time", drive.OVER_BUDGET)]) == "MEASURED_PASS_OVER_BUDGET"
+    assert run_status(base + [c("real_time", drive.OVER_BUDGET), c("exercised", NOT_EXERCISED)]) == NOT_EXERCISED
+    assert run_status(base + [c("real_time", drive.OVER_BUDGET), c("separation", FAIL)]) == "MEASURED_FAIL"
+    assert run_status(base + [c("real_time", PASS)]) == "MEASURED_PASS"
 
 
 def test_semantic_shadow_report_summarises_the_agreement_and_is_none_without_it():
@@ -581,9 +628,10 @@ def test_the_oncoming_gate_report_counts_clear_verdicts_on_a_short_view():
 def test_t10_the_sight_bound_report_counts_ticks_over_the_observability_bound():
     """Tenth review, 5: did the car keep to the speed it could stop from within the path seen
     clear? Over by more than the speed loop's lag (0.3 m/s) is counted, with the excess."""
-    log = [dict(truth=dict(speed_mps=v), driver=dict(sight_speed_mps=b)) for v, b in ((3.0, 4.0), (3.2, 3.0), (3.6, 3.0), (2.0, None))]
+    log = [dict(truth=dict(speed_mps=v), driver=dict(sight_speed_mps=b), command=[0.0, 0.0, brake]) for v, b, brake in ((3.0, 4.0, 0.0), (3.2, 3.0, 0.0), (3.6, 3.0, 0.0), (2.0, None, 0.0), (3.5, 2.8, 0.6))]
     out = drive.sight_bound_report(log)
-    assert out["ticks"] == 3 and out["over_ticks"] == 1 and out["max_excess_mps"] == pytest.approx(0.6) and out["min_bound_mps"] == 3.0
+    assert out["ticks"] == 4 and out["over_ticks"] == 1 and out["max_excess_mps"] == pytest.approx(0.7) and out["min_bound_mps"] == 2.8
+    assert out["over_while_braking_ticks"] == 1  # the bound stepped down under a braking car: not driving blind (519b8fe, F-04)
     assert drive.sight_bound_report([dict(truth=dict(speed_mps=1.0), driver={})]) is None
 
 

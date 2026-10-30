@@ -757,7 +757,7 @@ def score_prediction_coverage(log, actor_truths, body, dt_s=0.05, match_m=1.0, h
     out = {}
     for h in horizons_s:
         ahead = int(round(h / dt_s))
-        judged = covered = 0
+        judged = covered = body_covered = 0
         errors, outside, ratios = [], [], []
         for k, row, actor in rows:
             d = row.get("driver") or {}
@@ -776,6 +776,11 @@ def score_prediction_coverage(log, actor_truths, body, dt_s=0.05, match_m=1.0, h
             judged += 1
             inside = abs(along) <= hl and abs(across) <= hw
             covered += inside
+            # The planner's property is the whole body inside the region, not its centre
+            # (review of 519b8fe, F-06): the actor's four true corners, that far on.
+            later = actor_truths[k + ahead]
+            corners = [_ego_frame(row["truth"], v) for v in box_vertices(later["centre_xy"], later["yaw_rad"], later["extent_m"])]
+            body_covered += all(abs(c * (vx - cx) + s * (vy - cy)) <= hl and abs(-s * (vx - cx) + c * (vy - cy)) <= hw for vx, vy in corners)
             errors.append(math.hypot(fx - cx, fy - cy))
             if not inside:
                 outside.append(math.hypot(max(abs(along) - hl, 0.0), max(abs(across) - hw, 0.0)))
@@ -784,6 +789,7 @@ def score_prediction_coverage(log, actor_truths, body, dt_s=0.05, match_m=1.0, h
         out[f"{h:g}s"] = dict(
             judged_ticks=judged,
             covered_share=round(covered / judged, 3) if judged else None,
+            body_covered_share=round(body_covered / judged, 3) if judged else None,
             centre_error_median_m=round(float(np.median(errors)), 2) if errors else None,
             centre_error_max_m=round(float(np.max(errors)), 2) if errors else None,
             worst_miss_m=round(float(np.max(outside)), 2) if outside else None,
@@ -1357,12 +1363,21 @@ def _score_exercised(name, log, actor_truths, body, cruise_mps, dt_s=0.05, hando
     if name not in EXERCISE_CONDITION or not rows:
         return out | dict(exercised=None, note="no actor measurements" if name in EXERCISE_CONDITION else "no condition for this scenario")
     if name == "braking_lead":
-        top = 0.0
+        top, braked_unseen = 0.0, None
         for k, a in rows:
             cx, _ = _ego_frame(log[k]["truth"], a["centre_xy"])
             top = max(top, a["speed_mps"])
             if 0.0 <= cx <= 50.0 and a["speed_mps"] <= top - 0.5:
-                return out | dict(exercised=True, at_s=round(log[k]["time_s"], 2))
+                # The hand-over this scenario is for needs the lead in the stack's tracks as
+                # it brakes (review of 519b8fe, F-11: a lead that braked to rest at 45 m,
+                # beyond the LiDAR's objects, was "exercised" with nothing to follow).
+                d = log[k].get("driver") or {}
+                matched = any(ego_to_actor_distance(log[k]["truth"], a, (e[1], e[2])) <= 1.0 for e in d.get("tracks_near") or ())
+                if matched or lead_is_actor(log[k], a):
+                    return out | dict(exercised=True, at_s=round(log[k]["time_s"], 2))
+                braked_unseen = braked_unseen or round(log[k]["time_s"], 2)
+        if braked_unseen is not None:
+            return out | dict(exercised=False, note=f"the lead braked at {braked_unseen} s with no track on it")
         return out | dict(exercised=False, note="the lead did not slow within 50 m ahead")
     if name == "oncoming_stopped":
         for k, a in rows:

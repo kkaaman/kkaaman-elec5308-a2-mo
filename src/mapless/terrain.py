@@ -200,6 +200,7 @@ def _path_stations(path_xy, config):
     station nearest the rear axle (s = 0 there); None for a path of fewer than two points."""
     c = config
     p = np.asarray(path_xy, dtype=float).reshape(-1, 2)
+    p = p[np.all(np.isfinite(p), axis=1)]  # a non-finite point is no station (review of 519b8fe, F-09)
     seg = np.hypot(*np.diff(p, axis=0).T) if len(p) >= 2 else np.zeros(0)
     keep = np.concatenate(([True], seg > 1e-6)) if len(p) >= 2 else np.ones(len(p), dtype=bool)
     p = p[keep]
