@@ -203,6 +203,20 @@ class TrackerConfig:
     shape_refit_every: int = 5  # a full shape memory is refitted every this many updates (``_worth_fitting``) ...
     shape_fits_per_tick: int = 4  # ... and no more than this many clusters a tick are fitted, the nearest first
     shape_fragment_cost: float = 4.0  # added to a fragment's gating cost, so a whole cluster of the object is taken first
+    # The leading edge (``ObjectTrack.edge_speed_mps``): a cluster's extent along
+    # edge_directions directions (its support function) is kept per LiDAR update for
+    # clusters edge_min_extent_m long or longer; the edge's advance along the velocity is
+    # read over the last edge_window_s, at least edge_min_span_s and edge_min_updates
+    # updates. The crossing car that had stopped 6 m left of the path (PC 1, Town05, r11
+    # seed 2, 84fb071) read 0.5-0.7 m/s towards it as the car drew level, its centroid
+    # sliding to the near end face, and the car braked from 3.9 m/s to a stop: its leading
+    # edge read 0.00-0.08 m/s; a crossing car's, an oncoming car's and a cut-in's read
+    # 0.85-1.0 of their speed in the recorded runs.
+    edge_directions: int = 16
+    edge_min_extent_m: float = 1.5  # a car seen end-on is a 1.8-2 m face
+    edge_window_s: float = 1.0
+    edge_min_span_s: float = 0.5
+    edge_min_updates: int = 5
 
     def __post_init__(self):
         if self.confirm_hits > self.confirm_window or self.coast_s >= self.delete_s:
@@ -211,6 +225,8 @@ class TrackerConfig:
             raise ValueError("TrackerConfig: shape_min_views >= 1 and 0 < shape_min_length_m <= shape_max_length_m")
         if self.assignment not in ("greedy", "optimal"):
             raise ValueError("TrackerConfig.assignment: greedy or optimal")
+        if self.edge_directions < 4 or self.edge_min_span_s > self.edge_window_s:
+            raise ValueError("TrackerConfig: edge_directions >= 4 and edge_min_span_s <= edge_window_s")
 
 
 @dataclass
@@ -249,6 +265,7 @@ class _Track:
     shape: tuple | None = None  # the remembered box (length, width, odometry yaw) it is measured against, once it has one
     visible_long: float | None = None  # the long side of the last cluster measured (the shape memory aside)
     radar_rejected_s: float | None = None  # when a radar return associated with it last had its radial speed rejected (observed nothing)
+    edges: deque = field(default_factory=lambda: deque(maxlen=40))  # (time, the cluster's support along each edge direction, odometry frame) per LiDAR update
 
 
 def _remembered_shape(track, config):
@@ -370,6 +387,43 @@ def _recent_speed(trail, min_span_s):
     (t0, x0, y0), (t1, x1, y1) = trail[0], trail[-1]
     span = t1 - t0
     return None if span < min_span_s else float(math.hypot(x1 - x0, y1 - y0) / span)
+
+
+def _edge_directions(n):
+    a = np.arange(n) * (2.0 * math.pi / n)
+    return np.column_stack((np.cos(a), np.sin(a)))
+
+
+def _record_edges(track, points_odo, time_s, config, directions):
+    """Keep a cluster's support function (its farthest extent along each direction) for
+    ``_edge_speed``, for clusters ``edge_min_extent_m`` long or longer."""
+    if len(points_odo) < 3 or float(np.ptp(points_odo, axis=0).max()) < config.edge_min_extent_m:
+        return
+    track.edges.append((time_s, (points_odo @ directions.T).max(axis=0)))
+
+
+def _support_at(support, angle):
+    """The support function sampled at evenly spaced directions, interpolated at ``angle``."""
+    n = len(support)
+    k = (angle % (2.0 * math.pi)) / (2.0 * math.pi / n)
+    i0 = int(math.floor(k)) % n
+    f = k - math.floor(k)
+    return (1.0 - f) * float(support[i0]) + f * float(support[(i0 + 1) % n])
+
+
+def _edge_speed(track, now, config):
+    """How fast the leading edge (the cluster's extent along the velocity) advanced over the
+    last ``edge_window_s``, m/s, or None (no velocity, too little history, no cluster now)."""
+    c = config
+    speed = float(np.hypot(*track.x[2:4]))
+    if speed < 0.1 or not track.edges or abs(track.edges[-1][0] - now) > 1e-9:
+        return None
+    window = [e for e in track.edges if now - e[0] <= c.edge_window_s + 1e-9]
+    if len(window) < c.edge_min_updates or now - window[0][0] < c.edge_min_span_s - 1e-9:
+        return None
+    angle = math.atan2(float(track.x[3]), float(track.x[2]))
+    (t0, h0), (t1, h1) = window[0], window[-1]
+    return (_support_at(h1, angle) - _support_at(h0, angle)) / (t1 - t0)
 
 
 def covariance_intersection(a, Pa, b, Pb, steps=21):
@@ -564,6 +618,7 @@ class Tracker:
         self.tracks = {}
         self._next_id = 1
         self._time = None
+        self._edge_dirs = _edge_directions(self.config.edge_directions)
         # This tick's radar bookkeeping, for the log: objects, those associated, radial
         # speeds rejected (with the innovations), radar-only tracks started, clutter skipped.
         self.radar_stats = {}
@@ -731,6 +786,8 @@ class Tracker:
                 if footprint is not None:
                     t.footprint = footprint
                 hit.add(ids[i])
+                if has_plan[j] and not fragment and m.extent is not None and max(m.extent[0], m.extent[1]) >= c.edge_min_extent_m:
+                    _record_edges(t, plan(j), time_s, c, self._edge_dirs)  # a fragment's extent is not the object's
             taken = {j for _, j in assigned}
             for j, m in enumerate(lidar):
                 if j not in taken:
@@ -741,6 +798,8 @@ class Tracker:
                         t.visible_long = max(m.extent[0], m.extent[1])
                         if has_plan[j] and _worth_fitting(t, t.visible_long, c):
                             _remember_extent(t, _rectangle(plan(j)), c)
+                        if has_plan[j] and t.visible_long >= c.edge_min_extent_m:
+                            _record_edges(t, plan(j), time_s, c, self._edge_dirs)
                     hit.add(tid)
         # Radar: range, bearing, radial speed --------------------------------------------
         radar = list(radar)
@@ -1148,6 +1207,7 @@ class Tracker:
                     lidar_nis=round(float(np.mean(t.nis)), 2) if t.nis else None,
                     max_excursion_m=round(t.max_excursion, 3) if t.origin is not None else None,
                     still_s=round((self._time or t.time_s) - (t.last_moving_s if t.last_moving_s is not None else t.origin_time_s), 3),
+                    edge_speed_mps=None if (edge := _edge_speed(t, self._time if self._time is not None else t.time_s, c)) is None else round(edge, 3),
                 )
             )
         return out

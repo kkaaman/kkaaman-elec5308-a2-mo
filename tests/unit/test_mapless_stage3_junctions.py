@@ -347,11 +347,50 @@ def test_the_exit_kerb_measured_on_the_approach_is_kept_while_the_car_stands_at_
     assert source(1.5, standing_s=0.05) == "kerb"
     assert source(30.0, standing_s=28.5) == "kerb"  # stood still since: kept
     assert source(30.8) == "kerb"  # moving off: 1.8 s of motion since
-    assert source(31.5) == "route"  # 2.5 s of motion: forgotten, replaced from nearer
+    assert source(31.5) == "kerb"  # 2.5 s of motion: past memory_s, read as the fallback
+    assert turn.exit_line(grid, pose, (20.0, 10.0), math.pi / 2)[3]["memory"] == "fallback"
+    assert source(33.2) == "route"  # over 4 s of motion: forgotten, replaced from nearer
     remember([11.0, 12.0, 12.99])
-    assert source(32.0) == "kerb"  # 1.99 m: three stations
+    assert source(33.5) == "kerb"  # 1.99 m: three stations
     remember([11.0, 12.0])
-    assert source(32.5) == "route"  # two stations are not a line
+    assert source(34.0) == "route"  # two stations are not a line
+
+
+def test_the_measured_exit_is_kept_when_the_near_stations_go_out_of_view():
+    """PC 1, Town03, r10 and r11 left turns, 14.2 s: approaching the mouth, the exit kerb's
+    near stations went out of view and aged out of the 2 s memory; the stations still in
+    view spanned 1.06 m, no line, and the measured exit was lost for 0.25 s: the car braked
+    hard (0.95) for the mouth from 2 m/s. The stations kept exit_fallback_s longer now make
+    the line when the last memory_s's do not; the recent ones still come first."""
+    from mapless.corridor import CorridorEstimator
+    from mapless.junction import JunctionTurn
+
+    turn = JunctionTurn(JunctionConfig(), BODY, CorridorEstimator(CorridorConfig(keep_right_m=1.75)))
+    grid = TerrainGrid(TerrainConfig())
+    pose = Pose2D(0.0, 0.0, 0.0)
+    probe = Pose2D(20.0, 10.0, math.pi / 2)
+
+    def measure(now_s):
+        turn._now, turn.standing_s = now_s, 0.0
+        return turn.exit_line(grid, pose, (20.0, 10.0), math.pi / 2)
+
+    def remember(xs):
+        turn._kerb.append((turn._now, turn._moving_s, probe.to_world(np.array([[x, -6.4] for x in xs]))))
+
+    measure(0.0)
+    remember([5.0, 6.0, 7.0, 8.0, 11.0, 12.0])  # the approach's view: near and far stations
+    _, source, _, fit = measure(1.0)
+    assert source == "kerb" and "memory" not in fit
+    measure(2.2)
+    remember([11.0, 11.5, 12.06])  # only these in view now: 1.06 m
+    _, source, _, fit = measure(2.4)  # the near ones are 2.4 s of motion old
+    assert source == "kerb" and fit["memory"] == "fallback"
+    remember([13.0, 14.0])  # a line from the last memory_s again: only its stations are read
+    _, source, _, fit = measure(2.5)
+    assert source == "kerb" and "memory" not in fit and fit["stations"] == 5
+    measure(6.5)  # 4 s of motion on with nothing new: all of it forgotten
+    turn._kerb = [k for k in turn._kerb if turn._moving_s - k[1] <= 4.0]
+    assert measure(6.6)[1] == "route"
 
 
 # -- an object on the latched path (PC1, Town03, r8_left_oncoming, b15b76f) ---------------

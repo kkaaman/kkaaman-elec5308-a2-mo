@@ -95,6 +95,9 @@ class DriverConfig:
     still_credit_m: float = 3.0
     mouth_release_m: float = 0.5  # a standing car's mouth moves on to an opening read this much further ...
     mouth_release_s: float = 1.0  # ... steadily (within mouth_release_m) for this long
+    # The path the far points' ground is read along (``classify_sweep``'s path_xy) is the last
+    # one planned, while it is no older than this (a fault tick plans none).
+    profile_path_max_age_s: float = 0.5
 
     def __post_init__(self):
         if not isinstance(self.body, VehicleBody) or not isinstance(self.control, LocalControlConfig):
@@ -172,6 +175,7 @@ class MaplessDriver:
         self._turning = False
         self.speed_cap_mps = None  # the stack's following/prediction cap for this tick (None: none)
         self.last_motion = self.last_classified = self.last_plan = self.last_corridor = None
+        self._profile_path = None  # (time, odometry polyline) of the last path planned along, for the far points' ground (terrain)
         self._turn_done = None  # route index of the junction entry whose turn is complete
         self._mouth_odo = None  # the junction mouth, odometry frame, nearest seen since the approach began
         self._lane_heading_odo = None  # the entry lane's direction, odometry frame, latched as the approach begins
@@ -257,7 +261,16 @@ class MaplessDriver:
             self._moving_t = t  # before any early return: a fault while moving must not stretch a later standstill's freshness
         classified = None
         if frame.status_of(self.lidar).state is SensorState.OK:
-            classified = classify_sweep(frame.lidar(self.lidar).xyz, c.body, c.terrain)
+            # The far points' ground is read along the path planned last tick (terrain's
+            # module docstring), while it is recent and the odometry frame still the same:
+            # the lane's, or a committed turn's. Not a turn still being chosen at the
+            # approach, whose path moves with each reading (the synthetic left turns,
+            # tuned on the bands' ground there, were held at the mouth).
+            path_body = None
+            choosing = self._turning and not self.turn.committed
+            if self._profile_path is not None and not choosing and motion.odometry_trusted and not self._rebuild and t - self._profile_path[0] <= c.profile_path_max_age_s:
+                path_body = motion.odometry.to_body(self._profile_path[1])
+            classified = classify_sweep(frame.lidar(self.lidar).xyz, c.body, c.terrain, path_xy=path_body)
         lap("classify")
         # For the stack around the driver (G2/G3): this tick's inputs, read after step().
         self.last_motion, self.last_classified, self.last_plan, self.last_corridor = motion, classified, None, None
@@ -359,6 +372,7 @@ class MaplessDriver:
             self._zone_entered = False
             self._still_since, self._still_base, self._still_credit, self._still_odo = None, 0.0, 0.0, None
             self._rebuild = False
+            self._profile_path = None
             d.update(frame_rebuilt=True)
             if classified is not None:
                 self.grid.add(classified, motion.odometry, t, stationary=motion.stationary)
@@ -605,6 +619,7 @@ class MaplessDriver:
         plan = self.planner.plan(corridor, observation, goal_body, t, hold_at_m=hold_at, speed_cap_mps=self.speed_cap_mps)
         lap("plan")
         self.last_plan, self.last_corridor = plan, corridor  # the path planned along this tick (a turn's, in a turn)
+        self._profile_path = (t, corridor.centre_odometry) if corridor.ok else None
         self.turn_entry_m = float(junction[0][0]) if junction is not None and corridor is not self._turn_corridor else None
         d.update(
             obstacle_m=None if obstacle is None else obstacle.distance_m,

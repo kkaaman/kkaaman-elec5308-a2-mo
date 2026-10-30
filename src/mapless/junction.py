@@ -84,6 +84,12 @@ class JunctionConfig:
     median_max_m: float = 2.5  # road again within this beyond a raised strip: the strip is a median, the kerb lies further out
     refine_max_shift_m: float = 1.5  # a re-measured exit line further than this from the latched is another road, not a correction
     memory_s: float = 2.0  # exit-kerb stations remembered for the line fit, for this long in motion (a standstill does not age them)
+    # ... and kept this much longer, read only when the last memory_s's stations make no line:
+    # approaching a left turn's mouth the exit kerb's near stations go out of view, and when
+    # they aged out the stations still in view spanned 1.06 m. The measured exit was lost for
+    # 0.25 s and the car braked hard for the mouth from 2 m/s (PC 1, Town03, r10 and r11
+    # left turns, 14.2 s; the stations a tick before made a 52-station line).
+    exit_fallback_s: float = 2.0
     road_memory_s: float = 10.0  # road cells count as observed for this long
     observed_share: float = 0.4  # of a pose's footprint cells seen as road: the pose is observed
     gap_m: float = 1.0  # unobserved poses allowed over this length ...
@@ -641,15 +647,19 @@ class JunctionTurn:
         # stopped there forgot what it had measured on the approach and never measured it
         # again (PC Temp, Town03: held 25 s at the mouth, "exit lane not measured"). Once it
         # moves on, all of it ages as before and is replaced from nearer within memory_s.
-        self._kerb = [(t, m, k) for t, m, k in self._kerb if self._moving_s - m <= c.memory_s]
+        self._kerb = [(t, m, k) for t, m, k in self._kerb if self._moving_s - m <= c.memory_s + c.exit_fallback_s]
         # The stations of the last memory_s first, as before; only if they make no line (a
         # car standing at the mouth with the far stations out of view) the ones kept from
         # before the standstill too. Read from farther away they carry more of the range
         # bias, so a car that has a line from where it stands keeps reading it from there
         # (Stage 3, S7: the standstill's view, 1.3 m, was right where the approach read 1.1).
-        recent = [k for t, _, k in self._kerb if self._now - t <= c.memory_s]
-        retained = [k for *_, k in self._kerb]
-        for entries in [recent, retained] if len(retained) > len(recent) else [recent]:
+        # Last, the ones kept exit_fallback_s longer in motion (the near stations out of view).
+        fresh = [(t, k) for t, m, k in self._kerb if self._moving_s - m <= c.memory_s]
+        recent = [k for t, k in fresh if self._now - t <= c.memory_s]
+        retained = [k for _, k in fresh]
+        kept = [k for *_, k in self._kerb]
+        levels = [recent] + ([retained] if len(retained) > len(recent) else []) + ([kept] if len(kept) > len(retained) else [])
+        for entries in levels:
             if not entries:
                 continue
             remembered = probe.to_body(np.vstack(entries))
@@ -709,6 +719,8 @@ class JunctionTurn:
                             fitted_skew_deg=round(fitted_deg, 1),
                             range_m=round(float(np.median(np.hypot(kept_body[:, 0], kept_body[:, 1]))), 1),  # the kerb stations' distance from the car
                         )
+                        if entries is kept and len(levels) > 1:
+                            fit["memory"] = "fallback"  # read from the stations kept exit_fallback_s longer
                         return point, "kerb", heading, fit
         return tuple(exit_point_body), "route", exit_heading_body, None
 

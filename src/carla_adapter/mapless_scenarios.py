@@ -218,7 +218,8 @@ class ScriptedActor:
 
 
 def braking_profile_control(speed_mps, start_mps, elapsed_s, decel_mps2, gain=1.5):
-    """The brake that holds a scripted car to a constant-deceleration stop: the speed the
+    """The pedal fallback of ``scripted_braking`` (an actor without ``set_target_velocity``).
+    The brake that holds a scripted car to a constant-deceleration stop: the speed the
     profile asks for by the next tick (``start_mps`` less ``decel_mps2`` times the time
     braking, that tick included), and
     the brake in proportion to the excess, full once stopped (a hold). A fixed pedal
@@ -229,6 +230,33 @@ def braking_profile_control(speed_mps, start_mps, elapsed_s, decel_mps2, gain=1.
     if target <= 0.0 and speed_mps < 0.3:
         return 1.0
     return float(np.clip(gain * (speed_mps - target), 0.0, 1.0))
+
+
+def scripted_braking(carla, actor, start_mps, elapsed_s, decel_mps2, steer=0.0):
+    """Brake a scripted car at ``decel_mps2``: its velocity set each tick, along its heading, to
+    the profile's for the end of the tick (``start_mps`` less ``decel_mps2`` times
+    ``elapsed_s``; CARLA's ``set_target_velocity``) with the pedals released, and held on
+    the brake once the profile reaches zero. The pedal profile (``braking_profile_control``)
+    braked jerkily, the brake far stronger at low speed than the loop could follow: 4.6 and
+    5.0 m/s^2 achieved for 3 and 4 asked, the lead's speed jumping 2.8 -> 1.0 -> 1.6 m/s in
+    0.2 s (PC 2, r11_lead_b3 and b4, 84fb071). An actor without ``set_target_velocity``
+    (a stand-in) still gets the pedal profile. Returns "velocity", "pedal" or "hold"."""
+    target = max(0.0, start_mps - decel_mps2 * elapsed_s)
+    by_velocity = hasattr(actor, "set_target_velocity") and hasattr(carla, "Vector3D")
+    if target <= 0.0:
+        if by_velocity:
+            actor.set_target_velocity(carla.Vector3D(0.0, 0.0, 0.0))
+        actor.apply_control(carla.VehicleControl(throttle=0.0, brake=1.0, steer=steer))
+        return "hold"
+    v = actor.get_velocity()
+    if by_velocity:
+        yaw = math.radians(actor.get_transform().rotation.yaw)
+        actor.set_target_velocity(carla.Vector3D(target * math.cos(yaw), target * math.sin(yaw), float(getattr(v, "z", 0.0))))
+        actor.apply_control(carla.VehicleControl(throttle=0.0, brake=0.0, steer=steer))
+        return "velocity"
+    brake = braking_profile_control(math.hypot(v.x, v.y), start_mps, elapsed_s, decel_mps2)
+    actor.apply_control(carla.VehicleControl(throttle=0.0, brake=brake, steer=steer))
+    return "pedal"
 
 
 class BrakingLeadCar(ScriptedActor):
@@ -261,11 +289,9 @@ class BrakingLeadCar(ScriptedActor):
         carla, p = self.carla, self.params
         if braking:
             v = actor.get_velocity()
-            speed = math.hypot(v.x, v.y)
             starts = self.__dict__.setdefault("_brake_starts", {})
-            start_tick, start_speed = starts.setdefault(id(actor), (tick, speed))
-            brake = braking_profile_control(speed, start_speed, (tick - start_tick + 1) * 0.05, p.brake_mps2)
-            actor.apply_control(carla.VehicleControl(throttle=0.0, brake=brake))
+            start_tick, start_speed = starts.setdefault(id(actor), (tick, math.hypot(v.x, v.y)))
+            scripted_braking(carla, actor, start_speed, (tick - start_tick + 1) * 0.05, p.brake_mps2)
             return
         t = actor.get_transform()
         x, y = self.core_xy(t.location)
@@ -361,7 +387,8 @@ class CutInCar(BrakingLeadCar):
             self.braking = True
             starts = self.__dict__.setdefault("_brake_starts", {})
             start_tick, start_speed = starts.setdefault(id(self.actor), (tick, speed))
-            throttle, brake = 0.0, braking_profile_control(speed, start_speed, (tick - start_tick + 1) * 0.05, p.brake_mps2)
+            scripted_braking(carla, self.actor, start_speed, (tick - start_tick + 1) * 0.05, p.brake_mps2, steer=float(np.clip(-bearing / math.radians(35), -1, 1)))
+            return
         self.actor.apply_control(carla.VehicleControl(throttle=throttle, brake=brake, steer=float(np.clip(-bearing / math.radians(35), -1, 1))))
 
 

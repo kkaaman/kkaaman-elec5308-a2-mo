@@ -756,3 +756,44 @@ def test_n9_scripted_braking_follows_the_asked_deceleration():
                 stopped_at = t
         assert stopped_at is not None and abs(6.0 / stopped_at - decel) <= 0.15 * decel, (decel, stopped_at)
         assert sc.braking_profile_control(0.0, 6.0, 20.0, decel) == 1.0
+
+
+def test_r11_scripted_braking_sets_the_profile_velocity_and_holds_at_the_stop():
+    """PC 2, r11_lead_b3 and b4 (84fb071): the pedal profile achieved 4.6 and 5.0 m/s^2 for 3
+    and 4 asked, the lead's speed jumping 2.8 -> 1.0 -> 1.6 m/s in 0.2 s. A CARLA actor now
+    has its velocity set along its heading to the profile's each tick, the pedals released;
+    held on the brake once the profile reaches zero. A stand-in without
+    ``set_target_velocity`` keeps the pedal profile."""
+    from types import SimpleNamespace
+
+    class Actor:
+        def __init__(self, yaw_deg, with_velocity=True):
+            self.yaw, self.v, self.controls, self.velocities = yaw_deg, SimpleNamespace(x=0.0, y=2.8, z=0.0), [], []
+            if with_velocity:
+                self.set_target_velocity = lambda vec: self.velocities.append((vec.x, vec.y, vec.z))
+
+        def get_velocity(self):
+            return self.v
+
+        def get_transform(self):
+            return SimpleNamespace(rotation=SimpleNamespace(yaw=self.yaw))
+
+        def apply_control(self, control):
+            self.controls.append(control)
+
+    carla = SimpleNamespace(VehicleControl=lambda **kw: SimpleNamespace(**kw), Vector3D=lambda x, y, z: SimpleNamespace(x=x, y=y, z=z))
+    actor = Actor(90.0)
+    speeds = []
+    for k in range(25):
+        mode = sc.scripted_braking(carla, actor, 2.8, (k + 1) * 0.05, 3.0, steer=0.1)
+        if mode == "velocity":
+            vx, vy, _ = actor.velocities[-1]
+            speeds.append(math.hypot(vx, vy))
+            assert abs(vx) < 1e-9 and vy > 0  # along the heading (yaw 90 degrees: +y)
+            assert actor.controls[-1].brake == 0.0 and actor.controls[-1].throttle == 0.0 and actor.controls[-1].steer == 0.1
+    assert len(speeds) == 18  # 2.8 m/s at 3 m/s^2: 0.93 s, 18 ticks before the stop
+    assert all(abs((a - b) / 0.05 - 3.0) < 1e-6 for a, b in zip(speeds, speeds[1:]))  # exactly 3 m/s^2
+    assert mode == "hold" and actor.controls[-1].brake == 1.0 and actor.velocities[-1] == (0.0, 0.0, 0.0)
+    pedal = Actor(0.0, with_velocity=False)
+    assert sc.scripted_braking(carla, pedal, 2.8, 0.05, 3.0) == "pedal"
+    assert pedal.controls[-1].brake == pytest.approx(sc.braking_profile_control(2.8, 2.8, 0.05, 3.0))

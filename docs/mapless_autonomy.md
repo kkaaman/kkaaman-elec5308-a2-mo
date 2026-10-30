@@ -2966,6 +2966,140 @@ known geometric failure to test it on. Model checkpoints are hashed in every rep
 
 The evaluator already keeps PASS, FAIL, NOT_EXERCISED and INCOMPLETE apart.
 
+### Live on PC 1 and PC 2 (30 Oct, `84fb071`): the r11 batch, all eleven passed
+
+| Run | Status | |
+|---|---|---|
+| Left turn, oncoming car, front radar out 14–17 s (Town03, PC 1) | MEASURED_PASS | separation 1.36 m; footprint −0.49 m; exit 0.03 m off |
+| Left turn, parked car 4 m past the junction, LiDAR out 15–15.5 s | MEASURED_PASS | footprint −0.33 m; exit 0.03 m off; re-planned twice in the turn |
+| Crossing car, Town05 `--site 1`, 4 m/s, seed 1 | MEASURED_PASS | separation 2.77 m |
+| Crossing car, seed 2, triggered at 20 m | MEASURED_PASS | separation 2.80 m; a stop from 3.9 m/s beside the stopped car |
+| No traffic, Town05 `--site 1`, 4 m/s | MEASURED_PASS | no restriction |
+| Braking lead at 1 m/s² (Town10HD, PC 2) | MEASURED_PASS | 1.13 m/s² achieved; brake seen in 0.2 s; separation 3.48 m |
+| Braking lead at 3 m/s² | MEASURED_PASS | 4.61 m/s² achieved; brake seen in 0.15 s |
+| Braking lead at 4 m/s², a second car 3 m ahead of it | MEASURED_PASS | 5.03 m/s² achieved; lead tracked 96%, second car 76% |
+| Traffic cone, 4 m/s | MEASURED_PASS | first seen 24.5 m out; held 3.4 m short |
+| Braking lead, v2 segmenter inline | MEASURED_PASS | step p95 126 ms |
+| Braking lead, v2 segmenter on its worker | MEASURED_PASS | step p95 73 ms; results 183 ms old |
+
+**The radar outage missed the oncoming car.** Neither sensor had it before 17.0 s: the radar
+first saw it 29 m out at 17.0 s, the LiDAR 25 m out at 17.5 s (the radar's ~30 m line of
+sight on this site, r10). The outage ended at 17.0 s. Every decision was r10's: the same
+stop at 17.5 s, the same 1.36 m. The next run drops the radar over 16.5–20 s.
+
+**A hard brake at the mouth (14.2 s, r10 and r11 alike).**
+- Approaching the mouth, the exit kerb's near stations go out of view. When they aged out
+  of the 2 s memory, the stations still in view spanned 1.06 m: no line. A tick before,
+  52 stations had made one.
+- The measured exit was lost for 0.25 s, so the turn was not committed and the car was held
+  at the mouth, 0.7 m ahead. It braked at 0.95 from 2 m/s and moved off again at once.
+- **Fix: the stations are kept 2 s longer, read only when the last 2 s's make no line**
+  (`JunctionConfig.exit_fallback_s`; the fit says `memory: fallback`). The recent stations
+  still come first.
+
+**Two re-plans in the parked-car turn: the ground read along the heading.**
+- From 18.4 s the exit road, level with the car 20–30 m to its left, read as kerb, and from
+  20.4 s as obstacle: 0.1–0.5 m above "the road". The road profile is grown in bands along
+  the car's heading; mid-turn that is the street straight on, which dips 0.1–0.7 m past
+  the junction. A point far to the side shares only its x with those bands.
+- The exit kerb was then read 1.2 m into the road (stations at 28 m, the reading the r9
+  notes left open). It held 0.5 s and was taken: R 14 → 11.9 m, the clearance fell to
+  0.05 m, and the car stopped at 21.75 s. The right line, read from nearer at 24.5 s, came
+  back within the first-commit cap: R 20.4 m, a second stop, 0.83 m off the line in the
+  junction. The exit was 0.03 m off.
+- **Fix: far points are referenced along the path the car drives.** The same profile is
+  grown over arc length and distance along the last tick's corridor (straight back from its
+  start and on from its end). Points 10 m or more away, outside the bands' 4 m window, take
+  its height at their arc length (`classify_sweep(path_xy=...)`, `TerrainConfig.path_profile*`).
+  - On a straight road the two are the same, and a path within 1 m of the heading is not
+    computed. The near field, where the corridor reads its kerbs, is always the bands'.
+  - Not while the turn is still being chosen at the approach. There the path moves with
+    each reading, and the first version held the synthetic left turns at the mouth (three
+    unit tests): the arc's clearance read 0.2 m against the 0.3 m it needs. From commitment
+    the path is the latched exit's, and the profile applies.
+  - Replayed: the exit line stays within 0.3 m of the latched one, R stays 14 m and the
+    clearance 2.05 m. Behind the turning car the approach road's pavement, which the bands
+    had climbed onto, reads raised again.
+  - Cost: about 3 ms a sweep while the path leaves the heading.
+
+**The LiDAR outage (15–15.5 s).** The driver faulted (brake 0.6) and stood until sweeps came
+back, then drove on. As designed.
+
+**A stop beside a car that had stopped (seed 2, 19.75 s).**
+- The crossing car stopped 6 m left of the path, across it, its near end 3.9 m out. As the
+  car drew level at 3.9 m/s, the track read 0.5–0.7 m/s towards the path: the cluster's mean
+  slid to the near end face as the side went out of view. "Vehicle within reach" became a
+  predicted conflict, and the car braked to a stop.
+- The remembered box (r8) exists for this. Live, the track was not measured against one:
+  its footprint shrank to 3.1 m, below any box it could have had. In replay it was, but the
+  replay's tracks part from the live ones at 1.5 s (the recording keeps the LiDAR to the
+  centimetre). With the shape memory off, the replay stops the same way.
+- **Fix: motion is believed when the object's leading edge moves with it.** Each LiDAR
+  cluster 1.5 m or longer keeps its extent along 16 directions; `edge_speed_mps` is how fast
+  its farthest extent along the track's velocity advanced over the last second. A rigid
+  object that moves carries it; a static one whose visible part changes does not.
+  - Live recordings, the stopped car: 0.00–0.08 m/s for a 0.5–0.7 m/s track. Crossing,
+    oncoming and cut-in cars: 0.85–1.0 of their speed. The cut-in braking to rest dropped
+    below that only at its stop.
+  - A LiDAR track no faster than 2 m/s, not a pedestrian, whose edge advanced at most a
+    quarter of its speed (or 0.15 m/s) is predicted where it stands, as an incoherent one
+    is, outside the lane band (`StackConfig.edge_*`, `stands_still`). The log lists them
+    (`edge_held`) and gives each cap track's `edge_speed_mps`.
+  - Faster phantoms are untouched: walls sliding at 4–5 m/s as the turning car's view swept
+    them (parked-car turn, 21.85 and 25.0 s) move their visible edge too.
+
+**Scripted braking overshot.** The pedal profile achieved 4.61 and 5.03 m/s² for 3 and 4
+asked, the lead's speed jumping 2.8 → 1.0 → 1.6 m/s in 0.2 s; at 1 m/s² it achieved 1.13
+in steps. CARLA's brake at low speed is stronger than a 20 Hz loop can follow.
+- **Fix: the lead's velocity is set each tick to the profile's** (`scripted_braking`,
+  CARLA's `set_target_velocity`), the pedals released, and held on the brake once stopped.
+  The cut-in car brakes the same way. A stand-in actor keeps the pedal profile.
+
+**Tracking under braking (N9-03).** Speed NEES by phase: cruise 0.04, stopped 0.05–0.26,
+braking 3.8 at 1 m/s² (50 ticks), 22.8 at 3 (15 ticks) and 32 at 4 (10 ticks). The
+constant-velocity filter lags a hard stop for a few ticks; the brake was seen in 0.15–0.2 s
+each time. LiDAR NIS 0.03 (conservative).
+
+**The close pair (3 m).** The lead was tracked on 96% of ticks, one track, never handed over.
+The second car, mostly behind it, on 76%, with one id switch; no track stood on both.
+
+**The cone.** First seen 24.5 m out at 3.5 m/s; the speed that view supports is 6.4 m/s
+(1 m/s², 0.25 s, 2.5 m), so 4 m/s is covered. Held 3.4 m short.
+
+**The v2 segmenter, inline against its worker** (braking lead at 3 m/s², no recording).
+- Inline: the step p50 59 ms, p95 126 ms (painting 23 ms, the road model 7 ms); sensor to
+  actuator p95 155 ms, 572 ms on the first inference.
+- On the worker: the step p50 53 ms, p95 73 ms; sensor to actuator p95 99 ms. The worker
+  ran 13 ms a job but its results waited 150 ms in the queue (p50) and were 183 ms old when
+  taken; 32% of jobs were dropped for newer ones. The design trade (latest wins, nothing
+  on the command path waits); shadow only, so no rule reads them.
+- Both read the right edge 0.76 m inside the kerb (near section, MAE 0.86 m).
+
+**Step time.** PC 2: p50 45–47 ms, p95 63–66 ms. PC 1: 35–46 ms, but 76 ms on the parked
+turn, every stage slower (classify 2.5 ms against 1.7 on the oncoming run: the machine's
+load) and more scenery to track (24.7 ms). Sensor to actuator p50 77–90 ms; 129 ms on the
+parked turn.
+
+**Open-loop replays, `84fb071` against this commit** (29 recordings, r6–r11, the radar
+replayed from r10 on): 24,309 ticks.
+- Ticks under a zero cap: 505 → 497. Stopping: 1,521 → 1,496. Ticks whose stop was an
+  obstacle hold: 1,758 → 1,085.
+- **The holds that went were phantoms on exit roads mid-turn** (the ground fix). A one-tick
+  "obstacle" 25 m on put a stop point on the path for 6–8 s in the r8, r10 and r11 oncoming
+  turns, and for 8.6 s in r10's turn with no traffic.
+- **The caps that went were parked or stopped cars passed close** (the leading-edge rule):
+  - in the cone run, a 3.5 x 1.4 m "vehicle within reach" 4.6 m right of the path at
+    2.7–3.1 s (live: caps of 3.2 m/s and then 0);
+  - the crossing car stopped after crossing, in the r9 and r10 radar-first runs and r9's
+    crossing.
+- **Genuine threats are unchanged**: the crossings (Town05, Town10HD), the cut-in, the
+  oncoming cars and the braking leads keep the same caps, bar single ticks where the
+  cause's track id differed.
+- The r9 and r11 parked-car turns complete on their first arc and hand back on time.
+- Not fixed: wall stretches sliding at 4–5 m/s still cap the car for 0.1–0.25 s in the
+  parked-car turns, on other ticks than before (live at 21.85 and 25.0 s). r10's turn with
+  no traffic gains one: 0.2 s at 19.35 s, a coasting 5 m "car" 27 m out at 4.9 m/s.
+
 ## Running Phase 0 live
 
 Run with CARLA 0.9.16 and no other clients:

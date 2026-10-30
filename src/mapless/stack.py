@@ -188,6 +188,16 @@ class StackConfig:
     # with the car staying slower, 6f2aec3). It is the conflict check's.
     group_max_width_m: float = 1.4
     group_max_mps: float = 2.0
+    # A LiDAR track 1.5 m long or more, no faster than edge_check_max_mps, whose leading
+    # edge advanced at most edge_min_share of its speed (or edge_min_mps) over the last second
+    # (``ObjectTrack.edge_speed_mps``) is predicted where it stands, as an incoherent one is:
+    # its centroid moves, the object does not. The crossing car stopped 6 m left of the path
+    # read 0.5-0.7 m/s towards it as the car passed, its leading edge 0.00-0.08 m/s, and the
+    # car braked from 3.9 m/s to a stop (PC 1, Town05, r11 seed 2, 84fb071). Outside the lane
+    # band only, as for incoherent motion.
+    edge_check_max_mps: float = 2.0
+    edge_min_share: float = 0.25
+    edge_min_mps: float = 0.15
     # A vehicle-sized track beyond the kerb's reach stands on or beside road: within
     # offroad_road_window_m of it the grid has seen at least offroad_road_min_cells points of
     # ROAD, or too little of the area at all to say (offroad_known_min_cells). Building
@@ -394,6 +404,7 @@ class MaplessStack:
         self._parked = []  # vehicles beside the path whose only motion is the car's passing view of them
         self._radar_threats = []  # radar-only tracks predicted onto the path this tick (F5-06), [id, full|provisional] (F6-02)
         self._incoherent = 0  # vehicle-sized tracks held still for incoherent motion this tick (4.3)
+        self._edge_held = []  # ... and those held still for motion their leading edge did not bear out
         self._semantic = None  # the segmenter's agreement with the path, on road-model ticks (shadow)
         self._oncoming = None  # the stack's verdict on a left turn's opposing lane, for the log
         self._structures = []  # clusters too big for a road user, this tick, for the log
@@ -442,6 +453,7 @@ class MaplessStack:
         self._parked = []
         self._radar_threats = []
         self._incoherent = 0
+        self._edge_held = []
         self._semantic = None
         self._semantic_take = None
         self._structures = []
@@ -532,6 +544,7 @@ class MaplessStack:
             movers = [tr for tr in predictable_tracks(live, self._lidar_free, c, in_lane, ego_xy=(pose.x_m, pose.y_m)) if motion_state(tr, c.prediction) != "static" or decided_class(tr) == "pedestrian"]
             predictions = tuple(predict_all(movers, c.prediction))
             self._incoherent = sum(1 for tr in live if "lidar" in tr.support and incoherent_vehicle(tr, c))
+            self._edge_held = sorted(tr.track_id for tr in live if "lidar" in tr.support and edge_unsupported(tr, c) and not incoherent_vehicle(tr, c) and not (in_lane is not None and in_lane(tr)))
             predicted = {p.track_id for p in predictions}
             self._radar_threats = sorted([tr.track_id, "provisional" if provisional_radar(tr, c) else "full"] for tr in live if "lidar" not in tr.support and tr.track_id in predicted)
             self._judge_departures(live, t)
@@ -595,6 +608,7 @@ class MaplessStack:
             parked_beside=self._parked[:5],
             radar_threats=self._radar_threats[:5],
             incoherent_vehicles=self._incoherent,
+            edge_held=self._edge_held or None,
             semantic_shadow=self._semantic,
             semantic_worker=None if self.semantic_worker is None else self.semantic_worker.stats(),
             semantic_take=self._semantic_take,  # this tick's result taken: its simulation and wall-clock age (F7-04)
@@ -923,7 +937,7 @@ def predictable_tracks(tracks, lidar_free=None, config=None, in_lane=None, ego_x
         if tr.status not in LEAD_STATUSES:
             continue
         if "lidar" in tr.support:
-            hold = config is not None and incoherent_vehicle(tr, config) and not (in_lane is not None and in_lane(tr))
+            hold = config is not None and stands_still(tr, config) and not (in_lane is not None and in_lane(tr))
             out.append(held_still(tr) if hold else tr)
         elif lidar_free is not None and config is not None:
             kind = radar_threat(tr, lidar_free, config, lidar_tracks=lidar_tracks, ego_xy=ego_xy)
@@ -952,6 +966,27 @@ def incoherent_vehicle(track, config):
     return track.motion_coherent is False and decided_class(track) != "pedestrian" and is_vehicle(track, config)
 
 
+def edge_unsupported(track, config):
+    """A LiDAR track with a leading edge (a cluster ``TrackerConfig.edge_min_extent_m`` long
+    or longer), not decided a pedestrian, no faster than ``edge_check_max_mps``, whose
+    leading edge has not advanced with its motion (``ObjectTrack.edge_speed_mps`` at most
+    ``edge_min_share`` of its speed or ``edge_min_mps``): the motion is its visible part
+    changing, not the object moving. Not only vehicle-sized ones: seen end-on as the car
+    drew level, the stopped crossing car's cluster shrank to 2.7-2.9 m and it went on
+    "approaching at 0.5 m/s" as a road user of no class."""
+    if track.edge_speed_mps is None or "lidar" not in track.support or track.speed_mps > config.edge_check_max_mps:
+        return False
+    if decided_class(track) == "pedestrian":
+        return False
+    return track.edge_speed_mps <= max(config.edge_min_mps, config.edge_min_share * track.speed_mps)
+
+
+def stands_still(track, config):
+    """Whether a LiDAR track is predicted where it stands: incoherent motion, or motion its
+    leading edge does not bear out (outside the lane band; the callers' test)."""
+    return "lidar" in track.support and (incoherent_vehicle(track, config) or edge_unsupported(track, config))
+
+
 def held_still(track):
     """The track as standing where it is: no velocity, no recent motion."""
     state = np.array([track.state[0], track.state[1], 0.0, 0.0])
@@ -965,7 +1000,7 @@ def _as_predicted(track, config, in_lane):
             return track
         assumed = with_assumed_footprint(track, config)
         return as_provisional(assumed, config) if provisional_radar(track, config) else assumed
-    return held_still(track) if "lidar" in track.support and incoherent_vehicle(track, config) and not in_lane(track) else track
+    return held_still(track) if stands_still(track, config) and not in_lane(track) else track
 
 
 def lane_band(pose, path_body, config):
@@ -1760,6 +1795,7 @@ def _track_note(tracks, track_id, pose):
         footprint=None if track.footprint is None else [r(track.footprint[0]), r(track.footprint[1])],
         travelled_m=r(track.travelled_m), recent_speed_mps=r(track.recent_speed_mps),
         support=list(track.support), status=track.status.name, doppler_rejects=track.doppler_rejects,
+        edge_speed_mps=r(track.edge_speed_mps),
     )
 
 

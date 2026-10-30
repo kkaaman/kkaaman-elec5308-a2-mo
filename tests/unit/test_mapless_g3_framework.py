@@ -1203,3 +1203,70 @@ def test_n9_02_optimal_assignment_keeps_both_tracks_where_greedy_drops_one():
         assert total(o) <= total(g) + 1e-9
     with pytest.raises(ValueError):
         TrackerConfig(assignment="fast")
+
+
+def _passing_view(moving_mps=0.0, ticks=80, dt=0.05, ego_mps=4.0):
+    """A car 4.2 x 2.0 m standing (or, ``moving_mps``, driving towards the path along -y)
+    across the road, its near end 3.9 m left of the path, 12 m ahead of an ego driving
+    by at ``ego_mps``. Seen from the ego: the end face whole, and the side facing it ever
+    shorter as the ego draws level (PC 1, Town05, r11 seed 2), as cluster points. The
+    shape memory is off: the remembered box failed live. Per tick: the track's speed
+    towards the path (-y) and its leading edge's speed."""
+    tracker = Tracker(TrackerConfig(shape_min_views=99))
+    x0, out = 12.0, []
+    for k in range(ticks):
+        t = k * dt
+        xe = ego_mps * t
+        near = 3.9 - moving_mps * t
+        visible = 4.2 * float(np.clip((x0 - 1.0 - xe) / 8.0, 0.15, 1.0))
+        end = [(x, near) for x in np.arange(x0 - 1.0, x0 + 1.01, 0.1)]
+        side = [(x0 - 1.0, y) for y in np.arange(near, near + visible, 0.1)] if xe < x0 - 1.0 else []
+        pts = np.array(end + side) - np.array([xe, 0.0])
+        centre = pts.mean(axis=0)
+        u, s, vt = np.linalg.svd(pts - centre, full_matrices=False)
+        along, across = (pts - centre) @ vt[0], (pts - centre) @ vt[1]
+        extent = (float(np.ptp(along)), max(float(np.ptp(across)), 0.3), float(math.atan2(vt[0][1], vt[0][0])))
+        tracks = tracker.update(t, Pose2D(xe, 0.0, 0.0), lidar=[LidarMeasurement(centre, extent, {"unknown": 1.0}, len(pts), 0.3, plan_xy=pts)])
+        tr = max(tracks, key=lambda q: q.hits)
+        out.append(dict(t=t, towards=-float(tr.velocity[1]), edge=tr.edge_speed_mps, speed=tr.speed_mps))
+    return out
+
+
+def test_r11_a_car_passed_close_by_moves_its_centroid_not_its_leading_edge():
+    """PC 1, Town05, r11 seed 2 (84fb071): the crossing car that had stopped 6 m left of the
+    path read 0.5-0.7 m/s towards it as the car drew level, its cluster's mean sliding to the
+    near end face; the car braked from 3.9 m/s to a stop. The cluster's leading edge along
+    that motion did not move (``ObjectTrack.edge_speed_mps``); a car really driving towards
+    the path carries it at its speed."""
+    still = _passing_view()
+    late = [r for r in still if r["t"] >= 2.0]
+    assert max(r["towards"] for r in late) > 0.3  # the centroid's apparent motion
+    assert all(r["edge"] is not None and abs(r["edge"]) <= 0.1 for r in late if r["speed"] > 0.2)
+    moving = _passing_view(moving_mps=1.0)
+    late = [r for r in moving if r["t"] >= 2.0]
+    assert all(r["edge"] is not None and r["edge"] >= 0.7 for r in late)
+    # Too little history: unknown.
+    assert all(r["edge"] is None for r in still if r["t"] < 0.45)
+
+
+def test_r11_motion_its_leading_edge_does_not_bear_out_is_predicted_as_standing():
+    """The stack predicts such a track where it stands, as an incoherent one: a LiDAR track
+    with a leading edge, not a pedestrian, no faster than 2 m/s, its edge at most a quarter
+    of its speed (or 0.15 m/s). Not in the lane band, as for incoherent motion."""
+    from mapless.stack import StackConfig, edge_unsupported, predictable_tracks  # noqa: PLC0415
+
+    c = StackConfig()
+
+    def track(vy=-0.6, edge=0.03, classes=None, support=("lidar",), tid=1):
+        return ObjectTrack(tid, 0.0, [8.0, 5.0, 0.0, vy], np.diag([0.1, 0.1, 0.2, 0.2]), classes or {"unknown": 1.0}, TrackStatus.CONFIRMED, 30, 0, support=support, footprint=(3.5, 2.3, 0.0), travelled_m=1.2, recent_speed_mps=0.8, edge_speed_mps=edge)
+
+    assert edge_unsupported(track(), c)
+    assert not edge_unsupported(track(edge=0.5), c)  # borne out
+    assert not edge_unsupported(track(edge=None), c)  # unknown
+    assert not edge_unsupported(track(vy=-2.5, edge=0.0), c)  # faster than edge_check_max_mps
+    assert not edge_unsupported(track(classes={"pedestrian": 1.0}), c)
+    assert not edge_unsupported(track(support=("radar",)), c)
+    held = predictable_tracks([track()], config=c, in_lane=lambda tr: False)
+    assert len(held) == 1 and held[0].speed_mps == 0.0
+    kept = predictable_tracks([track()], config=c, in_lane=lambda tr: True)
+    assert kept[0].speed_mps == pytest.approx(0.6)
