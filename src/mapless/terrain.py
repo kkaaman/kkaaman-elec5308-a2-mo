@@ -16,6 +16,17 @@ Each point is then labelled by its height above the road at its x:
 
 Points on the car's own body are dropped first (the roof LiDAR sees the roof).
 
+**Far to the side, along the path.** The bands along x describe the road straight ahead;
+a point far to one side has only its x in common with them. In a turn the road straight
+ahead is not the road the car turns into: the profile followed a street dipping 0.1-0.7 m
+beyond a Town03 junction, and the exit road beside it, level with the car, read as kerb
+and as obstacles; the exit line was read 1.2 m into the road and the latched turn re-planned
+twice (PC 1, r11_left_parked_lidargap, 84fb071). Given the path the car is driving (the
+last tick's corridor, ``path_xy``), points ``path_profile_min_range_m`` or more away and
+outside the bands' window are referenced to a profile grown the same way along the path
+(its arc length and distance from it). On a straight road the two are the same; the near
+field, where the corridor reads its kerbs, is always the bands'.
+
 **Accumulated (odometry frame).** A fixed grid follows the car. Each sweep adds one unit
 of evidence per class to every cell it hit, and evidence decays with time: slowly for
 the road and kerbs, which do not move, and quickly for obstacles, which may. One sweep
@@ -87,6 +98,14 @@ class TerrainConfig:
     obstacle_tau_s: float = 0.5
     barrier_min_evidence: float = 1.0
     road_min_evidence: float = 1.0
+    # Far points referenced along the path (module docstring): from this far from the car,
+    # outside road_window_m; the path resampled every path_profile_step_m and looked up on a
+    # path_profile_cell_m raster; used when it leaves the bands' window by path_profile_min_offset_m.
+    path_profile: bool = True
+    path_profile_min_range_m: float = 10.0
+    path_profile_step_m: float = 2.0
+    path_profile_cell_m: float = 2.0
+    path_profile_min_offset_m: float = 1.0
 
     def __post_init__(self):
         for name in ("cell_m", "size_m", "band_m", "static_tau_s", "obstacle_tau_s", "max_range_m"):
@@ -96,6 +115,8 @@ class TerrainConfig:
             raise ValueError("Height thresholds must increase: raised < obstacle < overhead")
         if self.recentre_m + self.max_range_m > self.size_m / 2:
             raise ValueError("The grid must hold max_range_m around the car wherever it recentres")
+        if self.path_profile_step_m <= 0 or self.path_profile_cell_m <= 0:
+            raise ValueError("path_profile_step_m and path_profile_cell_m must be positive")
 
 
 @dataclass(frozen=True)
@@ -134,7 +155,8 @@ def road_profile(xyz, config):
     LiDAR sees it there, otherwise from the wider ``road_window_m``. Only a path estimate
     may set the grade on the first band: beside the car the LiDAR sees only beyond its
     3.8 m blind ring, which on a narrow road is pavement (the first narrow-road test took
-    the pavement for the road).
+    the pavement for the road). ``xyz``'s first two columns may be any (along, across)
+    coordinates: ``path_reference`` grows the same profile along a path.
     """
     c = config
     n_ahead = int(math.ceil(c.max_range_m / c.band_m))
@@ -172,8 +194,101 @@ def road_profile(xyz, config):
     return centres, heights
 
 
-def classify_sweep(xyz, body, config):
-    """Label one sweep's points (vehicle frame, metres)."""
+def _path_stations(path_xy, config):
+    """The path (vehicle frame) every ``path_profile_step_m``, straight back from its first
+    point and on from its last as far as the sensor reaches, with arc lengths from the
+    station nearest the rear axle (s = 0 there); None for a path of fewer than two points."""
+    c = config
+    p = np.asarray(path_xy, dtype=float).reshape(-1, 2)
+    seg = np.hypot(*np.diff(p, axis=0).T) if len(p) >= 2 else np.zeros(0)
+    keep = np.concatenate(([True], seg > 1e-6)) if len(p) >= 2 else np.ones(len(p), dtype=bool)
+    p = p[keep]
+    if len(p) < 2:
+        return None
+    arc = np.concatenate(([0.0], np.cumsum(np.hypot(*np.diff(p, axis=0).T))))
+    step = c.path_profile_step_m
+    along = np.arange(0.0, arc[-1] + 1e-9, step)
+    pts = np.column_stack((np.interp(along, arc, p[:, 0]), np.interp(along, arc, p[:, 1])))
+    reach = c.max_range_m + c.road_window_m
+    back_dir = (p[0] - p[1]) / np.hypot(*(p[0] - p[1]))
+    on_dir = (p[-1] - p[-2]) / np.hypot(*(p[-1] - p[-2]))
+    extra = np.arange(step, 2.0 * reach + 1e-9, step)
+    back = p[0] + extra[:, None] * back_dir
+    on = pts[-1] + extra[:, None] * on_dir
+    xy = np.vstack((back[::-1], pts, on))
+    s_all = np.concatenate((-extra[::-1], along, along[-1] + extra))
+    near = np.hypot(xy[:, 0], xy[:, 1]) <= reach + step
+    if near.sum() < 2:
+        return None
+    xy, s_all = xy[near], s_all[near]
+    return xy, s_all - s_all[int(np.argmin(np.hypot(xy[:, 0], xy[:, 1])))]
+
+
+_RASTERS = {}
+
+
+def _raster_centres(config):
+    """The ``path_profile_cell_m`` raster's cell centres over the sensor's square (cached)."""
+    c = config
+    key = (c.path_profile_cell_m, c.max_range_m)
+    if key not in _RASTERS:
+        n = int(math.ceil(2.0 * c.max_range_m / c.path_profile_cell_m))
+        centres = ((np.arange(n) + 0.5) * c.path_profile_cell_m - c.max_range_m).astype(np.float32)
+        gx, gy = np.meshgrid(centres, centres, indexing="ij")
+        _RASTERS[key] = (n, gx.ravel(), gy.ravel())
+    return _RASTERS[key]
+
+
+def path_reference(xyz, path_xy, config):
+    """Road height for each point along the path ``path_xy`` (vehicle frame): ``road_profile``
+    grown over (arc length along the path, distance from it), read at each point's arc
+    length; with the arc lengths and distances. None when the path stays within
+    ``path_profile_min_offset_m`` of the x axis out to the sensor's reach (the bands along x
+    are then the same profile) or grows no band beyond the car's.
+
+    Each point takes the station nearest its ``path_profile_cell_m`` raster cell, then the
+    nearer of the two path segments either side of that station."""
+    c = config
+    built = _path_stations(path_xy, c)
+    if built is None:
+        return None
+    q, s_q = built
+    ahead = (q[:, 0] >= 0.0) & (q[:, 0] <= c.max_range_m)
+    if not ahead.any() or float(np.abs(q[ahead, 1]).max()) < c.path_profile_min_offset_m:
+        return None
+    n, gx, gy = _raster_centres(c)
+    qx, qy = q[:, 0].astype(np.float32), q[:, 1].astype(np.float32)
+    d2 = (gx[:, None] - qx[None, :]) ** 2 + (gy[:, None] - qy[None, :]) ** 2
+    nearest = np.argmin(d2, axis=1)
+    px, py = xyz[:, 0].astype(np.float32), xyz[:, 1].astype(np.float32)
+    i = np.clip(((px + c.max_range_m) / c.path_profile_cell_m).astype(np.int64), 0, n - 1)
+    j = np.clip(((py + c.max_range_m) / c.path_profile_cell_m).astype(np.int64), 0, n - 1)
+    k = nearest[i * n + j]
+    sx, sy = np.diff(qx), np.diff(qy)
+    length2 = np.maximum(sx * sx + sy * sy, 1e-9)
+    ds = np.diff(s_q).astype(np.float32)
+    best = np.full(len(px), np.inf, dtype=np.float32)
+    s_out = np.zeros(len(px), dtype=np.float32)
+    for lo in (k - 1, k):
+        a = np.clip(lo, 0, len(q) - 2)
+        ax, ay, ux, uy = qx[a], qy[a], sx[a], sy[a]
+        f = np.clip(((px - ax) * ux + (py - ay) * uy) / length2[a], 0.0, 1.0)
+        ex, ey = px - ax - f * ux, py - ay - f * uy
+        e2 = ex * ex + ey * ey
+        better = e2 < best
+        best = np.where(better, e2, best)
+        s_out = np.where(better, s_q[a].astype(np.float32) + f * ds[a], s_out)
+    d_out = np.sqrt(best)
+    centres_s, heights = road_profile(np.column_stack((s_out, d_out, xyz[:, 2])), c)
+    ok = np.isfinite(heights)
+    if ok.sum() < 3:
+        return None
+    return np.interp(s_out, centres_s[ok], heights[ok]), s_out, d_out
+
+
+def classify_sweep(xyz, body, config, path_xy=None):
+    """Label one sweep's points (vehicle frame, metres). ``path_xy``: the path the car is
+    driving (vehicle frame), for the points far to the side (module docstring)."""
     c = config
     xyz = np.asarray(xyz, dtype=float).reshape(-1, 3)
     m = c.body_margin_m
@@ -190,6 +305,11 @@ def classify_sweep(xyz, body, config):
     centres, heights = road_profile(xyz, c)
     ok = np.isfinite(heights)
     road_z = np.interp(xyz[:, 0], centres[ok], heights[ok]) if ok.any() else np.zeros(len(xyz))
+    if path_xy is not None and c.path_profile and len(xyz):
+        along = path_reference(xyz, path_xy, c)
+        if along is not None:
+            far = (np.abs(xyz[:, 1]) >= c.road_window_m) & (np.hypot(xyz[:, 0], xyz[:, 1]) >= c.path_profile_min_range_m)
+            road_z = np.where(far, along[0], road_z)
     h = xyz[:, 2] - road_z
     cls = np.full(len(xyz), PointClass.IGNORED, dtype=np.int8)
     cls[(h >= c.below_m) & (h < c.raised_min_m)] = PointClass.ROAD

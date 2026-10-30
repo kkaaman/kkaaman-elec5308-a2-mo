@@ -83,6 +83,12 @@ class ObjectTrack:
     # how long it has stood since it was last seen moving (s), or None when unknown.
     max_excursion_m: float | None = None
     still_s: float | None = None
+    # How fast the LiDAR cluster's leading edge (its farthest extent along the track's
+    # velocity) advanced over the last second, m/s, or None (no velocity, too little
+    # history, or not LiDAR-held this tick). A rigid object that moves carries its leading
+    # edge with it; a static object whose visible part changes as the car drives past it
+    # moves its centroid but not its leading edge (``TrackerConfig.edge_*``).
+    edge_speed_mps: float | None = None
 
     def __post_init__(self):
         object.__setattr__(self, "state", _array(self.state, (4,), "state"))

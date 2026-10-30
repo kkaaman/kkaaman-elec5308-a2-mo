@@ -422,3 +422,53 @@ def test_calibration_kerb_with_a_railing_is_kept_a_parked_car_is_not():
     _, car = est._kerb_contour(sweep(tall_y=(-4.2, -5.0, -5.8), tall_x=(0.0, 4.5)))
     assert np.all(np.isnan(car[(np.arange(-10.0, 15.01, 0.5) >= 0.0) & (np.arange(-10.0, 15.01, 0.5) <= 4.5)]))
     assert np.isfinite(car).sum() > 20  # the rest of the kerb is still read
+
+
+def _turn_scene():
+    """A left turn: the road straight ahead dips 3% beyond the junction, the exit road to the
+    left is level with the car, its pavement 0.15 m up on the right (PC 1, Town03, r11)."""
+    pts = []
+    for x in np.arange(-8.0, 44.0, 0.25):
+        for y in np.arange(-4.0, 4.0, 0.25):
+            pts.append((x, y, -0.03 * max(0.0, x - 15.0)))
+    for x in np.arange(15.0, 23.0, 0.25):
+        for y in np.arange(4.0, 40.0, 0.25):
+            pts.append((x, y, 0.0))
+    for x in np.arange(23.0, 26.0, 0.25):
+        for y in np.arange(6.0, 40.0, 0.25):
+            pts.append((x, y, 0.15))
+    return np.array(pts)
+
+
+def _turn_path():
+    th = np.linspace(0.0, math.pi / 2, 20)
+    arc = np.column_stack((9.0 + 10.0 * np.sin(th), 10.0 * (1.0 - np.cos(th))))
+    lead = np.column_stack((np.arange(0.0, 9.0, 1.0), np.zeros(9)))
+    on = np.column_stack((np.full(30, 19.0), 10.0 + np.arange(1.0, 31.0)))
+    return np.vstack((lead, arc, on))
+
+
+def test_r11_far_points_are_referenced_along_the_path():
+    """PC 1, r11_left_parked_lidargap (84fb071): mid-turn, the bands along x followed the
+    street dipping beyond the junction, and the exit road beside it, level with the car,
+    read as kerb and obstacle 20-30 m out; the exit line was read 1.2 m into the road and the
+    latched turn re-planned twice. Given the path, those points are referenced along it: the
+    exit road reads ROAD, its pavement still RAISED. A straight path changes nothing, nor
+    does the near field."""
+    scene, config = _turn_scene(), TerrainConfig()
+    plain = classify_sweep(scene, BODY, config)
+    along = classify_sweep(scene, BODY, config, path_xy=_turn_path())
+    x, y = plain.xyz[:, 0], plain.xyz[:, 1]
+    exit_road = (x > 15.5) & (x < 22.5) & (y > 12.0) & (y < 30.0)
+    pavement = (x > 23.5) & (y > 12.0) & (y < 30.0)
+    assert np.mean(plain.cls[exit_road] != PointClass.ROAD) > 0.5  # the fault: read against the dip
+    assert np.all(along.cls[exit_road] == PointClass.ROAD)
+    assert np.all(along.cls[pavement] == PointClass.RAISED)
+    near = np.hypot(x, y) < config.path_profile_min_range_m
+    assert np.array_equal(plain.cls[near], along.cls[near])
+    ahead = np.abs(y) < config.road_window_m  # the street straight ahead: the bands', as before
+    assert np.array_equal(plain.cls[ahead], along.cls[ahead])
+    straight = np.column_stack((np.arange(-5.0, 45.0, 1.0), np.full(50, 0.3)))
+    assert np.array_equal(classify_sweep(scene, BODY, config, path_xy=straight).cls, plain.cls)
+    off = classify_sweep(scene, BODY, TerrainConfig(path_profile=False), path_xy=_turn_path())
+    assert np.array_equal(off.cls, plain.cls)
