@@ -296,6 +296,10 @@ class CorridorEstimator:
         labels = grid.labels(pose.to_world(body), max_age_s=max_age_s).reshape(px.shape)
         return labels, offsets, j0, heading
 
+    def support(self, grid, pose, centre_body):
+        """``_support`` for a line another module follows (a junction crossed straight on)."""
+        return self._support(grid, pose, np.asarray(centre_body, dtype=float).reshape(-1, 2))
+
     def _support(self, grid, pose, centre_body):
         """How far along the line (x, m) the road is currently observed.
 

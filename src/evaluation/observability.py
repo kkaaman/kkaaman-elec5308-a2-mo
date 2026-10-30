@@ -63,8 +63,11 @@ def reliable_from(log, front_m, start, tolerance_m=1.5, window_ticks=20, min_sha
     good, run = True, 0
     for i in range(n - 1, -1, -1):
         run = 0 if flags[i] else run + 1
+        # Only full windows are judged (review of 519b8fe, F-05): the partial ones at the end
+        # made one miss on the last tick before the stop undo the whole range.
         window = flags[i : i + window_ticks]
-        good = good and run <= max_miss_ticks and sum(window) >= min_share * len(window)
+        share_ok = len(window) < window_ticks or sum(window) >= min_share * len(window)
+        good = good and run <= max_miss_ticks and share_ok
         ok[i] = good
     first = next((i for i in range(n) if ok[i]), None)
     return (None if first is None else start + first), flags.count(False)

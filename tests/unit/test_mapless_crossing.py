@@ -1,0 +1,149 @@
+"""Straight through a junction (``mapless.crossing``): the STRAIGHT command on the route, for
+the baseline route's one junction (G2) and the mixed route (M13). On the synthetic world
+kerb following alone followed the right kerb into the side road's fillet and stopped for
+its hedge; the crossing latches the lane line before the mouth and follows it across."""
+
+import math
+from pathlib import Path
+
+import numpy as np
+import pytest
+
+from mapless.corridor import CorridorConfig
+from mapless.crossing import CrossingConfig, StraightCrossing
+from mapless.driver import DriveMode, DriverConfig, MaplessDriver
+from mapless.ego_motion import Pose2D
+from mapless.junction import JunctionConfig
+from mapless.planner import PlannerConfig
+from mapless.satnav import Command, RoutePoint, SatNavRoute
+from mapless.sensor_suite import load_sensor_suite
+from mapless.terrain import VehicleBody
+from navigation_control.local import LocalControlConfig
+from navigation_control.types import ControllerConfig
+from sim_harness.mapless_road import (
+    KerbLine,
+    MaplessRoadWorld,
+    RoadScene,
+    SideRoad,
+    Straight,
+    side_road_hedges,
+)
+
+ROOT = Path(__file__).resolve().parents[2]
+SUITE = load_sensor_suite(ROOT / "configs" / "sensor_suites" / "mapless_v2.json")
+BODY = VehicleBody()
+DT = 0.05
+S_JUNCTION = 70.0
+
+
+def control():
+    return LocalControlConfig(
+        ControllerConfig(wheelbase_m=3.00465, max_steering_angle_rad=math.radians(20), lookahead_m=4.0, kp=0.45, ki=0.15, stopping_deceleration_mps2=1.0, hold_brake=0.5)
+    )
+
+
+def crossroads(sides=(-1, 1), width_m=14.0, fillet_m=6.0, seed=5308):
+    roads = tuple(SideRoad(S_JUNCTION, side, width_m=width_m, fillet_m=fillet_m) for side in sides)
+    scene = RoadScene(KerbLine([Straight(160)]), side_roads=roads, hedges=sum((side_road_hedges(r) for r in roads), ()))
+    return MaplessRoadWorld(scene, SUITE, start_s_m=15.0, seed=seed), width_m
+
+
+def straight_route(world, width_m, goal_s=140.0, entry_shift_m=0.0):
+    scene = world.scene
+
+    def fix(s, cmd, d=0.0):
+        x, y, h = scene.kerb.pose_at(s)
+        off = scene.lane_centre_m + d
+        return RoutePoint(*world.plane.to_geodetic(x - off * math.sin(h), y + off * math.cos(h)), cmd)
+
+    entry, exit_ = S_JUNCTION - width_m / 2 + entry_shift_m, S_JUNCTION + width_m / 2
+    return SatNavRoute("cross", (fix(15.0, Command.LANEFOLLOW), fix(40.0, Command.LANEFOLLOW), fix(entry, Command.STRAIGHT), fix(exit_, Command.LANEFOLLOW), fix(110.0, Command.LANEFOLLOW), fix(goal_s, Command.LANEFOLLOW)))
+
+
+def drive(world, route, speed=4.0, seconds=90, crossing=None):
+    config = DriverConfig(body=BODY, control=control(), corridor=CorridorConfig(keep_right_m=1.75), junction=JunctionConfig(), planner=PlannerConfig(cruise_mps=speed), crossing=crossing or CrossingConfig())
+    driver = MaplessDriver(SUITE, route, config, DT)
+    log = []
+    for _ in range(int(seconds / DT)):
+        step = driver.step(world.frame())
+        log.append((world.truth(), step))
+        world.apply(step.command)
+        if step.mode is DriveMode.FINISHED and world.state.speed == 0:
+            break
+    return log
+
+
+def _crossed(log, goal_s=140.0):
+    truth, last = log[-1]
+    return last.mode is DriveMode.FINISHED and abs(truth.s_m - goal_s) < 3.0 and not any(t.collision for t, _ in log)
+
+
+@pytest.mark.parametrize("sides", [pytest.param((-1, 1), id="crossroads"), pytest.param((-1,), id="t-right"), pytest.param((1,), id="t-left")])
+def test_a_straight_command_crosses_the_junction_on_the_latched_lane_line(sides):
+    world, width = crossroads(sides)
+    log = drive(world, straight_route(world, width))
+    assert _crossed(log)
+    in_box = [t for t, _ in log if S_JUNCTION - width / 2 <= t.s_m <= S_JUNCTION + width / 2]
+    assert in_box and min(t.speed_mps for t in in_box) > 3.0  # crossed at speed, not crept
+    assert max(abs(t.lane_offset_m) for t, _ in log) < 0.6
+    notes = [s.diagnostics.get("crossing") for _, s in log]
+    assert "lane line latched" in notes and "crossing on the latched lane line" in notes and "handed back to the kerb corridor" in notes
+    exit_leg = [t for t, _ in log if t.s_m > S_JUNCTION + width / 2 + 20.0]
+    assert exit_leg and np.percentile(np.abs([t.lane_offset_m for t in exit_leg]), 95) < 0.3
+
+
+def test_a_wide_junction_with_long_fillets_is_crossed_too():
+    world, width = crossroads(width_m=20.0, fillet_m=10.0)
+    log = drive(world, straight_route(world, width))
+    assert _crossed(log) and max(abs(t.lane_offset_m) for t, _ in log) < 0.7
+
+
+def test_the_route_entry_point_may_sit_metres_from_the_box():
+    """A sat-nav's entry point lies beside the junction, not on its edge (review of
+    519b8fe, F-07): 4 m late or early, the car still crosses on the line."""
+    for shift in (4.0, -4.0):
+        world, width = crossroads()
+        log = drive(world, straight_route(world, width, entry_shift_m=shift))
+        assert _crossed(log), shift
+
+
+def test_without_the_crossing_kerb_following_follows_the_fillet_into_the_mouth():
+    """The failure the crossing is for, kept as the record: with the line never followed
+    (enter_m 0 and the latch window closed), the kerb fit turns into the right side road and
+    the car stops for its hedge."""
+    world, width = crossroads()
+    off = CrossingConfig(latch_from_m=0.2, freeze_m=0.1, enter_m=0.0)
+    log = drive(world, straight_route(world, width), seconds=40, crossing=off)
+    truth, last = log[-1]
+    assert not _crossed(log) and truth.s_m < S_JUNCTION + width / 2
+    assert max(abs(t.lane_offset_m) for t, _ in log) > 0.8
+
+
+def test_the_line_is_the_cars_own_track_and_the_corridor_along_it_is_straight():
+    c = CrossingConfig(history_m=20.0, history_min_m=10.0)
+    x = StraightCrossing(c)
+    for k in range(80):  # 20 m straight along +x, 0.25 m apart, offset 0.3 m left
+        x.observe(Pose2D(k * 0.25, 0.3, 0.0), moving=True)
+    assert x._track_heading() == pytest.approx(0.0, abs=1e-6)
+    x.observe(Pose2D(19.75, 0.3, 0.0), moving=False)  # standing still adds nothing
+    corridor = type("C", (), dict(ok=True, heading_near=lambda self: 0.2, lateral_offset_at=lambda self, _x: -0.3))()
+    pose = Pose2D(19.75, 0.3, 0.1)  # yawed 0.1 rad: the track, not the yaw or the kerb slope, gives the line
+    x.latch(corridor, pose, entry_body=np.array([20.0, 0.0]))
+    assert x.line is not None and x.line[2] == pytest.approx(0.0, abs=1e-6)
+    cx, cy, _ = x.line
+    assert (cx, cy) == pytest.approx(pose.to_world(np.array([[0.0, -0.3]]))[0].tolist(), abs=1e-6)
+    pts = x.line_body(pose)
+    assert pts[0, 0] == pytest.approx(c.start_m * math.cos(0.1), abs=0.05) and len(pts) == int((c.look_ahead_m - c.start_m) / c.step_m) + 1
+    heading = math.atan2(pts[-1, 1] - pts[0, 1], pts[-1, 0] - pts[0, 0])
+    assert heading == pytest.approx(-0.1, abs=1e-6)  # the line in the yawed car's frame
+    cor = x.corridor(None, pose, 1.0, support=lambda grid, p, body: 25.0)
+    assert cor.ok and cor.valid_length_m == 25.0 and cor.support_m == 25.0 and np.isnan(cor.right_edge_m).all()
+    assert cor.heading_at(0.0) == pytest.approx(-0.1, abs=1e-6)
+    # Not latched beyond the window, nor inside the freeze, nor with the entry far off the line.
+    y = StraightCrossing(c)
+    y.latch(corridor, pose, np.array([c.latch_from_m + 1.0, 0.0]))
+    y.latch(corridor, pose, np.array([c.freeze_m - 1.0, 0.0]))
+    y.latch(corridor, pose, np.array([20.0, c.max_route_offset_m + 1.0]))
+    assert y.line is None
+    with pytest.raises(ValueError):
+        CrossingConfig(freeze_m=40.0)

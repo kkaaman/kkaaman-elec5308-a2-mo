@@ -284,6 +284,18 @@ def test_t10_2b_losing_the_radar_does_not_clear_a_blocked_turn():
 
     last = dict(verdict([coming], 30.0), time_s=30.0)
     assert resolve_oncoming_override(last, 30.2, j.oncoming_override_max_age_s)["clear"] is False
+    # A tick with no gate at all (the turn plan unmeasured for a moment, as at the mouth on
+    # r10 and r11) does not forget the blocker (review of 519b8fe, F-01): the record expires
+    # on its own clock. The driver's override is simply absent for that tick.
+    stack.frame_generation = 1
+    stack._oncoming_update(_gate(), [coming], 40.0)
+    assert stack.driver.oncoming_override["clear"] is False
+    stack._oncoming_update(None, [], 40.05)
+    assert stack.driver.oncoming_override is None and stack._oncoming_block is not None
+    stack._oncoming_update(_gate(), [], 40.3)  # the blocker gone, the gate back
+    assert stack.driver.oncoming_override["clear"] is False and stack.driver.oncoming_override["held_lost"] == [5]
+    stack._oncoming_update(_gate(), [], 43.2)
+    assert stack.driver.oncoming_override["clear"] is True
 
 
 def test_t10_3_the_predicted_regions_are_logged_for_the_evaluator():

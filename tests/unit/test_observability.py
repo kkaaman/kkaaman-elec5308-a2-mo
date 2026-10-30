@@ -54,3 +54,11 @@ def test_t10_the_reliable_range_is_where_the_detection_held_from_not_where_it_fi
     assert out["reliable"]["supported_mps"] < out["supported_mps"] and out["misses_after_first"] > 5
     clean = observability(_log(24.0), 3.8, cruise_mps=3.0)
     assert clean["reliable"]["from_gap_m"] == clean["first_seen_gap_m"] and clean["misses_after_first"] == 0
+    # A miss on the last tick before the stop is one miss, not the loss of the whole range
+    # (review of 519b8fe, F-05: the partial windows at the end were judged on the 80% rule,
+    # and one missed tick there undid it all).
+    tail = _log(24.0)
+    tail[-1]["driver"] = dict(obstacle_m=None)
+    tail[-2]["driver"] = dict(obstacle_m=None)
+    with_tail = observability(tail, 3.8, cruise_mps=3.0)
+    assert with_tail["reliable"]["from_gap_m"] == clean["reliable"]["from_gap_m"] and with_tail["misses_after_first"] == 2

@@ -74,6 +74,13 @@ import numpy as np
 
 from carla_adapter.frame_record import FrameRecorder
 from carla_adapter.mapless_capture import source_commit
+from carla_adapter.mapless_mission import (
+    load_scenario,
+    mission_route,
+    obstacle_placement,
+    resolve_mission,
+    score_mission,
+)
 from carla_adapter.mapless_scenarios import SCENARIOS as ACTOR_SCENARIOS
 from carla_adapter.mapless_scenarios import (
     make_oncoming,
@@ -116,6 +123,8 @@ PASS, FAIL, INCOMPLETE, REPORT = "PASS", "FAIL", "INCOMPLETE", "REPORT"
 # NOT_EXERCISED): a cut-in run whose car drove off passed every gate and showed nothing
 # about the hand-over it was meant to test.
 NOT_EXERCISED = "NOT_EXERCISED"
+OVER_BUDGET = "OVER_BUDGET"  # the behaviour passed, the 20 Hz deadline did not (``real_time``)
+REAL_TIME_MAX_MISS_SHARE = 0.05  # share of steps over the 50 ms target a run may have and be on time
 
 
 def _params_record(actor):
@@ -127,18 +136,23 @@ def _params_record(actor):
 def run_status(checks):
     """The run's status from its checks: MEASURED_FAIL on any failed gate; INCOMPLETE when
     a gate could not be measured (or there is none); NOT_EXERCISED when every gate passed
-    but the run did not reach the transition its scenario targets; else MEASURED_PASS.
-    REPORT checks are not gates."""
-    gated = [c for c in checks if c["status"] not in (REPORT, NOT_EXERCISED)]
+    but the run did not reach the transition its scenario targets; MEASURED_PASS_OVER_BUDGET
+    when every gate passed but the step missed its 50 ms deadline on more than
+    REAL_TIME_MAX_MISS_SHARE of ticks (``real_time``); else MEASURED_PASS. REPORT checks are
+    not gates."""
+    gated = [c for c in checks if c["status"] not in (REPORT, NOT_EXERCISED, OVER_BUDGET)]
     if any(c["status"] == FAIL for c in gated):
         return "MEASURED_FAIL"
     if any(c["status"] == INCOMPLETE for c in gated) or not gated:
         return "INCOMPLETE"
     if any(c["status"] == NOT_EXERCISED for c in checks):
         return NOT_EXERCISED
+    if any(c["status"] == OVER_BUDGET for c in checks):
+        return "MEASURED_PASS_OVER_BUDGET"  # every behaviour gate passed; the 20 Hz deadline was missed (``real_time``)
     return "MEASURED_PASS"
 TURN_SCENARIOS = {"turn_left": "LEFT", "turn_right": "RIGHT"}
 LANE_SCENARIOS = ("straight", "curve", "stop")
+MISSION_SCENARIO = "mission"  # the baseline route with a baseline obstacle scenario (G2's gate; mapless_mission.py)
 
 
 # -- site and route (map side) ---------------------------------------------------------
@@ -287,6 +301,27 @@ def _file_sha256(path):
         for chunk in iter(lambda: handle.read(1 << 20), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def perturb_route(route, sigma_m, seed):
+    """``route`` with every point but the first moved by Gaussian noise of ``sigma_m`` per
+    axis (metres, in the route's own tangent plane), the way a sat-nav's points sit beside
+    the lane rather than on it (review of 519b8fe, F-07: the routes were exact lane-centre
+    waypoints with the junction entry on the lane's last waypoint). The first point stays:
+    it is the plane's origin, and the car's start-up fix. Recorded in the provenance."""
+    if sigma_m <= 0.0:
+        return route
+    from mapless.satnav import LocalTangentPlane  # noqa: PLC0415
+
+    rng = np.random.default_rng(seed)
+    plane = LocalTangentPlane(route.points[0].latitude_deg, route.points[0].longitude_deg)
+    points = [route.points[0]]
+    for p in route.points[1:]:
+        x, y = plane.to_local(p.latitude_deg, p.longitude_deg)
+        dx, dy = rng.normal(0.0, sigma_m, 2)
+        lat, lon = plane.to_geodetic(x + dx, y + dy)
+        points.append(RoutePoint(lat, lon, p.command))
+    return SatNavRoute(route.name, tuple(points), provenance=dict(route.provenance or {}, noise_sigma_m=sigma_m, noise_seed=seed))
 
 
 def make_route(carla_map, waypoints, goal_m, spacing_m=25.0, name="g1b"):
@@ -756,14 +791,22 @@ class LoadGenerator:
 def sight_bound_report(log, tolerance_mps=0.3):
     """Whether the car kept to the observability bound (``sight_speed_mps``, the speed it can
     stop from within the path seen clear; eighth review, P1) on every tick it applied:
-    the ticks it was over by more than ``tolerance_mps`` (the speed loop's lag), the largest
-    excess, and the lowest bound met (tenth review, 5). None when the log has no bound."""
-    rows = [(r["truth"]["speed_mps"], (r.get("driver") or {}).get("sight_speed_mps")) for r in log]
-    rows = [(v, b) for v, b in rows if b is not None]
+    the ticks it was over by more than ``tolerance_mps`` (the speed loop's lag) while not
+    braking, the ticks over while braking (the bound falls in steps as an obstacle stop
+    closes in, faster than the planner's 1 m/s² follows: r10 and r11 crossings, 5–14 ticks
+    each, brake on), the largest excess, and the lowest bound met (tenth review, 5). A gate
+    on ``over_ticks`` (review of 519b8fe, F-04). None when the log has no bound."""
+    rows = [(r["truth"]["speed_mps"], (r.get("driver") or {}).get("sight_speed_mps"), (r.get("command") or [0, 0, 0])[2]) for r in log]
+    rows = [(v, b, brake) for v, b, brake in rows if b is not None]
     if not rows:
         return None
-    over = [v - b for v, b in rows if v > b + tolerance_mps]
-    return dict(ticks=len(rows), over_ticks=len(over), max_excess_mps=round(max(over), 2) if over else 0.0, min_bound_mps=round(min(b for _, b in rows), 2), tolerance_mps=tolerance_mps)
+    over = [v - b for v, b, brake in rows if v > b + tolerance_mps and not brake > 0.0]
+    braking = [v - b for v, b, brake in rows if v > b + tolerance_mps and brake > 0.0]
+    return dict(
+        ticks=len(rows), over_ticks=len(over), over_while_braking_ticks=len(braking),
+        max_excess_mps=round(max(over + braking), 2) if over or braking else 0.0,
+        min_bound_mps=round(min(b for _, b, _ in rows), 2), tolerance_mps=tolerance_mps,
+    )
 
 
 def sensor_to_actuator_report(marks, target_ms=STEP_TARGET_MS):
@@ -987,6 +1030,8 @@ class MaplessDrive:
         carla_map = self.world.get_map()
         if self.turn_command:
             return self.setup_turn(carla_map)
+        if args.scenario == MISSION_SCENARIO:
+            return self.setup_mission(carla_map)
         length = args.goal_m + 15.0
         lane_kind = "straight" if self.actor_scenario else args.scenario
         sites, census = find_sites(carla, carla_map, lane_kind, length)
@@ -1037,7 +1082,7 @@ class MaplessDrive:
             if self.parked is None:
                 raise RuntimeError("Could not place the parked car")
             self.parked.set_simulate_physics(False)
-        self.route = make_route(carla_map, wps, args.goal_m)
+        self.route = perturb_route(make_route(carla_map, wps, args.goal_m), args.route_noise, args.seed)
         self.route.save(args.output / "route.json")
         self.goal_xy = self.lane[LANE_BACK_M + int(round(args.goal_m))]
         self.lane_arcs = np.concatenate(([0.0], np.cumsum(np.hypot(*np.diff(self.lane, axis=0).T))))
@@ -1045,6 +1090,64 @@ class MaplessDrive:
         self.report["site"] = rounded(
             {k: v for k, v in site.items() if k != "waypoints"} | dict(map=carla_map.name, start_xy_m=self.lane[LANE_BACK_M].tolist())
         )
+
+    def setup_mission(self, carla_map):
+        """The baseline route (``--mission``) with one of its obstacle scenarios
+        (``--acceptance S0``..``S5``): the chain resolved on the live map, the car spawned at
+        its start, the obstacle placed as the baseline places it, and the sparse sat-nav
+        route with a STRAIGHT at the junction. The chain is the truth lane."""
+        carla, args = self.carla, self.args
+        self.mission_site = site = resolve_mission(carla, carla_map, args.mission)
+        self.scenario = load_scenario(args.acceptance, args.scenarios_dir)
+        x0, y0, h0 = site.at(0.0)
+        spawn = carla.Transform(carla.Location(x=x0, y=-y0, z=0.3), carla.Rotation(yaw=-math.degrees(h0)))
+        ground = carla_map.get_waypoint(spawn.location, project_to_road=True, lane_type=carla.LaneType.Driving)
+        spawn.location.z = ground.transform.location.z + 0.3
+        self.ego = self.owner.try_spawn(self.library.find("vehicle.tesla.model3"), spawn)
+        if self.ego is None:
+            raise RuntimeError("Could not spawn the car at the mission's start")
+        lane = site.points_xy
+        back = (lane[0] - lane[1]) / np.linalg.norm(lane[0] - lane[1])
+        on = (lane[-1] - lane[-2]) / np.linalg.norm(lane[-1] - lane[-2])
+        # The truth lane runs 15 m behind the start (the rear axle starts behind the first
+        # point) and 15 m past the goal (the run ends at the goal, not at the lane's end).
+        self.lane = np.vstack([lane[0] + back * k for k in range(LANE_BACK_M, 0, -1)] + [lane] + [lane[-1] + on * k for k in range(1, 16)])
+        self.ego.apply_control(carla.VehicleControl(brake=1.0))
+        for _ in range(30):
+            self.owner.tick()
+        self.adapter = HoldingVehicleAdapter(self.ego)
+        self.offset = self.adapter.geometry.rear_axle_offset_m
+        self.parked = self.actor = self.turn_site = None
+        self.removed_at_s = None
+        placement = obstacle_placement(site, self.scenario)
+        if placement is not None:
+            s, lateral, blueprint = placement
+            if args.obstacle_blueprint != "vehicle.tesla.model3":
+                blueprint = args.obstacle_blueprint  # an explicit choice overrides the class's
+            x, y, yaw = site.at(s, lateral)
+            wp = carla_map.get_waypoint(carla.Location(x=x, y=-y, z=ground.transform.location.z), project_to_road=True, lane_type=carla.LaneType.Any)
+            t = carla.Transform(carla.Location(x=x, y=-y, z=wp.transform.location.z + 0.1), carla.Rotation(yaw=-math.degrees(yaw)))
+            bp = self.library.find(blueprint)
+            if bp.has_attribute("is_invincible"):
+                bp.set_attribute("is_invincible", "false")
+            self.parked = self.owner.try_spawn(bp, t)
+            if self.parked is None:
+                raise RuntimeError(f"Could not place the {args.acceptance} obstacle at s={s:.1f} m, lateral {lateral:g} m")
+            self.parked.set_simulate_physics(False)
+            self.report["obstacle"] = dict(scenario=args.acceptance, blueprint=blueprint, s_m=round(s, 2), lateral_m=lateral, remove_after_hold_s=self.scenario.get("remove_after_hold_s"))
+        args.goal_m = site.length_m
+        self.route = perturb_route(mission_route(carla_map, site), args.route_noise, args.seed)
+        self.route.save(args.output / "route.json")
+        self.goal_xy = lane[-1]
+        self.lane_arcs = np.concatenate(([0.0], np.cumsum(np.hypot(*np.diff(self.lane, axis=0).T))))
+        self.lane_end_s = float(self.lane_arcs[-1]) - LANE_BACK_M
+        self.site = dict(
+            kerb_distance_m=site.kerb_distance_m, kerb_source=site.kerb_source, right_lanes=site.right_lanes, lane_width_m=site.lane_width_m,
+            mission=site.name, segment_ids=list(site.segment_ids), length_m=round(site.length_m, 1),
+            junctions=[dict(entry_s_m=round(a, 1), exit_s_m=round(b, 1), junction_id=j) for a, b, j in site.junctions],
+        )
+        self.report["site"] = rounded(self.site | dict(map=carla_map.name, start_xy_m=self.lane[LANE_BACK_M].tolist()))
+        self.report["acceptance"] = dict(scenario=args.acceptance, seed=args.seed, mission=site.name, route_noise_m=args.route_noise)
 
     def setup_turn(self, carla_map):
         carla, args, command = self.carla, self.args, self.turn_command
@@ -1091,7 +1194,7 @@ class MaplessDrive:
             self.actor = make_oncoming(carla, args.oncoming, core_xy, **(args.actor_params or {}))
             self.actor.spawn_at_turn(self.owner, self.library, site)
             self.report["actor"] = self.actor.params.record() | dict(mode=args.oncoming)
-        self.route = make_turn_route(carla_map, site, command)
+        self.route = perturb_route(make_turn_route(carla_map, site, command), args.route_noise, args.seed)
         self.route.save(args.output / "route.json")
         self.goal_xy = self.turn_site.exit[-1]
         self.lane_arcs = self.turn_site.arcs
@@ -1343,8 +1446,19 @@ class MaplessDrive:
                 # Hold ticks count only while a hold may end the run: a crossing walker's yield
                 # counted towards --hold-s, so the run ended the tick the walker cleared, with
                 # no ticks left for the car to resume (fresh-eyes review of 58adaf3).
-                endable = args.scenario == "stop" or (self.actor is not None and self.actor.hold_ends_run())
-                hold_ticks = hold_ticks + 1 if held and endable else 0
+                mission_hold = args.scenario == MISSION_SCENARIO and self.parked is not None
+                removable = mission_hold and self.scenario.get("remove_after_hold_s") is not None
+                endable = args.scenario == "stop" or (mission_hold and not removable) or (self.actor is not None and self.actor.hold_ends_run())
+                hold_ticks = hold_ticks + 1 if held and (endable or removable) else 0
+                if removable and hold_ticks * DT_S >= self.scenario["remove_after_hold_s"]:
+                    # S1, S2, S5: the obstacle leaves after the car has held behind it; the
+                    # car must see the road clear and drive on to the goal (the baseline's
+                    # resume rule; truth knows the removal, the car does not).
+                    self.parked.destroy()
+                    self.parked = None
+                    self.removed_at_s = row["time_s"]
+                    hold_ticks = 0
+                    print(f"t={row['time_s']:6.1f}s obstacle removed after the hold", flush=True)
                 # A turn that waits at the junction mouth (no confirmed opening, no clearing
                 # radius, exit kerb not measured) is a result, not a time-out: end it after
                 # --junction-hold-s and say why, instead of sitting out --max-s.
@@ -1472,6 +1586,13 @@ class MaplessDrive:
             completion = score_completion(self.actor_scenario, log, actor_truths, self.body, self.report["end"], hold_ticks * DT_S)
             passed = completion.pop("passed")
             checks.append(check("completion", INCOMPLETE if passed is None else (PASS if passed else FAIL), **completion))
+        elif args.scenario == MISSION_SCENARIO:
+            # The baseline scenario's own gates on the mapless run (G2's gate; mapless_mission.py).
+            for name, passed, values in score_mission(self.scenario, log, self.report["end"], hold_ticks, getattr(self, "removed_at_s", None), DT_S):
+                checks.append(check(name, INCOMPLETE if passed is None else (PASS if passed else FAIL), **values))
+            crossings = [r["driver"].get("crossing") for r in log if r["driver"].get("crossing")]
+            handed = sum(1 for note in crossings if note == "handed back to the kerb corridor")
+            checks.append(check("junction_crossing", REPORT, crossing_ticks=len(crossings), handed_back=handed, junctions=self.site.get("junctions")))
         elif args.scenario != "stop":
             done = self.report["end"] == "finished"
             goal = last["truth"]["goal_distance_m"]
@@ -1497,7 +1618,15 @@ class MaplessDrive:
         checks.append(check("faults", PASS if share <= 0.02 else FAIL, share=share, reasons=reasons))
         following = next((r for name, r in (self.report.get("braking_assumptions") or {}).items() if name.startswith("following")), None)
         semantic_mode = (self.report.get("stack") or {}).get("semantic_mode")
-        checks.append(check("driver_step_time", REPORT, **step_time_report(step_times, log, response_s=None if following is None else following["response_s"], semantic_mode=semantic_mode)))
+        step_report = step_time_report(step_times, log, response_s=None if following is None else following["response_s"], semantic_mode=semantic_mode)
+        checks.append(check("driver_step_time", REPORT, **step_report))
+        # The 20 Hz requirement as a verdict of its own (review of 519b8fe, F-04): CARLA runs
+        # synchronously, so a slow step costs the car nothing in simulation time and every
+        # behaviour gate can pass with the deadline missed. OVER_BUDGET marks the run's
+        # status (MEASURED_PASS_OVER_BUDGET) rather than failing the behaviour it measured.
+        share = step_report.get("over_target_share")
+        if share is not None:
+            checks.append(check("real_time", OVER_BUDGET if share > REAL_TIME_MAX_MISS_SHARE else PASS, over_target_share=share, max_share=REAL_TIME_MAX_MISS_SHARE, target_ms=step_report.get("target_ms"), p95_ms=step_report.get("p95_ms"), p99_ms=step_report.get("p99_ms")))
         latency = sensor_to_actuator_report(getattr(self, "latencies", ()))
         if latency is not None:
             checks.append(check("sensor_to_actuator", REPORT, **latency))
@@ -1516,7 +1645,9 @@ class MaplessDrive:
             ))
         sight = sight_bound_report(log)
         if sight is not None:
-            checks.append(check("sight_bound", REPORT, **sight))
+            # A gate: the bound is the speed the car can stop from within the road it has
+            # seen clear; over it without braking is driving blind (review of 519b8fe, F-04).
+            checks.append(check("sight_bound", PASS if sight["over_ticks"] == 0 else FAIL, **sight))
         worker = semantic_worker_report(log)
         if worker is not None:
             checks.append(check("semantic_worker", REPORT, **worker))
@@ -1553,7 +1684,10 @@ def _config_dict(config):
 
 def main(argv=None, stack=False):
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    parser.add_argument("--scenario", choices=LANE_SCENARIOS + tuple(TURN_SCENARIOS) + tuple(ACTOR_SCENARIOS), required=True)
+    parser.add_argument("--scenario", choices=LANE_SCENARIOS + (MISSION_SCENARIO,) + tuple(TURN_SCENARIOS) + tuple(ACTOR_SCENARIOS), required=True)
+    parser.add_argument("--mission", type=Path, default=Path("configs/missions/a1_test01.json"), help="mission: the baseline route definition (lane chain) to drive")
+    parser.add_argument("--acceptance", choices=tuple(f"S{i}" for i in range(6)), default="S0", help="mission: the baseline obstacle scenario to run on it (configs/scenarios)")
+    parser.add_argument("--scenarios-dir", type=Path, default=Path("configs/scenarios"), help="mission: where the S0–S5 scenario files are")
     parser.add_argument("--output", type=Path, required=True, help="New folder for the run")
     parser.add_argument("--map", default=None, help="Load this map first (default: the server's current map)")
     parser.add_argument("--site", type=int, default=0, help="Which suitable site on the map (0 = first)")
@@ -1604,6 +1738,7 @@ def main(argv=None, stack=False):
     parser.add_argument("--snapshot-every", type=int, default=40, help="Ticks between terrain snapshots (0: none)")
     parser.add_argument("--follow", action="store_true", help="Keep the CARLA spectator camera 8 m behind and 5 m above the car")
     parser.add_argument("--seed", type=int, default=5308)
+    parser.add_argument("--route-noise", type=float, default=0.0, metavar="SIGMA_M", help="move every sat-nav point but the first by Gaussian noise of this sigma per axis (m), seeded by --seed; 0: exact lane-centre points")
     parser.add_argument(
         "--drop-sensor",
         action="append",

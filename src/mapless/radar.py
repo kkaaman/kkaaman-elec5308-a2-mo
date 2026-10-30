@@ -30,9 +30,7 @@ class RadarConfig:
     cluster_rate_mps: float = 1.0  # ... when their radial speeds agree this well
     min_returns: int = 1  # returns a cluster needs (1: every return counts, conservatively)
     max_cluster_span_m: float = 6.0  # wider clusters are split along their long axis
-    range_sigma_m: float = 0.25  # measurement noise handed to the tracker
-    bearing_sigma_rad: float = math.radians(2.0)
-    rate_sigma_mps: float = 0.3
+    bearing_sigma_rad: float = math.radians(2.0)  # the tracker's measurement noise is TrackerConfig.radar_*_sigma
     # Returns below this height in the vehicle frame (z up from the actor origin, at the
     # road) are the road itself: a bumper radar with a 15 degree vertical field hits the
     # tarmac from 5 m out, and on the first full live run (25 Oct) those returns became a

@@ -42,6 +42,7 @@ from enum import Enum
 import numpy as np
 
 from mapless.corridor import CorridorConfig, CorridorEstimator
+from mapless.crossing import CrossingConfig, StraightCrossing
 from mapless.ego_motion import EgoMotion, EgoMotionConfig, Pose2D
 from mapless.frame import SensorFrame, SensorState
 from mapless.geometry import wrap as wrap_angle
@@ -76,6 +77,7 @@ class DriverConfig:
     obstacles: ObstacleConfig = field(default_factory=ObstacleConfig)
     planner: PlannerConfig = field(default_factory=PlannerConfig)
     junction: JunctionConfig = field(default_factory=JunctionConfig)
+    crossing: CrossingConfig = field(default_factory=CrossingConfig)  # STRAIGHT through a junction (``crossing``)
     turn_start_m: float = 25.0  # a commanded turn is looked for when the route's entry point is this close
     turn_route_tolerance_m: float = 8.0  # the entry point must be within this of the car's path
     lidar_max_age_s: float = 0.15
@@ -136,10 +138,12 @@ def resolve_oncoming_override(override, now_s, max_age_s):
     """The stack's oncoming-traffic verdict as the left-turn gate may use it now (eighth
     review, F8-02). The stack computes it after each step from that tick's tracks, so the
     gate normally reads it one tick old. Older (a tick or more without perception, which
-    leaves it as it was), it is no basis for excusing anything: its excused footprints are
-    dropped, so the LiDAR gate counts every occupied cell again, while a "not clear" stands,
-    being the more cautious of the two. Returns the override to use (None: none), with
-    ``stale`` and ``age_s`` when it carries a time."""
+    leaves it as it was), it is no basis for anything: its excused footprints are dropped,
+    so the LiDAR gate counts every occupied cell again, and its "clear" lapses too (review
+    of 519b8fe, F-02: a clear read with a radar-only car 50 m out is not clear with the
+    tracks gone), so the car waits at the mouth until the stack speaks again. A "not clear"
+    stands. Returns the override to use (None: none), with ``stale`` and ``age_s`` when it
+    carries a time."""
     if override is None:
         return None
     when = override.get("time_s")
@@ -148,7 +152,8 @@ def resolve_oncoming_override(override, now_s, max_age_s):
     age = float(now_s) - float(when)
     if age <= max_age_s + 1e-9:
         return dict(override, stale=False, age_s=age)
-    return dict(override, excused=(), stale=True, age_s=age)
+    note = override.get("note") if not override.get("clear", True) else f"the stack's verdict is {age:.2f} s old: waiting for a fresh one"
+    return dict(override, excused=(), stale=True, age_s=age, clear=False, note=note)
 
 
 class MaplessDriver:
@@ -173,6 +178,7 @@ class MaplessDriver:
         self.planner = LanePlanner(config.planner, config.body, tube_half_m=config.body.half_width_m + config.obstacles.margin_m)
         self.turn = JunctionTurn(config.junction, config.body, self.corridor)
         self._turning = False
+        self.crossing = StraightCrossing(config.crossing)  # a junction crossed straight on
         self.speed_cap_mps = None  # the stack's following/prediction cap for this tick (None: none)
         self.last_motion = self.last_classified = self.last_plan = self.last_corridor = None
         self._profile_path = None  # (time, odometry polyline) of the last path planned along, for the far points' ground (terrain)
@@ -367,6 +373,7 @@ class MaplessDriver:
             d.update(holds_kept=bool(still and self.planner.holding))
             self.controller.reset()
             self.turn.reset()  # a latched turn path lived in the old frame too
+            self.crossing.reset()
             self._turning, self._mouth_odo, self._lane_heading_odo, self._turn_corridor, self._opening_odo, self._mouth_candidate = False, None, None, None, None, None
             self._gate_frame = self._turn_command = self._latest_odo = None
             self._zone_entered = False
@@ -381,6 +388,46 @@ class MaplessDriver:
             return self._fault(f"GNSS {motion.gnss_age_s:.1f} s old", d, motion, t, dt)
         if motion.route_sigma_m > c.route_max_sigma_m:
             return self._fault(f"route position uncertain ({motion.route_sigma_m:.1f} m)", d, motion, t, dt)
+        # -- straight through a junction (crossing.py) ------------------------------------
+        self.crossing.observe(motion.odometry, not motion.stationary)
+        crossing = self._crossing_context(guidance, motion)
+        if crossing is None and self.crossing.active:
+            # The route has moved past the exit point while the car still crosses on the
+            # line: the junction is this one until the kerb is found again.
+            crossing = self._crossing_context(guidance, motion, entry_i=self.crossing.entry_i)
+        if crossing is not None and crossing[2] == self._turn_done:
+            crossing = None  # crossed: kerb following to the exit point and on
+        if crossing is None:
+            if self.crossing.active or self.crossing.line is not None:
+                self.crossing.reset()  # the route moved on
+        elif not self.turn.committed:
+            entry_b, exit_b, entry_i = crossing
+            d.update(crossing_entry_m=round(float(entry_b[0]), 1), crossing_exit_m=round(float(exit_b[0]), 1))
+            self.crossing.latch(corridor, motion.odometry, entry_b)
+            if self.crossing.should_enter(entry_b):
+                self.crossing.enter(entry_i)
+            if self.crossing.active:
+                handed = False
+                if self.crossing.may_reacquire(exit_b):
+                    # Past the exit point: seed kerb following with the line and take its fit
+                    # once it has kerb evidence of its own.
+                    self.corridor.seed(self.crossing.line_body(motion.odometry), motion.odometry, t)
+                    resumed = self.corridor.update(self.grid, motion.odometry, t)
+                    if resumed.ok and len(resumed.evidence_body) >= c.corridor.min_evidence and self.crossing.agrees(resumed, motion.odometry):
+                        corridor, handed = resumed, True
+                        self._turn_done = entry_i
+                        self.crossing.reset()
+                        d.update(crossing="handed back to the kerb corridor")
+                if not handed:
+                    if self.crossing.given_up(exit_b):
+                        self._turn_done = entry_i
+                        self.crossing.reset()
+                        d.update(crossing="no kerb past the exit: kerb following on its own")
+                    else:
+                        corridor = self.crossing.corridor(self.grid, motion.odometry, t, self.corridor.support)
+                        d.update(crossing=self.crossing.note, corridor_ok=corridor.ok, corridor_reason=corridor.reason, corridor_valid_m=corridor.valid_length_m, corridor_support_m=corridor.support_m, lane_offset_m=corridor.lateral_offset_at(0.0))
+            elif self.crossing.line is not None:
+                d.update(crossing=self.crossing.note)
         if not corridor.ok and not self.turn.committed:
             if motion.stationary and corridor.evidence_age_s > c.corridor.evidence_max_age_s:
                 # Stopped and the corridor is gone for good: assume again that the car stands
@@ -583,7 +630,7 @@ class MaplessDriver:
             # seen clear (S5); once in it, clear it (the gate never stops the car there).
             override = resolve_oncoming_override(self.oncoming_override, t, c.junction.oncoming_override_max_age_s)
             if override is not None and override.get("stale"):
-                d.update(turn_gate_override=f"stale ({override['age_s']:.2f} s): excuses dropped")
+                d.update(turn_gate_override=f"stale ({override['age_s']:.2f} s): excuses and clear dropped")
             gate = oncoming_gate(
                 self.grid, motion.odometry, corridor.centre_body, self._gate_frame, c.body, c.junction,
                 motion.speed_mps, c.planner.cruise_mps, excused=() if override is None else override.get("excused", ()),
@@ -703,6 +750,26 @@ class MaplessDriver:
         here = self._gate_frame.to_body(pose.to_world(np.array([[0.0, 0.0], [1.0, 0.0]])))
         y = body_corners(here, self.config.body)[0, :, 1]
         return bool(y.max() > lo and y.min() < hi)
+
+    def _crossing_context(self, guidance, motion, entry_i=None):
+        """(entry point, exit point, entry route index), vehicle frame, for a junction the
+        route crosses STRAIGHT that the car is heading for or in (or the given entry
+        index's), else None."""
+        points = self.progress.xy
+        i = guidance.index
+        if entry_i is not None:
+            pass
+        elif guidance.command is Command.STRAIGHT:
+            entry_i = i
+        elif guidance.previous is Command.STRAIGHT and i >= 1:
+            entry_i = i - 1
+        else:
+            return None
+        if entry_i + 1 >= len(points):
+            return None
+        odo = motion.route_to_odometry(np.array([points[entry_i], points[entry_i + 1]]))
+        body = motion.odometry.to_body(odo)
+        return body[0], body[1], entry_i
 
     def _junction_context(self, guidance, motion, corridor):
         """(entry point, exit point, exit heading, command, entry route index) in the

@@ -571,16 +571,7 @@ class MaplessStack:
             # -- follow and conflicts --------------------------------------------------------
             begun = time.perf_counter()
             cap, cap_reason = self._speed_cap(motion, pose, live, predictions, t)
-            gate = self.driver.last_gate
-            # Stamped (eighth review, F8-02): a tick without perception leaves it as it was,
-            # and the driver gives it its due weight by age (``resolve_oncoming_override``).
-            if gate is None:
-                self._oncoming_block = None
-                self.driver.oncoming_override = None
-            else:
-                verdict = self._hold_lost_blockers(oncoming_verdict(live, gate, self.driver.config.junction, c), live, t)
-                self.driver.oncoming_override = dict(verdict, time_s=t, generation=self.frame_generation)
-            self._oncoming = None if self.driver.oncoming_override is None else self.driver.oncoming_override["note"]
+            self._oncoming_update(self.driver.last_gate, live, t)
             timing["plan"] = (time.perf_counter() - begun) * 1000
             # -- road model ------------------------------------------------------------------
             if self.semantic_worker is None and build and c.semantic_mode == "inline":
@@ -666,7 +657,7 @@ class MaplessStack:
         # The corridor line starts behind the rear axle: arc lengths are measured from the car.
         s_car = float(project_onto_polyline(np.zeros((1, 2)), path_body)[0][0])
         cap, reason = None, ""
-        prev_cause = self._cause["track_id"] if self._cause else getattr(self, "_prev_cause_id", None)
+        prev_cause = getattr(self, "_prev_cause_id", None)  # _cause is cleared before every call
         self._lead = self._cause = None
         # Only tracks the tracker vouches for lead the car (a 3-point tentative cluster must not).
         leads = [tr for tr in self.tracker.live(tracks) if tr.status in LEAD_STATUSES]
@@ -785,6 +776,10 @@ class MaplessStack:
                 # itself (review of 3e9083a, M9: pieces 2.7 m beyond a narrow followed lead
                 # were yielded to, because the filter ran only for a vehicle lead).
                 others = outside_lead_body(tracks, others, lead[1], lead[0], pose, path_body, s_car, c, followed=role == "follow", history=self._outside_lead_s, dt_s=self.driver.dt_s)
+            if self._outside_lead_s:
+                # Only live tracks' histories are kept (review of 519b8fe, F-13: the dict grew for the episode).
+                live_ids = {tr.track_id for tr in tracks}
+                self._outside_lead_s = {tid: v for tid, v in self._outside_lead_s.items() if tid in live_ids}
             body = self.driver.config.body
             clearing = self.driver.clearing_opposing_lane
             for p in others:
@@ -817,20 +812,20 @@ class MaplessStack:
                     # way, the car waits where it is.
                     self._clearing = _track_note(tracks, p.track_id, pose)
                     continue
-                conflict_cap = conflict_speed_cap([p], xy, s_now, body, c)
+                conflict_cap = conflict_speed_cap([p], xy, s_now, body, c, arc=arc)
                 why = "predicted conflict on the path"
                 if p.track_id in provisional:
                     # A provisional radar threat slows the car to its floor, which falls as
                     # the evidence grows, and lower still where only hard braking would stop
                     # short of the conflict (seventh review, F7-03; F6-02's floor alone kept
                     # the car at 1.5 m/s into a conflict it could no longer stop for).
-                    hard = conflict_speed_cap([p], xy, s_now, body, replace(c, conflict_decel_mps2=c.radar_provisional_hard_decel_mps2))
+                    hard = conflict_speed_cap([p], xy, s_now, body, replace(c, conflict_decel_mps2=c.radar_provisional_hard_decel_mps2), arc=arc)
                     floor = provisional_floor(provisional[p.track_id], c, (pose.x_m, pose.y_m))
                     conflict_cap, why = max(conflict_cap, min(floor, hard)), "provisional radar threat on the path"
                 elif p.track_id in young and track is not None:
                     # A young vehicle off the road (F8-03), the same way: slowed early, its
                     # floor falling as its track matures, stopped only where hard braking must.
-                    hard = conflict_speed_cap([p], xy, s_now, body, replace(c, conflict_decel_mps2=c.radar_provisional_hard_decel_mps2))
+                    hard = conflict_speed_cap([p], xy, s_now, body, replace(c, conflict_decel_mps2=c.radar_provisional_hard_decel_mps2), arc=arc)
                     conflict_cap, why = max(conflict_cap, min(young_floor(track, c), hard)), "provisional: a young vehicle off the road"
                 passing = roadside_cap(track, xy, s_now, body, tube_half, c)
                 if passing is not None and passing > conflict_cap:
@@ -878,6 +873,21 @@ class MaplessStack:
         worst = worst_case_speed_cap(gap, last["speed_mps"], self.following.config)
         cap = worst if last["cap"] is None else min(worst, last["cap"])
         return cap, f"following the lead, unseen for {age:.2f} s"
+
+    def _oncoming_update(self, gate, tracks, t):
+        """The stack's verdict on a left turn's opposing lane for the driver's next tick.
+        Stamped (eighth review, F8-02): a tick without perception leaves it as it was, and
+        the driver gives it its due weight by age (``resolve_oncoming_override``). A tick
+        without a gate (the turn plan not measured for a moment: the exit lost for 0.25 s
+        at the mouth on r10 and r11) keeps the lost-blocker record (2B): it expires by its
+        own clock, not with the gate (review of 519b8fe, F-01: the record was dropped, and a
+        blocker lost in that moment would have been forgotten)."""
+        if gate is None:
+            self.driver.oncoming_override = None
+        else:
+            verdict = self._hold_lost_blockers(oncoming_verdict(tracks, gate, self.driver.config.junction, self.config), tracks, t)
+            self.driver.oncoming_override = dict(verdict, time_s=t, generation=self.frame_generation)
+        self._oncoming = None if self.driver.oncoming_override is None else self.driver.oncoming_override["note"]
 
     def _hold_lost_blockers(self, verdict, tracks, t):
         """The oncoming verdict, kept "not clear" while a track that blocked it within
@@ -2002,11 +2012,14 @@ def arrival_profiles(path_xy, ahead_m, speed_now_mps, nominal_mps, held_cap_mps,
     return out
 
 
-def conflict_speed_cap(predictions, path_xy, s_now, body, config):
+def conflict_speed_cap(predictions, path_xy, s_now, body, config, arc=...):
     """The speed from which the car stops, at ``conflict_decel_mps2``, ``conflict_margin_m``
     short of the first arc where its footprint meets any of ``predictions`` (the road user
-    of a predicted conflict); 0 when that is already that close, or not found."""
-    arc = first_occupied_arc(predictions, path_xy, body, from_arc_m=s_now)
+    of a predicted conflict); 0 when that is already that close, or not found. ``arc``: that
+    first arc when the caller has it (``first_occupied_arc``; computed three times per
+    candidate before, review of 519b8fe, F-21)."""
+    if arc is ...:
+        arc = first_occupied_arc(predictions, path_xy, body, from_arc_m=s_now)
     room = 0.0 if arc is None else max(0.0, arc - s_now - config.conflict_margin_m)
     return math.sqrt(2.0 * config.conflict_decel_mps2 * room)
 
