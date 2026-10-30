@@ -797,3 +797,35 @@ def test_r11_scripted_braking_sets_the_profile_velocity_and_holds_at_the_stop():
     pedal = Actor(0.0, with_velocity=False)
     assert sc.scripted_braking(carla, pedal, 2.8, 0.05, 3.0) == "pedal"
     assert pedal.controls[-1].brake == pytest.approx(sc.braking_profile_control(2.8, 2.8, 0.05, 3.0))
+
+
+def test_t10_prediction_coverage_checks_the_region_against_where_the_actor_went():
+    """Tenth review, 3: does the predicted region hold where the actor went, and how much
+    bigger than the actor is it? An actor driving on at 2 m/s, matched to track 4: a
+    prediction that moves with it covers its centre 1 and 2 s on; one that stands still,
+    and no larger than the car, misses."""
+    def log_for(moving):
+        log, truths = [], []
+        for k in range(100):
+            ax = 10.0 + 2.0 * k * 0.05
+            actor = dict(centre_xy=[ax, 0.0], yaw_rad=0.0, extent_m=[2.2, 0.95], speed_mps=2.0)
+            preds = []
+            for h in (1.0, 2.0):
+                cx = ax + (2.0 * h if moving else 0.0)
+                preds.append([4, h, cx, 0.0, 2.6 + 0.2 * h, 1.2 + 0.1 * h, 0.0])
+            log.append(dict(time_s=k * 0.05, truth=dict(rear_axle_xy=[0.0, 0.0], yaw_rad=0.0, speed_mps=0.0), driver=dict(tracks_near=[[4, ax, 0.0, 2.0, 0.0, 4.4, 1.9, "C", "L"]], predictions_near=preds)))
+            truths.append(actor)
+        return log, truths
+
+    log, truths = log_for(True)
+    out = sc.score_prediction_coverage(log, truths, BODY)
+    assert out["available"]
+    for h in ("1s", "2s"):
+        r = out["horizons"][h]
+        assert r["judged_ticks"] == 100 - int(float(h[:-1]) / 0.05) and r["covered_share"] == 1.0 and r["worst_miss_m"] is None
+        assert r["area_over_actor_median"] > 1.0  # conservatism: the region against the actor's own footprint
+    still = sc.score_prediction_coverage(*log_for(False), BODY)
+    assert still["horizons"]["2s"]["covered_share"] == 0.0 and still["horizons"]["2s"]["worst_miss_m"] == pytest.approx(4.0 - 3.0, abs=0.01)
+    assert still["horizons"]["1s"]["covered_share"] == 1.0  # 2 m on is still within a 2.8 m half length
+    old = [dict(r, driver={k: v for k, v in r["driver"].items() if k != "predictions_near"}) for r in log]
+    assert sc.score_prediction_coverage(old, truths, BODY)["available"] is False

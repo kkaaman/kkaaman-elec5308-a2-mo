@@ -43,6 +43,33 @@ def first_detection(log, front_m, tolerance_m=1.5, persist_ticks=3):
     return None
 
 
+def reliable_from(log, front_m, start, tolerance_m=1.5, window_ticks=20, min_share=0.8, max_miss_ticks=3):
+    """Index of the earliest tick from ``start`` on after which the obstacle was seen where
+    the truth has it on at least ``min_share`` of every ``window_ticks`` ticks, with no run of
+    misses longer than ``max_miss_ticks``, until the car stood or the gap closed to 3 m; with
+    the misses after ``start``. The first detection is the best case; this is the range it
+    held from (tenth review, 5: a reliable range, not a single best-case observation)."""
+    flags = []
+    for row in log[start:]:
+        gap = (row.get("truth") or {}).get("gap_m")
+        if gap is None or gap <= 3.0 or (row.get("truth") or {}).get("speed_mps", 1.0) < 0.05:
+            break
+        seen = (row.get("driver") or {}).get("obstacle_m")
+        flags.append(seen is not None and abs((seen - front_m) - gap) <= tolerance_m)
+    if not flags:
+        return None, 0
+    n = len(flags)
+    ok = [False] * n  # whether everything from i on holds
+    good, run = True, 0
+    for i in range(n - 1, -1, -1):
+        run = 0 if flags[i] else run + 1
+        window = flags[i : i + window_ticks]
+        good = good and run <= max_miss_ticks and sum(window) >= min_share * len(window)
+        ok[i] = good
+    first = next((i for i in range(n) if ok[i]), None)
+    return (None if first is None else start + first), flags.count(False)
+
+
 def observability(log, front_m, cruise_mps, decel_mps2=1.0, response_s=0.25, margin_m=2.5, tolerance_m=1.5, persist_ticks=3):
     """REPORT: the first reliable detection (time, true bumper gap, speed then) and the
     speed it supports at the planner's deceleration, ``response_s`` (the measured brake
@@ -55,6 +82,11 @@ def observability(log, front_m, cruise_mps, decel_mps2=1.0, response_s=0.25, mar
     row = log[k]
     gap = row["truth"]["gap_m"]
     supported = supported_speed(gap, decel_mps2, response_s, margin_m)
+    j, misses = reliable_from(log, front_m, k, tolerance_m)
+    reliable = None
+    if j is not None:
+        reliable_gap = float(log[j]["truth"]["gap_m"])
+        reliable = dict(from_s=round(float(log[j]["time_s"]), 2), from_gap_m=round(reliable_gap, 2), supported_mps=round(supported_speed(reliable_gap, decel_mps2, response_s, margin_m), 2))
     return dict(
         detected=True,
         first_seen_s=round(float(row["time_s"]), 2),
@@ -63,5 +95,7 @@ def observability(log, front_m, cruise_mps, decel_mps2=1.0, response_s=0.25, mar
         supported_mps=round(supported, 2),
         cruise_mps=cruise_mps,
         cruise_supported=bool(cruise_mps <= supported + 1e-9),
+        reliable=reliable,
+        misses_after_first=misses,
         assumption=assumption,
     )

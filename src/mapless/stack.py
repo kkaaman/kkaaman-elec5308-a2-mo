@@ -62,7 +62,12 @@ from mapless.detections import (
     plan_extent,
 )
 from mapless.driver import DriveMode, MaplessDriver
-from mapless.following import LEAD_STATUSES, FollowingConfig, FollowingController
+from mapless.following import (
+    LEAD_STATUSES,
+    FollowingConfig,
+    FollowingController,
+    worst_case_speed_cap,
+)
 from mapless.frame import SensorFrame, SensorState
 from mapless.junction import _time_to_cover
 from mapless.obstacles import project_onto_polyline
@@ -146,6 +151,10 @@ class StackConfig:
     # LiDAR returns split into several clusters), not road users that can conflict.
     lead_body_m: float = 5.0  # for a lead as wide as a car's rear (or a vehicle)
     lead_body_min_width_m: float = 1.2
+    # A followed lead lost from the tracks (occluded, or its track replaced), not seen to
+    # leave the lane, is followed for lead_memory_s more where it would be at its last
+    # speed: the restriction it set does not lift with its track (tenth review, 2C).
+    lead_memory_s: float = 1.0
     lead_body_margin_m: float = 0.8  # beyond its half-width (at least that of a car, 0.9 m); A10: a piece at 1.5 m
     # ... but only tracks that have not been road users of their own: one seen outside the
     # lead's body for lead_piece_independent_s, or classed a pedestrian or bike, is kept
@@ -301,6 +310,12 @@ class StackConfig:
     parked_max_travelled_m: float = 1.0
     parked_min_still_s: float = 5.0
     parked_outer_fraction: float = 0.6
+    # Loss of perception must not clear a blocked turn (tenth review, 2B). A "not clear"
+    # verdict whose blocking track then goes unobserved, not seen to leave (deleted, or held
+    # by no sensor: a radar-only car 45 m out when the radar drops), stands for oncoming_lost_hold_s after it last blocked: long enough for a car
+    # beyond the LiDAR's 40 m at 30 km/h to come into its view. One observed leaving or
+    # excused (driving away, parked, too far) releases it at once.
+    oncoming_lost_hold_s: float = 3.0
     road_model_every: int = 4  # build the road model every this many ticks (5 Hz at 0.05 s; it is a slow product)
     segment_every: int = 2
     # The optional semantic work never shares a tick: segmentation on ticks divisible by
@@ -314,6 +329,8 @@ class StackConfig:
     # Where segmentation, painting and the road model run (sixth review, F6-01): "inline",
     # in ``step`` before it returns, or "thread", on the semantic worker, off the control
     # path; a worker's road model older than semantic_max_age_s (simulation time) is stale.
+    # "off": not at all, the geometric stack alone (tenth review, 4: the baseline of the
+    # three timing configurations).
     semantic_mode: str = "inline"
     semantic_max_age_s: float = 0.5
     # ... and one older than semantic_max_wall_age_s on the wall clock, from its submission
@@ -325,8 +342,8 @@ class StackConfig:
     semantic_max_wall_age_s: float | None = None
 
     def __post_init__(self):
-        if self.semantic_mode not in ("inline", "thread"):
-            raise ValueError("StackConfig.semantic_mode: inline or thread")
+        if self.semantic_mode not in ("inline", "thread", "off"):
+            raise ValueError("StackConfig.semantic_mode: inline, thread or off")
         if self.segment_every < 1 or self.road_model_every < 1:
             raise ValueError("StackConfig: segment_every and road_model_every of 1 or more")
         if self.semantic_max_wall_age_s is not None and not self.semantic_max_wall_age_s > 0:
@@ -407,6 +424,8 @@ class MaplessStack:
         self._edge_held = []  # ... and those held still for motion their leading edge did not bear out
         self._semantic = None  # the segmenter's agreement with the path, on road-model ticks (shadow)
         self._oncoming = None  # the stack's verdict on a left turn's opposing lane, for the log
+        self._oncoming_block = None  # the last blocking verdict: when, and its blocking tracks' sensors (2B)
+        self._followed = None  # the lead last followed: id, time, gap, speed and cap (2C, ``_lost_lead_cap``)
         self._structures = []  # clusters too big for a road user, this tick, for the log
         self._unreachable = []  # vehicle candidates a kerb or object separates from the path
         self._yield_since = {}  # track id -> first time it qualified for a yield
@@ -495,7 +514,7 @@ class MaplessStack:
                     self._model, self._semantic = result.model, result.semantic
                     self._semantic_take = self.semantic_worker.last_take
                 timing["semantic_submit"] = (time.perf_counter() - begun) * 1000
-            else:
+            elif c.semantic_mode == "inline":
                 painted = None
                 if cameras and self._tick % c.segment_every == 0:
                     # Segment and paint the same frame: the sweep and the images were taken together.
@@ -555,11 +574,16 @@ class MaplessStack:
             gate = self.driver.last_gate
             # Stamped (eighth review, F8-02): a tick without perception leaves it as it was,
             # and the driver gives it its due weight by age (``resolve_oncoming_override``).
-            self.driver.oncoming_override = None if gate is None else dict(oncoming_verdict(live, gate, self.driver.config.junction, c), time_s=t, generation=self.frame_generation)
+            if gate is None:
+                self._oncoming_block = None
+                self.driver.oncoming_override = None
+            else:
+                verdict = self._hold_lost_blockers(oncoming_verdict(live, gate, self.driver.config.junction, c), live, t)
+                self.driver.oncoming_override = dict(verdict, time_s=t, generation=self.frame_generation)
             self._oncoming = None if self.driver.oncoming_override is None else self.driver.oncoming_override["note"]
             timing["plan"] = (time.perf_counter() - begun) * 1000
             # -- road model ------------------------------------------------------------------
-            if self.semantic_worker is None and build:
+            if self.semantic_worker is None and build and c.semantic_mode == "inline":
                 begun = time.perf_counter()
                 self._model = self.road_model.build(pose, t)
                 corridor = self.driver.last_corridor
@@ -602,6 +626,9 @@ class MaplessStack:
             # The live tracks around the car, for the evaluator's actor matching (F1).
             tracks_near=near[0],
             tracks_near_omitted=near[1],
+            # Where the predictor had each predicted track 1 and 2 s on, for the evaluator's
+            # check of the occupied regions against where the actor went (tenth review, 3).
+            predictions_near=near_predictions(predictions if perceived else (), motion.odometry if perceived else None),
             cap_track=self._cause,
             clearing_for=self._clearing,
             hold_departures=self._departures[:4] or None,
@@ -696,6 +723,7 @@ class MaplessStack:
                 cap = self.following.target_speed(self.driver.config.planner.cruise_mps, motion.speed_mps, gap, along, self.driver.dt_s, held_cap_mps=held, keep_gap=not (continuation or {}).get("uncertain", False), lead_id=track.track_id)
                 reason = "" if cap is None else ("lead at a standstill" if cap <= 0.0 else "following the lead")
                 self._lead["following"] = dict(self.following.last)
+                self._followed = dict(track_id=track.track_id, time_s=t, gap_m=gap, speed_mps=along, cap=cap)
                 if not vehicle:
                     lead_id = None  # a walker or cyclist ahead is followed and still checked for crossing
             elif role == "obstacle_stop":
@@ -713,6 +741,9 @@ class MaplessStack:
                 lead_id = None
         else:
             self.following.reset()
+        ghost = self._lost_lead_cap(tracks, lead, motion, t)
+        if ghost is not None and (cap is None or ghost[0] < cap):
+            cap, reason = ghost
         if self._lead is not None:
             # What protects the car from the lead (third review, F3): the conflict check,
             # unless another rule covers it, following (a vehicle moving along the path:
@@ -826,6 +857,49 @@ class MaplessStack:
         seen = grid.seen_at((pts[:, None, :] + offsets[None]).reshape(-1, 2)).reshape(len(pts), -1)
         return np.any(seen >= grid.time_s - self.config.lidar_view_age_s, axis=1)
 
+    def _lost_lead_cap(self, tracks, lead, motion, t):
+        """(cap, reason) for a followed lead whose track is gone (not live), within
+        ``lead_memory_s`` of its last following tick, not seen to leave the lane: the lowest
+        of the cap it set and the worst-case cap behind it where it would be now at its last
+        speed (tenth review, 2C: a lead unseen for half a second lifted the restriction to
+        cruise). None otherwise; the record is dropped once a lead is followed again, the
+        track is live again or the memory is out."""
+        last = getattr(self, "_followed", None)
+        if last is None:
+            return None
+        live_ids = {tr.track_id for tr in tracks}
+        if lead is not None and lead[1].track_id == last["track_id"]:
+            return None  # still the lead (the record is refreshed while it is followed)
+        age = t - last["time_s"]
+        if last["track_id"] in live_ids or age > self.config.lead_memory_s or age < -1e-9:
+            self._followed = None  # still tracked (no longer the lead: it left the lane), or forgotten
+            return None
+        gap = last["gap_m"] + (max(last["speed_mps"], 0.0) - motion.speed_mps) * age
+        worst = worst_case_speed_cap(gap, last["speed_mps"], self.following.config)
+        cap = worst if last["cap"] is None else min(worst, last["cap"])
+        return cap, f"following the lead, unseen for {age:.2f} s"
+
+    def _hold_lost_blockers(self, verdict, tracks, t):
+        """The oncoming verdict, kept "not clear" while a track that blocked it within
+        ``oncoming_lost_hold_s`` is no longer observed and was not seen to leave: deleted, or
+        held by no sensor now (coasting; tenth review, 2B). A blocking verdict renews
+        the record; a blocker still observed (excused now: driving away, parked, too far)
+        releases it."""
+        if not verdict["clear"]:
+            self._oncoming_block = dict(time_s=t, support={tid: tuple(sup) for tid, sup in verdict.get("blocking_support", {}).items()})
+            return verdict
+        block = self._oncoming_block
+        if block is None or t - block["time_s"] > self.config.oncoming_lost_hold_s:
+            self._oncoming_block = None
+            return verdict
+        by_id = {tr.track_id: tr for tr in tracks}
+        lost = sorted(tid for tid in block["support"] if tid not in by_id or not by_id[tid].support)
+        if not lost:
+            self._oncoming_block = None
+            return verdict
+        note = f"track {lost[0]} blocked {t - block['time_s']:.1f} s ago and is no longer observed, not seen to leave: still not clear"
+        return dict(verdict, clear=False, note=note, held_lost=lost)
+
     def _judge_departures(self, tracks, t):
         """Which driver holds' objects have driven off (``hold_owner_m``): the planner
         is told (``mark_departed``) for its next plan."""
@@ -877,6 +951,8 @@ class MaplessStack:
         self._outside_lead_s = {}
         self._blocked_ticks = {}
         self._hold_owners = {}  # the tracks are gone: no departure is judged on them
+        self._oncoming_block = None
+        self._followed = None
         self._segmentations, self._model = None, None
         self._epoch += 1  # the semantic worker's evidence and results from before are void
         self.driver.speed_cap_mps = None
@@ -890,6 +966,36 @@ class MaplessStack:
         """Stop the semantic worker, if there is one."""
         if self.semantic_worker is not None:
             self.semantic_worker.close()
+
+
+def near_predictions(predictions, pose, horizons_s=(1.0, 2.0), ahead_m=60.0, behind_m=10.0, side_m=20.0, limit=20):
+    """Each prediction's region at ``horizons_s`` (the nearest step), vehicle frame, for
+    tracks predicted around the car now: [track id, horizon, x, y, half length, half width,
+    heading], nearest first, at most ``limit`` tracks. For the evaluator's prediction
+    coverage (tenth review, 3: does the predicted region hold where the actor went?)."""
+    if pose is None or not predictions:
+        return []
+    rows = []
+    for p in predictions:
+        at = pose.to_body(p.centres[:1])[0]
+        if not (-behind_m <= at[0] <= ahead_m and abs(at[1]) <= side_m):
+            continue
+        heading = round(float(p.heading_rad - pose.yaw_rad), 3)
+        for h in horizons_s:
+            i = int(np.argmin(np.abs(p.times_s - h)))
+            if abs(float(p.times_s[i]) - h) > 0.15:
+                continue
+            c = pose.to_body(p.centres[i : i + 1])[0]
+            rows.append((float(np.hypot(*at)), [int(p.track_id), float(h), round(float(c[0]), 2), round(float(c[1]), 2), round(float(p.half_extents[i, 0]), 2), round(float(p.half_extents[i, 1]), 2), heading]))
+    rows.sort(key=lambda r: r[0])
+    ids, out = [], []
+    for _, row in rows:
+        if row[0] not in ids:
+            if len(ids) >= limit:
+                continue
+            ids.append(row[0])
+        out.append(row)
+    return out
 
 
 def near_tracks(tracks, pose, ahead_m=60.0, behind_m=10.0, side_m=12.0, limit=40):
@@ -1028,7 +1134,7 @@ def radar_threat(track, lidar_free, config, lidar_tracks=(), ego_xy=None):
     Kept out, as before, the radar's clutter and twins: its velocity must explain its
     radial speed (no Doppler rejections), at ``radar_threat_min_mps`` or faster; not where
     the LiDAR saw free ground (``lidar_free``, a ghost) nor within ``radar_twin_m`` of a
-    LiDAR-supported track (``lidar_tracks``: that track is the object). "full": sustained,
+    LiDAR-supported track whose motion is known (``lidar_tracks``: that track is the object). "full": sustained,
     corroborated motion (``motion_state`` "moving", ``radar_threat_min_travel_m`` of net
     travel). "provisional": ``radar_provisional_travel_m`` of travel so far; it may slow
     the car, not stop it (``radar_provisional_cap_mps``). Given ``ego_xy`` (odometry), both
@@ -1043,7 +1149,11 @@ def radar_threat(track, lidar_free, config, lidar_tracks=(), ego_xy=None):
         return None
     if bool(lidar_free(track.position[None])[0]):
         return None
-    if any(float(np.hypot(*(t.position - track.position))) <= config.radar_twin_m for t in lidar_tracks):
+    # A LiDAR twin is the object once its motion is known; while it is not (a cluster first
+    # seen this tick, motion "uncertain"), the radar's track, whose motion is, carries the
+    # threat: dropped on the LiDAR's first fix, the cap went from 2.8 m/s to none for three
+    # ticks before the two merged (tenth review, 2C).
+    if any(float(np.hypot(*(t.position - track.position))) <= config.radar_twin_m and motion_state(t, config.prediction) != "uncertain" for t in lidar_tracks):
         return None
     return "provisional" if provisional_radar(track, config) else "full"
 
@@ -1173,7 +1283,8 @@ def oncoming_verdict(tracks, gate, junction, config):
     if blocking:
         tid, gap, toward, how = min(blocking, key=lambda b: b[1])
         note = f"track {tid} in the oncoming lane {max(0.0, gap):.0f} m from the crossing ({how})"
-        return dict(clear=False, excused=excused, note=note)
+        support = {t.track_id: tuple(t.support) for t in tracks if t.track_id in {b[0] for b in blocking}}
+        return dict(clear=False, excused=excused, note=note, blocking_support=support)
     return dict(clear=True, excused=excused, note=f"oncoming lane: {len(excused)} tracks excused")
 
 

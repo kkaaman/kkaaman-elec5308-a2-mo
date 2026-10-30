@@ -36,3 +36,21 @@ def test_the_first_detection_is_the_first_held_one_where_the_truth_has_it():
     # Seen at the wrong place (a different object), or never: no detection.
     wrong = [dict(r, driver=dict(obstacle_m=r["truth"]["gap_m"] + 3.8 + 5.0)) for r in log]
     assert observability(wrong, 3.8, cruise_mps=3.0)["detected"] is False
+
+
+def test_t10_the_reliable_range_is_where_the_detection_held_from_not_where_it_first_appeared():
+    """Tenth review, 5: the first detection is the best case. A cone seen at 24 m, lost
+    again for 5 ticks at 20 m and missed every third tick to 14 m, then held: it held (every
+    1 s window 80% seen, no run of misses over 3 ticks) from 14-16 m, and the speed that
+    supports is lower than the first sighting's."""
+    log = _log(24.0)
+    for k, row in enumerate(log):
+        g = row["truth"]["gap_m"]
+        if 19.5 <= g <= 20.3 or (14.0 < g < 19.5 and k % 3 == 0):
+            row["driver"] = dict(obstacle_m=None)
+    out = observability(log, 3.8, cruise_mps=3.0)
+    assert out["first_seen_gap_m"] == pytest.approx(24.0, abs=0.16)
+    assert 14.0 <= out["reliable"]["from_gap_m"] <= 16.5  # where every 1 s window held 80%
+    assert out["reliable"]["supported_mps"] < out["supported_mps"] and out["misses_after_first"] > 5
+    clean = observability(_log(24.0), 3.8, cruise_mps=3.0)
+    assert clean["reliable"]["from_gap_m"] == clean["first_seen_gap_m"] and clean["misses_after_first"] == 0

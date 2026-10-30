@@ -85,6 +85,7 @@ from carla_adapter.mapless_scenarios import (
     score_lead_tracking,
     score_moving,
     score_multi_actor_tracking,
+    score_prediction_coverage,
     score_radar_timeline,
 )
 from carla_adapter.sensor_rig import SensorRig, true_forward_speed
@@ -642,10 +643,14 @@ def gate_view_report(log):
     clear = [d for d in rows if d.get("turn_gate_view_s") is not None and not str(d.get("turn_gate") or "").startswith(("waiting", "in the opposing lane"))]
     short = [d for d in clear if d["turn_gate_view_s"] < d["turn_gate_required_s"]]
     last = rows[-1]
+    # The stack's verdict kept "not clear" for a blocker no longer observed (tenth review,
+    # 2B): how often, so a run that never lost one says the hold was not exercised.
+    held = [d for d in ((r.get("driver") or {}) for r in log) if "no longer observed" in str(d.get("oncoming") or "")]
     return dict(
         evaluated_ticks=len(rows),
         clear_ticks=len(clear),
         clear_with_view_short_ticks=len(short),
+        lost_blocker_held_ticks=len(held),
         worst_shortfall_s=round(max((d["turn_gate_required_s"] - d["turn_gate_view_s"] for d in short), default=0.0), 1),
         at_entry=dict(view_s=last.get("turn_gate_view_s"), required_s=last.get("turn_gate_required_s"), note=last.get("turn_gate")),
         note="beyond the gate's view the stack's tracks must cover the crossing's need",
@@ -683,6 +688,82 @@ def drop_sensors(frame, outages, elapsed_s):
         gnss=None if "gnss" in gone else frame.gnss,
         status=status,
     )
+
+
+def _burn(stop):
+    """A busy loop until ``stop`` is set: one core's worth of contention (``LoadGenerator``)."""
+    x = 0
+    while not stop.is_set():
+        for _ in range(20000):
+            x = (x * 31 + 7) % 1000003
+
+
+class LoadGenerator:
+    """Deliberate resource contention for a run (tenth review, 4: the semantic worker under
+    combined CPU and GPU load). ``cpu``: that many processes each spinning a core; ``gpu``:
+    a thread multiplying 2048 x 2048 matrices on the CUDA device back to back (needs torch
+    with CUDA). Started before the run, stopped after; what ran goes in the report."""
+
+    def __init__(self, cpu=0, gpu=False):
+        self.cpu, self.gpu = int(cpu), bool(gpu)
+        self._procs, self._stop, self._gpu_thread, self._gpu_stop = [], None, None, None
+        self.note = {}
+
+    def __enter__(self):
+        import multiprocessing  # noqa: PLC0415
+        import threading  # noqa: PLC0415
+
+        if self.cpu > 0:
+            ctx = multiprocessing.get_context("spawn")
+            self._stop = ctx.Event()
+            self._procs = [ctx.Process(target=_burn, args=(self._stop,), daemon=True) for _ in range(self.cpu)]
+            for proc in self._procs:
+                proc.start()
+        self.note = dict(cpu_processes=self.cpu, gpu="off")
+        if self.gpu:
+            try:
+                import torch  # noqa: PLC0415
+
+                if not torch.cuda.is_available():
+                    raise RuntimeError("CUDA not available")
+                self._gpu_stop = threading.Event()
+                a = torch.randn(2048, 2048, device="cuda")
+
+                def spin():
+                    while not self._gpu_stop.is_set():
+                        (a @ a).sum().item()
+
+                self._gpu_thread = threading.Thread(target=spin, name="gpu-load", daemon=True)
+                self._gpu_thread.start()
+                self.note["gpu"] = "matmul 2048x2048 on " + torch.cuda.get_device_name(0)
+            except Exception as error:  # the run goes on without it, and says so
+                self.note["gpu"] = f"not started: {type(error).__name__}: {error}"
+        return self
+
+    def __exit__(self, *exc):
+        if self._stop is not None:
+            self._stop.set()
+            for proc in self._procs:
+                proc.join(timeout=2.0)
+                if proc.is_alive():
+                    proc.terminate()
+        if self._gpu_stop is not None:
+            self._gpu_stop.set()
+            self._gpu_thread.join(timeout=2.0)
+        return False
+
+
+def sight_bound_report(log, tolerance_mps=0.3):
+    """Whether the car kept to the observability bound (``sight_speed_mps``, the speed it can
+    stop from within the path seen clear; eighth review, P1) on every tick it applied:
+    the ticks it was over by more than ``tolerance_mps`` (the speed loop's lag), the largest
+    excess, and the lowest bound met (tenth review, 5). None when the log has no bound."""
+    rows = [(r["truth"]["speed_mps"], (r.get("driver") or {}).get("sight_speed_mps")) for r in log]
+    rows = [(v, b) for v, b in rows if b is not None]
+    if not rows:
+        return None
+    over = [v - b for v, b in rows if v > b + tolerance_mps]
+    return dict(ticks=len(rows), over_ticks=len(over), max_excess_mps=round(max(over), 2) if over else 0.0, min_bound_mps=round(min(b for _, b in rows), 2), tolerance_mps=tolerance_mps)
 
 
 def sensor_to_actuator_report(marks, target_ms=STEP_TARGET_MS):
@@ -1349,6 +1430,8 @@ class MaplessDrive:
                 # Which tracks were the actor, from the logged tracks (third review, F1);
                 # the lead's errors are scored only on ticks it was the actor.
                 checks.append(check("actor_tracking", REPORT, **score_actor_tracking(log, actor_truths, self.body, DT_S)))
+                # Did the predicted regions hold where the actor went (tenth review, 3)?
+                checks.append(check("prediction_coverage", REPORT, **score_prediction_coverage(log, actor_truths, self.body, DT_S)))
                 if self.actor_scenario in ("braking_lead", "cut_in"):
                     checks.append(check("lead_tracking", REPORT, **score_lead_tracking(log, actor_truths, self.body, DT_S)))
                 if self.actor_scenario == "crossing_vehicle":
@@ -1418,6 +1501,22 @@ class MaplessDrive:
         latency = sensor_to_actuator_report(getattr(self, "latencies", ()))
         if latency is not None:
             checks.append(check("sensor_to_actuator", REPORT, **latency))
+            # The response times the safety margins assume against the measured path from
+            # sensor to actuator (tenth review, 4: use the measured latency distribution):
+            # its p99 plus a tick (a hazard arrives just after a sweep).
+            planner_cfg = (self.report.get("driver_config") or {}).get("planner") or {}
+            needed_s = round((latency["sensor_to_actuator_ms"]["p99"] + DT_S * 1000.0) / 1000.0, 3)
+            assumed = {name: r["response_s"] for name, r in (self.report.get("braking_assumptions") or {}).items()}
+            assumed["observability bound (PlannerConfig.sight_response_s)"] = planner_cfg.get("sight_response_s")
+            checks.append(check(
+                "latency_budget", REPORT, needed_s=needed_s, max_s=round((latency["sensor_to_actuator_ms"]["max"] + DT_S * 1000.0) / 1000.0, 3),
+                response_s=assumed, covered={k: bool(v is not None and v >= needed_s) for k, v in assumed.items()},
+                # A rule assuming no response time carries the lag in its margin: this much of it at cruise.
+                lag_at_cruise_m=round(args.speed * needed_s, 2), stop_gap_m=planner_cfg.get("stop_gap_m"),
+            ))
+        sight = sight_bound_report(log)
+        if sight is not None:
+            checks.append(check("sight_bound", REPORT, **sight))
         worker = semantic_worker_report(log)
         if worker is not None:
             checks.append(check("semantic_worker", REPORT, **worker))
@@ -1496,9 +1595,9 @@ def main(argv=None, stack=False):
     parser.add_argument("--detector", default=None, help="stack: 'yolo' or none")
     parser.add_argument(
         "--semantic",
-        choices=("thread", "inline"),
+        choices=("thread", "inline", "off"),
         default="thread",
-        help="stack: segmentation, painting and the road model on their own worker thread, off the control path (default), or inline in each step",
+        help="stack: segmentation, painting and the road model on their own worker thread, off the control path (default), inline in each step, or off (the geometric stack alone)",
     )
     parser.add_argument("--hold-s", type=float, default=5.0)
     parser.add_argument("--max-s", type=float, default=150.0)
@@ -1512,6 +1611,8 @@ def main(argv=None, stack=False):
         metavar="NAME:START:END",
         help="inject an outage: sensor NAME (roof, radar_front, gnss, imu, ...) missing from START to END s after the first frame",
     )
+    parser.add_argument("--cpu-load", type=int, default=0, metavar="N", help="deliberate contention: N processes each spinning a core during the run (tenth review, 4)")
+    parser.add_argument("--gpu-load", action="store_true", help="deliberate contention: back-to-back 2048x2048 matrix products on the CUDA device during the run")
     parser.add_argument(
         "--record-frames",
         choices=("none", "turns", "all"),
@@ -1577,7 +1678,8 @@ def main(argv=None, stack=False):
     # started the minute a fix was pushed could not show whether they had it).
     print(f"map {report['map']}  code {report['source_commit'] or 'unknown commit'} at {report['source_root']}", flush=True)
     try:
-        with SynchronousWorldSession(client, WorldTiming(fixed_delta_seconds=DT_S)) as owner:
+        with LoadGenerator(args.cpu_load, args.gpu_load) as load, SynchronousWorldSession(client, WorldTiming(fixed_delta_seconds=DT_S)) as owner:
+            report["load"] = load.note
             MaplessDrive(carla, owner, suite, args, report).run()
         report["settings_restored"] = _settings_record(client.get_world().get_settings()) == initial_settings
         report["status"] = run_status(report["checks"])

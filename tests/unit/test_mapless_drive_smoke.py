@@ -570,7 +570,31 @@ def test_the_oncoming_gate_report_counts_clear_verdicts_on_a_short_view():
     rows += [dict(driver=dict(turn_gate="waiting: track 241 in the oncoming lane", turn_gate_required_s=10.0, turn_gate_view_s=4.7))]
     rows += [dict(driver=dict(turn_gate="oncoming lane clear for 40 m", turn_gate_required_s=4.0, turn_gate_view_s=4.7))]
     rows += [dict(driver=dict(turn_gate="in the opposing lane: clearing it", turn_gate_required_s=7.9, turn_gate_view_s=4.7)), dict(driver={})]
+    rows[5]["driver"]["oncoming"] = "track 241 blocked 0.4 s ago and is no longer observed, not seen to leave: still not clear"
     out = drive.gate_view_report(rows)
     assert out["evaluated_ticks"] == 8 and out["clear_ticks"] == 6 and out["clear_with_view_short_ticks"] == 5
+    assert out["lost_blocker_held_ticks"] == 1
     assert out["worst_shortfall_s"] == pytest.approx(6.4) and out["at_entry"]["required_s"] == 7.9
     assert drive.gate_view_report([dict(driver={})]) is None
+
+
+def test_t10_the_sight_bound_report_counts_ticks_over_the_observability_bound():
+    """Tenth review, 5: did the car keep to the speed it could stop from within the path seen
+    clear? Over by more than the speed loop's lag (0.3 m/s) is counted, with the excess."""
+    log = [dict(truth=dict(speed_mps=v), driver=dict(sight_speed_mps=b)) for v, b in ((3.0, 4.0), (3.2, 3.0), (3.6, 3.0), (2.0, None))]
+    out = drive.sight_bound_report(log)
+    assert out["ticks"] == 3 and out["over_ticks"] == 1 and out["max_excess_mps"] == pytest.approx(0.6) and out["min_bound_mps"] == 3.0
+    assert drive.sight_bound_report([dict(truth=dict(speed_mps=1.0), driver={})]) is None
+
+
+def test_t10_the_load_generator_spins_and_stops_and_says_what_ran():
+    """Tenth review, 4: timing under deliberate contention. ``--cpu-load N`` runs N spinning
+    processes for the run and stops them after; the report says what ran (no CUDA here:
+    the GPU load says why it did not start)."""
+    with drive.LoadGenerator(cpu=1, gpu=True) as load:
+        procs = list(load._procs)
+        assert len(procs) == 1 and procs[0].is_alive()
+        assert load.note["cpu_processes"] == 1 and load.note["gpu"] != "off"
+    assert not procs[0].is_alive()
+    with drive.LoadGenerator() as idle:
+        assert idle.note == dict(cpu_processes=0, gpu="off")

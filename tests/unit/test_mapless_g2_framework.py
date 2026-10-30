@@ -841,3 +841,8 @@ def test_f6_01_the_semantic_worker_changes_no_command_and_still_delivers_the_roa
     timing = thread[-1].decision.timing_ms
     assert "semantic_submit" in timing and "road_model" not in timing and "paint" not in timing
     assert inline[-1].diagnostics["semantic_worker"] is None
+    # Tenth review, 4: "off", the geometric stack alone (the timing baseline), drives the same.
+    off = run("off")
+    assert [s.command for s in off] == [s.command for s in inline]
+    assert off[-1].road_model is None and off[-1].diagnostics["semantic_worker"] is None
+    assert not {"paint", "road_model", "semantic_submit"} & set(off[-1].decision.timing_ms)

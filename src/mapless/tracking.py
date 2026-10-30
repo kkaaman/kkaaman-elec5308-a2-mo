@@ -68,6 +68,11 @@ class TrackerConfig:
     # or "optimal", the least total cost with a pair left unassigned costing the gate
     # (``_assign_optimal``). Benchmarked on the recorded runs before any change of default.
     assignment: str = "greedy"
+    # A radar return whose radial speed is rejected: "drop" (the whole return; eighth review,
+    # F8-01) or "position" (its range and bearing still update a track the LiDAR did not
+    # place this tick, observing nothing: no hit, no freshness). Tenth review, 2A: compared
+    # on the braking matrix and the recorded runs before any change of default.
+    doppler_reject_policy: str = "drop"
     initial_speed_sigma_mps: float = 5.0
     confirm_hits: int = 3  # hits ...
     confirm_window: int = 5  # ... within this many frames
@@ -225,6 +230,8 @@ class TrackerConfig:
             raise ValueError("TrackerConfig: shape_min_views >= 1 and 0 < shape_min_length_m <= shape_max_length_m")
         if self.assignment not in ("greedy", "optimal"):
             raise ValueError("TrackerConfig.assignment: greedy or optimal")
+        if self.doppler_reject_policy not in ("drop", "position"):
+            raise ValueError("TrackerConfig.doppler_reject_policy: drop or position")
         if self.edge_directions < 4 or self.edge_min_span_s > self.edge_window_s:
             raise ValueError("TrackerConfig: edge_directions >= 4 and edge_min_span_s <= edge_window_s")
 
@@ -877,6 +884,10 @@ class Tracker:
                     # freshness. A track whose returns are all rejected coasts and is deleted
                     # as if unseen; counted, those returns kept a confirmed radar-only track
                     # alive, supported and a lead candidate indefinitely.
+                    if c.doppler_reject_policy == "position" and t.seen.get("lidar") != time_s:
+                        # The tenth review's alternative (2A): the range and bearing kept, the
+                        # radial speed dropped, still observing nothing (no hit, no freshness).
+                        self._kalman(t, y[:2], H[:2], Rt[:2, :2])
                     t.radar_rejected_s = time_s
                     continue
                 self._absorb(t, None, "radar", time_s)
