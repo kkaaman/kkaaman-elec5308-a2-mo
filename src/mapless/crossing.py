@@ -14,15 +14,15 @@ the car follows that line instead of the kerb fit: a corridor with no edges, val
 as the road along it is observed (``support``), so the obstacle stop and the planner's ramp
 work on it as on any corridor. The line is the path's first part: once the route's exit
 point and the points after it are in view the path is latched in the odometry frame as
-the line to ``transition_m`` before the exit, a cubic blend onto the exit lane's line (the
-least-squares line through those points) and that line (``_build_path``; the exit lane
-need not continue the entry lane's: Town10HD junction 468, 43 m long, bends 22 degrees
-right in its last 10 m). From ``handback_from_entry_m`` past the entry the kerb corridor
-is seeded from the path and beside it; what it sees of the kerb re-anchors the path (the
-exit line in position and direction, the latched line sideways: the odometry drifts a
-metre over a kerbless box, the sat-nav's exit line is a metre or two and several degrees
-out) and, agreeing with the path at the car, is handed the car. Past ``give_up_m`` beyond
-the exit with no kerb, the driver's ordinary "no corridor" fault stands.
+the line to the route's exit point, then an arc tangent to it whose curvature fits the
+route points after the exit (``_build_path``; the exit lane need not continue the entry
+lane's: Town10HD junction 468, 43 m long, its exit lane curving 50 degrees over 30 m).
+From ``handback_from_entry_m`` past the entry the kerb corridor is seeded from the path
+and beside it; what it sees of the kerb moves the path sideways (the odometry drifts a
+metre over a kerbless box) and, agreeing with the path at the car and running on towards
+the route, is handed the car — the kerb corridor follows a curving exit as no line or
+sat-nav arc does. Past ``give_up_m`` beyond the exit with no kerb, the driver's ordinary
+"no corridor" fault stands.
 
 What the car does not do here is look for traffic: a junction crossed on a STRAIGHT is a
 give-way or signalled one, and the lights (M07) and crossing traffic are the stack's and
@@ -55,19 +55,49 @@ class CrossingConfig:
     seed_offsets_m: tuple = (0.0, -0.75, 0.75, -1.5, 1.5, -2.25, 2.25, -3.0, 3.0, -3.75, 3.75)  # the exit line fitted 2.5 m left (route noise), the kerb 4.3 m right of the path: the near seeds missed it
     seed_every_ticks: int = 4  # the search runs every this many ticks (its cost: one kerb fit per seed)
     reanchor_gain: float = 0.5
-    exit_turn_max_rad: float = 0.45  # kerb evidence along the exit line may turn it by up to this (its direction is the sat-nav's)
+    # The crossing's exit is a curve on Town10HD 468 (50 degrees over 30 m from the exit
+    # point, r13): no exit *line* fits it, the kerb corridor does. Hand back as soon as a
+    # kerb fit agrees with the path at the car and runs to within this of the route past
+    # the exit (a side road's fillet runs away from it).
+    # The latched line lives in the odometry frame, which turns with the gyro's bias
+    # residual (the stationary estimate is 1 s long; r12/r13: 0.4-1.5 m off by the end of a
+    # 45 m kerbless box, a 2-sigma seed 2.6 m). The compass does not drift. The line's
+    # heading follows the smoothed odometry-minus-compass yaw since the latch, rotating
+    # about the car's foot on it. (The route EKF's yaw was tried as the reference: it
+    # integrates the raw gyro between compass updates and drifts more than the odometry.)
+    heading_hold: bool = True
+    heading_hold_alpha: float = 0.01  # EMA weight a tick on the yaw gap (5 s at 20 Hz: compass noise 0.03 rad -> ~0.002)
+    handback_route_m: float = 5.0
+    reanchor_past_exit_m: float = 8.0  # kerb evidence up to this far past the arc's start (it has barely begun) still moves the path sideways
+    handback_span_m: float = 6.0  # the fit's kerb evidence spans at least this ...
+    handback_min_evidence: int = 7  # ... with at least this many lane-centre points (the far kerb is sparse: 5-8 stations at 20-30 m)
     reanchor_max_m: float = 4.0  # a fit further off than this is some other kerb (the exit line's own error is 2-3 m at times: route noise, seed 5314 of the bend test's sweep)
     give_up_m: float = 25.0  # past the exit without a kerb: the crossing is over, the fault stands
     look_ahead_m: float = 40.0
     step_m: float = 1.0
     start_m: float = -2.0
     max_route_offset_m: float = 6.0  # the entry point must lie this near the lane line, laterally (3 sigma of a 2 m route noise; a 3.8 m point read as 4.4 m from the car's own position error, and the crossing never engaged)
-    # The exit lane need not continue the entry lane's line (Town10HD junction 468: 43 m long,
-    # its last 10 m bending 25 degrees right into the exit road). The path is the line, a
-    # cubic blend from transition_m before the route's exit point to that point in the
-    # direction of the point after it, then that exit line.
-    bend_min_rad: float = 0.05  # a smaller deflection between the line and the exit line is driven straight on the line
-    transition_m: float = 15.0  # the blend from the line to the exit point begins this far before it
+    # The exit lane need not continue the entry lane's line (Town10HD junction 468: 43 m
+    # long, its exit lane a curve of 50 degrees over 30 m, r13). The path is the line to
+    # the route's exit point, then an arc whose curvature fits the route points after it.
+    exit_curvature_min: float = 1.0 / 400.0  # a gentler arc is driven straight on the line
+    exit_curvature_max: float = 1.0 / 15.0  # a STRAIGHT's exit is no tighter than this
+    exit_lead_m: float = 10.0  # the arc begins this far before the route's exit point (468: the lane bends 7 m before it; the synthetic bend, 14 m)
+    # The crossing's exit is a curve on Town10HD 468: no exit *line* fits it, the kerb
+    # corridor does. Hand back as soon as a kerb fit agrees with the path at the car and
+    # runs to within this of the route past the exit (a side road's fillet runs away from it).
+    # The latched line lives in the odometry frame, which turns with the gyro's bias
+    # residual (the stationary estimate is 1 s long; r12/r13: 0.4-1.5 m off by the end of a
+    # 45 m kerbless box, a 2-sigma seed 2.6 m). The compass does not drift. The line's
+    # heading follows the smoothed odometry-minus-compass yaw since the latch, rotating
+    # about the car's foot on it. (The route EKF's yaw was tried as the reference: it
+    # integrates the raw gyro between compass updates and drifts more than the odometry.)
+    heading_hold: bool = True
+    heading_hold_alpha: float = 0.01  # EMA weight a tick on the yaw gap (5 s at 20 Hz: compass noise 0.03 rad -> ~0.002)
+    handback_route_m: float = 5.0
+    reanchor_past_exit_m: float = 8.0  # kerb evidence up to this far past the arc's start (it has barely begun) still moves the path sideways
+    handback_span_m: float = 6.0  # the fit's kerb evidence spans at least this ...
+    handback_min_evidence: int = 7  # ... with at least this many lane-centre points (the far kerb is sparse: 5-8 stations at 20-30 m)
     handback_from_entry_m: float = 10.0  # the kerb corridor may take over from this far past the entry
 
     def __post_init__(self):
@@ -81,11 +111,35 @@ class CrossingConfig:
             raise ValueError("CrossingConfig: 0 < history_min_m <= history_m")
 
 
+def _wrap_angle(a):
+    return (a + math.pi) % (2 * math.pi) - math.pi
+
+
+def _fit_arc_curvature(points, kappa_max=0.1, steps=401):
+    """Curvature of the arc tangent to the x axis at the origin that best fits ``points``
+    (N x 2: along and across the line, metres, along > 0), by a grid search; 0 when no
+    point fits any arc (all beyond the arc's quarter turn)."""
+    best, best_err = 0.0, math.inf
+    for kappa in np.linspace(-kappa_max, kappa_max, steps):
+        if abs(kappa) < 1e-6:
+            err = float(np.sum(points[:, 1] ** 2))
+        else:
+            sin_phi = kappa * points[:, 0]
+            if np.any(np.abs(sin_phi) >= 1.0):
+                continue
+            across = (1.0 - np.cos(np.arcsin(sin_phi))) / kappa
+            err = float(np.sum((points[:, 1] - across) ** 2))
+        if err < best_err:
+            best, best_err = float(kappa), err
+    return best
+
+
 class StraightCrossing:
     """The latched lane line and the crossing's state; one instance per driver."""
 
     def __init__(self, config=None):
         self.config = config or CrossingConfig()
+        self._yaw_gap = None  # smoothed odometry yaw minus compass yaw, over the whole drive
         self.reset()
 
     def reset(self):
@@ -94,12 +148,19 @@ class StraightCrossing:
         self.entry_i = None
         self.note = ""
         self._track = []  # the rear axle's odometry positions, oldest first (the lane's direction)
-        self.path_odo = None  # the latched path (line, blend, exit line) in the odometry frame, once the exit is known
+        self.path_odo = None  # the latched path (line, arc) in the odometry frame, once the exit is known
         self._geometry = None
         self.bend_rad = 0.0
+        self._yaw_gap_ref = None  # the smoothed odometry-minus-compass yaw at the latch ...
+        self._hold_applied = 0.0  # ... and how far the line has been turned to follow it since
 
-    def observe(self, pose, moving):
-        """Each tick: the car's own track, for the lane's direction."""
+
+    def observe(self, pose, moving, compass_yaw_rad=None):
+        """Each tick: the car's own track, for the lane's direction, and the smoothed gap
+        between the odometry's yaw and the compass's, for the heading hold."""
+        if compass_yaw_rad is not None:
+            gap = _wrap_angle(pose.yaw_rad - compass_yaw_rad)
+            self._yaw_gap = gap if self._yaw_gap is None else _wrap_angle(self._yaw_gap + self.config.heading_hold_alpha * _wrap_angle(gap - self._yaw_gap))
         if not moving:
             return
         here = (pose.x_m, pose.y_m)
@@ -137,6 +198,7 @@ class StraightCrossing:
         heading = pose.yaw_rad + corridor.heading_near() if track is None else track
         centre = pose.to_world(np.array([[0.0, corridor.lateral_offset_at(0.0)]]))[0]
         self.line = (float(centre[0]), float(centre[1]), float(heading))
+        self._yaw_gap_ref, self._hold_applied = self._yaw_gap, 0.0
         self.note = "lane line latched" + (" (kerb heading)" if track is None else "")
 
     def should_enter(self, entry_body):
@@ -145,6 +207,33 @@ class StraightCrossing:
     def enter(self, entry_i):
         self.active, self.entry_i = True, entry_i
         self.note = "crossing on the latched lane line"
+
+    def hold_heading(self, pose):
+        """Turn the line (and the path) about the car's foot on it by what the odometry's
+        yaw has drifted from the compass's since the latch; returns the turn applied so far
+        (radians, left positive)."""
+        c = self.config
+        if not c.heading_hold or self.line is None or self._yaw_gap is None or self._yaw_gap_ref is None:
+            return 0.0
+        drift = _wrap_angle(self._yaw_gap - self._yaw_gap_ref)  # the odometry's yaw high by this: the line's odometry heading rises with it
+        turn = drift - self._hold_applied
+        if abs(turn) < 1e-4:
+            return self._hold_applied
+        x0, y0, h = self.line
+        u = np.array([math.cos(h), math.sin(h)])
+        origin = np.array([x0, y0])
+        car = np.array([pose.x_m, pose.y_m])
+        foot = origin + float(np.dot(car - origin, u)) * u
+        h2 = h + turn
+        self.line = (float(foot[0]), float(foot[1]), float(h2))
+        self._hold_applied = drift
+        if self._geometry is not None:
+            g = self._geometry
+            rot = np.array([[math.cos(turn), -math.sin(turn)], [math.sin(turn), math.cos(turn)]])
+            g["e"] = foot + rot @ (g["e"] - foot)
+            g["foot"], g["u"] = foot, np.array([math.cos(h2), math.sin(h2)])
+            self._assemble()
+        return self._hold_applied
 
     def line_body(self, pose, length_m=None):
         """The latched line in the vehicle frame: N x 2 points every step_m from start_m."""
@@ -171,73 +260,72 @@ class StraightCrossing:
         here = int(np.argmin(np.hypot(body[:, 0], body[:, 1])))
         first = max(0, here - int(round(-self.config.start_m / self.config.step_m)))
         out = body[first:]
+        folds = np.flatnonzero(np.diff(out[:, 0]) <= 0.0)  # the arc turned past the car's x axis
+        if len(folds):
+            out = out[: folds[0] + 1]
         if len(out) < 4:
             return self.line_body(pose)
         return out
 
     def _build_path(self, pose, exit_body, after_body):
-        """The line to ``transition_m`` before the route's exit point, a cubic blend from
-        there onto the exit lane's line, then that line: as a polyline in the odometry
-        frame (``_assemble``). The exit line is the least-squares line through the route's
-        exit point and the points after it (``after_body``, k x 2: within 60 m of the exit),
-        in their order; the blend ends at the exit point's projection onto it. (An arc
-        tangent to both lines was tried first: with a shallow bend the lines' intersection
-        moves tens of metres with the exit direction's sat-nav noise, and the car turned
-        off 25 m early. The exit point on its own was tried next: its 2 m of noise across
-        the line bent the path on the synthetic crossroads by 1.5 m.)"""
+        """The latched line to the route's exit point, then an arc tangent to it whose
+        curvature fits the route points after the exit (``after_body``, k x 2: within 60 m
+        of the exit), as a polyline in the odometry frame (``_assemble``). Only the
+        points' positions along and across the line are used, never the exit point's own
+        position across it: the sat-nav's 2 m of noise across the line bent the path on
+        the synthetic crossroads by 1.5 m, and a line fitted through three points on a
+        curving exit (Town10HD 468, r13: 50 degrees over 30 m) sat 3 m to the wrong side
+        and 40 degrees off. The arc is the model of such an exit; the kerb corridor, handed
+        the car as soon as it sees the exit kerb, is its measurement."""
         c = self.config
         x0, y0, h = self.line
         u = np.array([math.cos(h), math.sin(h)])
+        left = np.array([-u[1], u[0]])
         pts = pose.to_world(np.vstack([np.asarray(exit_body, dtype=float)[None, :], np.asarray(after_body, dtype=float).reshape(-1, 2)]))
-        e = pts[0]
-        if np.hypot(*(pts[-1] - e)) < 2.0:
-            return
-        if len(pts) == 2:
-            v, centre = pts[1] - e, e
-        else:
-            centre = pts.mean(axis=0)
-            _, _, vt = np.linalg.svd(pts - centre, full_matrices=False)
-            v = vt[0]
-            if np.dot(v, pts[-1] - e) < 0:
-                v = -v
-        v = v / np.hypot(*v)
-        theta = math.atan2(u[0] * v[1] - u[1] * v[0], float(np.dot(u, v)))  # +: the exit line bends left
-        e = centre + float(np.dot(e - centre, v)) * v  # the exit point on the fitted exit line
         car = np.array([pose.x_m, pose.y_m])
         foot = np.array([x0, y0]) + float(np.dot(car - np.array([x0, y0]), u)) * u  # the car's projection onto the line
-        along_e = float(np.dot(e - foot, u))  # the exit point along the latched line
-        straight = abs(theta) < c.bend_min_rad or abs(theta) > math.radians(80) or along_e < c.transition_m + 5.0
-        self._geometry = {"foot": foot, "u": u, "v": v, "e": e, "along_e": along_e, "straight": straight}
-        self.bend_rad = 0.0 if straight else float(theta)
+        rel = pts - foot
+        along, across = rel @ u, rel @ left
+        along_e = float(along[0]) - c.exit_lead_m  # where the arc begins
+        after = np.array([(a - along_e, x) for a, x in zip(along[1:], across[1:]) if a > along_e + 2.0])
+        kappa = _fit_arc_curvature(after) if len(after) else 0.0
+        if abs(kappa) > c.exit_curvature_max:
+            kappa = math.copysign(c.exit_curvature_max, kappa)
+        straight = abs(kappa) < c.exit_curvature_min or along_e < 5.0
+        self._geometry = {"foot": foot, "u": u, "e": foot + along_e * u, "along_e": along_e, "kappa": 0.0 if straight else float(kappa), "straight": straight}
+        self.bend_rad = 0.0 if straight else float(kappa * min(30.0, 60.0))  # the turn over the first 30 m of exit, for the record
         self._assemble()
 
     def _assemble(self):
-        """``path_odo`` from the geometry: the line alone, or line, blend and exit line."""
+        """``path_odo`` from the geometry: the line to the exit point, then the arc."""
         c = self.config
         g = self._geometry
-        foot, u, v, e, along_e = g["foot"], g["u"], g["v"], g["e"], g["along_e"]
+        foot, u, kappa = g["foot"], g["u"], g["kappa"]
+        along_e = g["along_e"] = float(np.dot(g["e"] - foot, u))
+        left = np.array([-u[1], u[0]])
         if g["straight"]:
             n = int((max(c.look_ahead_m, along_e + 60.0) - c.start_m) / c.step_m) + 1
             self.path_odo = np.array([foot + (c.start_m + k * c.step_m) * u for k in range(n)])
             return
-        p0 = foot + (along_e - c.transition_m) * u
-        before = np.array([foot + (c.start_m + k * c.step_m) * u for k in range(int((along_e - c.transition_m - c.start_m) / c.step_m) + 1)])
-        length = float(np.hypot(*(e - p0)))
-        m0, m1 = length * u, length * v
-        n = max(4, int(math.ceil(length / c.step_m)))
-        ts = np.linspace(0.0, 1.0, n + 1)[1:]
-        blend = np.array([(2 * t**3 - 3 * t**2 + 1) * p0 + (t**3 - 2 * t**2 + t) * m0 + (-2 * t**3 + 3 * t**2) * e + (t**3 - t**2) * m1 for t in ts])
-        after = np.array([e + k * c.step_m * v for k in range(1, int(60.0 / c.step_m) + 1)])
-        self.path_odo = np.vstack([before, blend, after]) if len(before) else np.vstack([blend, after])
+        before = np.array([foot + (c.start_m + k * c.step_m) * u for k in range(max(0, int((along_e - c.start_m) / c.step_m) + 1))]).reshape(-1, 2)
+        e = foot + along_e * u
+        arc = []
+        for k in range(1, int(60.0 / c.step_m) + 1):
+            phi = kappa * k * c.step_m
+            if abs(phi) > math.radians(70):
+                break  # further round, the path would fold back on the car's x axis (the kerb corridor's stations are x)
+            arc.append(e + (math.sin(phi) / kappa) * u + ((1.0 - math.cos(phi)) / kappa) * left)
+        self.path_odo = np.vstack([before, np.array(arc).reshape(-1, 2)])
 
-    def on_exit_line(self, pose, point_body):
-        """Whether a point of the path (vehicle frame) lies past the blend's start: kerb
-        evidence there is the exit lane's, and moves the exit line rather than the latched one."""
+    def past_exit_point_m(self, pose, point_body):
+        """How far a point of the path (vehicle frame) lies past the arc's start (the route's
+        exit point less ``exit_lead_m``) along the latched line (negative: short of it);
+        None before the path is built."""
         g = getattr(self, "_geometry", None)
-        if g is None or g["straight"]:
-            return False
+        if g is None:
+            return None
         p = pose.to_world(np.asarray(point_body, dtype=float)[None, :])[0]
-        return float(np.dot(p - g["foot"], g["u"])) >= g["along_e"] - self.config.transition_m
+        return float(np.dot(p - g["foot"], g["u"])) - g["along_e"]
 
     def corridor(self, grid, pose, time_s, support, exit_body=None, after_body=None):
         """A corridor along the crossing path (``path_body``), valid as far as the road
@@ -284,9 +372,10 @@ class StraightCrossing:
         heading = math.atan2(ahead[min(5, len(ahead) - 1), 1] - ahead[0, 1], ahead[min(5, len(ahead) - 1), 0] - ahead[0, 0])
         return abs(corridor.lateral_offset_at(0.0) - at_car) <= c.handback_offset_m and abs(corridor.heading_at(0.0) - heading) <= c.handback_heading_rad
 
-    def reanchor(self, pose, lateral_m, heading_rad):
-        """Move the latched line towards a kerb fit seen from the car: ``lateral_m`` left of
-        the path at the car, ``heading_rad`` its direction in the vehicle frame."""
+    def reanchor(self, pose, lateral_m, heading_rad=0.0):
+        """Move the path sideways towards a kerb fit: ``lateral_m`` left of the path where
+        the fit's evidence is (at the car, in the junction, the fit is its seed). Half the
+        difference a time; a fit further off than ``reanchor_max_m`` is some other kerb."""
         c = self.config
         if self.line is None or abs(lateral_m) > c.reanchor_max_m:
             return False
@@ -299,27 +388,6 @@ class StraightCrossing:
             self._geometry["e"] = self._geometry["e"] + shift * n
             self._assemble()  # the path moves sideways with the line
         self.note = "crossing on the lane line, re-anchored to a kerb"
-        return True
-
-    def reanchor_exit(self, lateral_m, turn_rad=0.0):
-        """Move the exit line towards the kerb fit seen along it: ``lateral_m`` left of the
-        path where the evidence is, ``turn_rad`` the fit's direction left of the path's
-        there. The latched line and the blend's start stay; the blend is rebuilt to the
-        moved line (the exit line's position and direction are the sat-nav's, a metre or
-        two and several degrees out; the kerb beside it is seen 20 m before the car gets
-        there)."""
-        c = self.config
-        g = self._geometry
-        if g is None or g["straight"] or abs(lateral_m) > c.reanchor_max_m:
-            return False
-        v = g["v"]
-        g["e"] = g["e"] + c.reanchor_gain * lateral_m * np.array([-v[1], v[0]])
-        a = c.reanchor_gain * turn_rad
-        g["v"] = np.array([v[0] * math.cos(a) - v[1] * math.sin(a), v[0] * math.sin(a) + v[1] * math.cos(a)])
-        u = g["u"]
-        self.bend_rad = math.atan2(u[0] * g["v"][1] - u[1] * g["v"][0], float(np.dot(u, g["v"])))
-        self._assemble()
-        self.note = "crossing on the lane line, exit line re-anchored to a kerb"
         return True
 
     def may_try_kerb(self, entry_body):
