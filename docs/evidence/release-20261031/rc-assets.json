@@ -1,0 +1,19 @@
+{
+  "scope": "asset identity only",
+  "profile": "historical",
+  "checks": [
+    {
+      "asset": "yolo26n.pt",
+      "status": "PASS"
+    },
+    {
+      "asset": "segmentation_model.pth",
+      "status": "PASS"
+    },
+    {
+      "asset": "lane_unet_best.pth",
+      "status": "PASS"
+    }
+  ],
+  "status": "PASS"
+}

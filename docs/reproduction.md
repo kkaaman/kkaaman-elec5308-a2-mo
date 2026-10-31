@@ -197,3 +197,7 @@ The final check log and environment provenance are retained under
 docs/evidence/phase-j-88/continuation/. The source-backed editable installation
 requires its source directory to remain present. Live client/server/GPU checks
 remain separate and were not run.
+
+## Selected presentation profile — 31 October 2026
+
+Use the exact environment, three-model checks, CARLA launch arguments and startup command in [the freeze record](evidence/release-20261031/deadline-freeze/README.md). The supported parked profile was measured on Python 3.12.11 / Torch 2.6.0+cu124 / NumPy 2.5.2 / Ultralytics 8.4.177 with RTX 4070 Laptop CUDA and CARLA client/server 0.9.16. These values describe the preinstalled validation environment; they do not replace or falsely certify the distinct historical CPU wheel lock. Verified local model assets are explicit prerequisites; no runtime downloads are required. Low-quality DX12 spectator rendering is required for the measured profile, while sensor identities stay unchanged. Match the OpenDRIVE/model/config hashes before running; incompatible/missing assets and admission drift fail closed. A second-laptop fresh installation remains #71, not a documentation PASS claim.

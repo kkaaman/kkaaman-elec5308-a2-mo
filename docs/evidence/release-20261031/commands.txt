@@ -1,0 +1,25 @@
+Source checkout: /home/alan/release-candidate-20261031
+Source commit: d8425ad905eb5808fa24473378c8045173fc2219
+Interpreter: /home/alan/issue40-runtime312/bin/python
+Environment: PYTHONPATH=src; OMP_NUM_THREADS=1; MKL_NUM_THREADS=1
+python -m pytest -q
+python scripts/check_g1_admission.py
+python scripts/audit_admission_rebind.py --output NEW_JSON
+python scripts/check_simulator_boundary.py --smoke
+python scripts/check_reproduction.py --assets-only
+python scripts/generate_module_notes.py --check
+python -m scripts.review_baseline_freeze --output NEW_JSON
+python -m sphinx -W -b html docs NEW_HTML_DIRECTORY
+ruff check src scripts tests
+git diff --check
+python scripts/run_release.py --output NEW_DEMO_DIRECTORY
+python scripts/run_release.py observe --output NEW_PREFLIGHT_DIRECTORY
+python scripts/run_release.py hud --output NEW_HUD_DIRECTORY
+python scripts/run_release.py lidar --output NEW_LIDAR_DIRECTORY
+python scripts/run_release.py wayfinder --output NEW_WAYFINDER_DIRECTORY
+python scripts/run_release.py parking --output NEW_PARKING_DIRECTORY
+python scripts/run_release.py weather --output NEW_WEATHER_DIRECTORY
+python scripts/run_release.py faults --output NEW_FAULT_DIRECTORY
+python scripts/replay_lane_monitor.py --clip EXTRACTED_RECORDED_CLIP --output NEW_REPLAY_DIRECTORY
+Docker: cached hash-locked CPU base plus exact candidate src; network none, read-only, pinned local YOLO; real protocol smoke via docker exec. Image ID and build log retained.
+No --execute command was run. CARLA was not started or connected to.

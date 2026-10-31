@@ -1,0 +1,9 @@
+{
+  "client": "0.9.16",
+  "server": "0.9.16",
+  "map": "Carla/Maps/Town10HD_Opt",
+  "opendrive_sha256": "5d883b799f634030af92be1e9d79d107845540ba04338e8c60e095be1aef7be7",
+  "actors": [],
+  "synchronous": false,
+  "launch_arguments": "-dx11 -windowed -ResX=640 -ResY=360 -quality-level=Low -nosound"
+}

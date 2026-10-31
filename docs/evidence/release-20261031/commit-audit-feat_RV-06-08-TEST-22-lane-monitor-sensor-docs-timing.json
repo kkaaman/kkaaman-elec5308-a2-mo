@@ -1,0 +1,248 @@
+[
+  {
+    "sha": "d8425ad905eb5808fa24473378c8045173fc2219",
+    "subject": "fix(release): verify optional model hashes and record source revision",
+    "is_merge": false,
+    "status": "PASS"
+  },
+  {
+    "sha": "adc7c20570534bb39d8881c96ef84395d5bdd1f1",
+    "subject": "feat(hud): bind parked diagnostics to exported lane reference",
+    "is_merge": false,
+    "status": "PASS"
+  },
+  {
+    "sha": "0b9690d382f0d28a7e065006f7421fb72b65f9b8",
+    "subject": "merge: retain diagnostic warmup for PR #101",
+    "is_merge": true,
+    "status": "PASS"
+  },
+  {
+    "sha": "4209b204d210e98ea718531925ae440c17340cf5",
+    "subject": "style(runtime): order parked runner imports",
+    "is_merge": false,
+    "status": "PASS"
+  },
+  {
+    "sha": "a1ae152ab0ac39e4216092f097dc436ceb0b6a48",
+    "subject": "fix(runtime): discard diagnostic warmup before parked control",
+    "is_merge": false,
+    "status": "PASS"
+  },
+  {
+    "sha": "b54579684ffb11848dfc49ccfb23f9f1795f5f7c",
+    "subject": "merge: wire parked release workflow for PR #101",
+    "is_merge": true,
+    "status": "PASS"
+  },
+  {
+    "sha": "3dd6b7bacbcfa2b4a86e85e78ec0e787ba9b384d",
+    "subject": "feat(runtime): add parked full-stack release entry point",
+    "is_merge": false,
+    "status": "PASS"
+  },
+  {
+    "sha": "7c3c3cb87e5eefbaf2619e018095516bd4008f2b",
+    "subject": "merge: refresh release runtime fixes for PR #101",
+    "is_merge": true,
+    "status": "PASS"
+  },
+  {
+    "sha": "1a9cdff060157544759cdd5b6219377ab4b7e53c",
+    "subject": "feat(hud): compose bounded lane and semantic release diagnostics",
+    "is_merge": false,
+    "status": "PASS"
+  },
+  {
+    "sha": "020e1f94b0c377669820b1858c1caf95cdfbac63",
+    "subject": "fix(runtime): reset guidance per episode and verify LiDAR dropout",
+    "is_merge": false,
+    "status": "PASS"
+  },
+  {
+    "sha": "6ff7756c23d94f265873c5ec78e14ecdd8f6cc05",
+    "subject": "merge: compose runtime dependency for PR #101",
+    "is_merge": true,
+    "status": "PASS"
+  },
+  {
+    "sha": "2fe83c7642992b0f2bf8f887cdc49823f1746a2f",
+    "subject": "feat(runtime): compose offline release workflow and bounded observers",
+    "is_merge": false,
+    "status": "PASS"
+  },
+  {
+    "sha": "4157411b9f10a03e2a1ef89f78fe9f2172f9ed8d",
+    "subject": "merge: refresh canonical runtime dependencies for PR #101",
+    "is_merge": true,
+    "status": "PASS"
+  },
+  {
+    "sha": "48acf71103ecf7b7c3c12cb721bcbbc5e86ede0e",
+    "subject": "merge: refresh canonical runtime dependencies for PR #99",
+    "is_merge": true,
+    "status": "PASS"
+  },
+  {
+    "sha": "d49fc698786033e4e3042e0942572df567a4e9ae",
+    "subject": "feat(evaluation): retain live lane replay and measured timing limitations",
+    "is_merge": false,
+    "status": "PASS"
+  },
+  {
+    "sha": "31f22bc212916bdd41126b528308c58b06f65327",
+    "subject": "merge: consume validated canonical LiDAR foundation for live evaluation",
+    "is_merge": true,
+    "status": "HISTORICAL_NONCONVENTIONAL"
+  },
+  {
+    "sha": "f8f2ba0bf00b14a2ef5ba190355fc8d27c835d02",
+    "subject": "chore(admission): refresh reviewed candidate against canonical source",
+    "is_merge": false,
+    "status": "PASS"
+  },
+  {
+    "sha": "3af849af2231532cf4e5d5ec8344f92a6de84302",
+    "subject": "merge: refresh reviewed candidate from canonical foundations",
+    "is_merge": true,
+    "status": "HISTORICAL_NONCONVENTIONAL"
+  },
+  {
+    "sha": "f38d665c3ea132144fb04b6d6e0543ef69270d10",
+    "subject": "fix(evaluation): reject incomplete provenance and bind reviewed observer source",
+    "is_merge": false,
+    "status": "PASS"
+  },
+  {
+    "sha": "6cfbaef593d3b16ee3aaae67bfa8567690ad48cf",
+    "subject": "merge(monitor): preserve canonical and lane evidence documentation",
+    "is_merge": true,
+    "status": "HISTORICAL_NONCONVENTIONAL"
+  },
+  {
+    "sha": "bc7820112b43107b1c40708229ed39753fe45326",
+    "subject": "docs: include retained validation evidence in navigation",
+    "is_merge": false,
+    "status": "PASS"
+  },
+  {
+    "sha": "b71e9698c71566d305fb2462358062458d4012b3",
+    "subject": "docs(admission): propose exact lane-monitor source binding for review",
+    "is_merge": false,
+    "status": "PASS"
+  },
+  {
+    "sha": "685c0c79c76fae49fde6b8c4d199d882d813a501",
+    "subject": "fix(evaluation): require complete continuous obstacle hold evidence",
+    "is_merge": false,
+    "status": "PASS"
+  },
+  {
+    "sha": "f85aec6f0a662409795624f68a8cb34a110dbe73",
+    "subject": "Merge remote-tracking branch 'upstream/main' into codex/phase-j-lane-review",
+    "is_merge": true,
+    "status": "HISTORICAL_NONCONVENTIONAL"
+  },
+  {
+    "sha": "3d643fce96a8c517b0a54da1e877740420af157a",
+    "subject": "docs: record detector false-positive blocker",
+    "is_merge": false,
+    "status": "PASS"
+  },
+  {
+    "sha": "1e863274ab64beecd2120594f38f442514fba340",
+    "subject": "fix: preserve recovery evidence and qualify approach scenes",
+    "is_merge": false,
+    "status": "PASS"
+  },
+  {
+    "sha": "e0a804072c1ea07e755153c18952168462d01f95",
+    "subject": "merge(main): sync G1 and scenario baseline into issue41",
+    "is_merge": true,
+    "status": "HISTORICAL_NONCONVENTIONAL"
+  },
+  {
+    "sha": "897bd126cb098ccc29a9a16f9b06c1052ca13d73",
+    "subject": "fix(issue41): support valid startup and braked detector warmup",
+    "is_merge": false,
+    "status": "PASS"
+  },
+  {
+    "sha": "88e4c4313cd72dac890d8a5f52f272042712e81b",
+    "subject": "fix(TEST-22, TEST-05): admit only on capture-to-apply, resume needs a stop, no defaulted evidence",
+    "is_merge": false,
+    "status": "PASS"
+  },
+  {
+    "sha": "37dfb9f079d77086fd333292775cb50e9266462e",
+    "subject": "docs: live trial plan and draft PR bodies for issues #42 and #45",
+    "is_merge": false,
+    "status": "PASS"
+  },
+  {
+    "sha": "e9f644ae360f65125f108964eb5f1ec4de9218e9",
+    "subject": "docs(RV-08), feat(TEST-17, TEST-05): sensor rig page, cadence control and S3/S4/S5 reporting",
+    "is_merge": false,
+    "status": "HISTORICAL_NONCONVENTIONAL"
+  },
+  {
+    "sha": "d2ee41fb4a773f6f4cf957ceaeebd2f24f74d1a5",
+    "subject": "feat(RV-06, TEST-22): lane departure monitor, HUD hook and loop-timing profiler",
+    "is_merge": false,
+    "status": "PASS"
+  },
+  {
+    "sha": "b1c2871f741ba3ab71c4afefb0efbee4c5646cb0",
+    "subject": "Add first-stop runner guide to documentation index",
+    "is_merge": false,
+    "status": "HISTORICAL_NONCONVENTIONAL"
+  },
+  {
+    "sha": "16a0bc43e2536c9df7535aa23cce1c4de51d894b",
+    "subject": "Add gated CARLA first-stop evidence runner",
+    "is_merge": false,
+    "status": "HISTORICAL_NONCONVENTIONAL"
+  },
+  {
+    "sha": "a46019a3de41cdf74942cd88209c74c7bcbc2551",
+    "subject": "Add bounded surface provider and offline integration fault checks",
+    "is_merge": false,
+    "status": "HISTORICAL_NONCONVENTIONAL"
+  },
+  {
+    "sha": "141085589de298ebed897509c3f08b5b33ade6e7",
+    "subject": "Merge remote-tracking branch 'upstream/main' into feat/41-perception-control-integration",
+    "is_merge": true,
+    "status": "HISTORICAL_NONCONVENTIONAL"
+  },
+  {
+    "sha": "134df38db9d7e5c2a347e2c591300b134826be66",
+    "subject": "Connect governed control to fixed-route mission lifecycle",
+    "is_merge": false,
+    "status": "HISTORICAL_NONCONVENTIONAL"
+  },
+  {
+    "sha": "3d3c8b8525d3af681d39d3665da745b2a978d772",
+    "subject": "Add host deadline watchdog and stalled-loop fault tests",
+    "is_merge": false,
+    "status": "HISTORICAL_NONCONVENTIONAL"
+  },
+  {
+    "sha": "de2645e49a8ee586850b7ad3be30afad355b6115",
+    "subject": "Connect owned RGBD capture to control cycle and run logging",
+    "is_merge": false,
+    "status": "HISTORICAL_NONCONVENTIONAL"
+  },
+  {
+    "sha": "558fc35c1b8024f09d23bece5e71eeacba4ba1be",
+    "subject": "Link control cycle documentation in Sphinx index",
+    "is_merge": false,
+    "status": "HISTORICAL_NONCONVENTIONAL"
+  },
+  {
+    "sha": "2b1c69ecdd9cee536a4322508ef828e6e4ffd421",
+    "subject": "Add shared perception-control cycle with fault handling",
+    "is_merge": false,
+    "status": "HISTORICAL_NONCONVENTIONAL"
+  }
+]

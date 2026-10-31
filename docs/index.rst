@@ -111,3 +111,20 @@ demonstration for the autonomous perception and navigation library.
    :maxdepth: 1
 
    live_session_20261029
+
+.. toctree::
+   :hidden:
+
+   release_evidence_map
+   release_remaining
+   release_live_queue
+   release_presentation
+   evidence/release-20261031/ai-journal
+   evidence/release-20261031/human-review-20261031
+   release_commit_audit
+
+.. toctree::
+   :hidden:
+
+   evidence/release-20261031/live-final-20261031/README
+   evidence/release-20261031/deadline-freeze/README

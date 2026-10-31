@@ -1,0 +1,229 @@
+[
+  {
+    "run": "deadline-accept-a-01",
+    "summary": "PARKED_COLLECTION_COMPLETE_NOT_ACCEPTANCE",
+    "source": "b005326d94515b01aefa06a673e553e4d2f0f34e",
+    "error": null,
+    "acknowledged": 120,
+    "failures": []
+  },
+  {
+    "run": "deadline-accept-a-02",
+    "summary": "PARKED_COLLECTION_COMPLETE_NOT_ACCEPTANCE",
+    "source": "b005326d94515b01aefa06a673e553e4d2f0f34e",
+    "error": null,
+    "acknowledged": 120,
+    "failures": []
+  },
+  {
+    "run": "deadline-accept-a-03",
+    "summary": "PARKED_COLLECTION_COMPLETE_NOT_ACCEPTANCE",
+    "source": "b005326d94515b01aefa06a673e553e4d2f0f34e",
+    "error": null,
+    "acknowledged": 120,
+    "failures": []
+  },
+  {
+    "run": "deadline-accept-a-04",
+    "summary": "FAILED_SAFE",
+    "source": "b005326d94515b01aefa06a673e553e4d2f0f34e",
+    "error": "TimeoutError: Watchdog latched: host_deadline_expired",
+    "acknowledged": 93,
+    "failures": [
+      {
+        "capture_stages": {
+          "bundle_s": 0.0045200879976619035,
+          "ego_s": 0.0006364660002873279,
+          "input_0_s": 0.0001504319989180658,
+          "input_1_s": 0.0398281420020794,
+          "input_2_s": 8.335999154951423e-06,
+          "join_s": 0.03827894400092191,
+          "tick_s": 0.011132738000014797
+        },
+        "error_type": "TimeoutError",
+        "event": "cycle_failed",
+        "frame_id": 24884,
+        "physical_stop_verified": false,
+        "reason": "Watchdog latched: host_deadline_expired",
+        "stop_requested": true,
+        "watchdog": {
+          "deadline_monotonic_s": 27687.882819840997,
+          "fault": "host_deadline_expired",
+          "physical_stop_verified": false,
+          "stop_error": null,
+          "stop_requests": 5
+        }
+      }
+    ]
+  },
+  {
+    "run": "deadline-accept-b-01",
+    "summary": "PARKED_COLLECTION_COMPLETE_NOT_ACCEPTANCE",
+    "source": "1b6f4a907715cd4221fcfaeb8e35498733732a0a",
+    "error": null,
+    "acknowledged": 120,
+    "failures": []
+  },
+  {
+    "run": "deadline-accept-b-02",
+    "summary": "PARKED_COLLECTION_COMPLETE_NOT_ACCEPTANCE",
+    "source": "1b6f4a907715cd4221fcfaeb8e35498733732a0a",
+    "error": null,
+    "acknowledged": 120,
+    "failures": []
+  },
+  {
+    "run": "deadline-accept-b-03",
+    "summary": "PARKED_COLLECTION_COMPLETE_NOT_ACCEPTANCE",
+    "source": "1b6f4a907715cd4221fcfaeb8e35498733732a0a",
+    "error": null,
+    "acknowledged": 120,
+    "failures": []
+  },
+  {
+    "run": "deadline-accept-b-04",
+    "summary": "PARKED_COLLECTION_COMPLETE_NOT_ACCEPTANCE",
+    "source": "1b6f4a907715cd4221fcfaeb8e35498733732a0a",
+    "error": null,
+    "acknowledged": 120,
+    "failures": []
+  },
+  {
+    "run": "deadline-accept-b-05",
+    "summary": "FAILED_SAFE",
+    "source": "1b6f4a907715cd4221fcfaeb8e35498733732a0a",
+    "error": "TimeoutError: Watchdog latched: host_deadline_expired",
+    "acknowledged": 107,
+    "failures": [
+      {
+        "capture_stages": {
+          "bundle_s": 0.002467692997015547,
+          "ego_s": 0.00042114799725823104,
+          "input_0_s": 1.7393998859915882e-05,
+          "input_1_s": 7.592800102429464e-05,
+          "input_2_s": 8.656999852973968e-06,
+          "join_s": 0.12016603700249107,
+          "tick_s": 0.003318024002510356
+        },
+        "error_type": "TimeoutError",
+        "event": "cycle_failed",
+        "frame_id": 41314,
+        "physical_stop_verified": false,
+        "reason": "Watchdog latched: host_deadline_expired",
+        "stop_requested": true,
+        "watchdog": {
+          "deadline_monotonic_s": 27874.75573618,
+          "fault": "host_deadline_expired",
+          "physical_stop_verified": false,
+          "stop_error": null,
+          "stop_requests": 6
+        }
+      }
+    ]
+  },
+  {
+    "run": "deadline-accept-c-01",
+    "summary": "FAILED_SAFE",
+    "source": "588710472e8393b4f540a1953bf5f6e8b4e2b3c8",
+    "error": "TimeoutError: Watchdog latched: host_deadline_expired",
+    "acknowledged": 20,
+    "failures": [
+      {
+        "capture_stages": {
+          "bundle_s": 0.0010824220007634722,
+          "ego_s": 0.00029310899844858795,
+          "input_0_s": 2.5490000552963465e-05,
+          "input_1_s": 0.018293244000233244,
+          "input_2_s": 2.715001755859703e-06,
+          "join_s": 0.06849573300132761,
+          "tick_s": 0.005618516999675194
+        },
+        "error_type": "TimeoutError",
+        "event": "cycle_failed",
+        "frame_id": 58427,
+        "physical_stop_verified": false,
+        "reason": "Watchdog latched: host_deadline_expired",
+        "stop_requested": true,
+        "watchdog": {
+          "deadline_monotonic_s": 28028.006530131,
+          "fault": "host_deadline_expired",
+          "physical_stop_verified": false,
+          "stop_error": null,
+          "stop_requests": 6
+        }
+      }
+    ]
+  },
+  {
+    "run": "deadline-accept-d-01",
+    "summary": "FAILED_SAFE",
+    "source": "91491bf45097b689760112c57f39cfb5733f69ec",
+    "error": "TimeoutError: Missing aligned frame 1497",
+    "acknowledged": 0,
+    "failures": []
+  },
+  {
+    "run": "deadline-accept-e-01",
+    "summary": "PARKED_COLLECTION_COMPLETE_NOT_ACCEPTANCE",
+    "source": "9d4fc530eb3e03825885b45e0ea155e99dc18343",
+    "error": null,
+    "acknowledged": 120,
+    "failures": []
+  },
+  {
+    "run": "deadline-accept-e-02",
+    "summary": "PARKED_COLLECTION_COMPLETE_NOT_ACCEPTANCE",
+    "source": "9d4fc530eb3e03825885b45e0ea155e99dc18343",
+    "error": null,
+    "acknowledged": 120,
+    "failures": []
+  },
+  {
+    "run": "deadline-accept-e-03",
+    "summary": "PARKED_COLLECTION_COMPLETE_NOT_ACCEPTANCE",
+    "source": "9d4fc530eb3e03825885b45e0ea155e99dc18343",
+    "error": null,
+    "acknowledged": 120,
+    "failures": []
+  },
+  {
+    "run": "deadline-accept-e-04",
+    "summary": "PARKED_COLLECTION_COMPLETE_NOT_ACCEPTANCE",
+    "source": "9d4fc530eb3e03825885b45e0ea155e99dc18343",
+    "error": null,
+    "acknowledged": 120,
+    "failures": []
+  },
+  {
+    "run": "deadline-accept-e-05",
+    "summary": "PARKED_COLLECTION_COMPLETE_NOT_ACCEPTANCE",
+    "source": "9d4fc530eb3e03825885b45e0ea155e99dc18343",
+    "error": null,
+    "acknowledged": 120,
+    "failures": []
+  },
+  {
+    "run": "deadline-cpu-probe",
+    "summary": "PARKED_COLLECTION_COMPLETE_NOT_ACCEPTANCE",
+    "source": "372f66acab959044407eef143285dd879ae9c315",
+    "error": null,
+    "acknowledged": 10,
+    "failures": []
+  },
+  {
+    "run": "deadline-final-navigation",
+    "summary": "INSUFFICIENT_EVIDENCE",
+    "source": null,
+    "error": null,
+    "acknowledged": 0,
+    "failures": []
+  },
+  {
+    "run": "deadline-profile-01",
+    "summary": "PARKED_COLLECTION_COMPLETE_NOT_ACCEPTANCE",
+    "source": "d9f088dcacc23e24fd9794bee8f3c54552515e30",
+    "error": null,
+    "acknowledged": 120,
+    "failures": []
+  }
+]

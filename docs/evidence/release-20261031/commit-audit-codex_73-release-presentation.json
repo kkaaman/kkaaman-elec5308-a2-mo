@@ -1,0 +1,20 @@
+[
+  {
+    "sha": "8446d6afcd3601e3dbe85cad1816d0dcef561bb9",
+    "subject": "docs(review): record human runtime review without merge approval",
+    "is_merge": false,
+    "status": "PASS"
+  },
+  {
+    "sha": "5c47a2216f23203a1d08181cdf4bb1b23600b039",
+    "subject": "docs(release): retain final recorded replay and review status",
+    "is_merge": false,
+    "status": "PASS"
+  },
+  {
+    "sha": "627d130ff28075a7039435101354d18cc0b3beb8",
+    "subject": "docs(release): prepare eight-minute demo and evidence handoff",
+    "is_merge": false,
+    "status": "PASS"
+  }
+]

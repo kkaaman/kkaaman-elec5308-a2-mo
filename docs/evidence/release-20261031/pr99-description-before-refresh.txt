@@ -1,0 +1,59 @@
+## Task
+
+Related to #41 — BL-F-06/07 perception-to-control integration.
+
+This draft adds the shared control-cycle groundwork. Full live integration and acceptance remain outstanding.
+
+## What changed
+
+- Added a simulator-independent control cycle connecting capture, stack execution and packet dispatch.
+- Added episode/frame matching, host and simulation expiry checks, and full-brake enforcement for invalid observations.
+- Added stop requests and fault latching for capture, inference and dispatch failures.
+- Added a CARLA binding using the existing acknowledged packet-dispatch path.
+- Added an owned RGB/depth capture loop with frame matching and JSONL run/fault logging.
+- Added a host deadline watchdog with repeated stop requests and offline stalled-loop tests.
+- Added tests and integration documentation linked from the Sphinx index.
+
+## Acceptance progress
+
+- [x] Shared control-cycle boundary and offline fault tests.
+- [ ] Complete live RGB/depth, perception, controller and scenario integration.
+- [ ] Validate bounded capture and an independent actuator watchdog.
+- [ ] Add persistent run/fault logging and reproducible acceptance commands.
+- [ ] Demonstrate stationary-car stopping and fault handling in CARLA under the admitted configuration.
+- [x] RGB/depth loop composition and JSONL logging implemented and tested offline.
+- [x] Same-process thread watchdog implemented and tested offline.
+
+Issue #41 remains open. Existing S0 runner behavior and G1 admission status are unchanged.
+
+## Verification
+
+- Focused offline tests: **133 passed** on the author's Windows environment.
+- GitHub CI: **lint, tests and docs passed**.
+- Live CARLA acceptance: **NOT RUN**; local server startup fails with an out-of-video-memory error.
+- The thread watchdog does not protect against a whole-process freeze or establish a physical stopping-time guarantee.
+
+## Evidence
+
+Latest integration commit: `a46019a`
+
+Integration notes: `docs/issue41_control_cycle.md`
+
+Tests use synthetic detections and fake actuators. Passing results do not establish measured vehicle braking or live scenario acceptance. Emergency stop remains best effort; this synchronous helper cannot interrupt a permanently hung call.
+
+### Latest integration progress
+- Added a shared route controller.
+- Added a bounded provider using current tracked depth measurements; it does not establish full corridor clearance.
+- Added seven offline integration checks covering obstacle braking and perception faults.
+- Offline checks passed; CI lint, tests, and docs passed.
+
+### Remaining before completion
+- Verify the three requested fixes in PR #98.
+- Obtain G1 admission.
+- Complete the CARLA integration run and archive its configuration, raw logs, and stop evidence.
+
+Offline checks do not demonstrate a physical stop in CARLA. This PR remains Draft, and issue #41 remains open.
+
+## AI disclosure
+
+ChatGPT/Codex assisted with implementation, tests and documentation. Saviour Kwofie applied the patch and ran the reported Windows tests. Team code review and live validation remain pending.

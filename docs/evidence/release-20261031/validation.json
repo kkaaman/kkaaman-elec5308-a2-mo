@@ -1,0 +1,40 @@
+{
+  "source_commit": "d8425ad905eb5808fa24473378c8045173fc2219",
+  "pytest": {
+    "passed": 1626,
+    "skipped": 1,
+    "subtests": 3,
+    "warning": "dependency deprecation only",
+    "carla": "NOT_RUN"
+  },
+  "negative_probes": 19,
+  "core_imports_blocked": 122,
+  "ruff": "PASS",
+  "strict_sphinx": "PASS",
+  "generated_notes": "PASS",
+  "git_diff_check": "PASS",
+  "assets": "3/3 PASS",
+  "archives": "26 CRC PASS",
+  "original_dirty_files": "32/32 hashes unchanged",
+  "docker": "real pinned YOLO, network none, protocol PASS; NOT accuracy or baseline timing",
+  "clean_checkout": "PASS in preinstalled validation environment; verified model files restored",
+  "human_review": "User-supplied manual review recorded 2026-10-31 for release-runtime proposal/offline evidence; not PR99/#41 completion or merge approval; exact inspected SHA not specified",
+  "merged_prs": [],
+  "tag_created": false,
+  "carla_started": false,
+  "carla_connected": false,
+  "github_ci": "EXTERNAL BILLING: eight jobs, zero runner steps, explicit payment/spending-limit annotations",
+  "recorded_lane_replay": {
+    "frames": 573,
+    "diagnostic_pngs": 115,
+    "valid_nonjunction": 262,
+    "agreement": "unchanged known partial result; NOT PASS"
+  },
+  "follow_up_regression": {
+    "pr99_passed": 1581,
+    "candidate_passed": 1626,
+    "carla_skipped_each": 1,
+    "negative_probes_each": 19,
+    "source_unchanged": true
+  }
+}

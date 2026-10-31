@@ -1,0 +1,12 @@
+{
+  "source_commit": "d8425ad905eb5808fa24473378c8045173fc2219",
+  "archives_verified": 26,
+  "models_verified": 3,
+  "docker_image_id": "sha256:f7378b3da01aee8aa3de8ca8e95d75bf1c67e10ea426a01aa91e82de5ee47aae",
+  "docker_scope": "source-matched retained real-model network-none protocol smoke; no redundant rerun, no timing/accuracy claim",
+  "original_dirty_hashes_unchanged": 32,
+  "issue_bodies_or_states_changed": [],
+  "new_production_changes": [],
+  "carla_started": false,
+  "carla_connected": false
+}

@@ -1,0 +1,458 @@
+[
+  {
+    "sha": "cf970f9e3192c5f77c17db8c4e66b5f1d562bc5a",
+    "subject": "Merge pull request #115 from USYD-ELEC5308/codex/40-lidar-geometry-investigation"
+  },
+  {
+    "sha": "3f8a3483d4d6634efe1ee2bcc100274c6713da66",
+    "subject": "Validate front LiDAR geometry for issue40 near-field support"
+  },
+  {
+    "sha": "8d9a797c92075a10b29fb00f65d4aab6f124db7b",
+    "subject": "Merge pull request #114 from USYD-ELEC5308/codex/live-session-20261029"
+  },
+  {
+    "sha": "511120957efa67707549cfc81c800472bd4f4c96",
+    "subject": "Merge pull request #103 from USYD-ELEC5308/feat/E2-01-04-lidar-obstacle-path"
+  },
+  {
+    "sha": "138bf982776e56646f84ea3ef74844dce858b4c1",
+    "subject": "Merge remote-tracking branch 'upstream/main' into codex/phase-j-lidar-validation"
+  },
+  {
+    "sha": "d0fc56f88a88468b587566896ae1909b931e9a95",
+    "subject": "Merge pull request #113 from USYD-ELEC5308/codex/phase-j-final-execution"
+  },
+  {
+    "sha": "9de375502e42304100c0617bf18c6727f9989daa",
+    "subject": "Merge pull request #112 from USYD-ELEC5308/test/63-offline-fault-suite"
+  },
+  {
+    "sha": "6c5b9b6846b3677acb528445797421eb8c0c1fb5",
+    "subject": "Merge remote-tracking branch 'upstream/main' into codex/phase-j-faults"
+  },
+  {
+    "sha": "ed07850a9818d9d55e00b37fcd3eb26ed5aa27cb",
+    "subject": "Merge pull request #111 from RickyPurani/feat/e1-03-weather-evaluator"
+  },
+  {
+    "sha": "0b1f9b044316220d155d4ae2b7a5337a9d77010a",
+    "subject": "Merge remote-tracking branch 'upstream/main' into codex/phase-j-faults"
+  },
+  {
+    "sha": "2542c96aa9f1d4101da4077c687515c8374c02ea",
+    "subject": "Merge remote-tracking branch 'upstream/main' into codex/phase-j-weather-eval"
+  },
+  {
+    "sha": "9cc45d6de9f0c00d33b3fd66acadca74e3e5bbe3",
+    "subject": "Merge pull request #102 from USYD-ELEC5308/feat/E3-01-03-wayfinder-v1"
+  },
+  {
+    "sha": "0eaae9716e8d8b2ebaf74e6463ef6bed17d86461",
+    "subject": "Merge pull request #88 from USYD-ELEC5308/62-report-evidence-documentation"
+  },
+  {
+    "sha": "deeefde82fee14257d5b9e4dd0cf915f89ec99fe",
+    "subject": "Merge pull request #109 from USYD-ELEC5308/codex/56-inference-server"
+  },
+  {
+    "sha": "29aed99b7c1a6c22228c26db0e40f4b2a28ae80b",
+    "subject": "Merge pull request #105 from USYD-ELEC5308/feat/57-remote-fallback"
+  },
+  {
+    "sha": "d36b60785c3683b3a9d6a339194a754e38b7d6fa",
+    "subject": "Merge remote-tracking branch 'upstream/main' into codex/phase-j-lidar-validation"
+  },
+  {
+    "sha": "0fc711c8e4203bd93a1d8ae05dad4576d8f23eeb",
+    "subject": "Merge remote-tracking branch 'upstream/main' into codex/49-weather-matrix"
+  },
+  {
+    "sha": "59518a476d04d4c03a627e914ab04da83928455a",
+    "subject": "Merge remote-tracking branch 'upstream/main' into codex/phase-j-doc-review"
+  },
+  {
+    "sha": "c42e4b361f91b0a7ef468aad2625f8edaeaaaca0",
+    "subject": "Merge remote-tracking branch 'upstream/main' into codex/phase-j-lidar-validation"
+  },
+  {
+    "sha": "58cf81ed8058a5df727dbaddce1a9a6cd98ff1fe",
+    "subject": "Merge remote-tracking branch 'upstream/main' into codex/phase-j-parking-validation"
+  },
+  {
+    "sha": "ac2e599a9cc820aae9301f3ffbd017b518b5b92f",
+    "subject": "Add remote detector and local fallback scaffold for issue 57"
+  },
+  {
+    "sha": "d1edba6765f6590b5b8a61586903cbf9cf411772",
+    "subject": "Merge pull request #90 from Zhaolin-Huang/codex/g1-evidence-checklist"
+  },
+  {
+    "sha": "1902dab70a0ab6e4af921ba72541625fcc8cf704",
+    "subject": "Merge remote-tracking branch 'upstream/main' into 62-report-evidence-documentation"
+  },
+  {
+    "sha": "3632bc8084adb91b350bcb209ca326e0862a8307",
+    "subject": "Merge remote-tracking branch 'origin/main' into codex/g1-evidence-checklist"
+  },
+  {
+    "sha": "8dee7b1ad8472929c304af2f2c86146d9be515fa",
+    "subject": "Merge pull request #97 from at0941/fix/BL-C-05-sensor-wait-screening"
+  },
+  {
+    "sha": "21eb8e783771f17fdd577cf44702eea0bc1d6374",
+    "subject": "Merge pull request #96 from USYD-ELEC5308/docs/saviour-interface-review"
+  },
+  {
+    "sha": "f777a6d0aec45feded3046749c90e384c6bdffcd",
+    "subject": "Merge pull request #86 from at0941/feat/BL-D-04-07-route-corridor-governor"
+  },
+  {
+    "sha": "c0154b3a3793f81538fa1540b613caf4051b1657",
+    "subject": "Merge branch 'main' into feat/BL-D-04-07-route-corridor-governor"
+  },
+  {
+    "sha": "e17f2b55e5040dd433e84af30d52a55a31d89606",
+    "subject": "Merge pull request #94 from Zhaolin-Huang/main"
+  },
+  {
+    "sha": "540a8a5133172fc78f061662fbec5a6a5068b7aa",
+    "subject": "Merge pull request #92 from at0941/feat/BL-B-03-05-TEST-13-depth-validation"
+  },
+  {
+    "sha": "0b7449334ee6df9fcd742fa8c5e670681cfedf1f",
+    "subject": "Merge branch 'main' into feat/BL-B-03-05-TEST-13-depth-validation"
+  },
+  {
+    "sha": "97d95bb4508cac54f7f40a32b1d59b372d2fc3e4",
+    "subject": "Merge pull request #91 from at0941/feat/BL-E-03-TEST-03-longitudinal-navigation"
+  },
+  {
+    "sha": "245bb0f620e1969a509f9395433549b76d81dc61",
+    "subject": "BL-A-04\u201306 / TEST-02: Establish and validate the Town10HD baseline mission"
+  },
+  {
+    "sha": "17a6224ad7e0fd8a224c30e787759d3cf062f27c",
+    "subject": "Add report evidence index and reproducible documentation"
+  },
+  {
+    "sha": "df523d5d4eeb98f0e6405d1ca685d4926297b4e2",
+    "subject": "Align acceptance logging with current stack and world contracts"
+  },
+  {
+    "sha": "4e2ebdd92850a66fbab5d0ec0edd7ca5ea21125f",
+    "subject": "Add offline S0 acceptance logging and metric checks"
+  },
+  {
+    "sha": "f5437cd75d9f3f9a2e12e50780d7f09c5eda6577",
+    "subject": "Merge pull request #31 from at0941/fix/ci-baseline-integration"
+  },
+  {
+    "sha": "caaa2b989adae8a5edab19c1cf90f0d1da9a64e0",
+    "subject": "Merge pull request #28 from Abdullah-Almutairi-uni/work/BL-E-02-steering-calibration"
+  },
+  {
+    "sha": "7f7cac51cb49a3ef88233a3208b81ac8eb9cfb31",
+    "subject": "Merge branch 'main' into work/BL-E-02-steering-calibration"
+  },
+  {
+    "sha": "2409addbd3b6990946bd38de43b07b87217d50f0",
+    "subject": "Merge pull request #27 from Abdullah-Almutairi-uni/test/TEST-01-a1-baseline"
+  },
+  {
+    "sha": "3723bd95eb1640395e1f6d2770bb24f03fea1ee8",
+    "subject": "Merge pull request #22 from Abdullah-Almutairi-uni/feature/BL-C-02-detector-lifecycle"
+  },
+  {
+    "sha": "3fc4a3bef3fef8974e116b31dec1d76648a72a36",
+    "subject": "Merge pull request #30 from Zhaolin-Huang/main"
+  },
+  {
+    "sha": "64b8ffb6237736c82d7782d9d746faffffd76bb4",
+    "subject": "Merge branch 'USYD-ELEC5308:main' into main"
+  },
+  {
+    "sha": "b8bf906540ffeb039a47787e8dd5c289001507b2",
+    "subject": "Merge pull request #26 from Zhaolin-Huang/main"
+  },
+  {
+    "sha": "c166d570a8ec8645c2774782a1264ae673696326",
+    "subject": "[G0-01] Record baseline batch evidence and unresolved gate actions"
+  },
+  {
+    "sha": "abf02f71dbe0b89c86dd89ad008f8c476575b7c3",
+    "subject": "[BL-C-03] Add offline detector fixtures and verified model manifest"
+  },
+  {
+    "sha": "f76c99c6c1e651f4290cae2130b240bae283605d",
+    "subject": "[BL-B-02] Join bounded RGB-D queues to matched ego snapshots"
+  },
+  {
+    "sha": "eced456be1c2ec3d0ad36b4bc10dd0e323d294b7",
+    "subject": "[BL-A-03] Traverse legal junction exits and stitch continuous lane paths"
+  },
+  {
+    "sha": "e435cc20b741c258c758d50491051228cf89bef5",
+    "subject": "[BL-D-03] Estimate inner-box depth with explicit invalid observations"
+  },
+  {
+    "sha": "8b03b609bc79fe8aa5f9ba88efd931ea1110a22f",
+    "subject": "[BL-C-02,RV-04] Recover offline detector lifecycle and validated box adapters"
+  },
+  {
+    "sha": "bd4fa9cec3f9e3e241551b5863a213d6e9a1dd46",
+    "subject": "[BL-E-02] Measure Tesla steering response across baseline speeds"
+  },
+  {
+    "sha": "c6fb4bcf8389343d50b52d9c30ca63b97b2daec9",
+    "subject": "[TEST-01] Capture and document the A1-settings comparison baseline"
+  },
+  {
+    "sha": "4f64e8360cf69a812ebeeb9c7bb2110855d112f7",
+    "subject": "[RV-05] ci: enforce simulator boundary"
+  },
+  {
+    "sha": "3a518cb87490509a55fc14044b0129a7892bef2f",
+    "subject": "Merge pull request #25 from USYD-ELEC5308/integrate/g0-batch"
+  },
+  {
+    "sha": "87a7c04e57f95d5fc82e41833fb9b120ed6e6b6e",
+    "subject": "Merge PR #24: feat(BL-A-02): export and audit Town10HD lane topology"
+  },
+  {
+    "sha": "008a9d276dce7edcd6b032fd26bda48d82168b44",
+    "subject": "Merge PR #12: [RV-03] Consolidate lane modules with tested compatibility imports"
+  },
+  {
+    "sha": "d5017d1dd17c9b24425bdd9a81af2cb9944839c7",
+    "subject": "Merge PR #19: [BL-B-01] Add synchronous world ownership and cleanup lifecycle"
+  },
+  {
+    "sha": "f915c475fa2702bff709bf2b29651daba90e2376",
+    "subject": "Merge PR #18: [BL-E-01] Add verified Tesla geometry and forward vehicle adapter"
+  },
+  {
+    "sha": "418235b5c326ae491e7d97b313ae4bff2d6c00dd",
+    "subject": "Merge pull request #17 from Abdullah-Almutairi-uni/feature/BL-A-01-controller-audit"
+  },
+  {
+    "sha": "a404f151fde4564353f2750ac52c339788418e3b",
+    "subject": "Merge pull request #20 from Abdullah-Almutairi-uni/feature/BL-F-02-stack-skeleton"
+  },
+  {
+    "sha": "ea1db184bc7c5a037d5bab1bde0accf7ae8b6709",
+    "subject": "Merge pull request #16 from Abdullah-Almutairi-uni/repair/BL-C-01-contracts"
+  },
+  {
+    "sha": "9ff337f2f9e10bf56e98febc1e130b27bb03c4bc",
+    "subject": "[BL-C-02] Add offline detector reset, tracker selection and timing"
+  },
+  {
+    "sha": "60e9c6c978b90ea8a637287ce9ab04cf775d5e69",
+    "subject": "[BL-D-02] Add camera geometry and world transform primitives"
+  },
+  {
+    "sha": "3ede0b180859262d73084d69c61aaadaa3483d11",
+    "subject": "[BL-F-02] Add validated stack skeleton and fake-world harness"
+  },
+  {
+    "sha": "e60db8b9eab8b9bcb8c292fe2798f04e40b3eebc",
+    "subject": "[BL-B-01] Add synchronous world ownership and cleanup lifecycle"
+  },
+  {
+    "sha": "42539778663431eea4ea2dd671d555c1bb0108ca",
+    "subject": "[BL-E-01] Add verified Tesla geometry and forward vehicle adapter"
+  },
+  {
+    "sha": "83b0d91d0c99c2314670a256c320b89edf00a884",
+    "subject": "Merge pull request #14 from USYD-ELEC5308/fix/RV-01-docs-index"
+  },
+  {
+    "sha": "54950847ced671a3cd866bedd27806728ee2d226",
+    "subject": "[BL-A-01] Audit forward controller and define fixed mission"
+  },
+  {
+    "sha": "ad6ac9373811616f5ee468777721c8e5083e67d0",
+    "subject": "[BL-C-01] Define detector and obstacle contracts"
+  },
+  {
+    "sha": "d8357845fce494b52e492a6dd9c9a9cc5c125c09",
+    "subject": "[BL-D-01] Specify RGB-D association and scenario acceptance"
+  },
+  {
+    "sha": "6400c04cadc37efa47ae028380e169867156b26b",
+    "subject": "[RV-01] Add the assets page to the docs index"
+  },
+  {
+    "sha": "67d526b932da3d0d41ac0402826c51250c929680",
+    "subject": "Merge pull request #10 from Abdullah-Almutairi-uni/feature/RV-01-segmentation-assets"
+  },
+  {
+    "sha": "adec64b253e621a54c80d9abb2b7caf648e88133",
+    "subject": "[BL-F-01] Define simulator-independent data contracts"
+  },
+  {
+    "sha": "6ea14e543f6638d091f085395678be3f7d0617be",
+    "subject": "[RV-03] Consolidate lane modules and preserve legacy compatibility"
+  },
+  {
+    "sha": "2d4998e14906c54a3f189777de71457974c4664a",
+    "subject": "[RV-02] Document verified lane weights and duplicate-code audit"
+  },
+  {
+    "sha": "38e991ec855725b4e411f41842453226c9ed2462",
+    "subject": "[RV-01] Verify segmentation weights and document offline recovery"
+  },
+  {
+    "sha": "c898a83446bb06d03be5c01825118080e7f8b1f6",
+    "subject": "[PROC-02] Record shared university PC setup and revised demo arrangement"
+  },
+  {
+    "sha": "9c42c181647aa3895b6fe65b37cab37634432350",
+    "subject": "[PROC-02] Record Abdullah CARLA machine and smoke-test results"
+  },
+  {
+    "sha": "0a0552263aa539110728040db5415c55de21f495",
+    "subject": "Merge pull request #7 from USYD-ELEC5308/setup/PROC-01"
+  },
+  {
+    "sha": "721351fb3e4b091881afa49131ae0a9c90f4395e",
+    "subject": "[PROC-01] Set up the A2 repository from the A1 baseline"
+  },
+  {
+    "sha": "89ef9c2695b5d53f3b11660ee0b68f8b218380e6",
+    "subject": "Merge initial A2 repository commit into the A1 baseline"
+  },
+  {
+    "sha": "c11c23685999975574b53d6d1322172b5fcd6f80",
+    "subject": "Initial commit"
+  },
+  {
+    "sha": "4870f4333c06b0da832af8f94535690f971ddd0e",
+    "subject": "Merge pull request #33 from at0941/feat/integrated-carla-demo"
+  },
+  {
+    "sha": "dd9f2cdf2049b9efc830870d9d5e40841e5f3849",
+    "subject": "Merge branch 'USYD-ELEC5308:main' into main"
+  },
+  {
+    "sha": "f7cce48e4908a26a060e7aaabd70a02ae68a27a3",
+    "subject": "Remove editor-specific settings from version control"
+  },
+  {
+    "sha": "f017ea50a3886121f490621ee262efcd97e5a38b",
+    "subject": "Merge pull request #26 from kkaaman/main"
+  },
+  {
+    "sha": "be2ca0bbe4acdad099102d6df348276607d9072e",
+    "subject": "Merge branch 'USYD-ELEC5308:main' into main"
+  },
+  {
+    "sha": "2c73c606955fa1865002e06336b055f136364a10",
+    "subject": "Fixed: - error handling 255 by ignoring pixels and rendering as black. - Checker for model_state_dict which unwraps if present. Added: - Raises of ValueError if alpha is outside of range [0,1] - MPS support"
+  },
+  {
+    "sha": "6870badcff00a03a5c361f9ba219be63bd0da04f",
+    "subject": "Merge branch 'main' into feature/carla-integration"
+  },
+  {
+    "sha": "9095b392afde380a921b8b6be091bb661f6cf0fa",
+    "subject": "Merge pull request #28 from at0941/chore/integration-readiness"
+  },
+  {
+    "sha": "ac36d3420807ca9667482a86e1c6346b490642fd",
+    "subject": "Address perception review feedback"
+  },
+  {
+    "sha": "7af52dba0b7605db149ad6cd272ed58883ee0e04",
+    "subject": "Merge branch 'USYD-ELEC5308:main' into main"
+  },
+  {
+    "sha": "9ebb50ce6e531716fb13a75d3b2b4b276a449e82",
+    "subject": "Merge pull request #15 from at0941/feat/traffic-perception"
+  },
+  {
+    "sha": "ac84077f33703d38fc0485645d33f46884bd78d7",
+    "subject": "Merge pull request #25 from Abdullah-Almutairi-uni/feature/ml-lane-clean"
+  },
+  {
+    "sha": "ffe570e077b2a816b09dc65f1882fc91efa0e0f9",
+    "subject": "Perception (tracking and detection) added"
+  },
+  {
+    "sha": "96a217886a6037ca4e826678a972da71809a40f6",
+    "subject": "Merge pull request #16 from kkaaman/main"
+  },
+  {
+    "sha": "f187a6f3bb9791099e32bc64f0c72524174a0159",
+    "subject": "Updated Project Goals section of Plan.md as well as Title as these sections were incomplete previously. (With AI Journal) {   \"studentId\": \"kkaaman\",   \"groupId\": \"7\",   \"taskId\": \"Assignment 1 (Plan.MD)\",   \"tool\": \"Claude Sonnet\",   \"isPaid\": false,   \"modelVersion\": \"5\",   \"language\": \"English (Australia) \ud83c\udde6\ud83c\uddfa\",   \"interactions\": [     {       \"prompt\": \"Can you create a project goals section for the plan of this project\",       \"response\": \"## 1. Core Deliverables\\n\\n- **Develop a Python Library:** Create an installable Python package that provides baseline capabilities for autonomous systems.\\n- **Produce a Technical Report:** Write a concise report (max 3 pages / 1,000 words) covering the system architecture, key design decisions, evaluation results, and limitations.\\n- **Complete a Live Demonstration:** Successfully demonstrate the library's core perception and navigation capabilities working in a simulator (CARLA or Webots) in a live setting.\\n- **Submit Individual Components:** Each team member will complete a self-reflection and a peer assessment in SparkPLUS.\\n\\n## 2. Functional and Design Goals\\n\\n- **Implement Core Capabilities:** The library must successfully perform the following tasks:\\n    - Lane and driving area detection.\\n    - Object detection, tracking, and localization.\\n    - Semantic segmentation.\\n    - Traffic condition detection and classification.\\n    - Basic path following, steering, and speed control.\\n- **Ensure Design Integrity:**\\n    - **Installability:** The library must be installable as a Python package (via `pip`).\\n    - **Clean API:** Expose a well-documented, clear API that is suitable for integration.\\n    - **Simulator-Agnostic Core:** The core logic must be decoupled from any specific simulator, utilizing an adapter pattern for integration.\\n    - **Reproducibility:** A fresh user must be able to clone, install, and run the demonstration in under 15 minutes.\\n\\n## 3. Engineering and Process Goals\\n\\n- **Maintain Rigorous Version Control:** All code must be committed to a Git repository, with a history showing peer review and clear, descriptive commit messages.\\n- **Implement a Successful CI Pipeline:** Configure GitHub Actions to automatically run:\\n    - **Code Linting:** Ensure code style compliance (e.g., `flake8`/`ruff`) with no errors.\\n    - **Unit Testing:** Run at least five meaningful unit tests (`pytest`) that cover core functions and must pass.\\n    - **Documentation Build:** Generate HTML documentation from docstrings without errors or warnings.\\n- **Generate Comprehensive Documentation:** Produce automatic documentation that includes an API reference, installation instructions, and a worked example.\\n- **Create Clear User Guidance:** Provide a `README.md` with a clear project description, setup steps, and a quick-start example.\\n- **Specify All Dependencies:** Document all external packages in `requirements.txt` or `pyproject.toml`.\\n\\n## 4. Process and Reflection Goals\\n\\n- **Promote Team Collaboration:** Ensure all team members contribute to and review code, fostering a collaborative environment.\\n- **Log AI Usage:** Meticulously log all significant AI interactions using the AI Journal to ensure transparency and academic integrity.\\n- **Reflect on the Process:** Each team member must demonstrate an understanding of their individual contributions and learning experience.\",       \"aiAccuracy\": \"Minor Flaws\",       \"humanIntervention\": \"Applied re-prompting to fine tune the AI's response\",       \"verificationMethod\": \"Logical Reasoning\",       \"evaluationConfidence\": 4,       \"intent\": \"Design Analysis\"     }   ],   \"metaReflection\": {     \"utilityScore\": 3,     \"processEvolution\": \"I went from being vague to more specific in what changes needed to be made.\",     \"criticalMoment\": \"When it produced irrelevant results. I used logical reasoning\",     \"skillDependency\": \"Applying the scaffold for the project goal section\",     \"synthesis\": \"I learnt that AI often produces generalised answers for general prompts\\n\"   },   \"tags\": [],   \"status\": \"complete\",   \"id\": \"8f07f61e-c8f9-4727-9248-0e4b2c70650c\",   \"createdAt\": \"2026-09-06T10:59:49.684Z\" }"
+  },
+  {
+    "sha": "409ad889df2fab9c16cb374e5c58154b5edb3850",
+    "subject": "Merge branch 'USYD-ELEC5308:main' into main"
+  },
+  {
+    "sha": "d3878c8aebf40a08006bd0dcfbd1de175ad77544",
+    "subject": "Merge branch 'USYD-ELEC5308:main' into main"
+  },
+  {
+    "sha": "2927d7c05d99fe72bcd2ae3a2b90b19df7f4684d",
+    "subject": "Modified Title as well as project goals description in Plan.md"
+  },
+  {
+    "sha": "1be37591aac340f777f18b3cf02290a837aae2aa",
+    "subject": "Added Project Goals section to Plan.md {   \"studentId\": \"kkaaman\",   \"groupId\": \"7\",   \"taskId\": \"Lab 4\",   \"tool\": \"Claude Sonnet\",   \"isPaid\": true,   \"modelVersion\": \"5\",   \"language\": \"English (Australia) \ud83c\udde6\ud83c\uddfa\",   \"interactions\": [     {       \"prompt\": \"Help by Creating the project goals for this project\",       \"response\": \"Project Goals\\nThe primary goal of this project is to design and implement a baseline autonomous perception and navigation library in Python. This library will serve as the technical foundation for the course, and it must be modular, well-documented, and simulator-agnostic. The project will culminate in a live demonstration of the library's capabilities. The following specific goals must be achieved to meet the assignment's requirements:\\n\\n1. Core Deliverables\\nDevelop a Python Library: Create an installable Python package that provides baseline capabilities for autonomous systems.\\n\\nProduce a Technical Report: Write a concise report (max 3 pages / 1,000 words) covering the system architecture, key design decisions, evaluation results, and limitations.\\n\\nComplete a Live Demonstration: Successfully demonstrate the library's core perception and navigation capabilities working in a simulator (CARLA or Webots) in a live setting.\\n\\nSubmit Individual Components: Each team member will complete a self-reflection and a peer assessment in SparkPLUS.\\n\\n2. Functional and Design Goals\\nImplement Core Capabilities: The library must successfully perform the following tasks:\\n\\nLane and driving area detection.\\n\\nObject detection, tracking, and localization.\\n\\nSemantic segmentation.\\n\\nTraffic condition detection and classification.\\n\\nBasic path following, steering, and speed control.\\n\\nEnsure Design Integrity:\\n\\nInstallability: The library must be installable as a Python package (via pip).\\n\\nClean API: Expose a well-documented, clear API that is suitable for integration.\\n\\nSimulator-Agnostic Core: The core logic must be decoupled from any specific simulator, utilizing an adapter pattern for integration.\\n\\nReproducibility: A fresh user must be able to clone, install, and run the demonstration in under 15 minutes.\\n\\n3. Engineering and Process Goals\\nMaintain Rigorous Version Control: All code must be committed to a Git repository, with a history showing peer review and clear, descriptive commit messages.\\n\\nImplement a Successful CI Pipeline: Configure GitHub Actions to automatically run:\\n\\nCode Linting: Ensure code style compliance (e.g., flake8/ruff) with no errors.\\n\\nUnit Testing: Run at least five meaningful unit tests (pytest) that cover core functions and must pass.\\n\\nDocumentation Build: Generate HTML documentation from docstrings without errors or warnings.\\n\\nGenerate Comprehensive Documentation: Produce automatic documentation that includes an API reference, installation instructions, and a worked example.\\n\\nCreate Clear User Guidance: Provide a README.md with a clear project description, setup steps, and a quick-start example.\\n\\nSpecify All Dependencies: Document all external packages in requirements.txt or pyproject.toml.\\n\\n4. Process and Reflection Goals\\nPromote Team Collaboration: Ensure all team members contribute to and review code, fostering a collaborative environment.\\n\\nLog AI Usage: Meticulously log all significant AI interactions using the AI Journal to ensure transparency and academic integrity.\\n\\nReflect on the Process: Each team member must demonstrate an understanding of their individual contributions and learning experience.\\n\\ncan you put this into a md file\\nWe need to respond to the user's request: \\\"can you put this into a md file\\\". The user wants the project goals section to be output as a markdown file. Since we are in a chat interface, we can provide the content in a code block with markdown formatting, or we can just output it as markdown text. The user likely wants to copy and paste it into a .md file. We can respond with the markdown content formatted accordingly. We'll produce a response that contains the markdown code block or just the markdown text. The instruction is simple: they want the previous project goals section in a markdown file format. We'll just output the same content in markdown, maybe with a heading and structure. We'll make it clear that it's a markdown content. Let's do that.\\n\\nHere's the Project Goals section formatted as a Markdown file. You can copy this directly into a Project_Goals.md file in your repository.\\n\\nmarkdown\\n# Project Goals\\n\\nThe primary goal of this project is to design and implement a baseline autonomous perception and navigation library in Python. This library will serve as the technical foundation for the course, and it must be modular, well-documented, and simulator-agnostic. The project will culminate in a live demonstration of the library's capabilities. The following specific goals must be achieved to meet the assignment's requirements:\\n\\n## 1. Core Deliverables\\n\\n- **Develop a Python Library:** Create an installable Python package that provides baseline capabilities for autonomous systems.\\n- **Produce a Technical Report:** Write a concise report (max 3 pages / 1,000 words) covering the system architecture, key design decisions, evaluation results, and limitations.\\n- **Complete a Live Demonstration:** Successfully demonstrate the library's core perception and navigation capabilities working in a simulator (CARLA or Webots) in a live setting.\\n- **Submit Individual Components:** Each team member will complete a self-reflection and a peer assessment in SparkPLUS.\\n\\n## 2. Functional and Design Goals\\n\\n- **Implement Core Capabilities:** The library must successfully perform the following tasks:\\n    - Lane and driving area detection.\\n    - Object detection, tracking, and localization.\\n    - Semantic segmentation.\\n    - Traffic condition detection and classification.\\n    - Basic path following, steering, and speed control.\\n- **Ensure Design Integrity:**\\n    - **Installability:** The library must be installable as a Python package (via `pip`).\\n    - **Clean API:** Expose a well-documented, clear API that is suitable for integration.\\n    - **Simulator-Agnostic Core:** The core logic must be decoupled from any specific simulator, utilizing an adapter pattern for integration.\\n    - **Reproducibility:** A fresh user must be able to clone, install, and run the demonstration in under 15 minutes.\\n\\n## 3. Engineering and Process Goals\\n\\n- **Maintain Rigorous Version Control:** All code must be committed to a Git repository, with a history showing peer review and clear, descriptive commit messages.\\n- **Implement a Successful CI Pipeline:** Configure GitHub Actions to automatically run:\\n    - **Code Linting:** Ensure code style compliance (e.g., `flake8`/`ruff`) with no errors.\\n    - **Unit Testing:** Run at least five meaningful unit tests (`pytest`) that cover core functions and must pass.\\n    - **Documentation Build:** Generate HTML documentation from docstrings without errors or warnings.\\n- **Generate Comprehensive Documentation:** Produce automatic documentation that includes an API reference, installation instructions, and a worked example.\\n- **Create Clear User Guidance:** Provide a `README.md` with a clear project description, setup steps, and a quick-start example.\\n- **Specify All Dependencies:** Document all external packages in `requirements.txt` or `pyproject.toml`.\\n\\n## 4. Process and Reflection Goals\\n\\n- **Promote Team Collaboration:** Ensure all team members contribute to and review code, fostering a collaborative environment.\\n- **Log AI Usage:** Meticulously log all significant AI interactions using the AI Journal to ensure transparency and academic integrity.\\n- **Reflect on the Process:** Each team member must demonstrate an understanding of their individual contributions and learning experience.\",       \"intent\": \"Implementation\",       \"aiAccuracy\": \"Minor Flaws\",       \"verificationMethod\": \"Logical Reasoning\",       \"evaluationConfidence\": 4,       \"humanIntervention\": \"I personally modified the output so that it was not going out of context of the brief and project outlines. Also shortened it as it gave too much information.\"     }   ],   \"metaReflection\": {     \"utilityScore\": 4,     \"processEvolution\": \"I had probed two AI models with similar prompts and took the best of both outputs.\",     \"criticalMoment\": \"I did not ovveride it but I tuned its output logically instead of using everything it gave me\",     \"skillDependency\": \"Coming up with the format of the goals\",     \"synthesis\": \"I learnt that, though AI is capable of producing decent solutions, it needs to be tuned by filtering through its answers\"   },   \"tags\": [],   \"status\": \"complete\",   \"id\": \"a41b817d-5677-4c30-8acf-0cb21342ee4e\",   \"createdAt\": \"2026-09-02T07:47:32.254Z\" }"
+  },
+  {
+    "sha": "3e1526e53aa023ce2fbe3e8bb20bb60cafea60af",
+    "subject": "Merge pull request #13 from Zhaolin-Huang/codex/path-following-control-core"
+  },
+  {
+    "sha": "f35735bc0e14a3deb8d1c99a7430fca4f0ffcbae",
+    "subject": "Merge pull request #12 from Zhaolin-Huang/main"
+  },
+  {
+    "sha": "b217a3570ccc3f1f0d86cfaaf82b9b31968ae60a",
+    "subject": "Merge pull request #8 from kkaaman/main"
+  },
+  {
+    "sha": "329db40f79d191cc8ee371da77232a1ca0eadb4c",
+    "subject": "Merge pull request #10 from RickyPurani/main"
+  },
+  {
+    "sha": "7796ff3b44b0e877cb89199cc345a836f1fb5b50",
+    "subject": "Merge branch 'USYD-ELEC5308:main' into main"
+  },
+  {
+    "sha": "ee085938944f215292004268d683182839c39bbe",
+    "subject": "Add personal preference to dataset section"
+  },
+  {
+    "sha": "b6fa776a7d558bcaef360b941d3bcbb1ac731b40",
+    "subject": "Merge pull request #9 from at0941/main"
+  },
+  {
+    "sha": "d14ce1080f7ea73b235eb96587476b6b7a1133e2",
+    "subject": "Merge branch 'USYD-ELEC5308:main' into main"
+  },
+  {
+    "sha": "b21efd545dcacc60bbcb17f755157a7e9637416f",
+    "subject": "Add a placeholder under Risks section"
+  },
+  {
+    "sha": "5b1c121ef654ab7768b8066114cf465340d76131",
+    "subject": "Update plan.md"
+  },
+  {
+    "sha": "96578a043afb1fe55976f094365e8682fc674468",
+    "subject": "Update plan.md"
+  },
+  {
+    "sha": "3d0346aa4ed2626e2bf00c4d6061e1b5e4c8ee91",
+    "subject": "Create plan.md"
+  },
+  {
+    "sha": "9e64efe393579054c2496f6bd694bc11a8cd2b2a",
+    "subject": "Initial commit"
+  }
+]

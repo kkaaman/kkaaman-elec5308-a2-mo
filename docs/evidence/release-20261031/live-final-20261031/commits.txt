@@ -1,0 +1,16 @@
+5ff9f8af770c0f99e48e09f646e729ab5ab1d1a8 perf(release): bound lidar projection and raw capture overhead | PASS
+309334ed82ca03584bd69afb9b3152c0d8cc8715 perf(release): prune disjoint corridor bounds and warm lidar safely | PASS
+02222aef3b3555a25cdbb9a728fd23ffc48964d5 perf(release): join parallel lidar and inference within capture deadline | PASS
+a166c8fb6e1aef89a153d525f0014be39fa814fb perf(release): isolate lidar CPU work from inference thread | PASS
+7a85fe2ecf259e383a3f999f51556f1195421069 fix(release): bound asynchronous HUD snapshots outside dispatch | PASS
+2dbd90cd571d6526a524b745dc6b39687605de03 fix(release): isolate optional CPU HUD workload and report snapshot age | PASS
+2b9e0958f9ec0b2e85ece9e0b8efc6e3cd51eeed fix(release): isolate diagnostic model interpreter from control | PASS
+bf2dacb4b1071044e3de97f3cd4d3b61969e0a28 fix(release): hold immediately when current lidar work is pending | PASS
+ca857c44fb427489140ea18e9e0910a14946f537 fix(release): verify parked capture without redundant brake RPCs | PASS
+3356e0f748178f74ea057bf354288531aea88ae6 fix(release): gate unqualified HUD and expose frozen navigation workflow | PASS
+14a016eac2d0a1def4f63f4f1e740130b1cacc57 fix(release): retain decision timing and current fused-source evidence | PASS
+09b389bfcf537952f269a0dd63c298d6c4ba7d22 fix(release): bound local inference with existing exact-frame worker | PASS
+4aa44dc18bae7cfc4e240550761fa7572d0f46eb fix(release): retain completed inference diagnostics within cycle budget | PASS
+b4210adfb0796ec8161ccdc1b84d69165b993bf3 fix(release): share capture-relative join budget and dispatch reserve | PASS
+89a364725badd9b70df7ef5687a00f54ffa9dbff feat(release): expose parked stationary-target sensor demonstration | PASS
+13ff182026695ee5dcbc9e9507e576f11619784d fix(release): evaluate target gap after current sensor warmup | PASS

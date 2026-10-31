@@ -1,0 +1,7 @@
+{
+  "client_version": "0.9.16",
+  "server_version": "0.9.16",
+  "map": "Carla/Maps/Town10HD_Opt",
+  "synchronous_mode": false,
+  "actors": []
+}
