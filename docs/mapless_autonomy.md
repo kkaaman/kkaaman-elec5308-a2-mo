@@ -3529,6 +3529,11 @@ truth lane through the box in every run (the latched line's drift; r12 saw 0.7�
 - Hand-back wants seven lane-centre points over 6 m (was ten over 8): the far kerb is
   sparse in the LiDAR at 20–30 m, five to eight stations.
 
+**Cost:** the seed search (nine seeds and the traced one, each a kerb fit) runs every
+fourth tick through the box and adds 20–30 ms to those ticks on the 2-CPU test box
+(`junction` stage); on the lab PC the share of steps over 50 ms rises by a few percent
+through the box, within a run that is over budget with the worker on anyway.
+
 **Still open:** traffic at the crossing (G4); the hold's 5 s lag (the first 10 m of drift
 are not corrected). r14 is the batch again on this code.
 
