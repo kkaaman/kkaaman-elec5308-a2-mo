@@ -524,7 +524,8 @@ class MaplessDriver:
                                     self.crossing.reset()
                                     d.update(crossing="handed back to the kerb corridor")
                         past_exit_near = self.crossing.past_exit_point_m(motion.odometry, (x_near, y_path_near))
-                        if not handed and past_exit_near is not None and past_exit_near <= c.crossing.reanchor_past_exit_m and span >= 6.0 and abs(turn_near) <= c.crossing.handback_heading_rad:
+                        bound = c.crossing.reanchor_max_m if past_exit_near is not None and past_exit_near < 0.0 else c.crossing.reanchor_exit_max_m
+                        if not handed and past_exit_near is not None and past_exit_near <= c.crossing.reanchor_past_exit_m and abs(lateral_near) <= bound and span >= 6.0 and abs(turn_near) <= c.crossing.handback_heading_rad:
                             # Kerb along the latched line, short of the exit point, moves the
                             # path sideways (the odometry drifts a metre over a kerbless box).
                             # Past the exit point nothing is moved: a difference there is the

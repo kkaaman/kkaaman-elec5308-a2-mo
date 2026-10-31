@@ -3555,6 +3555,42 @@ passed with 0.26 m peak in the box, 29 m hand-back; the batch running; worker-on
 ML; traffic at the crossing); the wheel-encoder note (scale and white noise only, no
 slip or drift modelled) is taken as a documentation point for the harness's limits.
 
+### Live on PC 3 (1 Nov, `c7fe074`): r14, the G2 batch — 19 of 30, every junction crossed
+
+All 30 runs crossed junction 468 on the arc-and-hand-back crossing (box offsets 0.25–0.8 m,
+hand-backs 20–30 m before the exit point; outside the box lane p95 0.07–0.09 m). S4 5/5,
+S0 and S5 4/5, S1 and S2 3/5, S3 0/5. Two failure families:
+
+- **`lane_footprint` (7 runs, max corner 1.77–2.08 m against 1.75)**, all at s 172–180 right
+  after the hand-back: one sideways re-anchor of 0.88 m in a single step (half of a 1.75 m
+  disagreement between the kerb fit's near end and the path), the car swinging 5–8° to
+  follow it while centred in its lane. The kerb at the exit corner is not where
+  `keep_right` (7.8 m here, across the second lane) puts the lane centre. Taken: a
+  re-anchor moves at most 0.25 m a step (`reanchor_step_m`), and past the arc's start a
+  fit more than 1.5 m off is the corner's geometry, not drift (`reanchor_exit_max_m`);
+  the synthetic 2σ-drift seed still finishes (bend 5311: 1.04 m).
+- **S3 `no_stop_for_roadside_car` (5/5) — an evaluator bug.** The gate counted every
+  `stopping` tick, including the start-up brake transition and the stop at the goal: it
+  could never pass. Now it counts stops within 30 m before to 20 m past the roadside car
+  (`window_s_m`), from the run's own obstacle record. Re-scored, 4 of 5 pass (5312 fails
+  on the footprint).
+
+Found underneath: **brake taps** — full brake to a standstill for 0.3 s at s≈52.8 and
+71.3 in most runs (S0/S4/S5 included; seed-dependent), "predicted conflict on the path"
+from a track born at the kerb (−8.3 m) or beyond it (−11 to −12 m), 2–3 m/s "towards the
+path", gone within a second. `plausible_crossers` admitted it outright: within the kerb
+plus the VRU reach (7.8 + 2 m here), or beyond with road near. Taken: a vehicle-sized
+track beyond the kerb line with fewer than `offroad_young_min_hits` (8) is a provisional
+threat — the young floor, 1.5 m/s, and a stop only where hard braking must — until it has
+lasted; the same track within the kerb or old enough is admitted as before. Every mission
+report now carries `brake_taps` (REPORT): where, why, how long, how slow. The hard
+false-positive question (why the tracker gives a kerbside static object a velocity) is not
+answered here — the runs recorded no frames; r15 S0 should be run with
+`--record-frames all` on one seed for the replay.
+
+**r15** = the batch on this code, after `rescore_mission.py` over r14 (S3 flips; the
+footprint runs need the rerun).
+
 ## Running Phase 0 live
 
 Run with CARLA 0.9.16 and no other clients:

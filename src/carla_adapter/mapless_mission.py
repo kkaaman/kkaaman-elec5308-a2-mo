@@ -184,7 +184,38 @@ def mission_route(carla_map, site, spacing_m=25.0, exit_in_m=5.0, name=None):
     return SatNavRoute(name or site.name, tuple(points), provenance=dict(source="baseline mission lane chain", spacing_m=spacing_m, junctions=[dict(entry_s_m=round(a, 1), exit_s_m=round(b, 1), junction_id=j) for a, b, j in site.junctions]))
 
 
-def score_mission(scenario, log, end, hold_ticks, removed_at_s, dt_s, goal_reach_m=3.0, hold_band_m=(1.5, 5.0), plan_band_m=(2.5, 6.0), hold_speed_max_mps=0.1):
+def brake_taps(log, dt_s, start_s_m=5.0, goal_m=12.0):
+    """Stops the drive did not need (REPORT): runs of ``stopping`` ticks between
+    ``start_s_m`` and ``goal_m`` short of the chain's end that are not an obstacle hold or
+    the goal — the speed cap's reason on the first tick, where, how long, how slow. r14 on
+    Town10HD: "predicted conflict on the path" at s 52.8 and 71.3 in run after run, a full
+    brake to a standstill for 0.3 s each; scenery the tracker read as a moving road user."""
+    end_s = max(r["truth"]["s_m"] for r in log) - goal_m
+    taps, current = [], None
+    for r in log:
+        s_m = r["truth"]["s_m"]
+        tapping = r["mode"] == "stopping" and start_s_m < s_m < end_s and not r["reason"].startswith("holding") and r["reason"] != "goal"
+        if tapping:
+            reason = str((r.get("driver") or {}).get("speed_cap_reason") or r["reason"] or "")
+            if current is None:
+                current = dict(s_m=round(s_m, 1), time_s=round(r["time_s"], 1), reason=reason[:60], ticks=1, min_speed_mps=r["truth"]["speed_mps"])
+            else:
+                current["ticks"] += 1
+                current["min_speed_mps"] = min(current["min_speed_mps"], r["truth"]["speed_mps"])
+                if reason and not current["reason"]:
+                    current["reason"] = reason[:60]
+        elif current is not None:
+            taps.append(current)
+            current = None
+    if current is not None:
+        taps.append(current)
+    for t in taps:
+        t["min_speed_mps"] = round(t["min_speed_mps"], 2)
+        t["seconds"] = round(t.pop("ticks") * dt_s, 2)
+    return dict(count=len(taps), standstills=sum(t["min_speed_mps"] < 0.1 for t in taps), taps=taps[:12])
+
+
+def score_mission(scenario, log, end, hold_ticks, removed_at_s, dt_s, goal_reach_m=3.0, hold_band_m=(1.5, 5.0), plan_band_m=(2.5, 6.0), hold_speed_max_mps=0.1, obstacle_s_m=None, roadside_window_m=(30.0, 20.0)):
     """The gates of a baseline scenario on the mapless run, as (name, passed, values) rows.
     ``passed`` None: could not be judged (INCOMPLETE).
 
@@ -193,7 +224,12 @@ def score_mission(scenario, log, end, hold_ticks, removed_at_s, dt_s, goal_reach
       obstacle removed after the hold and the goal then reached (``resume``).
     - S4: the hold, kept until the run ended (the obstacle is never removed).
     The band is the harness's obstacle-stop band (G1b); the plan's 2.5–6 m is reported
-    beside it."""
+    beside it. ``obstacle_s_m`` is where the obstacle stands along the chain (the run's
+    record); S3's gate counts a stop within ``roadside_window_m`` (before, after) of it —
+    the start-up brake and the stop at the goal are not stops for the roadside car (r14:
+    every S3 failed on those two ticks). Brake taps elsewhere are reported as
+    ``brake_taps`` (r14: a predicted conflict with scenery at two spots, a full brake to a
+    standstill for 0.3 s each)."""
     rows = []
     last = log[-1]
     kind = scenario.get("obstacle_class")
@@ -203,9 +239,13 @@ def score_mission(scenario, log, end, hold_ticks, removed_at_s, dt_s, goal_reach
     if kind is None or float(scenario.get("lateral_m") or 0.0) >= 2.0:
         rows.append(("goal", end == "finished" and goal <= goal_reach_m, dict(end=end, goal_distance_m=goal)))
         if kind is not None:
-            stopped = [r for r in log if r["mode"] == "stopping"]
-            moving = [r["truth"]["speed_mps"] for r in log if r["mode"] not in ("startup", "calibrating") and r["truth"]["s_m"] > 15.0]
-            rows.append(("no_stop_for_roadside_car", not stopped, dict(stopping_ticks=len(stopped), min_speed_mps=round(min(moving), 2) if moving else None)))
+            s_car = obstacle_s_m if obstacle_s_m is not None else scenario.get("obstacle_s_m")
+            window = (s_car - roadside_window_m[0], s_car + roadside_window_m[1]) if s_car is not None else None
+            near = [r for r in log if window is not None and window[0] <= r["truth"]["s_m"] <= window[1]]
+            stopped = [r for r in near if r["mode"] == "stopping"]
+            speeds = [r["truth"]["speed_mps"] for r in near]
+            rows.append(("no_stop_for_roadside_car", None if window is None else not stopped, dict(stopping_ticks=len(stopped), min_speed_mps=round(min(speeds), 2) if speeds else None, window_s_m=[round(w, 1) for w in window] if window else None, obstacle_s_m=s_car)))
+        rows.append(("brake_taps", None, brake_taps(log, dt_s)))
         return rows
     gaps = [r["truth"]["gap_m"] for r in held_rows if r["truth"].get("gap_m") is not None]
     if not gaps:

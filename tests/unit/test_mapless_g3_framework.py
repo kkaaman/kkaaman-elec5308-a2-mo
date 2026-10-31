@@ -1270,3 +1270,35 @@ def test_r11_motion_its_leading_edge_does_not_bear_out_is_predicted_as_standing(
     assert len(held) == 1 and held[0].speed_mps == 0.0
     kept = predictable_tracks([track()], config=c, in_lane=lambda tr: True)
     assert kept[0].speed_mps == pytest.approx(0.6)
+
+
+def test_a_newborn_vehicle_track_beyond_the_kerb_is_a_provisional_threat_not_a_stop():
+    """r14 on Town10HD (two lanes, the kerb 7.8 m right): tracks born at the kerb and beyond
+    it, 2-3 m/s "towards the path", gone within a second, stopped the car dead for 0.3 s at
+    the same two spots in run after run. A vehicle-sized track beyond the kerb line is a
+    provisional threat (the young floor, 1.5 m/s) until it has lasted offroad_young_min_hits;
+    the same track within the kerb, or old enough, is admitted outright."""
+    from mapless.prediction import predict
+    from mapless.stack import StackConfig, plausible_crossers
+    from mapless.terrain import CellLabel
+
+    c = StackConfig()
+    path = np.column_stack((np.arange(-2.0, 40.0, 0.5), np.zeros(84)))
+    uniform = {k: 0.2 for k in ("car", "truck", "bike", "pedestrian", "unknown")}
+
+    def born(tid, y, hits):
+        return ObjectTrack(tid, 0.0, [11.0, y, -2.8, 0.8], np.diag([0.05] * 4), uniform, TrackStatus.CONFIRMED, hits, 0, support=("lidar",), footprint=(4.5, 1.9, 0.0), travelled_m=1.0, recent_speed_mps=2.9)
+
+    class Open:
+        def tall_evidence(self, xy, max_age_s=None):
+            return np.zeros(len(np.asarray(xy)))
+
+        def labels(self, xy, max_age_s=None):
+            return np.full(len(np.asarray(xy).reshape(-1, 2)), CellLabel.ROAD, dtype=np.int8)
+
+    for y, hits, expect_young in ((-8.3, 3, True), (-11.5, 5, True), (-8.3, 12, False), (-6.0, 3, False)):
+        t = born(1, y, hits)
+        why, young = {}, set()
+        kept = plausible_crossers([t], [predict(t, c.prediction)], path, keep_right_m=7.79, config=c, ego_speed_mps=2.0, grid=Open(), why=why, young=young)
+        assert [p.track_id for p in kept] == [1], (y, hits, why)
+        assert (1 in young) is expect_young, (y, hits, why)

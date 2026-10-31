@@ -23,10 +23,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from carla_adapter.mapless_drive import DT_S, FAIL, INCOMPLETE, PASS, run_status  # noqa: E402
+from carla_adapter.mapless_drive import DT_S, FAIL, INCOMPLETE, PASS, REPORT, run_status  # noqa: E402
 from carla_adapter.mapless_mission import load_scenario, score_mission  # noqa: E402
 
-MISSION_CHECKS = ("goal", "no_stop_for_roadside_car", "obstacle_stop", "resume", "held")
+MISSION_CHECKS = ("goal", "no_stop_for_roadside_car", "obstacle_stop", "resume", "held", "brake_taps")
 
 
 def _commit():
@@ -52,8 +52,8 @@ def rescore(folder, scenarios_dir=ROOT / "configs" / "scenarios", commit=None):
     old = {c["check"]: c for c in report["checks"]}
     held_s = (old.get("held") or old.get("obstacle_stop") or {}).get("held_s") or 0.0
     removed_at_s = (old.get("resume") or {}).get("removed_at_s")
-    rows = score_mission(scenario, log, report.get("end"), int(round(held_s / DT_S)), removed_at_s, DT_S)
-    fresh = {name: dict(check=name, status=INCOMPLETE if passed is None else (PASS if passed else FAIL), **values) for name, passed, values in rows}
+    rows = score_mission(scenario, log, report.get("end"), int(round(held_s / DT_S)), removed_at_s, DT_S, obstacle_s_m=(report.get("obstacle") or {}).get("s_m"))
+    fresh = {name: dict(check=name, status=REPORT if name == "brake_taps" else (INCOMPLETE if passed is None else (PASS if passed else FAIL)), **values) for name, passed, values in rows}
     checks = [fresh.pop(c["check"], c) if c["check"] in MISSION_CHECKS else c for c in report["checks"]]
     checks.extend(fresh.values())  # a row the original run did not have
     original = folder / "drive_report.original.json"

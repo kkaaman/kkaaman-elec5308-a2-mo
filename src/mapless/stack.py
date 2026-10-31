@@ -1395,12 +1395,21 @@ def plausible_crossers(tracks, candidates, path_xy, keep_right_m, config, ego_sp
                 # Off the road and too far out to reach the lane band in time at the speed
                 # it is coming: kept the tick it can (F6-03: reach, not speed, decides).
                 continue
+            newborn = abs(lat) > keep_right_m and track.hits < config.offroad_young_min_hits
+            if newborn and not provisional:
+                # Beyond the kerb line and a few ticks old: a provisional threat, as a young
+                # vehicle off the road is, until it has lasted offroad_young_min_hits (r14,
+                # Town10HD: tracks born at the kerb and beyond it, 2-3 m/s "towards the
+                # path", gone again within a second, stopped the car dead for 0.3 s at the
+                # same two spots in run after run; a car coming off a driveway is slowed to
+                # the floor meanwhile, and stopped where hard braking must).
+                provisional = True
             if provisional:
                 if ego_speed_mps > 0.5 and along >= 0.5 * ego_speed_mps and along > towards:
                     continue  # the sliding-wall signature: no young evidence outweighs it
                 if young is not None:
                     young.add(p.track_id)
-            why[p.track_id] = "vehicle " + ("within reach" if within else ("beyond reach, off the road, young: provisional" if provisional else "beyond reach, off the road, moving as a car there does" if off_road else "beyond reach, road near"))
+            why[p.track_id] = "vehicle " + ("beyond the kerb, newborn: provisional" if newborn else "within reach" if within else ("beyond reach, off the road, young: provisional" if provisional else "beyond reach, off the road, moving as a car there does" if off_road else "beyond reach, road near"))
             out.append(p)
             continue
         if within and (motion_state(track, config.prediction) == "uncertain" or decided_class(track) == "pedestrian"):
