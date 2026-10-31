@@ -362,17 +362,17 @@ def test_stop_scenario_holds_short_of_the_parked_car(monkeypatch, tmp_path):
     assert by_name["no_collision"]["status"] == "PASS"
 
 
-def _fake_mission_site(length_m=90.0, obstacle_s_m=None):
+def _fake_mission_site(length_m=90.0, obstacle_s_m=None, junctions=()):
     from carla_adapter.mapless_mission import MissionSite  # noqa: PLC0415
 
     xs = np.arange(0.0, length_m + 0.5, 1.0)
     pts = np.column_stack((xs, np.full(len(xs), LANE_WIDTH / 2)))
     arcs = np.concatenate(([0.0], np.cumsum(np.hypot(*np.diff(pts, axis=0).T))))
-    return MissionSite("fake_mission", pts, arcs, (), length_m - 10.0, LANE_WIDTH, LANE_WIDTH / 2, "sidewalk", [], ("7:0:-1",), obstacle_s_m)
+    return MissionSite("fake_mission", pts, arcs, tuple(junctions), length_m - 10.0, LANE_WIDTH, LANE_WIDTH / 2, "sidewalk", [], ("7:0:-1",), obstacle_s_m)
 
 
-def run_mission(monkeypatch, tmp_path, acceptance, *extra, obstacle_s_m=None):
-    monkeypatch.setattr(drive, "resolve_mission", lambda carla, carla_map, path: _fake_mission_site(obstacle_s_m=obstacle_s_m))
+def run_mission(monkeypatch, tmp_path, acceptance, *extra, obstacle_s_m=None, junctions=()):
+    monkeypatch.setattr(drive, "resolve_mission", lambda carla, carla_map, path: _fake_mission_site(obstacle_s_m=obstacle_s_m, junctions=junctions))
     return run_drive(monkeypatch, tmp_path, "--scenario", "mission", "--acceptance", acceptance, "--hold-s", "3", "--snapshot-every", "0", *extra)
 
 
@@ -398,6 +398,18 @@ def test_mission_s4_holds_for_good_and_s0_drives_the_route(monkeypatch, tmp_path
     _, report = run_mission(monkeypatch, tmp_path / "s0", "S0")
     by_name = {c["check"]: c for c in report["checks"]}
     assert "obstacle" not in report and by_name["goal"]["status"] == "PASS" and report["end"] == "finished"
+    assert "junction_lane_keeping" not in by_name
+
+
+def test_mission_lane_keeping_is_judged_outside_the_junction_box(monkeypatch, tmp_path):
+    """r13: through a junction the car dead-reckons on its latched line and the truth lane
+    is the map's connecting lane; those ticks are a REPORT of their own, the lane gate
+    judges the rest, and the footprint gate still covers the whole run."""
+    _, report = run_mission(monkeypatch, tmp_path, "S0", junctions=((30.0, 50.0, 468),))
+    by_name = {c["check"]: c for c in report["checks"]}
+    assert by_name["junction_lane_keeping"]["status"] == "REPORT" and by_name["junction_lane_keeping"]["ticks"] > 0
+    assert by_name["lane_keeping"]["ticks"] + by_name["junction_lane_keeping"]["ticks"] <= by_name["lane_footprint"]["ticks"]
+    assert by_name["junction_crossing"]["junctions"] == [dict(entry_s_m=30.0, exit_s_m=50.0, junction_id=468)]
 
 
 def test_curve_scenario_refuses_a_map_without_curves(monkeypatch, tmp_path):
