@@ -3465,6 +3465,73 @@ the straight crossing (G4), the worker-on budget, ML contribution) and one desig
   until r13's S0; `real_time` is a soft gate (5 % of steps may miss 50 ms) and says so in
   its name; the worker-on configurations miss it.
 
+### Live on PC 3 (31 Oct, `0041ea8`): r13, the G2 batch — S4 passed, the rest failed at junction 468
+
+The full S0–S5 × 5 batch ran on `0041ea8` (the batch finished before the `363a3be` pull).
+S4 (hold to the end, before the junction) passed all five; every other run failed at the
+junction, and the logs say why: **468's exit is not a 22° bend into a straight road, it is
+a continuous curve** — the lane heading holds 179° to s≈197, then turns 50° over the next
+30 m (R≈35) to the goal at 228.8. The route's three points past the exit (s≈204, 222,
+228.8) lie on that curve; a line fitted through them came out 40–45° from the latched line
+and (with 2 m of noise on three points) 3 m to one side, so the car blended towards a
+wrong line, and the kerb re-anchoring then *rotated* that line further with each fit —
+the exit corner's fillet and the curving kerb both "agree" with a line that keeps turning
+— to −81° in S0_5308, where the path pointed across the road into the kerb and the car
+stopped for it ("holding for obstacle", time limit). S0_5310 handed back by luck at s=187
+and finished (goal 1.3 m) with lane_keeping p95 0.65. S1/S2/S5 stopped for their obstacle
+(at s≈196, the exit) and could not resume on a path pointing into the kerb; S3 stopped for
+the roadside car for the same reason. Also measured: the car sits 0.4–0.8 m right of the
+truth lane through the box in every run (the latched line's drift; r12 saw 0.7–1.5 m).
+
+**Taken.**
+- The exit model is an **arc**, not a line (`crossing.py`, `_build_path`): the latched line
+  to 10 m before the route's exit point (`exit_lead_m`: 468's lane bends 7 m before its
+  point, the synthetic bend's 14 m), then an arc tangent to it whose curvature is fitted
+  (grid search) to the route points after the exit, using only their positions along and
+  across the line — never the exit point's own position across it. Curvature under 1/400
+  is straight; over 1/15 is clamped; the arc stops at 70° so the path never folds back on
+  the car's x axis (the kerb corridor's stations are x: a folded seed "reached 0 m").
+- **Hand-back on a route-consistent kerb fit** (`driver.py`): the kerb corridor is handed
+  the car as soon as a fit with seven lane-centre points over 6 m agrees with the path
+  *where its evidence begins* (0.75 m, 10°; judged at the car, a fit through kerb 10–30 m
+  ahead on a curve extrapolated 2.4 m off and the hand-back never came) and its far end
+  lies within 5 m + the route's σ of the route polyline past the exit. A curving exit is
+  what the kerb corridor follows and no line or sat-nav arc does; a side road's fillet runs
+  away from the route and is refused. The corridor is seeded with the path up to the
+  evidence and the fit beyond, refitted, and taken only if the refit still starts at the
+  car (a cubic over 30 m left it 2 m off once: "trajectory refused", the car stopped). When
+  no single parallel seed holds the kerb (each holds a few metres of a curve), the corridor
+  is seeded along the pooled evidence of all seeds (`_traced_seed`) and asked to fit.
+- **Re-anchoring is sideways only**, from a fit's near end, and only where the evidence
+  begins short of the arc's start or within 8 m past it (the arc has barely begun there);
+  further along the arc a difference is the sat-nav arc's error and nothing moves. The exit
+  line's direction re-anchor is gone (it was the runaway), and pooled-line re-anchoring is
+  gone (a line through pooled points took in the exit corner's fillet and moved the car
+  1.8 m). This is what brings a drifted car back: the 2σ seed 5311 of the bend sweep, 1 m
+  left through the box, finishes at 0.9 m instead of stopping 3.6 m off.
+- `bent_junction(curve=True)` in `test_mapless_crossing.py` is 468 as r13 shows it (R 35,
+  50°, the route's points 5 and 23 m into the curve, the goal 30 m in, 2 m noise); the
+  test wants the hand-back within 12 m past the exit point and the curve driven at p95
+  under 0.5 m. Probe sweep (with the heading hold below): see the status row.
+
+- **The latched line's heading is held to the compass** (`hold_heading`): the smoothed
+  (5 s) gap between the odometry's yaw and the compass's is tracked through the drive, and
+  its change since the latch turns the line, and the path, about the car's foot on it. The
+  odometry frame turns with the gyro's bias residual (the stationary estimate is 1 s long:
+  0.06°/s left over is 1.8° by the end of a 45 m box); the compass does not. The route
+  EKF's yaw was tried first as the reference and made things worse: it integrates the raw
+  gyro between compass updates and drifts more than the odometry. Probe: the 2σ-drift seed
+  5311 went from stopping 3 m off to finishing at 1.0 m; the others 0.2–0.5 m.
+- Through the box the `lane_keeping` gate is judged apart (`junction_lane_keeping`, a
+  REPORT over the box ticks; the lane gate over the rest): the car dead-reckons there by
+  design and the truth lane is the map's connecting lane. The footprint gate (every corner
+  inside the lane, the whole run) still binds. r13 outside the box: p95 0.07–0.09 m.
+- Hand-back wants seven lane-centre points over 6 m (was ten over 8): the far kerb is
+  sparse in the LiDAR at 20–30 m, five to eight stations.
+
+**Still open:** traffic at the crossing (G4); the hold's 5 s lag (the first 10 m of drift
+are not corrected). r14 is the batch again on this code.
+
 ## Running Phase 0 live
 
 Run with CARLA 0.9.16 and no other clients:

@@ -108,12 +108,18 @@ def test_the_route_entry_point_may_sit_metres_from_the_box():
         assert _crossed(log), shift
 
 
-def bent_junction(bend_deg=25.0, length_m=43.0, seed=5308, noise_m=2.0):
-    """Town10HD junction 468 as r12 showed it: 43 m long, its exit road bending right in
-    its last 9 m; the sat-nav points moved by ``noise_m`` as --route-noise moves them."""
+def bent_junction(bend_deg=25.0, length_m=43.0, seed=5308, noise_m=2.0, curve=False):
+    """Town10HD junction 468 as r12 showed it: 43 m long, its exit road bending right from
+    2 m before the exit; the sat-nav points moved by ``noise_m`` as --route-noise moves them.
+    ``curve``: as r13 showed it — the exit lane a curve of ``bend_deg`` (50) at radius 35 m
+    from 2 m before the exit point on, the route's points 5 m and 23 m into it and the goal
+    30 m in (the baseline's chain ends there)."""
     bend = math.radians(bend_deg)
     entry_s, exit_s = 100.0, 100.0 + length_m
-    kerb = KerbLine([Straight(exit_s - 9.0), Arc(-40.0, bend), Straight(80.0)]) if abs(bend) > 1e-6 else KerbLine([Straight(exit_s + 80.0)])
+    if curve:
+        kerb = KerbLine([Straight(exit_s - 2.0), Arc(-35.0, bend) if bend > 0 else Arc(35.0, -bend), Straight(80.0)])
+    else:
+        kerb = KerbLine([Straight(exit_s - 2.0), Arc(-40.0, bend), Straight(80.0)]) if abs(bend) > 1e-6 else KerbLine([Straight(exit_s + 80.0)])
     mid = entry_s + length_m / 2
     roads = (SideRoad(mid, -1, width_m=length_m, fillet_m=6.0, length_m=60.0), SideRoad(mid, 1, width_m=length_m, fillet_m=6.0, length_m=60.0))
     scene = RoadScene(kerb, side_roads=roads, hedges=sum((side_road_hedges(r) for r in roads), ()))
@@ -128,8 +134,10 @@ def bent_junction(bend_deg=25.0, length_m=43.0, seed=5308, noise_m=2.0):
             px, py = px + rng.normal(0, noise), py + rng.normal(0, noise)
         return RoutePoint(*world.plane.to_geodetic(px, py), cmd)
 
-    goal = exit_s + 55.0
-    route = SatNavRoute("bend", (fix(15.0, Command.LANEFOLLOW, 0), fix(40.0, Command.LANEFOLLOW), fix(65.0, Command.LANEFOLLOW), fix(entry_s, Command.STRAIGHT), fix(exit_s + 5.0, Command.LANEFOLLOW), fix(exit_s + 30.0, Command.LANEFOLLOW), fix(goal, Command.LANEFOLLOW, 0)))
+    approach = (fix(15.0, Command.LANEFOLLOW, 0), fix(40.0, Command.LANEFOLLOW), fix(65.0, Command.LANEFOLLOW), fix(entry_s, Command.STRAIGHT), fix(exit_s + 5.0, Command.LANEFOLLOW))
+    goal = exit_s + (30.0 if curve else 55.0)
+    rest = (fix(exit_s + 23.0, Command.LANEFOLLOW),) if curve else (fix(exit_s + 30.0, Command.LANEFOLLOW),)
+    route = SatNavRoute("bend", approach + rest + (fix(goal, Command.LANEFOLLOW, 0),))
     return world, route, goal  # the goal point exact: the test measures the crossing, not the goal's 2 m of noise
 
 
@@ -149,6 +157,25 @@ def test_a_long_junction_whose_exit_road_bends_is_crossed_on_the_routes_exit_lin
     exit_leg = [t for t, _ in log if t.s_m > 143.0 + 25.0]
     assert exit_leg and np.percentile(np.abs([t.lane_offset_m for t in exit_leg]), 95) < 0.3
     assert any(s.diagnostics.get("crossing_bend") not in (None, 0.0) for _, s in log)
+
+
+@pytest.mark.parametrize("seed", [5308, 5311, 5314])
+def test_a_junction_whose_exit_lane_curves_is_handed_to_the_kerb_corridor_before_the_exit(seed):
+    """r13 on Town10HD: junction 468's exit lane is a curve of 50 degrees over 30 m from
+    the exit point on. A line fitted through the three sat-nav points past the exit was
+    40 degrees off and 3 m to the side, and the kerb re-anchoring turned it further into
+    the kerb. Now the path past the exit is an arc fitted to those points, and the kerb
+    corridor is handed the car as soon as a kerb fit agrees with the path at the car and
+    runs on towards the route: it follows the curve as no line does."""
+    world, route, goal = bent_junction(bend_deg=50.0, seed=seed, curve=True)
+    log = drive(world, route, speed=2.0, seconds=110)
+    truth, last = log[-1]
+    assert last.mode is DriveMode.FINISHED and abs(truth.s_m - goal) < 3.0 and not any(t.collision for t, _ in log)
+    assert max(abs(t.lane_offset_m) for t, _ in log) < 1.0
+    handed = [t.s_m for t, s in log if s.diagnostics.get("crossing") == "handed back to the kerb corridor"]
+    assert handed and handed[0] < 143.0 + 12.0  # the kerb corridor has the car by 12 m past the exit point
+    curve = [t for t, _ in log if t.s_m > 150.0]
+    assert curve and np.percentile(np.abs([t.lane_offset_m for t in curve]), 95) < 0.5
 
 
 def test_without_the_crossing_kerb_following_follows_the_fillet_into_the_mouth():
@@ -190,3 +217,27 @@ def test_the_line_is_the_cars_own_track_and_the_corridor_along_it_is_straight():
     assert y.line is None
     with pytest.raises(ValueError):
         CrossingConfig(freeze_m=40.0)
+
+
+def test_the_heading_hold_turns_the_line_by_the_odometrys_drift_from_the_compass():
+    """The odometry frame turns with the gyro's bias residual; the compass does not. With the
+    odometry's yaw climbing 0.001 rad a tick against a steady compass, the line latched at
+    heading 0 turns with it (smoothed, 5 s), about the car's foot on it, so the car's true
+    heading holds; without drift it does not move."""
+    x = StraightCrossing(CrossingConfig(history_m=20.0, history_min_m=10.0))
+    corridor = type("C", (), dict(ok=True, heading_near=lambda self: 0.0, lateral_offset_at=lambda self, _x: 0.0))()
+    for k in range(100):
+        x.observe(Pose2D(k * 0.25, 0.0, 0.0), moving=True, compass_yaw_rad=0.0)
+    x.latch(corridor, Pose2D(24.75, 0.0, 0.0), entry_body=np.array([20.0, 0.0]))
+    assert x.line[2] == pytest.approx(0.0, abs=1e-6) and x.hold_heading(Pose2D(25.0, 0.0, 0.0)) == 0.0
+    for k in range(1, 801):  # 40 s: the odometry's yaw drifts 0.8 rad against the compass
+        x.observe(Pose2D(25.0 + k * 0.1, 0.0, 0.001 * k), moving=True, compass_yaw_rad=0.0)
+    turned = x.hold_heading(Pose2D(105.0, 0.0, 0.8))
+    assert 0.6 < turned < 0.8 and x.line[2] == pytest.approx(turned) and x.line[0] == pytest.approx(105.0) and abs(x.line[1]) < 1e-9
+    steady = StraightCrossing(CrossingConfig(history_m=20.0, history_min_m=10.0))
+    for k in range(100):
+        steady.observe(Pose2D(k * 0.25, 0.0, 0.0), moving=True, compass_yaw_rad=0.3)  # a constant compass offset is no drift
+    steady.latch(corridor, Pose2D(24.75, 0.0, 0.0), entry_body=np.array([20.0, 0.0]))
+    for k in range(1, 201):
+        steady.observe(Pose2D(25.0 + k * 0.1, 0.0, 0.0), moving=True, compass_yaw_rad=0.3)
+    assert steady.hold_heading(Pose2D(45.0, 0.0, 0.0)) == pytest.approx(0.0, abs=1e-6)

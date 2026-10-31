@@ -1550,6 +1550,18 @@ class MaplessDrive:
                 checks.append(check("oncoming_gate_view", REPORT, **gate))
         else:
             settled = [r for r in startup if r["truth"]["s_m"] > s0 + 15.0 and r["truth"]["speed_mps"] > 0.3]
+            # Through a junction the car dead-reckons on its latched line (no kerb to follow:
+            # crossing.py), and the truth lane there is the map's connecting lane; the lane
+            # gate below is kerb following's. Those ticks are judged apart (r13: 0.4-0.8 m
+            # right through Town10HD 468's 45 m box, p95 0.65 over the run). The footprint
+            # gate (every corner inside the lane) still covers them.
+            boxes = [(j["entry_s_m"] - 2.0, j["exit_s_m"] + 10.0) for j in (self.site.get("junctions") or [])]
+            in_box = [r for r in settled if any(a <= r["truth"]["s_m"] <= b for a, b in boxes)]
+            if boxes:
+                settled = [r for r in settled if not any(a <= r["truth"]["s_m"] <= b for a, b in boxes)]
+                if in_box:
+                    box_off = np.abs([r["truth"]["lane_offset_m"] for r in in_box])
+                    checks.append(check("junction_lane_keeping", REPORT, p95_m=float(np.percentile(box_off, 95)), max_m=float(box_off.max()), ticks=len(in_box), note="dead-reckoned through the box; the footprint gate binds"))
             if len(settled) < 100:
                 note = {}
                 if args.scenario == "stop" and args.obstacle_m < stop_obstacle_m(args.speed):
