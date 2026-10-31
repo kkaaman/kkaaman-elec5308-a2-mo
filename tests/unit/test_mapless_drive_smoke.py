@@ -630,11 +630,28 @@ def test_t10_the_sight_bound_report_counts_ticks_over_the_observability_bound():
     clear? Over by more than the speed loop's lag (0.3 m/s) is counted, with the excess."""
     log = [dict(truth=dict(speed_mps=v), driver=dict(sight_speed_mps=b)) for v, b in ((3.0, 4.0), (3.0, 4.0), (3.0, 4.0), (3.0, 4.0), (3.0, 4.0), (3.2, 3.0), (3.6, 3.0), (2.0, None), (3.5, 2.8), (3.3, 2.8), (3.1, 2.8), (2.9, 2.8), (2.7, 2.8), (2.5, 2.8))]
     out = drive.sight_bound_report(log)
-    assert out["ticks"] == 13 and out["over_ticks"] == 0 and out["over_brief_ticks"] == 3 and out["max_excess_mps"] == pytest.approx(0.7) and out["min_bound_mps"] == 2.8
-    assert out["over_while_slowing_ticks"] == 1  # over, but already slowing (the speed a quarter second before was higher): not driving blind (519b8fe, F-04)
+    assert out["ticks"] == 13 and out["over_ticks"] == 0 and out["over_brief_ticks"] == 4 and out["max_excess_mps"] == pytest.approx(0.7) and out["min_bound_mps"] == 2.8
+    assert out["longest_over_s"] == 0.2 and out["over_distance_m"] == pytest.approx(0.7, abs=0.06)
     blind = [dict(truth=dict(speed_mps=4.0), driver=dict(sight_speed_mps=3.0)) for _ in range(30)]
-    assert drive.sight_bound_report(blind)["over_ticks"] == 21  # over for 1.5 s and never slowing: from the 10th tick on
+    assert drive.sight_bound_report(blind)["over_ticks"] == 20  # over for 1.5 s and never slowing: from the 11th tick on
     assert drive.sight_bound_report([dict(truth=dict(speed_mps=1.0), driver={})]) is None
+
+
+def test_t12_slowing_excuses_a_tick_over_the_bound_only_when_the_bound_is_in_reach():
+    """Twelfth review, 3 (reproduced there): a car at 5 m/s shedding 0.02 m/s a tick against
+    a 1 m/s bound was "slowing" for 75 ticks and nothing counted. Now a slowing tick is
+    excused only when the present deceleration brings the car under the bound within a
+    second; a real brake (1 m/s² against a 0.7 m/s excess) still is."""
+    crawl = [dict(truth=dict(speed_mps=5.0 - 0.02 * k), driver=dict(sight_speed_mps=1.0)) for k in range(80)]
+    out = drive.sight_bound_report(crawl)
+    assert out["over_ticks"] == 70 and out["over_brief_ticks"] == 10 and out["over_while_slowing_ticks"] == 0
+    assert out["longest_over_s"] == 4.0 and out["over_distance_m"] == pytest.approx(16.8, abs=0.2) and out["max_excess_mps"] == 4.0
+    # The bound steps from 4 to 1.3 m/s under a car at 2.5 m/s braking at 1 m/s²: 0.5 s of
+    # response, then the excess (0.35-0.7 m/s) is within a second's braking: nothing counts.
+    brake = [dict(truth=dict(speed_mps=2.5), driver=dict(sight_speed_mps=4.0)) for _ in range(6)]
+    brake += [dict(truth=dict(speed_mps=max(0.0, 2.5 - 0.05 * k)), driver=dict(sight_speed_mps=1.3)) for k in range(40)]
+    out = drive.sight_bound_report(brake)
+    assert out["over_ticks"] == 0 and out["over_brief_ticks"] == 10 and out["over_while_slowing_ticks"] == 9  # 1.6 - 1.3 is a hair over 0.3 in floating point
 
 
 def test_t10_the_load_generator_spins_and_stops_and_says_what_ran():
@@ -648,3 +665,18 @@ def test_t10_the_load_generator_spins_and_stops_and_says_what_ran():
     assert not procs[0].is_alive()
     with drive.LoadGenerator() as idle:
         assert idle.note == dict(cpu_processes=0, gpu="off")
+
+
+def test_t12_route_noise_leaves_the_start_and_the_destination_exact():
+    """Twelfth review, P2: the goal gate's reach had grown with --route-noise because the
+    goal point itself was moved. The destination is what a sat-nav has exactly: it stays,
+    as the first point (the plane's origin) does, and the waypoints between move."""
+    from mapless.satnav import Command, LocalTangentPlane, RoutePoint, SatNavRoute
+
+    plane = LocalTangentPlane(-33.9, 151.2)
+    points = tuple(RoutePoint(*plane.to_geodetic(x, 0.0), Command.LANEFOLLOW) for x in (0.0, 25.0, 50.0, 75.0))
+    noisy = drive.perturb_route(SatNavRoute("r", points), 2.0, seed=5308)
+    assert noisy.points[0] == points[0] and noisy.points[-1] == points[-1] and noisy.provenance["noise_sigma_m"] == 2.0
+    moved = [math.dist(plane.to_local(p.latitude_deg, p.longitude_deg), (x, 0.0)) for p, x in zip(noisy.points[1:-1], (25.0, 50.0))]
+    assert all(0.05 < m < 10.0 for m in moved)
+    assert drive.perturb_route(SatNavRoute("r", points), 0.0, seed=1).points == points

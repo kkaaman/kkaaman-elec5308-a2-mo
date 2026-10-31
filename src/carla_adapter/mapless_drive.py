@@ -304,23 +304,27 @@ def _file_sha256(path):
 
 
 def perturb_route(route, sigma_m, seed):
-    """``route`` with every point but the first moved by Gaussian noise of ``sigma_m`` per
-    axis (metres, in the route's own tangent plane), the way a sat-nav's points sit beside
-    the lane rather than on it (review of 519b8fe, F-07: the routes were exact lane-centre
-    waypoints with the junction entry on the lane's last waypoint). The first point stays:
-    it is the plane's origin, and the car's start-up fix. Recorded in the provenance."""
-    if sigma_m <= 0.0:
+    """``route`` with every point but the first and the last moved by Gaussian noise of
+    ``sigma_m`` per axis (metres, in the route's own tangent plane), the way a sat-nav's
+    waypoints sit beside the lane rather than on it (review of 519b8fe, F-07: the routes
+    were exact lane-centre waypoints with the junction entry on the lane's last waypoint).
+    The first point stays: it is the plane's origin, and the car's start-up fix. The last
+    stays too: it is the destination, which a sat-nav has exactly, and the ``goal`` gate's
+    3 m is measured to it (twelfth review, P2: widening the reach by the noise instead
+    changed the success criterion with the noise). Recorded in the provenance."""
+    if sigma_m <= 0.0 or len(route.points) < 3:
         return route
     from mapless.satnav import LocalTangentPlane  # noqa: PLC0415
 
     rng = np.random.default_rng(seed)
     plane = LocalTangentPlane(route.points[0].latitude_deg, route.points[0].longitude_deg)
     points = [route.points[0]]
-    for p in route.points[1:]:
+    for p in route.points[1:-1]:
         x, y = plane.to_local(p.latitude_deg, p.longitude_deg)
         dx, dy = rng.normal(0.0, sigma_m, 2)
         lat, lon = plane.to_geodetic(x + dx, y + dy)
         points.append(RoutePoint(lat, lon, p.command))
+    points.append(route.points[-1])
     return SatNavRoute(route.name, tuple(points), provenance=dict(route.provenance or {}, noise_sigma_m=sigma_m, noise_seed=seed))
 
 
@@ -788,47 +792,52 @@ class LoadGenerator:
         return False
 
 
-def sight_bound_report(log, tolerance_mps=0.3, response_ticks=10):
+def sight_bound_report(log, tolerance_mps=0.3, response_ticks=10, recover_s=1.0, dt_s=DT_S):
     """Whether the car kept to the observability bound (``sight_speed_mps``, the speed it can
-    stop from within the path seen clear; eighth review, P1) on every tick it applied:
-    the ticks it was over by more than ``tolerance_mps`` (the speed loop's lag) while not
-    slowing and for longer than ``response_ticks`` (0.5 s), the ticks over briefly or while
-    slowing (the bound falls in steps as an obstacle stop closes in, faster than the
-    planner's 1 m/s² follows: r10 and r11 crossings, 5–14 ticks each), the largest excess,
-    and the lowest bound met (tenth review, 5). A gate on ``over_ticks`` (review of
-    519b8fe, F-04). None when the log has no bound."""
+    stop from within the path seen clear; eighth review, P1) on every tick it applied.
+
+    A tick over the bound by more than ``tolerance_mps`` (the speed loop's lag) is excused
+    on two grounds only: it is within the first ``response_ticks`` (0.5 s) of a run over
+    the bound (the bound steps down as an obstacle stop closes in, faster than the
+    planner's 1 m/s² follows: r10–r12 crossings, 5–14 ticks each), or the car is slowing
+    hard enough to be under the bound within ``recover_s`` at its present deceleration
+    (measured over the last quarter second). Every other tick over counts (``over_ticks``,
+    the gate: review of 519b8fe, F-04). A car over by 4 m/s shedding 0.02 m/s a tick is
+    slowing and is counted all the same (twelfth review, 3: the earlier rule excused any
+    negative slope for any length of time). Beside the counts: the longest run over the
+    bound in seconds, the distance driven over it, the largest excess and the lowest bound
+    met (tenth review, 5). None when the log has no bound."""
     speeds = [r["truth"]["speed_mps"] for r in log]
     rows = []
     for k, r in enumerate(log):
         bound = (r.get("driver") or {}).get("sight_speed_mps")
         if bound is None:
             continue
-        # Slowing: the speed a quarter second earlier was higher (the speed loop eases the
-        # throttle before it brakes; r12 Town05 crossings: over by 0.3-0.5 m/s for a few
-        # ticks with the brake off while the car was already slowing).
-        slowing = k >= 5 and speeds[k] < speeds[k - 5] - 0.05
-        rows.append((speeds[k], bound, slowing))
+        decel = (speeds[k - 5] - speeds[k]) / (5 * dt_s) if k >= 5 else 0.0
+        rows.append((speeds[k], bound, decel))
     if not rows:
         return None
-    # The bound steps down (an obstacle stop closing in); the car has response_ticks to
-    # start slowing before being over it counts as driving blind.
-    over, brief, slowing_over, run = [], [], [], 0
-    for v, b, slowing in rows:
+    over, brief, slowing_over, run, longest, distance = [], [], [], 0, 0, 0.0
+    for v, b, decel in rows:
         excess = v - b
-        run = run + 1 if excess > tolerance_mps else 0
         if excess <= tolerance_mps:
+            run = 0
             continue
-        if slowing:
-            slowing_over.append(excess)
-        elif run < response_ticks:
+        run += 1
+        longest = max(longest, run)
+        distance += v * dt_s
+        if run <= response_ticks:
             brief.append(excess)
+        elif decel > 0.1 and excess <= decel * recover_s:
+            slowing_over.append(excess)
         else:
             over.append(excess)
     worst = over + brief + slowing_over
     return dict(
         ticks=len(rows), over_ticks=len(over), over_brief_ticks=len(brief), over_while_slowing_ticks=len(slowing_over),
+        longest_over_s=round(longest * dt_s, 2), over_distance_m=round(distance, 1),
         max_excess_mps=round(max(worst), 2) if worst else 0.0,
-        min_bound_mps=round(min(b for _, b, _ in rows), 2), tolerance_mps=tolerance_mps, response_ticks=response_ticks,
+        min_bound_mps=round(min(b for _, b, _ in rows), 2), tolerance_mps=tolerance_mps, response_ticks=response_ticks, recover_s=recover_s,
     )
 
 
@@ -1615,7 +1624,7 @@ class MaplessDrive:
             checks.append(check("completion", INCOMPLETE if passed is None else (PASS if passed else FAIL), **completion))
         elif args.scenario == MISSION_SCENARIO:
             # The baseline scenario's own gates on the mapless run (G2's gate; mapless_mission.py).
-            for name, passed, values in score_mission(self.scenario, log, self.report["end"], hold_ticks, getattr(self, "removed_at_s", None), DT_S, goal_reach_m=3.0 + 2.0 * float(args.route_noise or 0.0)):
+            for name, passed, values in score_mission(self.scenario, log, self.report["end"], hold_ticks, getattr(self, "removed_at_s", None), DT_S):
                 checks.append(check(name, INCOMPLETE if passed is None else (PASS if passed else FAIL), **values))
             crossings = [r["driver"].get("crossing") for r in log if r["driver"].get("crossing")]
             handed = sum(1 for note in crossings if note == "handed back to the kerb corridor")
@@ -1623,11 +1632,9 @@ class MaplessDrive:
         elif args.scenario != "stop":
             done = self.report["end"] == "finished"
             goal = last["truth"]["goal_distance_m"]
-            # The car stops at the sat-nav's goal point; with --route-noise that point is
-            # moved from the lane's end by the noise (r12: 2 m noise failed two turns that
-            # had stopped on their point). Two sigma of it is allowed on top.
-            reach = 3.0 + 2.0 * float(getattr(args, "route_noise", 0.0) or 0.0)
-            checks.append(check("goal", PASS if done and goal <= reach else FAIL, end=self.report["end"], goal_distance_m=goal, reach_m=reach))
+            # The car stops at the sat-nav's destination, which --route-noise leaves exact
+            # (r12: 2 m noise on the goal point failed two turns that had stopped on it).
+            checks.append(check("goal", PASS if done and goal <= 3.0 else FAIL, end=self.report["end"], goal_distance_m=goal, reach_m=3.0))
         else:
             gap = last["truth"]["gap_m"]
             ok = self.report["end"] == "held at the obstacle" and gap is not None and 1.5 <= gap <= 5.0

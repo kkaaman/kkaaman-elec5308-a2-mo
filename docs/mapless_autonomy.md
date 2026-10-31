@@ -3431,6 +3431,40 @@ Phase 1 work. Taken now: `aggregate_mapless_acceptance.py` counts and lists NOT_
 runs apart from INCOMPLETE and FAIL. A source ZIP of `0041ea8` goes to the reviewer with
 the r12 reports for the commit-specific audit they ask for.
 
+### Twelfth review (31 Oct, external, on the `0041ea8` source archive): both reproduced findings taken
+
+The reviewer audited the archive, ran 88 selected tests (radar, regression, worker,
+mission, firewall: all pass) and reproduced two evaluator defects. Both are taken; the
+other findings are the known open items (junction 468 not yet re-run live, no traffic at
+the straight crossing (G4), the worker-on budget, ML contribution) and one design point.
+
+- **P1, `sight_bound` excused any slowing** (`mapless_drive.py::sight_bound_report`).
+  Reproduced: a car at 5 m/s shedding 0.02 m/s a tick against a 1 m/s bound was "slowing"
+  for 75 ticks and nothing counted. Now a tick over the bound is excused on two grounds
+  only: the first 10 ticks of a run over it (the bound steps down faster than the planner
+  follows), or a present deceleration (over the last 0.25 s) that brings the car under the
+  bound within 1 s. The report adds the longest run over the bound and the distance driven
+  over it. The reviewer's case counts 70 ticks; the r12 Town05 crossings still re-score to
+  0 (their 0.65–0.75 m/s excesses under a 1.1 m/s² brake); a test holds both
+  (`test_t12_slowing_excuses_a_tick_over_the_bound_only_when_the_bound_is_in_reach`).
+- **P1, the G2 aggregate's provenance** (`aggregate_mapless_acceptance.py`). Reproduced: a
+  run without a commit was "the same commit" (`{r["code"] for r in valid if r.get("code")}`),
+  mixed route noise passed, an unreadable report did not block the verdict. Now every run
+  must carry its experiment identity in full — commit, mission, route noise, sensor-suite
+  hash, stack-config hash, segmenter hash, admission — and all must carry the same one
+  (`NO PROVENANCE` and identity-count lines in the table); the frozen seed set is required
+  exactly (`--seeds`, default 5308–5312; missing and unexpected seeds listed; `--seeds any`
+  for the loose form); an unreadable report under the root makes the verdict INCOMPLETE.
+  The test covers each of the reviewer's cases.
+- **P2, the goal reach grew with route noise.** Agreed that this changed the success
+  criterion with the noise. The cause was upstream: `perturb_route` moved the destination
+  too. A sat-nav has the destination exactly; it now stays (as the first point does) and
+  the `goal` gate is 3 m again, everywhere. The two r12 Town03 goal FAILs stopped on the
+  moved point; re-run, they stop on the real one.
+- Not changed, and said plainly: the junction-468 correction is synthetic-tested only
+  until r13's S0; `real_time` is a soft gate (5 % of steps may miss 50 ms) and says so in
+  its name; the worker-on configurations miss it.
+
 ## Running Phase 0 live
 
 Run with CARLA 0.9.16 and no other clients:

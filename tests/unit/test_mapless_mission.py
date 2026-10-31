@@ -162,10 +162,13 @@ def test_the_scenario_gates_are_scored_as_the_plan_says():
     assert rows["no_stop_for_roadside_car"][0] is False and rows["goal"][0] is False
 
 
-def _report(folder, scenario, seed, status, failed=(), commit="abc", mission="a1_test01"):
-    folder.mkdir(parents=True)
+def _report(folder, scenario, seed, status, failed=(), commit="abc", mission="a1_test01", route_noise_m=2.0, suite="suite0", stack=True):
+    folder.mkdir(parents=True, exist_ok=True)
     checks = [dict(check="no_collision", status="PASS")] + [dict(check=c, status="FAIL") for c in failed]
-    (folder / "drive_report.json").write_text(json.dumps(dict(acceptance=dict(scenario=scenario, seed=seed, mission=mission, route_noise_m=0.0), status=status, end="finished", source_commit=commit, checks=checks, collisions=[])), encoding="utf-8")
+    report = dict(acceptance=dict(scenario=scenario, seed=seed, mission=mission, route_noise_m=route_noise_m), status=status, end="finished", source_commit=commit, suite_sha256=suite, checks=checks, collisions=[])
+    if stack:
+        report["stack"] = dict(admission="B", segmenter="constant", segmenter_sha256=None, stack_config_sha256="stack0")
+    (folder / "drive_report.json").write_text(json.dumps(report), encoding="utf-8")
 
 
 def test_the_aggregator_passes_only_a_complete_homogeneous_set(tmp_path):
@@ -194,12 +197,33 @@ def test_the_aggregator_passes_only_a_complete_homogeneous_set(tmp_path):
     (tmp_path / "extra").rmdir()
     _report(tmp_path / "other_commit", "S0", 5399, "MEASURED_PASS", commit="def")
     mixed = agg.aggregate(agg.collect(tmp_path))
-    assert mixed["verdict"] == "INCOMPLETE" and not mixed["homogeneous"]
-    # A report that is not a mission run is ignored; an unreadable one is listed.
+    assert mixed["verdict"] == "INCOMPLETE" and not mixed["homogeneous"] and mixed["scenarios"]["S0"]["unexpected_seeds"] == [5399]
+    assert "SEEDS S0: missing [], unexpected [5399]" in agg.table(mixed)
+    (tmp_path / "other_commit" / "drive_report.json").unlink()
+    (tmp_path / "other_commit").rmdir()
+    # Twelfth review, 4 (reproduced there): a run without a commit was "the same commit", and
+    # mixed route noise passed. A missing identity field, or two identities, is INCOMPLETE.
+    _report(tmp_path / "S0_5308", "S0", 5308, "MEASURED_PASS", commit=None)
+    blank = agg.aggregate(agg.collect(tmp_path))
+    assert blank["verdict"] == "INCOMPLETE" and blank["unprovenanced"][0]["missing"] == ["code"] and "NO PROVENANCE" in agg.table(blank)
+    _report(tmp_path / "S0_5308", "S0", 5308, "MEASURED_PASS", route_noise_m=0.0)
+    noise = agg.aggregate(agg.collect(tmp_path))
+    assert noise["verdict"] == "INCOMPLETE" and not noise["homogeneous"] and noise["identities"] == 2 and noise["identity"] is None
+    _report(tmp_path / "S0_5308", "S0", 5308, "MEASURED_PASS", stack=False)
+    assert agg.aggregate(agg.collect(tmp_path))["unprovenanced"][0]["missing"] == ["stack_config_sha256", "admission"]
+    _report(tmp_path / "S0_5308", "S0", 5308, "MEASURED_PASS")
+    whole = agg.aggregate(agg.collect(tmp_path))
+    assert whole["verdict"] == "MEASURED_PASS" and whole["identity"]["route_noise_m"] == 2.0 and whole["seeds_required"] == [5308, 5309, 5310, 5311, 5312]
+    # The frozen seed set is required exactly; "any" five distinct seeds is the loose form.
+    assert agg.aggregate(agg.collect(tmp_path), seeds=(1, 2, 3, 4, 5))["verdict"] == "INCOMPLETE"
+    assert agg.aggregate(agg.collect(tmp_path), seeds=None)["verdict"] == "MEASURED_PASS"
+    # A report that is not a mission run is ignored; an unreadable one is listed and blocks the verdict.
     (tmp_path / "lane").mkdir()
     (tmp_path / "lane" / "drive_report.json").write_text(json.dumps(dict(status="MEASURED_PASS", checks=[])), encoding="utf-8")
     (tmp_path / "broken").mkdir()
     (tmp_path / "broken" / "drive_report.json").write_text("{", encoding="utf-8")
     runs = agg.collect(tmp_path)
-    assert sum("error" in r for r in runs) == 1 and sum("error" not in r for r in runs) == 31
+    assert sum("error" in r for r in runs) == 1 and sum("error" not in r for r in runs) == 30
+    torn = agg.aggregate(runs)
+    assert torn["verdict"] == "INCOMPLETE" and len(torn["unreadable"]) == 1 and "UNREADABLE" in agg.table(torn)
     assert agg.main([str(tmp_path), "--output", str(tmp_path / "out.json")]) == 1 and (tmp_path / "out.json").exists()
