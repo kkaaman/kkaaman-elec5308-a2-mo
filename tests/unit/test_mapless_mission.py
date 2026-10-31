@@ -18,6 +18,9 @@ ROOT = Path(__file__).resolve().parents[2]
 spec = importlib.util.spec_from_file_location("aggregate_mapless_acceptance", ROOT / "scripts/aggregate_mapless_acceptance.py")
 agg = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(agg)
+spec_rescore = importlib.util.spec_from_file_location("rescore_mission", ROOT / "scripts/rescore_mission.py")
+rescore = importlib.util.module_from_spec(spec_rescore)
+spec_rescore.loader.exec_module(rescore)
 
 
 def bent_site(obstacle_s_m=None, junctions=((90.0, 110.0, 468),)):
@@ -150,6 +153,16 @@ def test_the_scenario_gates_are_scored_as_the_plan_says():
     log, _ = _rows(stops=34.0, n=600)
     rows = {name: (ok, v) for name, ok, v in mm.score_mission(s4, log, "held at the obstacle", 60, None, 0.05)}
     assert rows["obstacle_stop"][0] is False
+    # Thirteenth review, 2 (reproduced there): a stop that began inside the band at 1.55 m
+    # and crept to 1.35 m at a standstill passed on its first gap. The whole hold is judged.
+    log, _ = _rows(stops=31.5, n=600)
+    held = [r for r in log if r["mode"] == "stopping"]
+    for k, r in enumerate(held):
+        r["truth"]["gap_m"] = max(1.35, 1.55 - 0.002 * k)
+        r["truth"]["speed_mps"] = 0.04
+    rows = {name: (ok, v) for name, ok, v in mm.score_mission(s4, log, "held at the obstacle", 60, None, 0.05)}
+    values = rows["obstacle_stop"][1]
+    assert rows["obstacle_stop"][0] is False and values["gap_m"] == 1.55 and values["gap_min_m"] == 1.35 and values["gap_creep_m"] == 0.2 and 0.05 < values["inside_band_share"] < 0.15  # 25 of the ~270 held ticks were still inside the band
     # S0: the goal. S3: the goal and no stop for the roadside car.
     log, _ = _rows(stops=None, obstacle_s=None, n=1000)
     log[-1]["truth"]["goal_distance_m"] = 0.3
@@ -227,3 +240,33 @@ def test_the_aggregator_passes_only_a_complete_homogeneous_set(tmp_path):
     torn = agg.aggregate(runs)
     assert torn["verdict"] == "INCOMPLETE" and len(torn["unreadable"]) == 1 and "UNREADABLE" in agg.table(torn)
     assert agg.main([str(tmp_path), "--output", str(tmp_path / "out.json")]) == 1 and (tmp_path / "out.json").exists()
+
+
+def test_rescoring_a_recorded_run_rejudges_the_hold_and_keeps_the_original(tmp_path):
+    """Thirteenth review, 2: a batch scored before the whole-hold rule can be re-scored from
+    its logs; the driving code stays ``source_commit``, the scoring code ``rescored.commit``,
+    and the report as the run wrote it is kept beside the new one."""
+    s4 = mm.load_scenario("S4", ROOT / "configs/scenarios")
+    log, _ = _rows(stops=31.5, n=600)
+    held = [r for r in log if r["mode"] == "stopping"]
+    for k, r in enumerate(held):
+        r["truth"]["gap_m"] = max(1.35, 1.55 - 0.002 * k)
+        r["truth"]["speed_mps"] = 0.04
+    folder = tmp_path / "S4_5308"
+    folder.mkdir()
+    (folder / "drive_log.jsonl").write_text("\n".join(json.dumps(r) for r in log), encoding="utf-8")
+    # The run's own report, scored on the first gap: a pass.
+    first = {name: (ok, v) for name, ok, v in mm.score_mission(s4, log, "held at the obstacle", len(held), None, 0.05)}
+    checks = [dict(check="no_collision", status="PASS"), dict(check="obstacle_stop", status="PASS", gap_m=1.55, held_s=first["obstacle_stop"][1]["held_s"]), dict(check="held", status="PASS", end="held at the obstacle", held_s=first["held"][1]["held_s"])]
+    (folder / "drive_report.json").write_text(json.dumps(dict(acceptance=dict(scenario="S4", seed=5308, mission="a1_test01", route_noise_m=2.0), status="MEASURED_PASS", end="held at the obstacle", source_commit="abc", checks=checks)), encoding="utf-8")
+    assert rescore.rescore(folder, commit="def") == ("MEASURED_PASS", "MEASURED_FAIL")
+    report = json.loads((folder / "drive_report.json").read_text(encoding="utf-8"))
+    by_name = {c["check"]: c for c in report["checks"]}
+    assert report["status"] == "MEASURED_FAIL" and report["source_commit"] == "abc" and report["rescored"]["commit"] == "def" and report["rescored"]["previous_status"] == "MEASURED_PASS"
+    assert by_name["obstacle_stop"]["status"] == "FAIL" and by_name["obstacle_stop"]["gap_min_m"] == 1.35 and by_name["held"]["status"] == "PASS" and by_name["no_collision"]["status"] == "PASS"
+    original = json.loads((folder / "drive_report.original.json").read_text(encoding="utf-8"))
+    assert original["status"] == "MEASURED_PASS" and "rescored" not in original
+    # Re-scoring again changes nothing and keeps the first original.
+    assert rescore.rescore(folder, commit="ghi") == ("MEASURED_FAIL", "MEASURED_FAIL")
+    assert json.loads((folder / "drive_report.original.json").read_text(encoding="utf-8"))["status"] == "MEASURED_PASS"
+    assert rescore.main([str(tmp_path)]) == 0

@@ -211,9 +211,22 @@ def score_mission(scenario, log, end, hold_ticks, removed_at_s, dt_s, goal_reach
     if not gaps:
         rows.append(("obstacle_stop", False, dict(end=end, note="never held behind the obstacle", held_s=hold_ticks * dt_s)))
     else:
-        gap = gaps[0]
+        # The whole hold is judged, not its first tick (thirteenth review, 2: a stop that
+        # began at 1.55 m and crept to 1.35 m passed on its first gap): every held tick's
+        # gap within the band, and the car at a standstill throughout.
+        gap, low, high = gaps[0], min(gaps), max(gaps)
+        inside = sum(hold_band_m[0] <= g <= hold_band_m[1] for g in gaps)
         speeds = max(r["truth"]["speed_mps"] for r in held_rows)
-        rows.append(("obstacle_stop", hold_band_m[0] <= gap <= hold_band_m[1] and speeds <= hold_speed_max_mps, dict(gap_m=round(gap, 2), band_m=list(hold_band_m), within_plan_band=plan_band_m[0] <= gap <= plan_band_m[1], plan_band_m=list(plan_band_m), hold_speed_max_mps=round(speeds, 3), held_s=round(len(held_rows) * dt_s, 2))))
+        rows.append(
+            (
+                "obstacle_stop",
+                hold_band_m[0] <= low and high <= hold_band_m[1] and speeds <= hold_speed_max_mps,
+                dict(
+                    gap_m=round(gap, 2), gap_min_m=round(low, 2), gap_max_m=round(high, 2), gap_creep_m=round(gap - low, 2), inside_band_share=round(inside / len(gaps), 3),
+                    band_m=list(hold_band_m), within_plan_band=plan_band_m[0] <= low and high <= plan_band_m[1], plan_band_m=list(plan_band_m), hold_speed_max_mps=round(speeds, 3), held_s=round(len(held_rows) * dt_s, 2),
+                ),
+            )
+        )
     if removed:
         if removed_at_s is None:
             rows.append(("resume", None if not gaps else False, dict(note="the obstacle was never removed (no hold long enough)", end=end)))

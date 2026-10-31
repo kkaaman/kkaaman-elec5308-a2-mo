@@ -32,15 +32,17 @@ SCENARIOS = tuple(f"S{i}" for i in range(6))
 PASSING = ("MEASURED_PASS", "MEASURED_PASS_OVER_BUDGET")
 
 
-IDENTITY = ("code", "mission", "route_noise_m", "suite_sha256", "stack_config_sha256", "segmenter_sha256", "admission")
+IDENTITY = ("code", "mission", "route_noise_m", "suite_sha256", "stack_config_sha256", "segmenter_sha256", "admission", "rescored_commit")
+OPTIONAL = ("segmenter_sha256", "rescored_commit")  # None is an identity of its own (the constant segmenter; a run scored as it ran)
 FROZEN_SEEDS = (5308, 5309, 5310, 5311, 5312)
 
 
 def collect(root):
     """Every mission run under ``root``: its scenario, seed, status, gate results and its
     experiment identity (commit, mission, route noise, sensor-suite hash, stack-config
-    hash, segmenter hash, admission). A report that cannot be read is listed with its
-    error; a report that is not a mission run is ignored."""
+    hash, segmenter hash, admission, and the commit it was re-scored with, if any:
+    ``scripts/rescore_mission.py``). A report that cannot be read is listed with its error;
+    a report that is not a mission run is ignored."""
     runs = []
     for path in sorted(Path(root).rglob("drive_report.json")):
         try:
@@ -68,6 +70,7 @@ def collect(root):
                 stack_config_sha256=stack.get("stack_config_sha256"),
                 segmenter_sha256=stack.get("segmenter_sha256"),
                 admission=stack.get("admission"),
+                rescored_commit=(report.get("rescored") or {}).get("commit"),
                 failed=failed,
                 incomplete=incomplete,
                 collisions=len(report.get("collisions") or []),
@@ -107,7 +110,7 @@ def aggregate(runs, repeats=5, seeds=FROZEN_SEEDS):
         )
     # Experiment identity: every run names it in full, and all name the same one. The
     # segmenter hash may be None for the constant segmenter only when every run says so.
-    unprovenanced = [dict(folder=r["folder"], missing=[k for k in IDENTITY if r.get(k) is None and k != "segmenter_sha256"]) for r in valid]
+    unprovenanced = [dict(folder=r["folder"], missing=[k for k in IDENTITY if r.get(k) is None and k not in OPTIONAL]) for r in valid]
     unprovenanced = [u for u in unprovenanced if u["missing"]]
     identities = {tuple(r.get(k) for k in IDENTITY) for r in valid}
     homogeneous = len(identities) <= 1
