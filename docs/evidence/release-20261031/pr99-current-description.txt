@@ -1,0 +1,65 @@
+## Current status — 31 October 2026
+
+**Draft / OPEN. Release-runtime implementation and offline validation are available; issue #41 is NOT PASS and is not complete.** The blocking criterion is a demonstrated normal, sensor-driven, target-induced stationary-car stop under the admitted configuration. The known YOLO trash-can `car` false positive remains unresolved. Human review below does not approve completion/merge.
+
+Runtime source: `a1ae152ab0ac39e4216092f097dc436ceb0b6a48`; disclosure-only refresh: `dc10656`. Combined release candidate with PR101 diagnostics: `d8425ad905eb5808fa24473378c8045173fc2219`, branch `codex/release-candidate-20261031`. No final release tag.
+
+## Implemented release-runtime scope
+
+- Shared sensor-to-stack-to-actuator boundary, route controller, current tracked-depth surface provider, exact-frame RGB-D capture, acknowledged dispatch and independent thread watchdog.
+- Required-source LiDAR fusion input, bounded optional diagnostic observers, persistent run/fault logs and per-episode guidance reset.
+- One documented release workflow/configuration. Default offline demonstration composes tracking, LiDAR, route/governor/control, kinematic actuation, wayfinder and logging.
+- Parked full-stack entry point defaults to offline preflight; explicit later execution forces full brake before dispatch and grants no motion admission. Optional lane/semantic diagnostics are supplied by PR101 in the combined candidate.
+- Unsupported RESUME stays disabled. Empty/expired evidence cannot clear HOLD. No false-positive suppression or LiDAR semantic correction is claimed.
+
+## Current acceptance checklist (#41)
+
+- [x] Shared core decision/dispatch composition and offline integration/fault tests.
+- [x] Core remains free of simulator imports; boundary/blocked-import checks pass.
+- [x] Bounded capture, watchdog, expiry and invalid-observation full-brake paths implemented/tested offline.
+- [x] Persistent run/fault logging and reproducible commands implemented/documented.
+- [x] Current release-runtime proposal/offline evidence manually reviewed, with the limits below.
+- [ ] Complete normal sensor-driven stationary-car stop with target-induced stopping, configuration and raw logs under the admitted configuration.
+- [ ] Final-source live integration/acceptance evidence sufficient to complete #41.
+
+Older partial live/fault attempts and failed evidence remain retained; they are not a normal-stop PASS. CARLA was not started or connected to during the offline release pass. A thread watchdog cannot establish whole-process/transport fault immunity or a physical stopping-time guarantee.
+
+## G1 / admission state
+
+G1 is already complete for its recorded bounded stationary-vehicle profile; “obtain G1 admission” is not a current generic todo. Frozen mission bytes, model/sensor values and historical live-runner identity are preserved. Legitimate source changes were inventoried and the exact **loader-only** variant rebound with all 19 negative probes passing. This does not rebind or authorize a new positive-motion first-stop runner. Live acceptance and any required exact live-source admission remain separate; checks must not be bypassed.
+
+## Current offline validation
+
+- Fresh #99 runtime regression: **1,581 passed, one CARLA skip, three subtests**; one dependency deprecation warning.
+- Combined release candidate: **1,626 passed, one CARLA skip, three subtests**.
+- Production admission and **19 negative probes** pass; Ruff, strict Sphinx, generated notes, AST boundary and blocked-import checks pass for the selected candidate (122 imported core modules).
+- Three model hashes, 26 evidence archive CRCs and compact artifact hashes verified. Composed synthetic run: 80 cycles, 19 positive commands followed by 60 full-brake cycles; one route installation. These are synthetic inputs/illustrative dynamics.
+- Pinned real-model Docker/network-none protocol smoke passes; it establishes neither live CARLA acceptance, live end-to-end timing nor physical #41 stopping. Current verification host has no available CUDA device, so no live 100 ms claim follows.
+- Previously inspected PR99/101 CI failures had no runner, zero steps and explicit payment/spending-limit annotations. Local equivalents are retained; no executed failure is waived as billing.
+
+## Current evidence and commands
+
+- [Runtime workflow](https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/blob/dc10656/docs/release_workflow.md)
+- [Fresh #99 regression log](https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/blob/dc10656/docs/evidence/release-20261031/release-refresh-pr99-tests.log)
+- [Human review / AI disclosure](https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/blob/dc10656/docs/evidence/release-20261031/ai-journal.md)
+- [Complete release evidence map, remaining criteria, presentation and minimal live queue — PR117](https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/pull/117)
+- [Retained detector/normal-stop blocker evidence](https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/blob/dc10656/docs/evidence/issue41-recovery-20261026/README.md)
+
+```bash
+PYTHONPATH=src python scripts/run_release.py --output runs/release/demo-01
+PYTHONPATH=src python scripts/run_release.py observe --output runs/release/preflight-01
+```
+
+## AI assistance and human review — 31 October 2026
+
+AI/ChatGPT/Codex assisted with implementation, testing and documentation. The current release-runtime proposal and supporting offline validation evidence were manually reviewed after the AI-assisted implementation pass.
+
+Human review confirmed that the release proposal preserves fail-safe behaviour, does not claim unsupported autonomous RESUME, does not claim the unresolved #41 detector false positive has been corrected, and retains fail-closed admission behaviour. The reported offline regression, negative admission probes, documentation checks and isolated Docker protocol smoke are consistent with the scope of the release-runtime changes.
+
+PR #99 is not approved for completion/merge of issue #41 on this review alone. The required normal sensor-driven stationary-car acceptance remains outstanding, including a demonstrated target-induced stop under the admitted configuration. Live acceptance therefore remains pending.
+
+AI-assisted outputs were treated as proposals and were not accepted solely on the basis of automated test results. Implementation, safety behaviour, admission and evidence decisions remained human-reviewed within that offline scope; no completion/merge approval, named reviewer, exact inspected SHA or review of later disclosure edits is invented. PR101/117 retain their own applicable review requirements.
+
+## Historical context
+
+Earlier descriptions and evidence referred to 133 Windows tests, older integration heads, pending G1 work and a local video-memory startup failure. Those are historical conditions, not the current acceptance checklist. Original commits, evidence and contributor authorship are preserved; the prior description is archived in the PR117 release audit.

@@ -121,3 +121,4 @@ demonstration for the autonomous perception and navigation library.
    release_presentation
    evidence/release-20261031/ai-journal
    evidence/release-20261031/human-review-20261031
+   release_commit_audit

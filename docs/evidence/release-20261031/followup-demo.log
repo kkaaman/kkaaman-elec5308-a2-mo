@@ -1,0 +1,24 @@
+{
+  "passed": true,
+  "origin": "synthetic sensor and detector fixture",
+  "steps": 80,
+  "route_install_count": 1,
+  "positive_commands": 19,
+  "stop_and_hold_frames": 60,
+  "autonomous_resume": false,
+  "host_latency": "NOT_MEASURED: controlled synthetic clock",
+  "live_acceptance": "NOT_RUN",
+  "model_accuracy": "NOT_MEASURED",
+  "components": [
+    "RGB-D",
+    "FrameDetector",
+    "TrackDepthFilter",
+    "LiDAR",
+    "required-source fusion",
+    "route controller",
+    "governor",
+    "kinematic actuator",
+    "wayfinder",
+    "JSONL"
+  ]
+}

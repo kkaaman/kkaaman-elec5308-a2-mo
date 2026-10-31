@@ -33,7 +33,7 @@ Snapshot: 31 October 2026. Acceptance criteria and literal Task-ID dependencies 
 | [#70](https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/70) | CARLA BLOCKED | Selected final sensors/held-green mission/HUD smoke not run on final candidate. Blocks: live demonstration reliability. |
 | [#71](https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/71) | EXTERNAL BLOCKED | Limitations documented; second physical laptop and full mission reproduction not available in this session. Blocks: backup-machine claim. |
 | [#72](https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/72) | HUMAN ACTION | Claim/cut/evidence map provided; final report numeric/figure audit and parking claim review await actual human review. Blocks: report acceptance. |
-| [#73](https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/73) | HUMAN ACTION | Eight-minute script and recovery checklist supplied in this proposal; actual human review plus declared G4 prerequisite remain pending. Blocks: script acceptance/closure. |
+| [#73](https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/73) | HUMAN ACTION | Eight-minute script/recovery checklist supplied, now with six proposed named owner roles and a 120-second Q&A reserve; live S1/S2 proof, role confirmation, actual human review and G4 remain pending. Blocks: script acceptance/closure. |
 | [#74](https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/74) | CARLA BLOCKED | Architecture/core documentation exists; final cold start, physical keyboard stop and backup/display readability need live/human evidence. Blocks: live readiness. |
 | [#75](https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/75) | HUMAN ACTION | Rehearsal one, random cross-module Q&A and actual participants missing. Blocks: presentation readiness. |
 | [#76](https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/76) | HUMAN ACTION | Rehearsal two/final cross-module Q&A and actual participants missing. Blocks: presentation readiness. |
@@ -50,7 +50,7 @@ Snapshot: 31 October 2026. Acceptance criteria and literal Task-ID dependencies 
 
 | PR | Classification | Missing criterion |
 |---|---|---|
-| #99 | TECHNICALLY INCOMPLETE | Complete normal sensor-driven stationary-car stop absent; detector limitation retained. New runtime proposal needs actual human review. |
+| #99 | TECHNICALLY INCOMPLETE | Complete normal sensor-driven stationary-car stop absent; detector limitation retained. Runtime proposal/offline evidence human-reviewed; this does not approve completion/merge, and later edits are not implicitly reviewed. |
 | #101 | CARLA BLOCKED | Curve lane agreement, S3/S4/S5 and final full workload gate incomplete; new shared-HUD proposal needs human review. |
 | #116 | TECHNICALLY INCOMPLETE | Full-cell CLEAR prefix remains 0 m and physical restart acceleration unestablished; no speculative retry queued. |
 | #117 | HUMAN ACTION | Timed script/evidence package prepared and strict docs pass; actual human review and declared G4 prerequisite remain pending. |

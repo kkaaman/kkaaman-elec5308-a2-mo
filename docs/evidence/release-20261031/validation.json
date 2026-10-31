@@ -29,5 +29,12 @@
     "diagnostic_pngs": 115,
     "valid_nonjunction": 262,
     "agreement": "unchanged known partial result; NOT PASS"
+  },
+  "follow_up_regression": {
+    "pr99_passed": 1581,
+    "candidate_passed": 1626,
+    "carla_skipped_each": 1,
+    "negative_probes_each": 19,
+    "source_unchanged": true
   }
 }

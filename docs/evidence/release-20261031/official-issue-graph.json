@@ -327,7 +327,7 @@
       "unresolved_dependency_tasks": [],
       "acceptance_verbatim": "- **DEMO-01:** Timed run-of-show fits 8 min; commands and recovery-to-video steps copied into demo checklist.",
       "classification": "HUMAN ACTION",
-      "missing_criterion": "Eight-minute script and recovery checklist supplied in this proposal; actual human review plus declared G4 prerequisite remain pending.",
+      "missing_criterion": "Six proposed named owners and 120-second Q&A reserve supplied within eight minutes. Live S1/S2 proof, actual owner confirmation/rehearsal, applicable human review and declared G4 prerequisite remain pending.",
       "blocks": "script acceptance/closure"
     },
     {

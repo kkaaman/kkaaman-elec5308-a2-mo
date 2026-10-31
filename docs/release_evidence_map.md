@@ -77,3 +77,25 @@ Final-source recorded replay completed: **573/573 indexed display frames**, 115 
 The proposed script/report package is [PR117](https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/pull/117). PR99/101/116/117 all remain open; #117 awaits human action and the declared G4 prerequisite.
 
 Manual review update: [verbatim user-supplied review, 31 October](evidence/release-20261031/human-review-20261031.md). Live target-induced stationary-car stopping remains required before #99/#41 completion. No admission identity or production source was changed by recording this review.
+
+## Follow-up release pass: description, human review and commit policy
+
+PR99's visible description now starts with its actual 31 October Draft/open
+status, current acceptance checklist, fresh **1,581-test** result, combined
+**1,626-test** result, evidence links and exact live normal-stop blocker. G1 is
+already complete for its recorded scope; the legitimate loader-only rebind does
+not authorize changed positive-motion source. The obsolete generic G1 todo was
+removed from current work and the prior description archived as historical.
+The PR99 branch disclosure now records the actual supplied human review and
+explicitly withholds #41 completion/merge approval. Later documentation edits
+are not falsely described as human-reviewed.
+
+Fresh full regressions reproduce 1,581/#99 and 1,626/candidate passes with one
+CARLA skip each. Candidate source remains `d8425ad`; documentation-only updates
+require no admission identity change. The source-matched recorded replay and
+network-none Docker evidence remain valid and were hash-verified rather than
+redundantly regenerated. See [commit history audit](release_commit_audit.md) for
+all new controlled commits, inherited exceptions and preserved historical main.
+The script now allocates six proposed named owners and **360 seconds demo plus
+120 seconds Q&A**. Live S1/S2 proof, G4, actual rehearsal and applicable review
+remain incomplete; no issue is closed by preparing those offline components.
