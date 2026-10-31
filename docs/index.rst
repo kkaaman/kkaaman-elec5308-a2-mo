@@ -122,3 +122,9 @@ demonstration for the autonomous perception and navigation library.
    evidence/release-20261031/ai-journal
    evidence/release-20261031/human-review-20261031
    release_commit_audit
+
+.. toctree::
+   :hidden:
+
+   evidence/release-20261031/live-final-20261031/README
+   evidence/release-20261031/deadline-freeze/README

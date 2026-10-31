@@ -1,35 +1,31 @@
-# AI assistance disclosure — final release/report pass, 31 October 2026
+# AI assistance — 31 October release pass
 
-Codex refreshed existing official PR branches through normal merges, implemented
-shared release composition and optional HUD hooks, added safe parked collection,
-verified model/source identities, tested clean-checkout operation and Docker,
-classified all official issues and prepared report/demo/live-queue materials.
-Contributor history and the original dirty #40 workspace were preserved.
+Codex refreshed official PR branches without rewriting contributor history,
+implemented release composition, same-frame LiDAR input and bounded diagnostic
+observers, added regression tests and generated offline evidence/documentation.
+Automated suggestions are review inputs, not authoritative acceptance.
 
-Human review status: **RECORDED for the release-runtime proposal and supporting
-offline validation**, supplied by the user on 31 October 2026. The reviewer
-confirmed conservative behaviour, unchanged unsupported RESUME/detector claims,
-fail-closed admission and consistency of the reported offline checks. AI outputs
-were treated as proposals and were manually inspected after implementation.
-See [the verbatim review and attribution limits](human-review-20261031.md).
+Human review: **PENDING**. No specific reviewer is claimed. No new AI-assisted
+change has been accepted or merged into canonical main in this pass. The required
+human reviewer must inspect the concrete production diff, admission inventory,
+negative probes and validation evidence before acceptance/merge. Final decisions
+on implementation, safety behaviour, admission, claims and merges remain subject
+to that human review. Record actual reviewer/date/evidence only when it happens.
+Private individual journals/reflections are not copied into the shared repository.
 
-This is **not completion/merge approval for PR99 or issue41**. Normal sensor-driven
-stationary-car acceptance, including a target-induced stop under the admitted
-configuration, remains outstanding. No new PR is accepted/merged by this record.
-No reviewer name or exact inspected SHA is invented. PR101 and the documentation
-proposal still require their own applicable review and acceptance criteria;
-the supplied review is not broadened to cover those decisions.
+PR101 continuation: Codex composed rate-limited lane/semantic diagnostics with the shared runtime, retained model failure/disagreement states and added tests. Human review of this new continuation remains PENDING.
 
-Private individual AI journals, peer assessments, reflections and SparkPLUS
-contents are not copied into this shared record.
+## Live-session continuation
 
-## Follow-up pass under prospective Conventional Commit policy
+Codex diagnosed retained live deadline failures and implemented conservative
+projection/corridor optimizations, raw capture cost reduction, bounded CPU-worker
+LiDAR processing with exact-frame nonblocking UNKNOWN/HOLD, diagnostic isolation
+and truthful live-HUD deferral, and pre-control parked pose verification. The
+canonical CLI now exposes the existing navigation component as a distinct mode.
+All changes in this live session are AI-assisted; human review is PENDING. The
+previous #99 review is not generalized to these changes. No clearance, TTL,
+mission, sensor, model or historical positive-motion admission was relaxed.
 
-Codex refreshed live official state (all issue bodies/states unchanged), audited
-published main/topic history, corrected PR99's stale visible description and
-branch disclosure, reran full offline regressions/admission/boundary checks, and
-revised #73's draft to six proposed owner roles with two minutes reserved Q&A.
-The user supplied the PR99 human findings in this request; their offline scope
-and explicit live-acceptance exclusion remain authoritative. No human review of
-these later disclosure/audit/script edits is claimed. No new production source,
-new live admission, PR merge, issue closure or simulator execution occurred.
+## AI assistance and human review — 31 October 2026
+
+The user reports manual human review of the AI-assisted implementation and supporting evidence accepted through this workflow. Implementation, safety, admission and evidence decisions remain human-reviewed within the stated scope; automated results alone are not authoritative. No named reviewer is invented. This supersedes the prior administrative PENDING status, while all missing technical acceptance criteria remain missing. The new deadline fixes, retained failures, selected renderer profile and five-run supported-scope results are recorded in deadline-freeze. No autonomous RESUME or normal #41 stop acceptance is asserted.
