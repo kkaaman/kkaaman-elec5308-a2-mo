@@ -9,8 +9,9 @@ Finds every ``drive_report.json`` under the root whose run was ``--scenario miss
   MEASURED_PASS (or MEASURED_PASS_OVER_BUDGET, which is noted: the behaviour passed, the
   20 Hz deadline did not);
 - MEASURED_FAIL: any run failed a gate;
-- INCOMPLETE: a scenario short of its repeats, a run INCOMPLETE, or runs on more than one
-  commit or mission.
+- INCOMPLETE: a scenario short of its repeats, a run INCOMPLETE or NOT_EXERCISED (counted
+  and listed apart: it passed its gates without reaching what its scenario is for), or runs
+  on more than one commit or mission.
 
 Writes the JSON summary and prints a table. The plan's static gates (zero collisions, the
 stop margin, HOLD speed ≤ 0.1 m/s, completion) are the runs' own checks; this only counts.
@@ -72,14 +73,18 @@ def aggregate(runs, repeats=5):
             passed=sum(r["status"] in PASSING for r in rows),
             over_budget=sum(r["status"] == "MEASURED_PASS_OVER_BUDGET" for r in rows),
             failed=[dict(folder=r["folder"], seed=r["seed"], checks=r["failed"], end=r["end"]) for r in rows if r["status"] == "MEASURED_FAIL"],
-            incomplete=[dict(folder=r["folder"], seed=r["seed"], checks=r["incomplete"], end=r["end"]) for r in rows if r["status"] not in PASSING and r["status"] != "MEASURED_FAIL"],
+            # Reported apart (external review, 31 Oct, section 6): a run that passed its gates
+            # without reaching the transition its scenario is for is not a pass and not a
+            # broken run.
+            not_exercised=[dict(folder=r["folder"], seed=r["seed"], end=r["end"]) for r in rows if r["status"] == "NOT_EXERCISED"],
+            incomplete=[dict(folder=r["folder"], seed=r["seed"], checks=r["incomplete"], end=r["end"]) for r in rows if r["status"] not in PASSING and r["status"] not in ("MEASURED_FAIL", "NOT_EXERCISED")],
         )
     codes = {r["code"] for r in valid if r.get("code")}
     missions = {r["mission"] for r in valid}
     homogeneous = len(codes) <= 1 and len(missions) <= 1
     complete = all(len(per_scenario[sid]["seeds"]) >= repeats and per_scenario[sid]["runs"] >= repeats for sid in SCENARIOS)
     any_fail = any(per_scenario[sid]["failed"] for sid in SCENARIOS)
-    any_incomplete = any(per_scenario[sid]["incomplete"] for sid in SCENARIOS)
+    any_incomplete = any(per_scenario[sid]["incomplete"] or per_scenario[sid]["not_exercised"] for sid in SCENARIOS)
     if any_fail:
         verdict = "MEASURED_FAIL"
     elif not complete or any_incomplete or not homogeneous or not valid:
@@ -101,15 +106,17 @@ def aggregate(runs, repeats=5):
 
 
 def table(summary):
-    lines = [f"{'scenario':9} {'runs':>4} {'passed':>6} {'over budget':>11} {'failed':>6}  seeds", "-" * 60]
+    lines = [f"{'scenario':9} {'runs':>4} {'passed':>6} {'over budget':>11} {'failed':>6} {'not exercised':>13} {'incomplete':>10}  seeds", "-" * 84]
     for sid in SCENARIOS:
         s = summary["scenarios"][sid]
-        lines.append(f"{sid:9} {s['runs']:>4} {s['passed']:>6} {s['over_budget']:>11} {len(s['failed']):>6}  {', '.join(str(x) for x in s['seeds'])}")
-    lines.append("-" * 60)
+        lines.append(f"{sid:9} {s['runs']:>4} {s['passed']:>6} {s['over_budget']:>11} {len(s['failed']):>6} {len(s['not_exercised']):>13} {len(s['incomplete']):>10}  {', '.join(str(x) for x in s['seeds'])}")
+    lines.append("-" * 84)
     lines.append(f"verdict: {summary['verdict']}" + (f" ({summary['note']})" if summary.get("note") else ""))
     for sid in SCENARIOS:
         for f in summary["scenarios"][sid]["failed"]:
             lines.append(f"  FAIL {sid} seed {f['seed']}: {', '.join(f['checks']) or f['end']}  {f['folder']}")
+        for f in summary["scenarios"][sid]["not_exercised"]:
+            lines.append(f"  NOT_EXERCISED {sid} seed {f['seed']}: {f['end']}  {f['folder']}")
         for f in summary["scenarios"][sid]["incomplete"]:
             lines.append(f"  INCOMPLETE {sid} seed {f['seed']}: {', '.join(f['checks']) or f['end']}  {f['folder']}")
     if not summary["homogeneous"]:

@@ -3414,6 +3414,23 @@ them the evaluator's:
 once seen, and only on the exit side: on the latched line through a kerbless box nothing
 can); and traffic at the crossing (G4).
 
+### External review of 31 Oct (source not obtained): a verification checklist, answered
+
+The external reviewer could not reach the private branch and wrote a checklist of what the
+latest fixes must satisfy — four safety findings (radar freshness, cap continuity across
+transitions, stale clearance, motion vs artefacts), the observability inequality, end-to-end
+timing, the ML contribution ladder, evaluation hygiene and a regression matrix R1–R11. The
+answer, finding by finding with file, test and live-run references, is
+`claude/reviews/review12_external_31oct.md` in the project. In short: A–D and R1–R8 are in
+place and tested (most by the tenth review's 2A–2C and 3, and the eleventh's F-01), with
+r12's live runs as evidence; the timing is measured end to end but the 50 ms budget with
+the semantic worker on is **not met** on any PC (the standing open item); R9 wants a speed
+sweep per obstacle class (a run plan, not code); R11 — a semantic-*assisted* decision
+against the geometric baseline on a known geometric failure — does not exist and is
+Phase 1 work. Taken now: `aggregate_mapless_acceptance.py` counts and lists NOT_EXERCISED
+runs apart from INCOMPLETE and FAIL. A source ZIP of `0041ea8` goes to the reviewer with
+the r12 reports for the commit-specific audit they ask for.
+
 ## Running Phase 0 live
 
 Run with CARLA 0.9.16 and no other clients:

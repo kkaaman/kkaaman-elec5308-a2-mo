@@ -184,6 +184,13 @@ def test_the_aggregator_passes_only_a_complete_homogeneous_set(tmp_path):
     assert failed["verdict"] == "MEASURED_FAIL" and failed["scenarios"]["S3"]["failed"][0]["checks"] == ["no_stop_for_roadside_car"]
     assert "FAIL S3 seed 5313" in agg.table(failed)
     (tmp_path / "extra" / "drive_report.json").unlink()
+    # A run that passed its gates without reaching what its scenario is for is counted apart.
+    _report(tmp_path / "idle", "S1", 5313, "NOT_EXERCISED")
+    idle = agg.aggregate(agg.collect(tmp_path))
+    assert idle["verdict"] == "INCOMPLETE" and len(idle["scenarios"]["S1"]["not_exercised"]) == 1 and not idle["scenarios"]["S1"]["incomplete"]
+    assert "NOT_EXERCISED S1 seed 5313" in agg.table(idle)
+    (tmp_path / "idle" / "drive_report.json").unlink()
+    (tmp_path / "idle").rmdir()
     (tmp_path / "extra").rmdir()
     _report(tmp_path / "other_commit", "S0", 5399, "MEASURED_PASS", commit="def")
     mixed = agg.aggregate(agg.collect(tmp_path))
