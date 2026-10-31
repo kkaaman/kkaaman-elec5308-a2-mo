@@ -55,6 +55,8 @@ class CrossingConfig:
     seed_offsets_m: tuple = (0.0, -0.75, 0.75, -1.5, 1.5, -2.25, 2.25, -3.0, -3.75)  # the kerb is on the right: to 3.75 m that side (a path 2.5 m left of the lane, r13), 2.25 m the other (a car 3 m right of its lane is at the kerb already)
     seed_every_ticks: int = 4  # the search runs every this many ticks (its cost: one kerb fit per seed)
     reanchor_gain: float = 0.5
+    reanchor_step_m: float = 0.25  # at most this far a time (r14: one 0.88 m step at 2 m/s swung the car 7 degrees, a corner 2.1 m out)
+    reanchor_exit_max_m: float = 1.5  # past the arc's start, a fit further off than this is the exit corner's geometry, not the line's drift (r14: 1.75 m, the car centred)
     # The crossing's exit is a curve on Town10HD 468 (50 degrees over 30 m from the exit
     # point, r13): no exit *line* fits it, the kerb corridor does. Hand back as soon as a
     # kerb fit agrees with the path at the car and runs to within this of the route past
@@ -380,7 +382,7 @@ class StraightCrossing:
         if self.line is None or abs(lateral_m) > c.reanchor_max_m:
             return False
         x0, y0, h = self.line
-        shift = c.reanchor_gain * lateral_m
+        shift = float(np.clip(c.reanchor_gain * lateral_m, -c.reanchor_step_m, c.reanchor_step_m))
         n = np.array([-math.sin(pose.yaw_rad), math.cos(pose.yaw_rad)])  # the car's left, odometry frame
         self.line = (float(x0 + shift * n[0]), float(y0 + shift * n[1]), float(h))
         if self._geometry is not None:

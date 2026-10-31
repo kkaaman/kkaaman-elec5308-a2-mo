@@ -167,9 +167,22 @@ def test_the_scenario_gates_are_scored_as_the_plan_says():
     log, _ = _rows(stops=None, obstacle_s=None, n=1000)
     log[-1]["truth"]["goal_distance_m"] = 0.3
     rows = {name: (ok, v) for name, ok, v in mm.score_mission(s0, log, "finished", 0, None, 0.05)}
-    assert rows == {"goal": (True, dict(end="finished", goal_distance_m=0.3))}
-    rows = {name: (ok, v) for name, ok, v in mm.score_mission(s3, log, "finished", 0, None, 0.05)}
-    assert rows["goal"][0] and rows["no_stop_for_roadside_car"][0]
+    assert rows["goal"] == (True, dict(end="finished", goal_distance_m=0.3)) and rows["brake_taps"] == (None, dict(count=0, standstills=0, taps=[]))
+    rows = {name: (ok, v) for name, ok, v in mm.score_mission(s3, log, "finished", 0, None, 0.05, obstacle_s_m=40.0)}
+    assert rows["goal"][0] and rows["no_stop_for_roadside_car"][0] and rows["no_stop_for_roadside_car"][1]["window_s_m"] == [10.0, 60.0]
+    # r14: the start-up brake tick and the stop at the goal are not stops for the roadside
+    # car; a brake tap elsewhere is reported, a stop beside the car fails the gate.
+    log[0]["mode"], log[-1]["mode"], log[-1]["reason"] = "stopping", "stopping", "goal"
+    for r in log[600:606]:
+        r["mode"], r["driver"] = "stopping", dict(speed_cap_reason="predicted conflict on the path")
+    rows = {name: (ok, v) for name, ok, v in mm.score_mission(s3, log, "finished", 0, None, 0.05, obstacle_s_m=40.0)}
+    assert rows["no_stop_for_roadside_car"][0] and rows["brake_taps"][1]["count"] == 1 and rows["brake_taps"][1]["taps"][0]["reason"] == "predicted conflict on the path" and rows["brake_taps"][1]["taps"][0]["seconds"] == 0.3
+    for r in log[400:410]:
+        r["mode"] = "stopping"
+    rows = {name: (ok, v) for name, ok, v in mm.score_mission(s3, log, "finished", 0, None, 0.05, obstacle_s_m=40.0)}
+    assert rows["no_stop_for_roadside_car"][0] is False and rows["no_stop_for_roadside_car"][1]["stopping_ticks"] == 10
+    without = {name: (ok, v) for name, ok, v in mm.score_mission(s3, log, "finished", 0, None, 0.05)}
+    assert without["no_stop_for_roadside_car"][1]["obstacle_s_m"] == 40.0  # without the run's placement, the scenario's own s
     log, _ = _rows(stops=31.5, n=600)
     rows = {name: (ok, v) for name, ok, v in mm.score_mission(s3, log, "held at the obstacle", 60, None, 0.05)}
     assert rows["no_stop_for_roadside_car"][0] is False and rows["goal"][0] is False

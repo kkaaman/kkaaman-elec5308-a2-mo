@@ -1636,8 +1636,8 @@ class MaplessDrive:
             checks.append(check("completion", INCOMPLETE if passed is None else (PASS if passed else FAIL), **completion))
         elif args.scenario == MISSION_SCENARIO:
             # The baseline scenario's own gates on the mapless run (G2's gate; mapless_mission.py).
-            for name, passed, values in score_mission(self.scenario, log, self.report["end"], hold_ticks, getattr(self, "removed_at_s", None), DT_S):
-                checks.append(check(name, INCOMPLETE if passed is None else (PASS if passed else FAIL), **values))
+            for name, passed, values in score_mission(self.scenario, log, self.report["end"], hold_ticks, getattr(self, "removed_at_s", None), DT_S, obstacle_s_m=(self.report.get("obstacle") or {}).get("s_m")):
+                checks.append(check(name, REPORT if name == "brake_taps" else (INCOMPLETE if passed is None else (PASS if passed else FAIL)), **values))
             crossings = [r["driver"].get("crossing") for r in log if r["driver"].get("crossing")]
             handed = sum(1 for note in crossings if note == "handed back to the kerb corridor")
             checks.append(check("junction_crossing", REPORT, crossing_ticks=len(crossings), handed_back=handed, junctions=self.site.get("junctions")))
