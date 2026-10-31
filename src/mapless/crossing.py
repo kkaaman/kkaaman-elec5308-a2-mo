@@ -52,7 +52,7 @@ class CrossingConfig:
     # odometry's heading with nothing to correct it). Into the junction the kerb corridor is
     # seeded from the path at these lateral offsets (m, left positive) and the first fit
     # with kerb evidence re-anchors the line to it, by this share of the difference a tick.
-    seed_offsets_m: tuple = (0.0, -0.75, 0.75, -1.5, 1.5, -2.25, 2.25, -3.0, 3.0, -3.75, 3.75)  # the exit line fitted 2.5 m left (route noise), the kerb 4.3 m right of the path: the near seeds missed it
+    seed_offsets_m: tuple = (0.0, -0.75, 0.75, -1.5, 1.5, -2.25, 2.25, -3.0, -3.75)  # the kerb is on the right: to 3.75 m that side (a path 2.5 m left of the lane, r13), 2.25 m the other (a car 3 m right of its lane is at the kerb already)
     seed_every_ticks: int = 4  # the search runs every this many ticks (its cost: one kerb fit per seed)
     reanchor_gain: float = 0.5
     # The crossing's exit is a curve on Town10HD 468 (50 degrees over 30 m from the exit
