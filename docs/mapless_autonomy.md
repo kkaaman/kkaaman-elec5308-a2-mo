@@ -4,11 +4,11 @@ Branch `feature/mapless-autonomy`, built from `feature/shadow-localisation`. Thi
 extension: the frozen baseline is unchanged. The sections below the status table are
 the working record, oldest first; the table is the current state.
 
-## Current status (31 Oct)
+## Current status (1 Nov)
 
 "Implemented" means the code exists; "offline" that it passes the harness and replay
 tests; "live" that it has passed on CARLA at least once; "repeated" that it has passed on
-more than one site or run without retuning. The live batches are r6–r11 (29–30 Oct); their
+more than one site or run without retuning. The live batches are r6–r13 (29 Oct–1 Nov); their
 reports and `route.json` files are the evidence that travels with each batch.
 
 | Gate | Scope | Implemented | Offline | Live | Repeated | Open |
@@ -17,9 +17,9 @@ reports and `route.json` files are the evidence that travels with each batch.
 | G1a | Local trajectory controller | yes | yes | yes (inside G1b) | yes | — |
 | G1b | Straight, curve, obstacle stop, sensor-only | yes | yes | MEASURED_PASS (Town10HD, Town05) | straight at 4 m/s, stops with a car and a cone, the curve once | the curve again; sensor outages are injected, not met |
 | G1c | Commanded 90° turn | yes | yes | right (Town10HD) and left (Town03) MEASURED_PASS; r8–r11 left turns with oncoming and parked cars | the Town03 left turn, five batches | one right-turn site; skewed junctions unsupported (sites within 10° of a right angle); the exit-kerb far bias |
-| G2 | Segmenter, painting, road model, stack; S0–S5 × 5 on the baseline route | yes; the mission scenario and its aggregator (31 Oct) | yes (fake world) | the stack's straight, stop, leads, crossings, turns; **the gate not run** | no | r12 runs the gate; the segmenter is shadow only (v2 right edge 0.76 m inside the kerb) and part of no decision |
+| G2 | Segmenter, painting, road model, stack; S0–S5 × 5 on the baseline route | yes; the mission scenario and its aggregator (31 Oct) | yes (fake world; synthetic 468) | the stack's straight, stop, leads, crossings, turns; **the gate run twice (r12 S0, r13 all) and failed at junction 468 both times** — S4 passed ×5 | no | r14 runs the gate on the curve-exit crossing (`0b9a7cc`); the segmenter is shadow only (v2 right edge 0.76 m inside the kerb) and part of no decision |
 | G3 | Tracker, radar, prediction, following, M04–M06 | yes | yes | braking lead, cut-in, crossing walker and car, radar-first: MEASURED_PASS, r8–r11 | the leads and crossings, four batches | the A/B/C ablation with a lead still moving beyond the LiDAR's reach; rear radars admitted, no behaviour reads them |
-| G4 | Lights, junction yielding, lane changes, faults, mixed route | the left turn's oncoming gate; the junction crossed straight (31 Oct); injected sensor outages | yes | the oncoming turns (r8–r11); the outages (r11) | the oncoming turn | lights (M07), lane changes (M09–M11), the mixed route (M13), a two-lane opposing carriageway at the gate |
+| G4 | Lights, junction yielding, lane changes, faults, mixed route | the left turn's oncoming gate; the junction crossed straight (31 Oct, curving exit 1 Nov); injected sensor outages | yes | the oncoming turns (r8–r12); the outages (r11); the crossing not yet | the oncoming turn | lights (M07), lane changes (M09–M11), the mixed route (M13), a two-lane opposing carriageway at the gate |
 | G5 | Learning | the segmenter trained (mIoU 0.879, Town02 held out) | — | shadow only | — | no learned component affects a command; no configuration C |
 | G6 | Held-out Town07, weather | no | — | — | — | the domain (kerb on the right, right-angle junctions) is narrower than Town07's roads: a kerbless corridor first |
 
