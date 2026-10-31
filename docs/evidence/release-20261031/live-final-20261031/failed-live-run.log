@@ -1,0 +1,24 @@
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/home/alan/release-candidate-20261031/src/carla_adapter/release_runner.py", line 328, in <module>
+    raise SystemExit(main())
+                     ^^^^^^
+  File "/home/alan/release-candidate-20261031/src/carla_adapter/release_runner.py", line 316, in main
+    execute(root, baseline, config, args, report)
+  File "/home/alan/release-candidate-20261031/src/carla_adapter/release_runner.py", line 264, in execute
+    result = loop.step()
+             ^^^^^^^^^^^
+  File "/home/alan/release-candidate-20261031/src/carla_adapter/rgbd_control_loop.py", line 189, in step
+    result = self.cycle.capture_and_step(self._capture)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/alan/release-candidate-20261031/src/autonomy/control_cycle.py", line 96, in capture_and_step
+    return self.step(frame)
+           ^^^^^^^^^^^^^^^^
+  File "/home/alan/release-candidate-20261031/src/autonomy/control_cycle.py", line 142, in step
+    self.actuator.apply_packet(
+  File "/home/alan/release-candidate-20261031/src/autonomy/watchdog.py", line 126, in apply_packet
+    self._check_locked(self._now())
+  File "/home/alan/release-candidate-20261031/src/autonomy/watchdog.py", line 58, in _check_locked
+    raise TimeoutError(f"Watchdog latched: {self._fault}")
+TimeoutError: Watchdog latched: host_deadline_expired

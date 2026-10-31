@@ -1,3 +1,5 @@
+> **31 October live update:** Final source `13ff182` is BLOCKED by a reproduced 100 ms watchdog deadline failure after 72 acknowledged parked cycles. CARLA is available. See [live final evidence](evidence/release-20261031/live-final-20261031/README.md). Earlier offline-only or CARLA-unavailable statements below are historical; no release freeze, full HUD, normal stop, or RESUME acceptance is granted. New AI-assisted fixes await human review.
+
 # Remaining official issues — release pass
 
 Snapshot: 31 October 2026. Acceptance criteria and literal Task-ID dependencies are retained in `evidence/release-20261031/official-issue-graph.json`. A dependency is not waived merely because its implementation is already present. No issue is closed by this snapshot.

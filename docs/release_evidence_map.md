@@ -1,3 +1,5 @@
+> **31 October live update:** Final source `13ff182` is BLOCKED by a reproduced 100 ms watchdog deadline failure after 72 acknowledged parked cycles. CARLA is available. See [live final evidence](evidence/release-20261031/live-final-20261031/README.md). Earlier offline-only or CARLA-unavailable statements below are historical; no release freeze, full HUD, normal stop, or RESUME acceptance is granted. New AI-assisted fixes await human review.
+
 # Release evidence map and report handoff
 
 Candidate source **d8425ad905eb5808fa24473378c8045173fc2219**, branch `codex/release-candidate-20261031` (assembled by normal dependency merges of existing PR99/101). Canonical main remains `cf970f9e3192c5f77c17db8c4e66b5f1d562bc5a`. No tag, new PR merge, issue closure, live execution or completion/merge approval is claimed.
