@@ -18,7 +18,7 @@
   "original_dirty_files": "32/32 hashes unchanged",
   "docker": "real pinned YOLO, network none, protocol PASS; NOT accuracy or baseline timing",
   "clean_checkout": "PASS in preinstalled validation environment; verified model files restored",
-  "human_review": "PENDING",
+  "human_review": "User-supplied manual review recorded 2026-10-31 for release-runtime proposal/offline evidence; not PR99/#41 completion or merge approval; exact inspected SHA not specified",
   "merged_prs": [],
   "tag_created": false,
   "carla_started": false,

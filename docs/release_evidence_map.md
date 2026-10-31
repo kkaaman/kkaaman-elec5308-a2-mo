@@ -1,6 +1,6 @@
 # Release evidence map and report handoff
 
-Candidate source **d8425ad905eb5808fa24473378c8045173fc2219**, branch `codex/release-candidate-20261031` (assembled by normal dependency merges of existing PR99/101). Canonical main remains `cf970f9e3192c5f77c17db8c4e66b5f1d562bc5a`. No tag, new PR merge, issue closure, live execution or human approval is claimed.
+Candidate source **d8425ad905eb5808fa24473378c8045173fc2219**, branch `codex/release-candidate-20261031` (assembled by normal dependency merges of existing PR99/101). Canonical main remains `cf970f9e3192c5f77c17db8c4e66b5f1d562bc5a`. No tag, new PR merge, issue closure, live execution or completion/merge approval is claimed.
 
 The selected configuration is `configs/release_demo.json` on that candidate. Default run:
 
@@ -47,7 +47,7 @@ Use at most the compact architecture plus one measured figure/table within the e
 
 ## Claim audit and honest cuts
 
-Do not equate synthetic P1 resume with roadway RESUME; navigation-only S0 with full perception S0; decision latency with capture-to-apply; sensor gap accuracy with driving admission; Docker protocol success with cloud speedup; or a prepared weather matrix with measurements. Reverse remains disabled/future work. All positive-clearance loss, source loss and expiry remain conservative. New AI-assisted changes are pending actual human review before acceptance/merge.
+Do not equate synthetic P1 resume with roadway RESUME; navigation-only S0 with full perception S0; decision latency with capture-to-apply; sensor gap accuracy with driving admission; Docker protocol success with cloud speedup; or a prepared weather matrix with measurements. Reverse remains disabled/future work. All positive-clearance loss, source loss and expiry remain conservative. The user-supplied manual review of the runtime proposal/offline evidence is recorded; it does not approve #99/#41 completion or merge. Other applicable reviews remain pending.
 
 See [all remaining issues](release_remaining.md), [minimal live queue](release_live_queue.md), [eight-minute script](release_presentation.md), machine evidence map and exact official issue bodies/dependencies.
 
@@ -65,11 +65,15 @@ this does not claim a fresh offline OS/base-image/wheel acquisition.
 See `evidence/release-20261031/validation.json` and individual retained logs.
 
 No new PR was merged. Existing #99/#101/#116 remain open for substantive criteria
-and actual human review. The report/presentation proposal is also pending human
-review; no person is falsely recorded as having accepted it.
+and applicable review requirements. The user has now supplied manual review of
+the runtime proposal/offline evidence, explicitly withholding #99/#41 completion
+or merge approval. The report/presentation proposal remains pending its own
+review; no specific person or exact inspected SHA is invented.
 
 The current verification host reports no available CUDA device. Offline model processing is not evidence that the live 100 ms deadline can be met here. Tier 1 must retain deadline failures on the actual deployment hardware; optional HUD stays off unless its selected workload is demonstrated within budget.
 
 Final-source recorded replay completed: **573/573 indexed display frames**, 115 diagnostic PNGs, 262 valid nonjunction samples. Sign results exactly reproduce the retained historical limitation (29/57 left, 69/152 right, 40/53 straight). The summary and compressed per-frame rows are retained under `evidence/release-20261031/recorded-lane-*`; no agreement PASS or model correction is asserted.
 
 The proposed script/report package is [PR117](https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/pull/117). PR99/101/116/117 all remain open; #117 awaits human action and the declared G4 prerequisite.
+
+Manual review update: [verbatim user-supplied review, 31 October](evidence/release-20261031/human-review-20261031.md). Live target-induced stationary-car stopping remains required before #99/#41 completion. No admission identity or production source was changed by recording this review.
