@@ -60,7 +60,9 @@ declared and tested operating domain. No SAE level is claimed. The working plan 
 | Speedometer | 1 |
 
 The speedometer stands for a wheel encoder: true speed with a seeded scale error and
-noise added.
+noise added. That is the whole model: wheel slip, scale drift and irregular updates are
+not simulated, so the localisation results validate the fusion against this error model
+and not against those (thirteenth review, 4).
 
 **Refused:**
 - the depth camera and segmentation cameras;
