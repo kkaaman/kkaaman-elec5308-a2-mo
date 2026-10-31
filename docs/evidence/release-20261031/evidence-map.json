@@ -1,0 +1,132 @@
+{
+  "candidate_source_commit": "d8425ad905eb5808fa24473378c8045173fc2219",
+  "canonical_main": "cf970f9e3192c5f77c17db8c4e66b5f1d562bc5a",
+  "capabilities": [
+    {
+      "capability": "Release composition",
+      "owner": "#41/#64; PR99+101",
+      "status": "PASS offline; live pending",
+      "quantitative": "80 synthetic cycles; 19 positive, 60 full-brake; one route installation",
+      "evidence": "docs/evidence/release-20261031/composed-demo.json",
+      "limitation": "Synthetic images/detections/ranges and illustrative bicycle; no physical latency/stop claim",
+      "source_commit": "d8425ad905eb5808fa24473378c8045173fc2219"
+    },
+    {
+      "capability": "RGB-D tracking/governor/navigation",
+      "owner": "#41/#43/#46; PR99",
+      "status": "PARTIAL",
+      "quantitative": "Fresh source/track and command expiry tests pass; normal target-driven stop missing",
+      "evidence": "docs/evidence/issue41-recovery-20261026/README.md",
+      "limitation": "YOLO trash-can car false positive remains; no semantic correction, full-stack empty-road motion or normal-stop PASS",
+      "source_commit": "d8425ad905eb5808fa24473378c8045173fc2219"
+    },
+    {
+      "capability": "STOP/HOLD/RESUME",
+      "owner": "#40; PR116",
+      "status": "BLOCKED RESUME / safe HOLD",
+      "quantitative": "Protected full-cell CLEAR prefix 0 m under the investigated contract",
+      "evidence": "docs/issue40_regional_clearance.md",
+      "limitation": "PR116 evidence on its draft branch; physical restart acceleration bound absent; do not infer CLEAR from rays/expiry",
+      "source_commit": "d8425ad905eb5808fa24473378c8045173fc2219"
+    },
+    {
+      "capability": "LiDAR sensor path",
+      "owner": "#52 closed; PR103 / PR115",
+      "status": "PASS bounded sensor geometry; driving pending",
+      "quantitative": "Final two matrices 90/90 each; max recorded in-corridor gap error 0.063779 m; all 360 attempted sweeps retained",
+      "evidence": "docs/evidence/E2-01-04/live-20261029/README.md",
+      "limitation": "Known-object sensor protocol, not driving stop or positive clearance certification",
+      "source_commit": "d8425ad905eb5808fa24473378c8045173fc2219"
+    },
+    {
+      "capability": "LiDAR replay",
+      "owner": "#53; PR103",
+      "status": "PASS synthetic",
+      "quantitative": "10 frames; 8 valid sweeps, 7 valid fused, 3 HOLD; max error 0.0348308563 m; depth-loss clear 0",
+      "evidence": "docs/evidence/release-20261031/lidar-summary.json",
+      "limitation": "Synthetic denominator and geometry distinct from recorded #103 matrix",
+      "source_commit": "d8425ad905eb5808fa24473378c8045173fc2219"
+    },
+    {
+      "capability": "Wayfinder",
+      "owner": "#54/#55; PR102 merge 9cc45d6",
+      "status": "PASS core/recorded; live pending",
+      "quantitative": "Legal A*/Dijkstra fixtures; 24 recorded mini-maps, three paused ETA frames",
+      "evidence": "docs/evidence/E3-wayfinder/recorded-test02/README.md",
+      "limitation": "No lane-changing/dynamic rerouting; five reachable live pairs and regression absent",
+      "source_commit": "d8425ad905eb5808fa24473378c8045173fc2219"
+    },
+    {
+      "capability": "P1 forward parking",
+      "owner": "#60; PR100 merge 7f0a80d",
+      "status": "PASS synthetic; live pending",
+      "quantitative": "8/8 synthetic cases including obstacle, dropout and harness resume",
+      "evidence": "docs/evidence/E5-P1/README.md",
+      "limitation": "Downward synthetic depth and illustrative physics; harness resume not full-road #40 RESUME; no live P1 or reverse claim",
+      "source_commit": "d8425ad905eb5808fa24473378c8045173fc2219"
+    },
+    {
+      "capability": "Lane monitor/HUD",
+      "owner": "#42/#45; PR101",
+      "status": "PARTIAL / disagreement retained",
+      "quantitative": "573 recorded display frames; 262 valid nonjunction samples; signs 29/57 left, 69/152 right, 40/53 straight",
+      "evidence": "docs/evidence/RV-06-08-TEST-22/live-20261029/README.md",
+      "limitation": "Approximate matched poses/display RGB; outer marking selection defect; no pristine-label accuracy PASS",
+      "source_commit": "d8425ad905eb5808fa24473378c8045173fc2219"
+    },
+    {
+      "capability": "Navigation component",
+      "owner": "#46; PR101",
+      "status": "PASS component; full baseline pending",
+      "quantitative": "S0 5/5; worst mean |CTE| 0.020446 m, cruise RMS 0.111257 m/s, capture-to-apply p95 13.648009 ms",
+      "evidence": "docs/evidence/RV-06-08-TEST-22/live-20261029/navigation-summary.json",
+      "limitation": "Historical navigation-only workload, not new candidate full perception S0",
+      "source_commit": "d8425ad905eb5808fa24473378c8045173fc2219"
+    },
+    {
+      "capability": "Timing",
+      "owner": "#45; PR101",
+      "status": "PARTIAL",
+      "quantitative": "234 warm shadow samples; capture-to-decision p95 34.234413 ms",
+      "evidence": "docs/evidence/RV-06-08-TEST-22/live-20261029/warm-shadow-summary.json",
+      "limitation": "Decision ends before actuation; final full-HUD capture-to-apply NOT_RUN; no cross-workload improvement ratio",
+      "source_commit": "d8425ad905eb5808fa24473378c8045173fc2219"
+    },
+    {
+      "capability": "Weather",
+      "owner": "#49-#51; PR111 merge ed07850",
+      "status": "IMPLEMENTED / measurements deferred",
+      "quantitative": "27 planned paired cells; all live cells NOT_RUN",
+      "evidence": "docs/weather_experiment.md",
+      "limitation": "No weather recall/range measurements or admission from a plan",
+      "source_commit": "d8425ad905eb5808fa24473378c8045173fc2219"
+    },
+    {
+      "capability": "Inference/local fallback",
+      "owner": "#57/#58; PR105/106/109",
+      "status": "PASS protocol; hybrid unadmitted",
+      "quantitative": "Real pinned YOLO Docker smoke: isolated sessions, duplicate 409, reset valid",
+      "evidence": "docs/evidence/release-20261031/final-docker-smoke.log",
+      "limitation": "CPU protocol requests are too slow for baseline; cloud/LAN accuracy and final failover NOT_RUN; default local operation",
+      "source_commit": "d8425ad905eb5808fa24473378c8045173fc2219"
+    },
+    {
+      "capability": "All-flags fault suite",
+      "owner": "#63; PR112 merge 9de3755",
+      "status": "PASS available fixtures / scope BLOCKED",
+      "quantitative": "216/216 available synthetic cases; 12 blocked combinations retained",
+      "evidence": "docs/evidence/TEST-18/continuation/fixture-report/report.json",
+      "limitation": "No G3 or live all-flags certification",
+      "source_commit": "d8425ad905eb5808fa24473378c8045173fc2219"
+    },
+    {
+      "capability": "Release provenance/docs",
+      "owner": "#62/#64/#67/#73",
+      "status": "PROPOSED; human review pending",
+      "quantitative": "Frozen mission bytes/semantic identity unchanged; 19 negative probes reject drift",
+      "evidence": "docs/evidence/release-20261031/source-audit.json",
+      "limitation": "Candidate branch, not canonical main acceptance or final release tag",
+      "source_commit": "d8425ad905eb5808fa24473378c8045173fc2219"
+    }
+  ]
+}

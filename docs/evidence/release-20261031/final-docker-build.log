@@ -1,0 +1,11 @@
+DEPRECATED: The legacy builder is deprecated and will be removed in a future release.
+            Install the buildx component to build images with BuildKit:
+            https://docs.docker.com/go/buildx/
+
+Sending build context to Docker daemon  2.702MB
+Step 1/2 : FROM group7-inference:issue56
+ ---> 887e49a12154
+Step 2/2 : COPY src/ /app/src/
+ ---> f7378b3da01a
+Successfully built f7378b3da01a
+Successfully tagged group7-release-candidate:d8425ad

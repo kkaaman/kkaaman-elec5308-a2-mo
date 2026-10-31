@@ -1,0 +1,367 @@
+Running Sphinx v9.1.0
+loading translations [en]... done
+making output directory... done
+myst v5.1.0: MdParserConfig(commonmark_only=False, gfm_only=False, enable_extensions=set(), disable_syntax=[], all_links_external=False, links_external_new_tab=False, url_schemes=('http', 'https', 'mailto', 'ftp'), ref_domains=None, fence_as_directive=set(), number_code_blocks=[], title_to_header=False, heading_anchors=0, heading_slug_func=None, html_meta={}, footnote_sort=True, footnote_transition=True, words_per_minute=200, substitutions={}, linkify_fuzzy_links=True, dmath_allow_labels=True, dmath_allow_space=True, dmath_allow_digits=True, dmath_double_inline=False, update_mathjax=True, mathjax_classes='tex2jax_process|mathjax_process|math|output_area', enable_checkboxes=False, strikethrough_single_tilde=False, colon_fence_exact_match=False, suppress_warnings=[], highlight_code_blocks=True)
+building [mo]: targets for 0 po files that are out of date
+writing output... 
+building [html]: targets for 105 source files that are out of date
+updating environment: [new config] 105 added, 0 changed, 0 removed
+reading sources... [  1%] acceptance
+reading sources... [  2%] acceptance-logging
+reading sources... [  3%] api
+reading sources... [  4%] assets
+reading sources... [  5%] baseline_route
+reading sources... [  6%] baseline_threshold_freeze
+reading sources... [  7%] batch_baseline
+reading sources... [  8%] behaviour
+reading sources... [  9%] carla_demo
+reading sources... [ 10%] carla_rgb_readback_fix
+reading sources... [ 10%] controller_audit
+reading sources... [ 11%] decisions
+reading sources... [ 12%] depth-association
+reading sources... [ 13%] detector_contracts
+reading sources... [ 14%] detector_lifecycle
+reading sources... [ 15%] evidence/BL-B-06-07/README
+reading sources... [ 16%] evidence/BL-B-06-07/accepted-20261025
+reading sources... [ 17%] evidence/BL-B-06-07/ai-journal
+reading sources... [ 18%] evidence/BL-C-05-refresh/README
+reading sources... [ 19%] evidence/BL-C-05-refresh/ai-journal
+reading sources... [ 20%] evidence/BL-D-06/README
+reading sources... [ 21%] evidence/BL-D-06/admission-rejection-investigation
+reading sources... [ 22%] evidence/BL-D-06/ai-journal
+reading sources... [ 23%] evidence/BL-D-06/operational-approach/README
+reading sources... [ 24%] evidence/BL-E-02/README
+reading sources... [ 25%] evidence/BL-E-03/README
+reading sources... [ 26%] evidence/E1-01-02/phase-j-20261028/README
+reading sources... [ 27%] evidence/E2-01-04/live-20261029/README
+reading sources... [ 28%] evidence/E2-01-04/phase-j-20261028/README
+reading sources... [ 29%] evidence/E3-wayfinder/README
+reading sources... [ 30%] evidence/E3-wayfinder/phase-j-20261028/README
+reading sources... [ 30%] evidence/E3-wayfinder/recorded-test02/README
+reading sources... [ 31%] evidence/E4-01-03-06/phase-j-20261028/README
+reading sources... [ 32%] evidence/E4-04-05-07-09/phase-j-20261028/README
+reading sources... [ 33%] evidence/E5-P1/README
+reading sources... [ 34%] evidence/E5-P1/ai-journal
+reading sources... [ 35%] evidence/E5-P1/phase-j-20261028/README
+reading sources... [ 36%] evidence/RV-06-08-TEST-22/live-20261029/README
+reading sources... [ 37%] evidence/TEST-01-baseline
+reading sources... [ 38%] evidence/TEST-02/README
+reading sources... [ 39%] evidence/TEST-02/ai-journal
+reading sources... [ 40%] evidence/TEST-03/README
+reading sources... [ 41%] evidence/TEST-08/README
+reading sources... [ 42%] evidence/TEST-08/current/baseline_table
+reading sources... [ 43%] evidence/TEST-13/README
+reading sources... [ 44%] evidence/TEST-18/README
+reading sources... [ 45%] evidence/TEST-18/continuation/fixture-report/report
+reading sources... [ 46%] evidence/baseline-batch/README
+reading sources... [ 47%] evidence/issue40-geometry-20261029/README
+reading sources... [ 48%] evidence/issue41-20261025/README
+reading sources... [ 49%] evidence/issue41-20261025/ai-journal
+reading sources... [ 50%] evidence/issue41-recovery-20261026/README
+reading sources... [ 50%] evidence/issue41-recovery-20261026/ai-journal
+reading sources... [ 51%] evidence/issue41-recovery-20261026/approach-live-update
+reading sources... [ 52%] evidence/issue41-recovery-20261026/approach-qualification
+reading sources... [ 53%] evidence/issue41-recovery-20261026/detector-deep-20261027/README
+reading sources... [ 54%] evidence/issue41-recovery-20261026/detector-deep-20261027/ai-journal
+reading sources... [ 55%] evidence/issue41-recovery-20261026/detector-deep-20261027/focused-followup
+reading sources... [ 56%] evidence/issue41-recovery-20261026/perception-fp-20261027/README
+reading sources... [ 57%] evidence/phase-j-101/README
+reading sources... [ 58%] evidence/phase-j-88/README
+reading sources... [ 59%] evidence/release-20261031/ai-journal
+reading sources... [ 60%] evidence_index
+reading sources... [ 61%] examples
+reading sources... [ 62%] gates/G0
+reading sources... [ 63%] gates/G1
+reading sources... [ 64%] gates/G1-admission-notes
+reading sources... [ 65%] geometry
+reading sources... [ 66%] getting_started
+reading sources... [ 67%] index
+reading sources... [ 68%] inference_service
+reading sources... [ 69%] interfaces
+reading sources... [ 70%] issue41_control_cycle
+reading sources... [ 70%] issue41_first_stop_runner
+reading sources... [ 71%] kinematic_world
+reading sources... [ 72%] lane-topology
+reading sources... [ 73%] lane_departure_monitor
+reading sources... [ 74%] lane_recovery
+reading sources... [ 75%] lidar_geometry_issue40
+reading sources... [ 76%] lidar_obstacles
+reading sources... [ 77%] live_session_20261029
+reading sources... [ 78%] live_trial_plan
+reading sources... [ 79%] loop_timing
+reading sources... [ 80%] machines
+reading sources... [ 81%] mission_lifecycle
+reading sources... [ 82%] module_notes
+reading sources... [ 83%] parking
+reading sources... [ 84%] phase_j_execution
+reading sources... [ 85%] release_workflow
+reading sources... [ 86%] remote_inference
+reading sources... [ 87%] report_outline
+reading sources... [ 88%] repository_setup
+reading sources... [ 89%] reproduction
+reading sources... [ 90%] s0_navigation_validation
+reading sources... [ 90%] scenarios
+reading sources... [ 91%] sensor_rig
+reading sources... [ 92%] simulator_boundary
+reading sources... [ 93%] stack_skeleton
+reading sources... [ 94%] steering_calibration
+reading sources... [ 95%] test01_a1_baseline
+reading sources... [ 96%] track_stabilisation
+reading sources... [ 97%] vehicle_adapter
+reading sources... [ 98%] wayfinder
+reading sources... [ 99%] weather_experiment
+reading sources... [100%] world_lifecycle
+
+looking for now-outdated files... none found
+pickling environment... done
+checking consistency... done
+preparing documents... done
+copying assets... 
+copying downloadable files... [  1%] gates/G1-admission.json
+copying downloadable files... [  2%] ../../configs/mission_baseline.json
+copying downloadable files... [  3%] evidence/BL-D-06/operational-approach/provenance.json
+copying downloadable files... [  4%] evidence/BL-D-06/history/D007-rejection-decision.txt
+copying downloadable files... [  4%] evidence/BL-D-06/history/D007-rejection-review.json
+copying downloadable files... [  5%] evidence/BL-D-06/history/D005-decision.txt
+copying downloadable files... [  6%] evidence/BL-C-05-refresh/capture-attempt.json
+copying downloadable files... [  7%] evidence/BL-C-05-refresh/provenance.json
+copying downloadable files... [  8%] evidence/BL-C-05-refresh/sequences.json
+copying downloadable files... [  9%] evidence/BL-C-05-refresh/benchmark.json
+copying downloadable files... [ 10%] evidence/BL-C-05-refresh/analysis.json
+copying downloadable files... [ 11%] evidence/BL-C-05-refresh/frame-analysis.csv
+copying downloadable files... [ 12%] evidence/BL-C-05-refresh/capture-summary.json
+copying downloadable files... [ 12%] evidence/BL-C-05-refresh/artifact-manifest.json
+copying downloadable files... [ 13%] evidence/BL-C-05-refresh/regression.xml
+copying downloadable files... [ 14%] evidence/BL-D-06/operational-range-review.json
+copying downloadable files... [ 15%] evidence/BL-D-06/fresh-range-regression.xml
+copying downloadable files... [ 16%] evidence/BL-D-06/rejection-investigation-tests.xml
+copying downloadable files... [ 17%] evidence/BL-D-06/operational-approach/raw-evidence.zip
+copying downloadable files... [ 18%] evidence/BL-D-06/operational-approach/capture-command.json
+copying downloadable files... [ 19%] evidence/BL-D-06/operational-approach/review.json
+copying downloadable files... [ 19%] evidence/BL-D-06/operational-approach/measured-source.zip
+copying downloadable files... [ 20%] evidence/BL-D-06/operational-approach/artifact-manifest.json
+copying downloadable files... [ 21%] evidence/BL-D-06/operational-approach/attempt-index.json
+copying downloadable files... [ 22%] evidence/BL-D-06/operational-approach/preflight-01-report.json
+copying downloadable files... [ 23%] evidence/BL-D-06/operational-approach/background-preflight-01-report.json
+copying downloadable files... [ 24%] evidence/BL-D-06/review.json
+copying downloadable files... [ 25%] evidence/BL-D-06/operational-approach/regression.xml
+copying downloadable files... [ 26%] evidence/BL-D-06/operational-approach/raw-evidence.sha256
+copying downloadable files... [ 27%] evidence/BL-D-06/operational-approach/raw-evidence.manifest.json
+copying downloadable files... [ 27%] evidence/E5-P1/results.json
+copying downloadable files... [ 28%] evidence/E5-P1/provenance.json
+copying downloadable files... [ 29%] evidence/E5-P1/regression.xml
+copying downloadable files... [ 30%] evidence/E5-P1/phase-j-20261028/local-rebind-validation.json
+copying downloadable files... [ 31%] evidence/E5-P1/phase-j-20261028/local-control-pytest.log
+copying downloadable files... [ 32%] evidence/E5-P1/phase-j-20261028/local-candidate-pytest.log
+copying downloadable files... [ 33%] evidence/E5-P1/phase-j-20261028/local-candidate-regression.xml
+copying downloadable files... [ 34%] evidence/TEST-02/rgb-repair-regression.xml
+copying downloadable files... [ 35%] evidence/TEST-02/rgb-repair-results.json
+copying downloadable files... [ 35%] evidence/TEST-02/rgb-repair-evidence.zip
+copying downloadable files... [ 36%] evidence/TEST-02/rgb-repair-evidence.sha256
+copying downloadable files... [ 37%] evidence/TEST-02/environment.json
+copying downloadable files... [ 38%] evidence/TEST-02/results.json
+copying downloadable files... [ 39%] evidence/TEST-02/raw-evidence.zip
+copying downloadable files... [ 40%] evidence/TEST-02/raw-evidence.sha256
+copying downloadable files... [ 41%] evidence/TEST-02/regression.xml
+copying downloadable files... [ 42%] evidence/TEST-02/route.svg
+copying downloadable files... [ 42%] evidence/TEST-18/development-evidence.zip
+copying downloadable files... [ 43%] evidence/issue41-20261025/validation-evidence.zip
+copying downloadable files... [ 44%] evidence/issue41-20261025/validation-evidence.sha256
+copying downloadable files... [ 45%] evidence/issue41-20261025/validation-evidence.manifest.json
+copying downloadable files... [ 46%] evidence/issue41-recovery-20261026/proposal.json
+copying downloadable files... [ 47%] evidence/issue41-recovery-20261026/proposed-admission.json
+copying downloadable files... [ 48%] evidence/issue41-recovery-20261026/proposed-mission-baseline.json
+copying downloadable files... [ 49%] evidence/issue41-recovery-20261026/live-review.json
+copying downloadable files... [ 50%] evidence/issue41-recovery-20261026/guard-stop-frame.png
+copying downloadable files... [ 50%] evidence/issue41-recovery-20261026/raw-manifest.json
+copying downloadable files... [ 51%] evidence/issue41-recovery-20261026/run-metadata.zip
+copying downloadable files... [ 52%] evidence/issue41-recovery-20261026/hash-verification.json
+copying downloadable files... [ 53%] evidence/issue41-recovery-20261026/raw-validation-logs.zip
+copying downloadable files... [ 54%] evidence/issue41-recovery-20261026/raw-validation-logs-manifest.json
+copying downloadable files... [ 55%] evidence/issue41-recovery-20261026/second-object-diagnosis.json
+copying downloadable files... [ 56%] evidence/issue41-recovery-20261026/approach-live-review.json
+copying downloadable files... [ 57%] evidence/issue41-recovery-20261026/approach-live-metadata.zip
+copying downloadable files... [ 58%] evidence/issue41-recovery-20261026/approach-live-manifest.json
+copying downloadable files... [ 58%] evidence/issue41-recovery-20261026/approach-live-hash-verification.json
+copying downloadable files... [ 59%] evidence/issue41-recovery-20261026/second-car-timeline.png
+copying downloadable files... [ 60%] evidence/issue41-recovery-20261026/approach-survey-01.json
+copying downloadable files... [ 61%] evidence/issue41-recovery-20261026/detector-deep-20261027/head-analysis.json
+copying downloadable files... [ 62%] evidence/issue41-recovery-20261026/detector-deep-20261027/model-provenance.json
+copying downloadable files... [ 63%] evidence/issue41-recovery-20261026/detector-deep-20261027/native-head-probe.json
+copying downloadable files... [ 64%] evidence/issue41-recovery-20261026/detector-deep-20261027/scale-probe.json
+copying downloadable files... [ 65%] evidence/issue41-recovery-20261026/detector-deep-20261027/confidence-census.json
+copying downloadable files... [ 65%] evidence/issue41-recovery-20261026/perception-fp-20261027/replay.json
+copying downloadable files... [ 66%] evidence/issue41-recovery-20261026/perception-fp-20261027/false-positive-crop.png
+copying downloadable files... [ 67%] evidence/issue41-recovery-20261026/perception-fp-20261027/sensor-case.json
+copying downloadable files... [ 68%] evidence/issue41-recovery-20261026/perception-fp-20261027/crop-probe.json
+copying downloadable files... [ 69%] evidence/issue41-recovery-20261026/perception-fp-20261027/reflection-probe.json
+copying downloadable files... [ 70%] evidence/issue41-recovery-20261026/perception-fp-20261027/size-analysis.json
+copying downloadable files... [ 71%] evidence/issue41-recovery-20261026/perception-fp-20261027/validation.json
+copying downloadable files... [ 72%] evidence/issue41-recovery-20261026/perception-fp-20261027/validation-logs.zip
+copying downloadable files... [ 73%] evidence/issue41-recovery-20261026/perception-fp-20261027/identities.json
+copying downloadable files... [ 73%] evidence/issue41-recovery-20261026/perception-fp-20261027/verification.json
+copying downloadable files... [ 74%] evidence/TEST-13/depth_calibration.json
+copying downloadable files... [ 75%] evidence/TEST-13/depth_analysis.json
+copying downloadable files... [ 76%] evidence/BL-E-03/longitudinal.json
+copying downloadable files... [ 77%] evidence/BL-C-04-06/sensor-wait-timing-review.json
+copying downloadable files... [ 78%] ../../configs/reproduction.json
+copying downloadable files... [ 79%] ../../.github/workflows/ci.yml
+copying downloadable files... [ 80%] ../../tests/unit/test_acceptance.py
+copying downloadable files... [ 81%] ../../tests/fixtures/acceptance/golden.json
+copying downloadable files... [ 81%] ../../tests/conftest.py
+copying downloadable files... [ 82%] gates/G1-admission-validation.json
+copying downloadable files... [ 83%] evidence/BL-A-02-double-check.json
+copying downloadable files... [ 84%] evidence/BL-A-02-validation.json
+copying downloadable files... [ 85%] evidence/issue40-geometry-20261029/admission-review.json
+copying downloadable files... [ 86%] evidence/E2-01-04/replay-synthetic.json
+copying downloadable files... [ 87%] evidence/live-session-20261029/raw-intensity-verification.json
+copying downloadable files... [ 88%] evidence/live-session-20261029/weather-installed-settings.json
+copying downloadable files... [ 88%] evidence/live-session-20261029/official-state.json
+copying downloadable files... [ 89%] evidence/phase-j-final/pre-final-report.txt
+copying downloadable files... [ 90%] evidence/phase-j-final/official-state.json
+copying downloadable files... [ 91%] evidence/baseline-batch/detector.json
+copying downloadable files... [ 92%] evidence/BL-C-04-06/benchmark.json
+copying downloadable files... [ 93%] evidence/phase-j-88/pr106-module-notes.txt
+copying downloadable files... [ 94%] evidence/RV-05-regression.txt
+copying downloadable files... [ 95%] evidence/BL-C-04-06/capture-summary.json
+copying downloadable files... [ 96%] evidence/BL-C-04-06/depth-calibration.json
+copying downloadable files... [ 96%] evidence/BL-C-04-06/longitudinal.json
+copying downloadable files... [ 97%] evidence/BL-C-04-06/temporal-depth-tests.xml
+copying downloadable files... [ 98%] evidence/BL-C-04-06/sensor-failure-tests.xml
+copying downloadable files... [ 99%] evidence/BL-C-04-06/sensor-wait-tests.xml
+copying downloadable files... [100%] evidence/E3-wayfinder/frame_01.png
+
+copying static files... 
+Writing evaluated template result to /tmp/rc-final-docs/_static/basic.css
+Writing evaluated template result to /tmp/rc-final-docs/_static/language_data.js
+Writing evaluated template result to /tmp/rc-final-docs/_static/documentation_options.js
+Writing evaluated template result to /tmp/rc-final-docs/_static/alabaster.css
+copying static files: done
+copying extra files... 
+copying extra files: done
+copying assets: done
+writing output... [  1%] acceptance
+writing output... [  2%] acceptance-logging
+writing output... [  3%] api
+writing output... [  4%] assets
+writing output... [  5%] baseline_route
+writing output... [  6%] baseline_threshold_freeze
+writing output... [  7%] batch_baseline
+writing output... [  8%] behaviour
+writing output... [  9%] carla_demo
+writing output... [ 10%] carla_rgb_readback_fix
+writing output... [ 10%] controller_audit
+writing output... [ 11%] decisions
+writing output... [ 12%] depth-association
+writing output... [ 13%] detector_contracts
+writing output... [ 14%] detector_lifecycle
+writing output... [ 15%] evidence/BL-B-06-07/README
+writing output... [ 16%] evidence/BL-B-06-07/accepted-20261025
+writing output... [ 17%] evidence/BL-B-06-07/ai-journal
+writing output... [ 18%] evidence/BL-C-05-refresh/README
+writing output... [ 19%] evidence/BL-C-05-refresh/ai-journal
+writing output... [ 20%] evidence/BL-D-06/README
+writing output... [ 21%] evidence/BL-D-06/admission-rejection-investigation
+writing output... [ 22%] evidence/BL-D-06/ai-journal
+writing output... [ 23%] evidence/BL-D-06/operational-approach/README
+writing output... [ 24%] evidence/BL-E-02/README
+writing output... [ 25%] evidence/BL-E-03/README
+writing output... [ 26%] evidence/E1-01-02/phase-j-20261028/README
+writing output... [ 27%] evidence/E2-01-04/live-20261029/README
+writing output... [ 28%] evidence/E2-01-04/phase-j-20261028/README
+writing output... [ 29%] evidence/E3-wayfinder/README
+writing output... [ 30%] evidence/E3-wayfinder/phase-j-20261028/README
+writing output... [ 30%] evidence/E3-wayfinder/recorded-test02/README
+writing output... [ 31%] evidence/E4-01-03-06/phase-j-20261028/README
+writing output... [ 32%] evidence/E4-04-05-07-09/phase-j-20261028/README
+writing output... [ 33%] evidence/E5-P1/README
+writing output... [ 34%] evidence/E5-P1/ai-journal
+writing output... [ 35%] evidence/E5-P1/phase-j-20261028/README
+writing output... [ 36%] evidence/RV-06-08-TEST-22/live-20261029/README
+writing output... [ 37%] evidence/TEST-01-baseline
+writing output... [ 38%] evidence/TEST-02/README
+writing output... [ 39%] evidence/TEST-02/ai-journal
+writing output... [ 40%] evidence/TEST-03/README
+writing output... [ 41%] evidence/TEST-08/README
+writing output... [ 42%] evidence/TEST-08/current/baseline_table
+writing output... [ 43%] evidence/TEST-13/README
+writing output... [ 44%] evidence/TEST-18/README
+writing output... [ 45%] evidence/TEST-18/continuation/fixture-report/report
+writing output... [ 46%] evidence/baseline-batch/README
+writing output... [ 47%] evidence/issue40-geometry-20261029/README
+writing output... [ 48%] evidence/issue41-20261025/README
+writing output... [ 49%] evidence/issue41-20261025/ai-journal
+writing output... [ 50%] evidence/issue41-recovery-20261026/README
+writing output... [ 50%] evidence/issue41-recovery-20261026/ai-journal
+writing output... [ 51%] evidence/issue41-recovery-20261026/approach-live-update
+writing output... [ 52%] evidence/issue41-recovery-20261026/approach-qualification
+writing output... [ 53%] evidence/issue41-recovery-20261026/detector-deep-20261027/README
+writing output... [ 54%] evidence/issue41-recovery-20261026/detector-deep-20261027/ai-journal
+writing output... [ 55%] evidence/issue41-recovery-20261026/detector-deep-20261027/focused-followup
+writing output... [ 56%] evidence/issue41-recovery-20261026/perception-fp-20261027/README
+writing output... [ 57%] evidence/phase-j-101/README
+writing output... [ 58%] evidence/phase-j-88/README
+writing output... [ 59%] evidence/release-20261031/ai-journal
+writing output... [ 60%] evidence_index
+writing output... [ 61%] examples
+writing output... [ 62%] gates/G0
+writing output... [ 63%] gates/G1
+writing output... [ 64%] gates/G1-admission-notes
+writing output... [ 65%] geometry
+writing output... [ 66%] getting_started
+writing output... [ 67%] index
+writing output... [ 68%] inference_service
+writing output... [ 69%] interfaces
+writing output... [ 70%] issue41_control_cycle
+writing output... [ 70%] issue41_first_stop_runner
+writing output... [ 71%] kinematic_world
+writing output... [ 72%] lane-topology
+writing output... [ 73%] lane_departure_monitor
+writing output... [ 74%] lane_recovery
+writing output... [ 75%] lidar_geometry_issue40
+writing output... [ 76%] lidar_obstacles
+writing output... [ 77%] live_session_20261029
+writing output... [ 78%] live_trial_plan
+writing output... [ 79%] loop_timing
+writing output... [ 80%] machines
+writing output... [ 81%] mission_lifecycle
+writing output... [ 82%] module_notes
+writing output... [ 83%] parking
+writing output... [ 84%] phase_j_execution
+writing output... [ 85%] release_workflow
+writing output... [ 86%] remote_inference
+writing output... [ 87%] report_outline
+writing output... [ 88%] repository_setup
+writing output... [ 89%] reproduction
+writing output... [ 90%] s0_navigation_validation
+writing output... [ 90%] scenarios
+writing output... [ 91%] sensor_rig
+writing output... [ 92%] simulator_boundary
+writing output... [ 93%] stack_skeleton
+writing output... [ 94%] steering_calibration
+writing output... [ 95%] test01_a1_baseline
+writing output... [ 96%] track_stabilisation
+writing output... [ 97%] vehicle_adapter
+writing output... [ 98%] wayfinder
+writing output... [ 99%] weather_experiment
+writing output... [100%] world_lifecycle
+
+generating indices... genindex py-modindex done
+writing additional pages... search done
+copying images... [  9%] evidence/TEST-02/route.svg
+copying images... [ 18%] evidence/E3-wayfinder/frame_01.png
+copying images... [ 27%] evidence/E5-P1/left.png
+copying images... [ 36%] evidence/E5-P1/resume.png
+copying images... [ 45%] evidence/RV-06-08-TEST-22/live-20261029/model-mask115.png
+copying images... [ 55%] evidence/RV-06-08-TEST-22/live-20261029/monitor-frame115.png
+copying images... [ 64%] evidence/TEST-02/rgb-first-frame.png
+copying images... [ 73%] evidence/TEST-02/navigation-trace.png
+copying images... [ 82%] evidence/TEST-02/hold-regression.png
+copying images... [ 91%] evidence/issue41-recovery-20261026/detector-deep-20261027/confidence-analysis.png
+copying images... [100%] evidence/BL-A-02-Town10HD.png
+
+dumping search index in English (code: en)... done
+dumping object inventory... done
+build succeeded.
+
+The HTML pages are in ../../../tmp/rc-final-docs.

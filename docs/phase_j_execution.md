@@ -1,3 +1,7 @@
+> Proposed 31 October offline release handoff: [evidence map](release_evidence_map.md),
+> [remaining official criteria](release_remaining.md), [consolidated queue](release_live_queue.md).
+> Candidate d8425ad; no new live acceptance or human review is claimed.
+
 # Phase J final continuation report and CARLA RUN QUEUE
 
 > Latest live outcome: [29 October CARLA session](live_session_20261029.md).

@@ -1,0 +1,31 @@
+{
+  "source_commit": "d8425ad905eb5808fa24473378c8045173fc2219",
+  "files": {
+    "ai-journal.md": "eaaba30e09d752f6a996263e18e8593a869266f53380bffa2bcc46844331a643",
+    "ci-infrastructure.json": "25058f101f6e4666801f1eaa5cc782fa6f0fc2e76527346b690df952eea8d830",
+    "evidence-map.json": "4050c9d8f9be3e99ef2c35bcfc05e0268d1d697d0ee296cb6e87976bd64348a5",
+    "final-composed-demo.json": "0ed26ca3bf365833deaada544e990efb13864202b5c7314a15101c9dc7864bd7",
+    "final-docker-build.log": "f5a712e8f2864e8ffddaaf4ec4c31dad74ff06cd641ab17adea381c65f9ddfeb",
+    "final-docker-image.json": "18aab3faa9b024d9c4b705c6b60d85f53ef8b35d292ee3bf37fb68b796dc9eab",
+    "final-docker-smoke.log": "2c5bf0f13662c571604f5f6b646d36e5a856b89d9b7b94fc6359dbcb35de62c8",
+    "lidar-summary.json": "ef916b1ee92ec7d1f7f23b5d4a3c5a5c502fa4141f27abf795c003269668cfdf",
+    "official-issue-graph.json": "f86580293501f8026310fcb48a3f4723d7fc1c6c996a2261308e4a5f5540c374",
+    "parked-offline-preflight.json": "64ab99cdd43a4e084207c1a07965d1ba469bf55672baf7654d4680face8ac1a2",
+    "pr101-state.json": "2c5920d4e2de4d5650550710143eb3f52b32d35483ddd66a45e2eda8efc8622c",
+    "pr99-state.json": "9d3e3246c4759b6400f2487cf289f94be11ebb40b20593e4c2df9cb1c6864418",
+    "rc-archives.json": "b05e6985e396b175a35212e0016dbbc8e7cc2d97e22c97dd4e27962c8c98c363",
+    "rc-assets.json": "4c91c1735f0da7de08d559527627ad4ff915111f5a552721bf6c75af5fdac485",
+    "rc-baseline-review.json": "737df285d86deb1975d554d73ad85027afd664971511dc89e3607ed94c373a8f",
+    "rc-baseline-review.log": "737df285d86deb1975d554d73ad85027afd664971511dc89e3607ed94c373a8f",
+    "rc-clean-boundary.log": "2491b48f2e550a304b06707edb473ee8770975574df57b0151d81da17f7bd0b6",
+    "rc-clean-negative.json": "48851c2defdb75fbf5aaf3d5b03bd97e4aa7ff6449777f7cdfa1ee668343e450",
+    "rc-clean-ruff.log": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+    "rc-final-admission.json": "7ae9ee4c8a8fbb66301e521797f35e9392421411c3f992b70375320e71cab2df",
+    "rc-final-clean-tests.log": "e9b7b204ce12a99b6624636c30a5063c33c342dd0a36420c9c952f2d83984cac",
+    "rc-final-sphinx.log": "9d19ed670ed145c110087ef8dd7120dbc15e54caec59ad40d76410a504ae1986",
+    "runtime-environment.json": "82694a48e110c2b2c8d3d946f40e1f33942ec371e5c76664d494779b4522ee01",
+    "source-audit.json": "b26498e1369a044aee25d93009030962650a8c0988e146859309b685099ba725",
+    "validation.json": "a4c3de08d04a1fca7f29c09d6f09ebc2d7dd570fa0db22530760f6c0b91a6389",
+    "weather-plan.json": "73e26e7f33252e7722cdea3435487be3ba1ed1c5192bb2ceaf72a93f331d809e"
+  }
+}

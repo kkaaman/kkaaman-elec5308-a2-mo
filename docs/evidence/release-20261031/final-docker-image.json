@@ -1,0 +1,7 @@
+{
+  "image_id": "sha256:f7378b3da01aee8aa3de8ca8e95d75bf1c67e10ea426a01aa91e82de5ee47aae",
+  "source_commit": "d8425ad905eb5808fa24473378c8045173fc2219",
+  "base": "group7-inference:issue56 cached hash-locked CPU dependencies",
+  "network": "none",
+  "smoke_exit": 0
+}
