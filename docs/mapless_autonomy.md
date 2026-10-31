@@ -3537,6 +3537,22 @@ through the box, within a run that is over budget with the worker on anyway.
 **Still open:** traffic at the crossing (G4); the hold's 5 s lag (the first 10 m of drift
 are not corrected). r14 is the batch again on this code.
 
+### Thirteenth review (1 Nov, external, still on `0041ea8`): the hold judged whole
+
+One new reproduced finding: `score_mission` judged the obstacle hold on its **first** gap
+(`gaps[0]`); a stop that began at 1.55 m and crept to 1.35 m at a standstill passed. Now
+every held tick's gap must lie in the band and the car stand still throughout; the row
+reports `gap_min_m`, `gap_max_m`, `gap_creep_m` and `inside_band_share`. The reviewer's
+case is a test. Because r14 was scored on `c7fe074` (the first-gap rule),
+`scripts/rescore_mission.py <root>` re-scores a recorded batch's mission rows from its
+logs with the current scoring code, recomputes each status, keeps the run's own report as
+`drive_report.original.json` and records `rescored.commit`; the aggregate carries that
+commit in the batch identity (a half-re-scored folder is INCOMPLETE). The driving code
+stays `source_commit`. The other findings are the known items (468 live — r14's S0_5308
+passed with 0.26 m peak in the box, 29 m hand-back; the batch running; worker-on budget;
+ML; traffic at the crossing); the wheel-encoder note (scale and white noise only, no
+slip or drift modelled) is taken as a documentation point for the harness's limits.
+
 ## Running Phase 0 live
 
 Run with CARLA 0.9.16 and no other clients:
@@ -3592,6 +3608,9 @@ python scripts/run_mapless_stack.py --scenario straight --admission B --output "
 #    (--mission for another chain; --route-noise moves the sat-nav points; --acceptance S0..S5)
 python scripts/run_mapless_stack.py --map Town10HD_Opt --scenario mission --acceptance S1 --seed 5308 --admission B --route-noise 2 --record-frames all --output "$HOME\Documents\Group7_runs\g2\S1_5308"
 python scripts/aggregate_mapless_acceptance.py "$HOME\Documents\Group7_runs\g2"
+#    A batch recorded before an evaluator fix: re-score its mission rows from the logs first
+#    (the run's own report is kept beside it; the re-scoring commit joins the batch identity).
+python scripts/rescore_mission.py "$HOME\Documents\Group7_runs\g2"
 ```
 
 **Phase 0 gate:**
