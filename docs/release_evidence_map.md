@@ -69,3 +69,7 @@ and actual human review. The report/presentation proposal is also pending human
 review; no person is falsely recorded as having accepted it.
 
 The current verification host reports no available CUDA device. Offline model processing is not evidence that the live 100 ms deadline can be met here. Tier 1 must retain deadline failures on the actual deployment hardware; optional HUD stays off unless its selected workload is demonstrated within budget.
+
+Final-source recorded replay completed: **573/573 indexed display frames**, 115 diagnostic PNGs, 262 valid nonjunction samples. Sign results exactly reproduce the retained historical limitation (29/57 left, 69/152 right, 40/53 straight). The summary and compressed per-frame rows are retained under `evidence/release-20261031/recorded-lane-*`; no agreement PASS or model correction is asserted.
+
+The proposed script/report package is [PR117](https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/pull/117). PR99/101/116/117 all remain open; #117 awaits human action and the declared G4 prerequisite.

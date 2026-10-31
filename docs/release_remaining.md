@@ -53,6 +53,7 @@ Snapshot: 31 October 2026. Acceptance criteria and literal Task-ID dependencies 
 | #99 | TECHNICALLY INCOMPLETE | Complete normal sensor-driven stationary-car stop absent; detector limitation retained. New runtime proposal needs actual human review. |
 | #101 | CARLA BLOCKED | Curve lane agreement, S3/S4/S5 and final full workload gate incomplete; new shared-HUD proposal needs human review. |
 | #116 | TECHNICALLY INCOMPLETE | Full-cell CLEAR prefix remains 0 m and physical restart acceleration unestablished; no speculative retry queued. |
+| #117 | HUMAN ACTION | Timed script/evidence package prepared and strict docs pass; actual human review and declared G4 prerequisite remain pending. |
 
 All are left open. No new AI-assisted change is accepted or merged without actual human review. New report/demo proposal is also pending that review.
 

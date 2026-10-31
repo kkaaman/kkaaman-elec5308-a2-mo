@@ -3,6 +3,7 @@
   "files": {
     "ai-journal.md": "eaaba30e09d752f6a996263e18e8593a869266f53380bffa2bcc46844331a643",
     "ci-infrastructure.json": "25058f101f6e4666801f1eaa5cc782fa6f0fc2e76527346b690df952eea8d830",
+    "commands.txt": "42678eca1c7686674fbe0804d864036a74088796e8bf78fbfd611c04d625c5dd",
     "evidence-map.json": "4050c9d8f9be3e99ef2c35bcfc05e0268d1d697d0ee296cb6e87976bd64348a5",
     "final-composed-demo.json": "0ed26ca3bf365833deaada544e990efb13864202b5c7314a15101c9dc7864bd7",
     "final-docker-build.log": "f5a712e8f2864e8ffddaaf4ec4c31dad74ff06cd641ab17adea381c65f9ddfeb",
@@ -10,6 +11,7 @@
     "final-docker-smoke.log": "2c5bf0f13662c571604f5f6b646d36e5a856b89d9b7b94fc6359dbcb35de62c8",
     "lidar-summary.json": "ef916b1ee92ec7d1f7f23b5d4a3c5a5c502fa4141f27abf795c003269668cfdf",
     "official-issue-graph.json": "f86580293501f8026310fcb48a3f4723d7fc1c6c996a2261308e4a5f5540c374",
+    "open-pr-snapshot.json": "eb9370959e8faf855bd34ebb106f621608d1b966b8e511b048a6e0d293013e5b",
     "parked-offline-preflight.json": "64ab99cdd43a4e084207c1a07965d1ba469bf55672baf7654d4680face8ac1a2",
     "pr101-state.json": "2c5920d4e2de4d5650550710143eb3f52b32d35483ddd66a45e2eda8efc8622c",
     "pr99-state.json": "9d3e3246c4759b6400f2487cf289f94be11ebb40b20593e4c2df9cb1c6864418",
@@ -23,9 +25,11 @@
     "rc-final-admission.json": "7ae9ee4c8a8fbb66301e521797f35e9392421411c3f992b70375320e71cab2df",
     "rc-final-clean-tests.log": "e9b7b204ce12a99b6624636c30a5063c33c342dd0a36420c9c952f2d83984cac",
     "rc-final-sphinx.log": "9d19ed670ed145c110087ef8dd7120dbc15e54caec59ad40d76410a504ae1986",
+    "recorded-lane-rows.json.gz": "5d86a32546288d2e3c89e64999717eb5bf500613ef327f10405a546f17a29011",
+    "recorded-lane-summary.json": "a3ce80df9be8de8a2f26834dcef39405c728a07eb08ebbfb4ff271f08ab7a5cb",
     "runtime-environment.json": "82694a48e110c2b2c8d3d946f40e1f33942ec371e5c76664d494779b4522ee01",
     "source-audit.json": "b26498e1369a044aee25d93009030962650a8c0988e146859309b685099ba725",
-    "validation.json": "a4c3de08d04a1fca7f29c09d6f09ebc2d7dd570fa0db22530760f6c0b91a6389",
+    "validation.json": "fe308727528b7f9963aac0a4d43ee1d1ffcb9e89ae5c2b322f6ebda94740bbdb",
     "weather-plan.json": "73e26e7f33252e7722cdea3435487be3ba1ed1c5192bb2ceaf72a93f331d809e"
   }
 }
