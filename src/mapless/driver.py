@@ -156,6 +156,28 @@ def resolve_oncoming_override(override, now_s, max_age_s):
     return dict(override, excused=(), stale=True, age_s=age, clear=False, note=note)
 
 
+def _wrap(angle):
+    return (angle + math.pi) % (2 * math.pi) - math.pi
+
+
+def _kerb_line(evidence, min_points, outlier_m=0.6):
+    """A line through lane-centre evidence (vehicle frame, N x 2) gathered by several seeds:
+    (x at the median, y there, heading, span), or None with too few points or too short a
+    span. One pass of outlier rejection against the first fit."""
+    if len(evidence) < min_points:
+        return None
+    x, y = evidence[:, 0], evidence[:, 1]
+    if float(np.ptp(x)) < 2.0:
+        return None
+    a, b = np.polyfit(x, y, 1)
+    keep = np.abs(y - (a * x + b)) <= outlier_m
+    if keep.sum() < min_points or float(np.ptp(x[keep])) < 2.0:
+        return None
+    a, b = np.polyfit(x[keep], y[keep], 1)
+    x_ev = float(np.median(x[keep]))
+    return x_ev, float(a * x_ev + b), float(math.atan(a)), float(np.ptp(x[keep]))
+
+
 class MaplessDriver:
     """One car, one episode. Feed ``step()`` every tick in order."""
 
@@ -395,37 +417,81 @@ class MaplessDriver:
             # The route has moved past the exit point while the car still crosses on the
             # line: the junction is this one until the kerb is found again.
             crossing = self._crossing_context(guidance, motion, entry_i=self.crossing.entry_i)
-        if crossing is not None and crossing[2] == self._turn_done:
+        if crossing is not None and crossing[-1] == self._turn_done:
             crossing = None  # crossed: kerb following to the exit point and on
         if crossing is None:
             if self.crossing.active or self.crossing.line is not None:
                 self.crossing.reset()  # the route moved on
         elif not self.turn.committed:
-            entry_b, exit_b, entry_i = crossing
+            entry_b, exit_b, after_b, entry_i = crossing
             d.update(crossing_entry_m=round(float(entry_b[0]), 1), crossing_exit_m=round(float(exit_b[0]), 1))
             self.crossing.latch(corridor, motion.odometry, entry_b)
             if self.crossing.should_enter(entry_b):
                 self.crossing.enter(entry_i)
             if self.crossing.active:
                 handed = False
-                if self.crossing.may_reacquire(exit_b):
-                    # Past the exit point: seed kerb following with the line and take its fit
-                    # once it has kerb evidence of its own.
-                    self.corridor.seed(self.crossing.line_body(motion.odometry), motion.odometry, t)
-                    resumed = self.corridor.update(self.grid, motion.odometry, t)
-                    if resumed.ok and len(resumed.evidence_body) >= c.corridor.min_evidence and self.crossing.agrees(resumed, motion.odometry):
-                        corridor, handed = resumed, True
-                        self._turn_done = entry_i
-                        self.crossing.reset()
-                        d.update(crossing="handed back to the kerb corridor")
+                path = self.crossing.path_body(motion.odometry, exit_b, after_b)
+                self._crossing_tick = getattr(self, "_crossing_tick", 0) + 1
+                if self.crossing.may_try_kerb(entry_b) and self._crossing_tick % c.crossing.seed_every_ticks == 0:
+                    # Into the junction: seed kerb following from the path, at the path and
+                    # beside it (the line drifts: r12 on Town10HD, 0.7-1.5 m over a 43 m
+                    # junction with nothing to correct it), and take the first fit with kerb
+                    # evidence of its own. Near the path, it is handed the car; further off,
+                    # it re-anchors the line, which then converges on it.
+                    found, gathered = None, []
+                    for offset in c.crossing.seed_offsets_m:
+                        self.corridor.seed(path + np.array([0.0, offset]), motion.odometry, t)
+                        resumed = self.corridor.update(self.grid, motion.odometry, t)
+                        if resumed.ok and len(resumed.evidence_body):
+                            gathered.append(resumed.evidence_body)
+                        if resumed.ok and len(resumed.evidence_body) >= 2 * c.corridor.min_evidence:
+                            found = resumed
+                            break
+                    # The kerb as every seed saw it: with the exit line a few degrees out, each
+                    # seed holds a few metres of it (its gate is 0.75 m) and none holds enough;
+                    # together they do, and their line has the kerb's direction too.
+                    seen = _kerb_line(np.vstack(gathered), c.corridor.min_evidence + 2) if gathered else None
+                    if found is not None or seen is not None:
+                        if found is not None:
+                            ex = found.evidence_body[:, 0]
+                            x_ev = float(np.clip(np.median(ex), 0.0, path[-1, 0] - 1.0))
+                            y_ev, heading_ev, span = found.lateral_offset_at(x_ev), found.heading_at(x_ev), float(np.ptp(ex))
+                        else:
+                            x_ev, y_ev, heading_ev, span = seen
+                            x_ev = float(np.clip(x_ev, 0.0, path[-1, 0] - 1.0))
+                        # Judged where the evidence is (the seed is the fit's prior where there
+                        # is none: at the car, in the junction, it says nothing).
+                        y_path = float(np.interp(x_ev, path[:, 0], path[:, 1]))
+                        y_on = float(np.interp(x_ev + 1.0, path[:, 0], path[:, 1]))
+                        path_heading = math.atan2(y_on - y_path, 1.0)
+                        lateral = y_ev - y_path
+                        turn = _wrap(heading_ev - path_heading)
+                        ahead = path[path[:, 0] >= -0.5]
+                        k = min(5, len(ahead) - 1)
+                        heading_here = math.atan2(ahead[k, 1] - ahead[0, 1], ahead[k, 0] - ahead[0, 0]) if k > 0 else 0.0
+                        on_exit = self.crossing.on_exit_line(motion.odometry, (x_ev, y_path))
+                        if found is not None and abs(found.lateral_offset_at(0.0) - float(np.interp(0.0, path[:, 0], path[:, 1]))) <= c.crossing.handback_offset_m and abs(_wrap(found.heading_at(0.0) - heading_here)) <= c.crossing.handback_heading_rad and abs(lateral) <= c.crossing.handback_offset_m:
+                            corridor, handed = found, True
+                            self._turn_done = entry_i
+                            self.crossing.reset()
+                            d.update(crossing="handed back to the kerb corridor")
+                        elif span >= 6.0 and abs(turn) <= (c.crossing.exit_turn_max_rad if on_exit else c.crossing.handback_heading_rad):
+                            # Evidence along the exit line moves that line, in position and
+                            # direction (both are the sat-nav's: a metre or two, several degrees);
+                            # evidence along the latched line moves the line sideways (drift). An
+                            # edge at a greater angle is some other edge (a side road's hedge,
+                            # the box's far kerb) and is left alone.
+                            moved = self.crossing.reanchor_exit(lateral, turn) if on_exit else self.crossing.reanchor(motion.odometry, lateral, heading_ev)
+                            if moved:
+                                d.update(crossing_reanchor_m=round(lateral, 2), crossing_reanchor_deg=round(math.degrees(turn), 1), crossing_reanchor_x_m=round(x_ev, 1))
                 if not handed:
                     if self.crossing.given_up(exit_b):
                         self._turn_done = entry_i
                         self.crossing.reset()
                         d.update(crossing="no kerb past the exit: kerb following on its own")
                     else:
-                        corridor = self.crossing.corridor(self.grid, motion.odometry, t, self.corridor.support)
-                        d.update(crossing=self.crossing.note, corridor_ok=corridor.ok, corridor_reason=corridor.reason, corridor_valid_m=corridor.valid_length_m, corridor_support_m=corridor.support_m, lane_offset_m=corridor.lateral_offset_at(0.0))
+                        corridor = self.crossing.corridor(self.grid, motion.odometry, t, self.corridor.support, exit_b, after_b)
+                        d.update(crossing=self.crossing.note, crossing_bend=round(math.degrees(self.crossing.bend_rad), 1), corridor_ok=corridor.ok, corridor_reason=corridor.reason, corridor_valid_m=corridor.valid_length_m, corridor_support_m=corridor.support_m, lane_offset_m=corridor.lateral_offset_at(0.0))
             elif self.crossing.line is not None:
                 d.update(crossing=self.crossing.note)
         if not corridor.ok and not self.turn.committed:
@@ -752,9 +818,9 @@ class MaplessDriver:
         return bool(y.max() > lo and y.min() < hi)
 
     def _crossing_context(self, guidance, motion, entry_i=None):
-        """(entry point, exit point, entry route index), vehicle frame, for a junction the
-        route crosses STRAIGHT that the car is heading for or in (or the given entry
-        index's), else None."""
+        """(entry point, exit point, the point after the exit or None, entry route index),
+        vehicle frame, for a junction the route crosses STRAIGHT that the car is heading
+        for or in (or the given entry index's), else None."""
         points = self.progress.xy
         i = guidance.index
         if entry_i is not None:
@@ -767,9 +833,22 @@ class MaplessDriver:
             return None
         if entry_i + 1 >= len(points):
             return None
-        odo = motion.route_to_odometry(np.array([points[entry_i], points[entry_i + 1]]))
+        # The points after the exit within 60 m of it along the route, to the first that
+        # is itself a junction command: the exit lane's line is fitted through them (one
+        # 25 m pair's direction is 6 degrees out with the sat-nav's 2 m noise; three
+        # points, half that).
+        exit_i = entry_i + 1
+        after = []
+        route_points = self.progress.route.points
+        for j in range(exit_i + 1, len(points)):
+            if math.dist(points[j], points[exit_i]) > 60.0:
+                break
+            after.append(j)
+            if route_points[j].command is not Command.LANEFOLLOW:
+                break
+        odo = motion.route_to_odometry(np.array([points[entry_i], points[exit_i]] + [points[j] for j in after]))
         body = motion.odometry.to_body(odo)
-        return body[0], body[1], entry_i
+        return body[0], body[1], (body[2:] if after else None), entry_i
 
     def _junction_context(self, guidance, motion, corridor):
         """(entry point, exit point, exit heading, command, entry route index) in the

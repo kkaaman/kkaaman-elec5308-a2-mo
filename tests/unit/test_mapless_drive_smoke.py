@@ -628,10 +628,12 @@ def test_the_oncoming_gate_report_counts_clear_verdicts_on_a_short_view():
 def test_t10_the_sight_bound_report_counts_ticks_over_the_observability_bound():
     """Tenth review, 5: did the car keep to the speed it could stop from within the path seen
     clear? Over by more than the speed loop's lag (0.3 m/s) is counted, with the excess."""
-    log = [dict(truth=dict(speed_mps=v), driver=dict(sight_speed_mps=b), command=[0.0, 0.0, brake]) for v, b, brake in ((3.0, 4.0, 0.0), (3.2, 3.0, 0.0), (3.6, 3.0, 0.0), (2.0, None, 0.0), (3.5, 2.8, 0.6))]
+    log = [dict(truth=dict(speed_mps=v), driver=dict(sight_speed_mps=b)) for v, b in ((3.0, 4.0), (3.0, 4.0), (3.0, 4.0), (3.0, 4.0), (3.0, 4.0), (3.2, 3.0), (3.6, 3.0), (2.0, None), (3.5, 2.8), (3.3, 2.8), (3.1, 2.8), (2.9, 2.8), (2.7, 2.8), (2.5, 2.8))]
     out = drive.sight_bound_report(log)
-    assert out["ticks"] == 4 and out["over_ticks"] == 1 and out["max_excess_mps"] == pytest.approx(0.7) and out["min_bound_mps"] == 2.8
-    assert out["over_while_braking_ticks"] == 1  # the bound stepped down under a braking car: not driving blind (519b8fe, F-04)
+    assert out["ticks"] == 13 and out["over_ticks"] == 0 and out["over_brief_ticks"] == 3 and out["max_excess_mps"] == pytest.approx(0.7) and out["min_bound_mps"] == 2.8
+    assert out["over_while_slowing_ticks"] == 1  # over, but already slowing (the speed a quarter second before was higher): not driving blind (519b8fe, F-04)
+    blind = [dict(truth=dict(speed_mps=4.0), driver=dict(sight_speed_mps=3.0)) for _ in range(30)]
+    assert drive.sight_bound_report(blind)["over_ticks"] == 21  # over for 1.5 s and never slowing: from the 10th tick on
     assert drive.sight_bound_report([dict(truth=dict(speed_mps=1.0), driver={})]) is None
 
 

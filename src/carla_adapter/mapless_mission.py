@@ -69,11 +69,28 @@ def load_scenario(scenario_id, scenarios_dir):
     return document
 
 
+def kerb_across_lanes(carla, wp):
+    """Distance from the lane centre to the kerb on the right, across whatever lanes lie
+    between (the baseline route starts on road 1 lane 1 with lane 2 beside it; the kerb
+    corridor calibrates across them, 7.8 m on the r12 runs), the lanes crossed, and the
+    evidence; None past six lanes."""
+    distance, crossed = wp.lane_width / 2, []
+    right = wp.get_right_lane()
+    for _ in range(6):
+        if right is None:
+            return distance, crossed, "road edge"
+        if right.lane_type == carla.LaneType.Sidewalk:
+            return distance, crossed, "sidewalk"
+        crossed.append(str(right.lane_type).split(".")[-1])
+        distance += right.lane_width
+        right = right.get_right_lane()
+    return None, crossed, "too many side lanes"
+
+
 def resolve_mission(carla, carla_map, definition_path, spacing_m=1.0):
     """The lane chain of ``definition_path`` on the live map, as a MissionSite. Uses the
     baseline's own topology export and mission builder (simulator side; the car never
     sees them)."""
-    from carla_adapter.mapless_drive import right_kerb  # noqa: PLC0415
     from carla_adapter.topology import export_lane_topology  # noqa: PLC0415
     from planning.corridor import RouteGeometry  # noqa: PLC0415
     from planning.mission import load_route_definition, mission_from_definition  # noqa: PLC0415
@@ -100,7 +117,7 @@ def resolve_mission(carla, carla_map, definition_path, spacing_m=1.0):
     arcs = np.concatenate(([0.0], np.cumsum(np.hypot(*np.diff(points, axis=0).T))))
     x0, y0 = points[0]
     wp = carla_map.get_waypoint(carla.Location(x=float(x0), y=float(-y0), z=float(mission.points_xyz_m[0][2])), project_to_road=True, lane_type=carla.LaneType.Driving)
-    kerb, crossed, source = right_kerb(carla, wp)
+    kerb, crossed, source = kerb_across_lanes(carla, wp)
     summary = (mission.map_validation or {}).get("route_definition") or {}
     return MissionSite(
         name=definition["name"],

@@ -3302,12 +3302,14 @@ line through the corridor's centre at the car along the car's own track over the
 (the kerb fit's slope at the car is already tilted 1.5 degrees by the fillet 15 m on; the
 track is not). From 12 m before the entry the car follows that line instead of the fit: a
 straight corridor with no edges, valid as far as the road along it is observed, so the
-obstacle stop and the planner's ramp work on it as on any corridor. From 8 m past the exit
-point (the exit kerb begins past its fillet) kerb following is seeded with the line and
-asked for its own fit; it is handed back when the fit has kerb evidence and lies within
-1.5 m and 7 degrees of the line at the car (the fit grabbed the far fillet first: a 2.6 m
-jump at the first hand-back). 25 m past the exit with no kerb the ordinary "no corridor"
-fault stands. The context is kept while the route moves past the exit point.
+obstacle stop and the planner's ramp work on it as on any corridor. From 10 m past the entry
+kerb following is seeded from the path, at it and up to 3.75 m either side, every fourth
+tick; the first fit with kerb evidence of its own is handed the car when it lies within
+0.75 m and 10 degrees of the path at the car and where its evidence is (the fit grabbed the
+far fillet first: a 2.6 m jump at the first hand-back on the crossroads). 25 m past the
+exit with no kerb the ordinary "no corridor" fault stands. The context is kept while the
+route moves past the exit point. The path, the re-anchoring and the exit line are r12's
+(below).
 - Tests (`test_mapless_crossing.py`): a 14 m crossroads and both T-junctions at 4 m/s
   (crossed at speed, offset under 0.6 m, exit lane p95 under 0.3 m), a 20 m junction with
   10 m fillets, the entry point 4 m off either way, and the failure kept as the record
@@ -3340,6 +3342,77 @@ car must see the road clear and drive on.
 code). PC 1: the G2 batch, S0–S5 at the five frozen seeds (5308–5312), 30 runs at 2 m/s
 with the route noise at 2 m, then `aggregate_mapless_acceptance.py`; and the Town03 turns.
 PC 2: the leads, cut-in, radar-first, cone and the three timing configurations.
+
+### Live on PC 3 (31 Oct, `cee719a`): the r12 batch, and junction 468
+
+PC 3 (RTX, Python 3.12, everything under one directory) ran the tenth review's batch on
+`cee719a`. The eight Town10HD runs all passed their gates (cone, cut-in, lead b1/b3/b4,
+radar-first, the three timing configurations; `time_off` and `rf_35_2` under the real-time
+budget, the rest MEASURED_PASS_OVER_BUDGET at p95 54–68 ms of 50). The four Town03 left
+turns and the two Town05 crossings passed every behaviour gate. Three things failed, two of
+them the evaluator's:
+
+- **G2's S0, all five seeds: INCOMPLETE at junction 468.** Scoring crashed first
+  (`kerb_distance_m` None: the start lane has a Driving lane to its right, and the site
+  census measured the kerb through it, "not rightmost"); re-scored, the car left the lane
+  3 m off centre in the junction. The junction is 43 m long (entry s=156, exit s=199) and
+  the lane's heading holds 179.7° until s≈190, then bends 22° right into the exit road.
+  The crossing drove the latched line straight on, across the exit road's centreline.
+  The dead-reckoned line had also drifted 0.7–1.5 m by the exit, the odometry's heading
+  with nothing to correct it.
+- **Town03 `left_oncoming_noradar` and `left_parked`: `goal` FAIL at 4.3–4.4 m** with
+  `--route-noise 2`: the goal point itself was moved 2 m σ, the 3 m reach was not.
+- **Town05 `t05_cross_s2_t20` and `s3_t20`: `sight_bound` FAIL**, 1–3 ticks over the
+  bound by 0.65–0.75 m/s with 10–12 ticks over while braking: the bound steps down as the
+  path seen clear shortens at the mouth and the speed loop takes 0.5 s to follow.
+
+**Taken.**
+- The crossing follows a *path*, not the line (`crossing.py`, `_build_path`): the latched
+  line to 15 m before the route's exit point, a cubic blend onto the exit lane's line, then
+  that line. The exit line is the least-squares line through the route's exit point and the
+  points after it within 60 m (one 25 m pair's direction is 6° out with 2 m of noise;
+  three points, half that); when it deflects less than 3° from the latched line the path
+  is the line (the exit point's own position across the line is noise: used, it bent the
+  path on the synthetic crossroads by 1.5 m). An arc tangent to both lines was tried first
+  and rejected: with a shallow bend their intersection moves tens of metres with the noise.
+- The kerb corrects the path (`driver.py`, the seed search): from 10 m past the entry,
+  every fourth tick, kerb following is seeded from the path at 0, ±0.75 … ±3.75 m and the
+  evidence of every seed is pooled (with the exit line a few degrees out, each seed holds a
+  few metres of the kerb within its 0.75 m gate and none holds enough; together they do).
+  A single seed's fit with twice the minimum evidence, or the pooled line with seven
+  points, is judged *where its evidence is* (the seed is the fit's prior where there is
+  none, so at the car it says nothing). Evidence past the blend's start moves the exit
+  line in position and direction, within 4 m and 26° (both are the sat-nav's: a metre or
+  two and several degrees out; the kerb beside it is seen 20 m before the car gets there);
+  evidence before it moves the latched line sideways, within 4 m and 10° (drift). Half the
+  difference each time. An edge at a greater angle is some other edge (a side road's hedge,
+  the box's far kerb) and is ignored. Hand-back needs a single fit with twice the minimum
+  evidence agreeing within 0.75 m and 10° at the car and at the evidence.
+- The entry point may lie 6 m off the lane line (was 4): 3σ of the 2 m route noise; at 4
+  a 3.8 m point, read as 4.4 m from the car's own position error, left the crossing
+  unarmed and the kerb fit turned into the side road (seed 5314 of the sweep).
+- Synthetic Town10HD 468 (`bent_junction` in `test_mapless_crossing.py`: 43 m, the kerb
+  bending 25° right from 9 m before the exit, route noise 2 m σ, three seeds in the test;
+  the probe's sweep): finished, no collision, offset under 1.75 m through the bend, exit
+  lane p95 under 0.3 m. Sweep (25° right bend, seeds 5308–5314): all finish, peak offsets
+  0.2–1.8 m, the largest where the latched line itself drifted 1.6 m before the blend (the
+  odometry's heading over 30 kerbless metres; the exit line then re-anchored within 6 m and
+  the hand-back followed). A 35° bend, a 10° one and a 20° left bend finish too (the
+  left bend had failed every way before the exit line's direction was re-anchored: the
+  right kerb search found the box's far kerb first). The plain crossroads and T-junctions
+  as before (`CrossingConfig(enabled=False)` now keeps the recorded failure).
+- `kerb_across_lanes` (`mapless_mission.py`): the kerb distance is summed across the
+  Driving lanes to the right until the Sidewalk; the calibration check REPORTs rather than
+  crashing when the distance is unknown.
+- `goal`: reach 3 m + 2 × route noise σ.
+- `sight_bound`: a tick counts against the car only when it is over the bound by more
+  than 0.3 m/s *and* not slowing *and* for longer than 10 ticks (0.5 s, the speed loop's
+  response); brief and while-slowing excesses are reported beside it. The r10 and r11
+  logs have no over-ticks under the rule; the two Town05 runs re-score to 0.
+
+**Not fixed by this:** the odometry's heading drift itself (the kerb corrects its effect
+once seen, and only on the exit side: on the latched line through a kerbless box nothing
+can); and traffic at the crossing (G4).
 
 ## Running Phase 0 live
 

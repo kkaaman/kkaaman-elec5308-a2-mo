@@ -21,6 +21,7 @@ from mapless.terrain import VehicleBody
 from navigation_control.local import LocalControlConfig
 from navigation_control.types import ControllerConfig
 from sim_harness.mapless_road import (
+    Arc,
     KerbLine,
     MaplessRoadWorld,
     RoadScene,
@@ -107,12 +108,54 @@ def test_the_route_entry_point_may_sit_metres_from_the_box():
         assert _crossed(log), shift
 
 
+def bent_junction(bend_deg=25.0, length_m=43.0, seed=5308, noise_m=2.0):
+    """Town10HD junction 468 as r12 showed it: 43 m long, its exit road bending right in
+    its last 9 m; the sat-nav points moved by ``noise_m`` as --route-noise moves them."""
+    bend = math.radians(bend_deg)
+    entry_s, exit_s = 100.0, 100.0 + length_m
+    kerb = KerbLine([Straight(exit_s - 9.0), Arc(-40.0, bend), Straight(80.0)]) if abs(bend) > 1e-6 else KerbLine([Straight(exit_s + 80.0)])
+    mid = entry_s + length_m / 2
+    roads = (SideRoad(mid, -1, width_m=length_m, fillet_m=6.0, length_m=60.0), SideRoad(mid, 1, width_m=length_m, fillet_m=6.0, length_m=60.0))
+    scene = RoadScene(kerb, side_roads=roads, hedges=sum((side_road_hedges(r) for r in roads), ()))
+    world = MaplessRoadWorld(scene, SUITE, start_s_m=15.0, seed=seed)
+    rng = np.random.default_rng(seed)
+
+    def fix(s, cmd, noise=noise_m):
+        x, y, h = kerb.pose_at(s)
+        off = scene.lane_centre_m
+        px, py = x - off * math.sin(h), y + off * math.cos(h)
+        if noise:
+            px, py = px + rng.normal(0, noise), py + rng.normal(0, noise)
+        return RoutePoint(*world.plane.to_geodetic(px, py), cmd)
+
+    goal = exit_s + 55.0
+    route = SatNavRoute("bend", (fix(15.0, Command.LANEFOLLOW, 0), fix(40.0, Command.LANEFOLLOW), fix(65.0, Command.LANEFOLLOW), fix(entry_s, Command.STRAIGHT), fix(exit_s + 5.0, Command.LANEFOLLOW), fix(exit_s + 30.0, Command.LANEFOLLOW), fix(goal, Command.LANEFOLLOW, 0)))
+    return world, route, goal  # the goal point exact: the test measures the crossing, not the goal's 2 m of noise
+
+
+@pytest.mark.parametrize("seed", [5308, 5309, 5310])
+def test_a_long_junction_whose_exit_road_bends_is_crossed_on_the_routes_exit_line(seed):
+    """r12 on Town10HD: junction 468 is 43 m long and its exit road bends 25 degrees right;
+    the straight line ran over the centre line, and over 40 m with no kerb the line
+    itself drifted 0.7-1.5 m. The path now blends onto the exit lane's line (fitted through
+    the route points after the exit), and into the junction the kerb corridor is sought
+    beside the path and re-anchors it; with the sat-nav points 2 m off, the car stays in
+    its lane to the goal."""
+    world, route, goal = bent_junction(seed=seed)
+    log = drive(world, route, speed=2.0, seconds=140)
+    truth, last = log[-1]
+    assert last.mode is DriveMode.FINISHED and abs(truth.s_m - goal) < 3.0 and not any(t.collision for t, _ in log)
+    assert max(abs(t.lane_offset_m) for t, _ in log) < 1.75  # never over the lane's edges
+    exit_leg = [t for t, _ in log if t.s_m > 143.0 + 25.0]
+    assert exit_leg and np.percentile(np.abs([t.lane_offset_m for t in exit_leg]), 95) < 0.3
+    assert any(s.diagnostics.get("crossing_bend") not in (None, 0.0) for _, s in log)
+
+
 def test_without_the_crossing_kerb_following_follows_the_fillet_into_the_mouth():
-    """The failure the crossing is for, kept as the record: with the line never followed
-    (enter_m 0 and the latch window closed), the kerb fit turns into the right side road and
-    the car stops for its hedge."""
+    """The failure the crossing is for, kept as the record: with the crossing off, the kerb
+    fit turns into the right side road and the car stops for its hedge."""
     world, width = crossroads()
-    off = CrossingConfig(latch_from_m=0.2, freeze_m=0.1, enter_m=0.0)
+    off = CrossingConfig(enabled=False)
     log = drive(world, straight_route(world, width), seconds=40, crossing=off)
     truth, last = log[-1]
     assert not _crossed(log) and truth.s_m < S_JUNCTION + width / 2
