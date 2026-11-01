@@ -82,7 +82,7 @@ def main():
             ],
         )
         fixture_path = args.output / "retained-detector.json"
-        fixture_path.write_text(json.dumps(fixture, allow_nan=False) + "\\n")
+        fixture_path.write_text(json.dumps(fixture, allow_nan=False) + "\n")
         detector = RecordedDetector(fixture_path, sha256(fixture_path))
     else:
         detector = make_detector()
