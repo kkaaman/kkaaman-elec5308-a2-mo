@@ -241,3 +241,52 @@ def test_the_heading_hold_turns_the_line_by_the_odometrys_drift_from_the_compass
     for k in range(1, 201):
         steady.observe(Pose2D(25.0 + k * 0.1, 0.0, 0.0), moving=True, compass_yaw_rad=0.3)
     assert steady.hold_heading(Pose2D(45.0, 0.0, 0.0)) == pytest.approx(0.0, abs=1e-6)
+
+
+def test_the_latched_heading_is_the_track_straightened_by_the_odometrys_drift():
+    """r15 (Town10HD, seeds 5309-5312): the odometry frame turned 0.002-0.003 rad/s through
+    the approach, so the car's track, straight in truth, was bent in the odometry frame and
+    its chord pointed where the frame had pointed on average, 0.3-0.8 degrees from where it
+    pointed at the latch. Latched as it was, the line ran 0.3-0.5 m off by the end of the
+    box. Each step of the track is turned by the yaw gap's change since it was driven, so
+    the latched heading is the lane's in the frame as it stands. Here the true track is
+    along +x and the odometry's yaw climbs 0.003 rad/s: the raw chord is a quarter of the
+    accumulated drift off, the straightened one within 0.05 degrees of the frame's heading."""
+    c = CrossingConfig(history_m=40.0, history_min_m=20.0)
+    bias, dt, v = 0.003, 0.05, 2.0
+    x, y, yaw = 0.0, 0.0, 0.0
+    crossing, raw = StraightCrossing(c), StraightCrossing(CrossingConfig(history_m=40.0, history_min_m=20.0, heading_hold=False))
+    for k in range(1200):  # 60 s, 120 m: the odometry integrates the drifted yaw
+        yaw = bias * k * dt
+        x += v * dt * math.cos(yaw)
+        y += v * dt * math.sin(yaw)
+        for one in (crossing, raw):
+            one.observe(Pose2D(x, y, yaw), moving=True, compass_yaw_rad=0.0)
+    corridor = type("C", (), dict(ok=True, heading_near=lambda self: 0.0, lateral_offset_at=lambda self, _x: 0.0))()
+    for one in (crossing, raw):
+        one.latch(corridor, Pose2D(x, y, yaw), entry_body=np.array([20.0, 0.0]))
+    assert raw.line is not None and crossing.line is not None
+    assert abs(raw.line[2] - yaw) > math.radians(0.4)  # the raw chord: the window's mean drift behind the frame
+    assert abs(crossing.line[2] - yaw) < math.radians(0.05)  # straightened: the frame's heading now
+    assert crossing.note == "lane line latched"
+
+
+def test_reanchoring_moves_the_line_no_faster_than_the_slew_limit():
+    """r15 S0_5312: kerb fits in the mouth of the exit disagreed by a metre and 0.25 m steps
+    every 0.4 m driven swung the car 3.7 degrees. The line now moves sideways by at most
+    reanchor_slope per metre driven since it last moved (and reanchor_step_m a time)."""
+    c = CrossingConfig(history_m=20.0, history_min_m=10.0, reanchor_slope=0.05, reanchor_step_m=0.1)
+    x = StraightCrossing(c)
+    corridor = type("C", (), dict(ok=True, heading_near=lambda self: 0.0, lateral_offset_at=lambda self, _x: 0.0))()
+    for k in range(100):
+        x.observe(Pose2D(k * 0.25, 0.0, 0.0), moving=True)
+    x.latch(corridor, Pose2D(24.75, 0.0, 0.0), entry_body=np.array([20.0, 0.0]))
+    x.enter(2, Pose2D(24.75, 0.0, 0.0))
+    assert x.reanchor(Pose2D(26.0, 0.0, 0.0), 1.0)  # 1.25 m on: the slew allows 0.0625, the step 0.1
+    assert x.line[1] == pytest.approx(0.0625, abs=1e-9)
+    assert not x.reanchor(Pose2D(26.0, 0.0, 0.0), 1.0)  # not moved again from the same spot
+    assert x.reanchor(Pose2D(26.4, 0.0, 0.0), 1.0)  # 0.4 m on: 0.02 more
+    assert x.line[1] == pytest.approx(0.0825, abs=1e-9)
+    assert x.reanchor(Pose2D(36.4, 0.0, 0.0), -1.0)  # 10 m on: the step cap, 0.1, the other way (half the difference is 0.5)
+    assert x.line[1] == pytest.approx(-0.0175, abs=1e-9)
+    assert not x.reanchor(Pose2D(40.0, 0.0, 0.0), c.reanchor_max_m + 0.1)  # some other kerb

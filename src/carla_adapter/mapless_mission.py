@@ -186,15 +186,15 @@ def mission_route(carla_map, site, spacing_m=25.0, exit_in_m=5.0, name=None):
 
 def brake_taps(log, dt_s, start_s_m=5.0, goal_m=12.0):
     """Stops the drive did not need (REPORT): runs of ``stopping`` ticks between
-    ``start_s_m`` and ``goal_m`` short of the chain's end that are not an obstacle hold or
-    the goal — the speed cap's reason on the first tick, where, how long, how slow. r14 on
+    ``start_s_m`` and ``goal_m`` short of the chain's end that are not an obstacle stop or
+    hold or the goal — the speed cap's reason on the first tick, where, how long, how slow. r14 on
     Town10HD: "predicted conflict on the path" at s 52.8 and 71.3 in run after run, a full
     brake to a standstill for 0.3 s each; scenery the tracker read as a moving road user."""
     end_s = max(r["truth"]["s_m"] for r in log) - goal_m
     taps, current = [], None
     for r in log:
         s_m = r["truth"]["s_m"]
-        tapping = r["mode"] == "stopping" and start_s_m < s_m < end_s and not r["reason"].startswith("holding") and r["reason"] != "goal"
+        tapping = r["mode"] == "stopping" and start_s_m < s_m < end_s and not r["reason"].startswith("holding") and r["reason"] not in ("goal", "obstacle")
         if tapping:
             reason = str((r.get("driver") or {}).get("speed_cap_reason") or r["reason"] or "")
             if current is None:
@@ -276,4 +276,5 @@ def score_mission(scenario, log, end, hold_ticks, removed_at_s, dt_s, goal_reach
             rows.append(("resume", moved is not None and end == "finished" and goal <= goal_reach_m, dict(removed_at_s=round(removed_at_s, 2), moved_off_s=None if moved is None else round(moved - removed_at_s, 2), end=end, goal_distance_m=goal)))
     else:
         rows.append(("held", end == "held at the obstacle", dict(end=end, held_s=round(hold_ticks * dt_s, 2))))
+    rows.append(("brake_taps", None, brake_taps(log, dt_s)))  # r15: reported for the obstacle scenarios too
     return rows

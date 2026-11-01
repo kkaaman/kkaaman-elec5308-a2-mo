@@ -240,6 +240,22 @@ class StackConfig:
     offroad_young_min_hits: int = 8
     offroad_young_min_width_m: float = 1.0
     offroad_young_cap_mps: float = 1.5
+    # Beyond the kerb line (to the right of keep_right_m), a track younger than this many
+    # hits is a conflict candidate only if it can reach the lane band within the horizon
+    # plus a second at the speed it is coming (r15, Town10HD, the kerb 7.8 m right: a
+    # parked car 12 m right, 4-8 hits old, 3.3 m/s from its centroid settling and 0.9 m/s
+    # "towards" the path, 11 s from the band, and a 1.3 x 0.3 m cluster 8.6 m right at
+    # "3.0 m/s", stopped the car dead in run after run; their prediction envelopes reached
+    # the car's own position at the horizon's end). An older track's motion has been
+    # borne out, and the timed check keeps it (H2: a car pulling out 9 m right at 1.5 m/s).
+    kerbside_young_hits: int = 20
+    # The same reach test holds for a young track far out on the left, beyond this (two
+    # lanes' width from the path: the opposing lane and one more; r15, S0_5308 and S3_5310:
+    # a 3.8 x 0.3 m stretch 16 m left of the path in the exit curve, 3 hits old, "4.8 m/s",
+    # 1.4 m/s towards the path and 10 s from the band, stopped the car at s 204). Nearer
+    # than this a track is the opposing lane's and the timed check's (T10 2C: a car
+    # standing 3.9 m left moves off into the path and restricts the car within 0.5 s).
+    offside_reach_m: float = 6.0
     # A left turn clearing the opposing lane does not stop for a moving vehicle predicted
     # where it stands (S5) only when it is in that vehicle's way (``in_the_way_of``): its
     # body, where it stands now, inside the strip the vehicle drives along, the vehicle's
@@ -1315,6 +1331,14 @@ def _parked_in_lane(track, lateral_m, lo, hi, config):
 _AROUND = np.array([[0.0, 0.0], [0.25, 0.0], [-0.25, 0.0], [0.0, 0.25], [0.0, -0.25]])  # a cell and its neighbours
 
 
+def _can_reach_band(lat, towards, config):
+    """Whether a track ``lat`` beside the path, closing at ``towards`` m/s (negative: away),
+    reaches the lane band within the conflict horizon plus a second."""
+    if towards < config.approach_min_mps:
+        return False
+    return (abs(lat) - (config.following.lane_half_width_m + 0.5)) / towards <= config.conflict_horizon_s + 1.0
+
+
 def plausible_crossers(tracks, candidates, path_xy, keep_right_m, config, ego_speed_mps=0.0, grid=None, why=None, young=None):
     """Drop candidates that are not clearly vehicles and cannot be crossing. Vehicles (a
     decided car/truck class, or a footprint ``vehicle_min_m`` or longer) are kept: the timed
@@ -1395,7 +1419,20 @@ def plausible_crossers(tracks, candidates, path_xy, keep_right_m, config, ego_sp
                 # Off the road and too far out to reach the lane band in time at the speed
                 # it is coming: kept the tick it can (F6-03: reach, not speed, decides).
                 continue
-            newborn = abs(lat) > keep_right_m and track.hits < config.offroad_young_min_hits
+            beyond_kerb = lat < -keep_right_m  # the kerb is on the right; the left is the opposing lane
+            far_out = beyond_kerb or lat > config.offside_reach_m
+            if far_out and track.hits < config.kerbside_young_hits and not _can_reach_band(lat, towards, config):
+                # Beyond the kerb line and young, reach decides, road or no road (F6-03 said
+                # so of the off-road case): a vehicle that cannot reach the lane band within
+                # the horizon at the speed it is coming is kept the tick it can. r15
+                # (Town10HD, the kerb 7.8 m right): a parked car 12 m right of the path,
+                # 4-8 hits old, 3.3 m/s from its centroid settling, 0.9 m/s "towards" the
+                # path, 11 s from the lane band, and its envelope (2.9 m/s of growth)
+                # covered the car's own position at the horizon's end: a full stop at s 53
+                # in run after run. Its motion borne out (kerbside_young_hits), the timed
+                # check decides as before (H2: a car pulling out 9 m right at 1.5 m/s).
+                continue
+            newborn = beyond_kerb and track.hits < config.offroad_young_min_hits
             if newborn and not provisional:
                 # Beyond the kerb line and a few ticks old: a provisional threat, as a young
                 # vehicle off the road is, until it has lasted offroad_young_min_hits (r14,
@@ -1423,6 +1460,13 @@ def plausible_crossers(tracks, candidates, path_xy, keep_right_m, config, ego_sp
             out.append(p)
             continue
         if towards < config.approach_min_mps:
+            continue
+        if (lat < -keep_right_m or lat > config.offside_reach_m) and track.hits < config.kerbside_young_hits and not _can_reach_band(lat, towards, config):
+            # Beyond the kerb line and young, within reach or not: cannot reach the lane
+            # band within the horizon at the speed it is coming (r15, Town10HD: a 1.3 x 0.3
+            # m cluster 8.6 m right, newborn, "approaching at 3.0 m/s" and slowing tick by
+            # tick as its centroid settled, stopped the car for 0.7 s at s 71 in every run;
+            # a walker 0.5 m beyond a 1.75 m kerb is a second from the band and kept).
             continue
         if not within:
             if track.footprint is None or max(track.footprint[0], track.footprint[1]) < config.offroad_min_size_m or track.speed_mps > config.vru_max_speed_mps:
