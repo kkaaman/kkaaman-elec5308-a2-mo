@@ -58,6 +58,18 @@ def test_replay_uses_actual_current_track_filter_and_reports_first_range(tmp_pat
     assert summary["sequences"][0]["confirmation_s"] == pytest.approx(0.05)
     assert summary["usable_range_lower_bound_m"]["car"] == 0
     assert summary["status"] == "MEASURED_NOT_OPERATIONAL_ACCEPTANCE"
+    from obstacle_perception.box_depth import DepthPolicy
+
+    np.save(tmp_path / "depth.npy", np.full((40, 40), 30.0, np.float32))
+    limited = replay(
+        Path(tmp_path), manifest, rows, detector, "axial", depth_policy=DepthPolicy(max_depth_m=25)
+    )
+    assert all(
+        not t["valid_depth"] and not t["confirmed"] for row in limited for t in row["truths"]
+    )
+    assert range_summary(limited)["class_metrics"]["car"] == dict(tp=3, fp=0, fn=0)
+    assert sum(row["invalid_depth_count"] for row in limited) == 3
+    np.save(tmp_path / "depth.npy", np.full((40, 40), 10.0, np.float32))
     # An injected ID restart is not confirmation continuity.
     records = replay(Path(tmp_path), manifest, rows, detector, "axial", fault="flicker")
     assert not records[0]["truths"][0]["detected"]

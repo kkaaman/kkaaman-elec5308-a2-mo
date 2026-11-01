@@ -37,7 +37,17 @@ def overlap(a, b):
     return area / union if union > 0 else 0
 
 
-def replay(folder, manifest, rows, detector, convention, *, fault=None):
+def replay(
+    folder,
+    manifest,
+    rows,
+    detector,
+    convention,
+    *,
+    fault=None,
+    track_policy=None,
+    depth_policy=None,
+):
     width, height = manifest["image_size_wh"]
     rig = manifest["camera"]
     calibration = CameraIntrinsics.from_horizontal_fov(
@@ -58,7 +68,10 @@ def replay(folder, manifest, rows, detector, convention, *, fault=None):
         if sequence != current:
             detector.reset(episode_id=sequence)
             tracker = TrackDepthFilter(
-                source_id=detector.source_id, model_version=detector.model_version
+                source_id=detector.source_id,
+                model_version=detector.model_version,
+                policy=track_policy,
+                depth_policy=depth_policy,
             )
             tracker.reset(episode_id=sequence)
             if hasattr(detector, "warmup"):
@@ -91,7 +104,7 @@ def replay(folder, manifest, rows, detector, convention, *, fault=None):
                 detector.reset(episode_id=sequence)
                 batch = detector.track(frame)
         tracked = tracker.update(frame, batch)
-        estimates = estimate_batch_depth(frame, batch)
+        estimates = estimate_batch_depth(frame, batch, depth_policy)
         confirmed = {
             o.identity.track_id
             for o in tracked.tracks

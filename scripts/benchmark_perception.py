@@ -6,10 +6,15 @@ Never accepts a training/validation subset as held-out evidence.
 
 import argparse
 import json
+from dataclasses import asdict
 from pathlib import Path
 
+from autonomy.admission import load_admitted_baseline
 from evaluation.dataset import read_dataset, sha256
 from evaluation.perception_replay import range_summary, replay
+from obstacle_perception.box_depth import DepthPolicy
+from obstacle_perception.tracking import TrackPolicy
+from perception.recorded_detector import RecordedDetector
 from scripts.replay_local_detector import make_detector
 
 
@@ -18,6 +23,9 @@ def main():
     parser.add_argument("--dataset", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--depth-calibration", type=Path, required=True)
+    parser.add_argument(
+        "--predictions", type=Path, help="Rescore retained model records; never rerun inference"
+    )
     args = parser.parse_args()
     manifest, rows = read_dataset(args.dataset)
     calibration = json.loads(args.depth_calibration.read_text())
@@ -36,9 +44,58 @@ def main():
     if not selected:
         parser.error("No held-out test scenes")
     args.output.mkdir(parents=True, exist_ok=False)
-    detector = make_detector()
+    root = Path(__file__).resolve().parents[1]
+    freeze = load_admitted_baseline(root / "configs/mission_baseline.json")[
+        "baseline_threshold_freeze"
+    ]
+    track_policy = TrackPolicy(**freeze["track_policy"])
+    depth_policy = DepthPolicy(**freeze["depth_policy"])
+    if args.predictions:
+        previous = json.loads((args.predictions.parent / "summary.json").read_text())
+        expected = "yolo26n:sha256:" + freeze["detector"]["model_sha256"]
+        if previous["model_version"] != expected:
+            raise ValueError("Retained model identity differs from admitted model")
+        old = [json.loads(line) for line in args.predictions.read_text().splitlines()]
+        if len(old) != len(selected) or {v["sample_id"] for v in old} != {
+            v["sample_id"] for v in selected
+        }:
+            raise ValueError("Retained predictions do not cover exactly the held-out samples")
+        fixture = dict(
+            schema_version=1,
+            origin="recorded",
+            source_id="replay",
+            model_version=expected,
+            frames=[
+                dict(
+                    frame_id=v["frame_id"],
+                    sim_time_s=v["sim_time_s"],
+                    width=manifest["image_size_wh"][0],
+                    height=manifest["image_size_wh"][1],
+                    valid=v["valid"],
+                    invalid_reason=None if v["valid"] else "retained_invalid",
+                    detections=[
+                        {k: p[k] for k in ("class_name", "confidence", "xyxy", "track_id")}
+                        for p in v["predictions"]
+                    ],
+                )
+                for v in old
+            ],
+        )
+        fixture_path = args.output / "retained-detector.json"
+        fixture_path.write_text(json.dumps(fixture, allow_nan=False) + "\\n")
+        detector = RecordedDetector(fixture_path, sha256(fixture_path))
+    else:
+        detector = make_detector()
     try:
-        records = replay(args.dataset, manifest, selected, detector, calibration["convention"])
+        records = replay(
+            args.dataset,
+            manifest,
+            selected,
+            detector,
+            calibration["convention"],
+            track_policy=track_policy,
+            depth_policy=depth_policy,
+        )
     finally:
         detector.close()
     report = range_summary(records)
@@ -46,6 +103,12 @@ def main():
         dataset_manifest_sha256=sha256(args.dataset / "manifest.json"),
         model_version=detector.model_version,
         evaluated_split="test",
+        track_policy=asdict(track_policy),
+        depth_policy=asdict(depth_policy),
+        prediction_source_sha256=sha256(args.predictions) if args.predictions else None,
+        timing_origin="retained fixture/filter only; not learned inference"
+        if args.predictions
+        else "measured model/filter replay",
         frames=len(records),
         origin="recorded",
         reference="PR69 5942fab; canonical TrackDepthFilter adaptation",
