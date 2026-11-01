@@ -136,3 +136,44 @@ def test_cleanup_waits_for_async_destroy_snapshot_without_own_tick():
     assert verify_owned_cleanup(World(), {7})
     stuck = SimpleNamespace(get_actors=lambda: [SimpleNamespace(id=7)])
     assert verify_owned_cleanup(stuck, {7}, timeout_s=0) is False
+
+
+def test_resume_reuses_complete_cells_and_archives_failed_attempt(tmp_path, monkeypatch):
+    from evaluation import dataset
+    from scripts import capture_weather_dataset as script
+
+    output = tmp_path / "queue"
+    common = ["capture", "--output", str(output), "--cells", "S0-ClearNoon-r1", "S0-ClearNoon-r2"]
+    monkeypatch.setattr("sys.argv", common)
+    assert script.main() == 0
+    report = json.loads((output / "queue.json").read_text())
+    report["cells"][0]["status"] = "COLLECTED"
+    report["cells"][1]["status"] = "FAILED"
+    (output / "queue.json").write_text(json.dumps(report))
+    for cell in report["cells"]:
+        folder = output / cell["cell_id"]
+        folder.mkdir()
+        (folder / "sentinel").write_text(cell["status"])
+    (output / "S0-ClearNoon-r2.log").write_text("original failure")
+    monkeypatch.setattr(
+        dataset,
+        "read_dataset",
+        lambda folder: (dict(sample_count=600, settings_restored=True, no_actor_leaks=True), []),
+    )
+    calls = []
+
+    def run(command, **kwargs):
+        calls.append(command)
+        Path(command[command.index("--output") + 1]).mkdir()
+        return SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr(script.subprocess, "check_output", lambda *args, **kwargs: "fixture-sha")
+    monkeypatch.setattr(script.subprocess, "run", run)
+    monkeypatch.setattr(script, "combine_captures", lambda *args: None)
+    monkeypatch.setattr("sys.argv", common + ["--resume", "--execute"])
+    assert script.main() == 0
+    assert len(calls) == 1 and "S0-ClearNoon-r2" in calls[0]
+    assert (output / "S0-ClearNoon-r1/sentinel").read_text() == "COLLECTED"
+    archive = next((output / "attempt-history").glob("S0-ClearNoon-r2-attempt-*"))
+    assert (archive / "capture/sentinel").read_text() == "FAILED"
+    assert (archive / "capture.log").read_text() == "original failure"
