@@ -3918,6 +3918,12 @@ PC 3 ~30). Tried and not taken: a shorter interpreter switch interval (5 → 1 �
 still built; the F6-01 test (commands, caps and the model the same inline and threaded)
 unchanged.
 
+**Confirmed live (PC 3, 2 Nov, `32f02d6`, S5 × 5 — r19s's slow block):** detection 4.8-5.2 ms
+on every tick of the four (r19s on the same runs: 9.5 / 9.2 / 4.8 / 8.1), the stack step
+p50 37 → 31 ms, p95 50-51 → 41-44, over the 50 ms target 5-9 % → 0.3-1.6 % of steps: all
+five within the budget (r19s: none). The driving is the same tick for tick — the same tick
+counts and not one command different from r19s in any of the five runs.
+
 ### Live on PC 3 (2 Nov, `3adf639`): r19s, the G2 batch — 30 of 30
 
 Every behaviour gate passed in all six scenarios, five seeds each: the first complete G2
