@@ -4,6 +4,7 @@ import contextlib
 import hashlib
 import importlib.util
 import io
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -72,13 +73,30 @@ class ReproductionTests(unittest.TestCase):
             return setup.main()
 
     def test_read_only_path_never_calls_install_or_lfs(self):
-        with patch.object(setup, "run", return_value=True) as run, \
-                patch.object(setup, "pip_install") as install, \
-                patch.object(setup, "pull_lfs_weights") as lfs:
-            self.assertEqual(self.invoke_setup(["--offline", "--check-only", "--assets-only"]), 0)
-            install.assert_not_called()
-            lfs.assert_not_called()
-            run.assert_not_called()
+        # CI deliberately checks out LFS pointers. This control-flow test owns
+        # its asset fixture instead of depending on workstation model binaries.
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "configs").mkdir()
+            asset = root / "model.bin"
+            asset.write_bytes(b"weights")
+            (root / "configs/reproduction.json").write_text(json.dumps({
+                "assets": [{"path": "model.bin", "size_bytes": 7,
+                            "sha256": hashlib.sha256(b"weights").hexdigest()}]}))
+            with (
+                patch("scripts.check_reproduction.ROOT", root),
+                patch.object(setup, "run", return_value=True) as run,
+                patch.object(setup, "pip_install") as install,
+                patch.object(setup, "pull_lfs_weights") as lfs,
+            ):
+                for contents, expected in ((b"weights", 0), (b"changed", 1)):
+                    with self.subTest(contents=contents):
+                        asset.write_bytes(contents)
+                        self.assertEqual(self.invoke_setup(
+                            ["--offline", "--check-only", "--assets-only"]), expected)
+                install.assert_not_called()
+                lfs.assert_not_called()
+                run.assert_not_called()
 
     def test_offline_rejects_direct_urls_nested_requirements_and_options_before_pip(self):
         with tempfile.TemporaryDirectory() as directory:

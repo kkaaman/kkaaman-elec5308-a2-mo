@@ -128,3 +128,18 @@ The service/deployment/wire protocol sources are unchanged, so existing real-mod
 Docker evidence is reused. The changed hybrid adapter is covered by the new
 216-case matrix and existing client/server/control tests. No cloud or Docker
 performance measurement is invented. See [remaining work and live queue](release_live_queue.md).
+
+## GitHub reconciliation and CI follow-up
+
+PR118 merged as b39faed84abdbb8ba2371f2f859fb72d592c7dfb with the required
+real merge title. #61/#78/#79 are closed; remaining issue bodies/checklists now
+show only precise missing criteria. #80–#85 link the one public contribution
+index while private obligations remain individual.
+
+GitHub runners are available again. PR118 lint/docs/fault jobs passed; the
+full test job found one pre-existing test depending on downloaded workstation
+weights. CI intentionally has LFS pointers. A focused test-only fix now owns a
+verified temporary asset and verifies both success and corrupt-asset failure
+without installation/LFS calls. It does not alter production asset verification,
+source admission or the measured production state. Original failed CI logs are
+retained; they are not relabelled as passed. A new CI run validates the fix.
