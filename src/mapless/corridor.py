@@ -99,6 +99,35 @@ class CorridorConfig:
     # tick, five far points — some other edge, straight ahead across the curve — refitted a
     # straight line to 29 m, the reference left the kerb for good, and the car drove out of
     # the curve on the line, 2.7 m off, towards a "lead" that was scenery).
+    # The curve candidate (fifteenth and sixteenth reviews, 3/8; r18 S1_5310). The kerb is
+    # searched within edge_gate_m of where last tick's line puts it, so a line that is
+    # straight where the road bends excludes the very kerb that would bend it (on a road
+    # with the kerb 7.8 m right the 8 m lateral search binds first, 0.2 m out). When the
+    # fit is short on evidence (span under candidate_trigger_span_m or fewer than
+    # candidate_trigger_points), the kerb is also chained along the car's own heading, free
+    # of the reference, in a band candidate_band_m inside/outside keep_right; a chain of
+    # candidate_min_stations over candidate_min_span_m that a line leaves by
+    # candidate_min_bend_rms_m, a circle fits within candidate_max_residual_m, and whose
+    # radius lies in [candidate_min_radius_m, candidate_max_radius_m] (a junction's fillet is
+    # tighter) is a bend. Seen candidate_persist_ticks ticks running with a radius within
+    # candidate_radius_tol of the last, and meeting the current line at the car within
+    # candidate_agree_m, the lane circle keep_right inside it seeds a refit, taken when it
+    # finds more kerb than the line had. Recorded frames of r18 S1_5310: the chain holds
+    # 15-23 stations from s 184, R 27-31 at the kerb (the lane's 35 less 7.8) from s 189,
+    # 5 m before the line lost the kerb; the fillet before it fits at R 17-22, 0.2-0.3 m off.
+    candidate_enabled: bool = True
+    candidate_trigger_span_m: float = 8.0
+    candidate_trigger_points: int = 10
+    candidate_band_m: tuple = (2.0, 6.0)
+    candidate_min_stations: int = 10
+    candidate_min_span_m: float = 12.0
+    candidate_min_bend_rms_m: float = 0.3
+    candidate_max_residual_m: float = 0.15
+    candidate_min_radius_m: float = 15.0
+    candidate_max_radius_m: float = 400.0
+    candidate_persist_ticks: int = 5
+    candidate_radius_tol: float = 0.3
+    candidate_agree_m: float = 0.75
     refit_free_evidence: int = 10
     refit_free_span_m: float = 8.0  # ... and those must span at least this far (fifteenth review: a count is not geometry)
     refit_anchor_points: int = 2
@@ -265,12 +294,16 @@ class CorridorEstimator:
         self._standing_anchor = None  # the line (odometry) when the standstill began
         self.last_refit = None  # the last update's evidence and whether it refitted the line (diagnostics)
         self.last_road_support_m = None  # how far the last line was observed as road, occupied cells not counted (diagnostics)
+        self.last_candidate = None  # the curve candidate's note this tick (diagnostics)
+        self._candidate_streak = 0
+        self._candidate_radius = None
         self._calibration_began_s = None
         self.calibration_summary = None
 
     def reset(self):
         self.previous = None
         self._standing_anchor = None
+        self._candidate_streak, self._candidate_radius = 0, None
 
     def seed(self, centre_body, pose, time_s):
         """Start kerb following from a given line (the exit of a junction turn, G1c)."""
@@ -693,7 +726,105 @@ class CorridorEstimator:
         """Refit the corridor from this tick's grid. ``anchor`` False: the previous line is a
         seed (a junction's exit line, the crossing's path at an offset: a hypothesis to be
         tested by the kerb, which beyond a junction is all far evidence), so the anchor rule
-        does not carry it in place of a refit."""
+        does not carry it in place of a refit, and no curve candidate is sought.
+
+        With the fit short on evidence, the kerb is also chained along the car's own heading
+        (``_curve_candidate``); a bend seen persistently that meets the line at the car seeds
+        a refit, taken when it finds more kerb than the line had (``CorridorConfig``)."""
+        corridor = self._update(grid, pose, time_s, anchor)
+        c = self.config
+        self.last_candidate = None
+        if not c.candidate_enabled or not anchor or self.keep_right_m is None or self.standing_s > 0 or not corridor.ok or self.last_refit is None:
+            self._candidate_streak, self._candidate_radius = 0, None
+            return corridor
+        note = self.last_refit
+        if note["span_m"] >= c.candidate_trigger_span_m and note["near"] + note["far"] >= c.candidate_trigger_points:
+            self._candidate_streak, self._candidate_radius = 0, None
+            return corridor
+        found = self._curve_candidate(grid, pose)
+        if found is None:
+            self._candidate_streak, self._candidate_radius = 0, None
+            return corridor
+        consistent = self._candidate_radius is not None and abs(found["radius"] - self._candidate_radius) <= c.candidate_radius_tol * max(found["radius"], self._candidate_radius)
+        self._candidate_streak = self._candidate_streak + 1 if consistent else 1
+        self._candidate_radius = found["radius"]
+        line = found["centre_body"]
+        at_car = float(np.interp(0.0, line[:, 0], line[:, 1]))
+        agrees = abs(at_car - corridor.lateral_offset_at(0.0)) <= c.candidate_agree_m
+        self.last_candidate = dict(radius_m=round(found["radius"], 1), residual_m=round(found["residual"], 3), bend_rms_m=round(found["bend_rms"], 2), stations=found["stations"], streak=self._candidate_streak, at_car_m=round(at_car, 2), accepted=False)
+        if self._candidate_streak < c.candidate_persist_ticks or not agrees:
+            return corridor
+        kept, kept_anchor = self.previous, self._standing_anchor
+        self.seed(line, pose, time_s)
+        fresh = self._update(grid, pose, time_s, anchor=False)
+        if fresh.ok and len(fresh.evidence_body) > len(corridor.evidence_body):
+            self.last_candidate["accepted"] = True
+            self._candidate_streak, self._candidate_radius = 0, None
+            return fresh
+        self.previous, self._standing_anchor = kept, kept_anchor
+        return corridor
+
+    def _curve_candidate(self, grid, pose):
+        """The kerb chained along the car's own heading, free of the reference, when it bends
+        as a road does: dict(radius, centre, right_bend, centre_body (the lane circle
+        keep_right inside the kerb, vehicle frame), residual, bend_rms, stations) or None."""
+        c = self.config
+        kr = self.keep_right_m
+        stations = np.arange(2.0, c.horizon_m + 1e-9, c.step_m)
+        offsets = np.arange(-(kr - c.candidate_band_m[0]), -(kr + c.candidate_band_m[1]) - 1e-9, -c.lateral_step_m)  # from the lane outwards
+        body = np.column_stack((np.repeat(stations, len(offsets)), np.tile(offsets, len(stations))))
+        labels = grid.labels(pose.to_world(body), max_age_s=c.edge_max_age_s).reshape(len(stations), len(offsets))
+        gap = int(round(c.max_unseen_m / c.lateral_step_m))
+        kerb = np.full(len(stations), np.nan)
+        for i in range(len(stations)):
+            row = labels[i]
+            barrier = np.flatnonzero(row == CellLabel.BARRIER)
+            if not barrier.size:
+                continue
+            road = np.flatnonzero(row[: barrier[0]] == CellLabel.ROAD)
+            if road.size and barrier[0] - road[-1] <= gap + 1:
+                kerb[i] = offsets[barrier[0]]
+        ok = np.flatnonzero(np.isfinite(kerb))
+        if ok.size < c.candidate_min_stations:
+            return None
+        keep = [ok[0]]
+        for k in ok[1:]:
+            dx = stations[k] - stations[keep[-1]]
+            if dx <= 8.0 and abs(kerb[k] - kerb[keep[-1]]) <= c.max_edge_jump_m + 0.3 * dx:
+                keep.append(k)
+            else:
+                break
+        xs, ys = stations[keep], kerb[keep]
+        if len(xs) < c.candidate_min_stations or float(np.ptp(xs)) < c.candidate_min_span_m:
+            return None
+        line = np.polyfit(xs, ys, 1)
+        bend_rms = float(np.sqrt(np.mean((np.polyval(line, xs) - ys) ** 2)))
+        if bend_rms < c.candidate_min_bend_rms_m:
+            return None
+        # Algebraic circle fit through the chain.
+        A = np.column_stack((xs, ys, np.ones_like(xs)))
+        try:
+            coef = np.linalg.lstsq(A, -(xs**2 + ys**2), rcond=None)[0]
+        except np.linalg.LinAlgError:
+            return None
+        cx, cy = -coef[0] / 2.0, -coef[1] / 2.0
+        radius = math.sqrt(max(cx * cx + cy * cy - coef[2], 1e-9))
+        residual = float(np.sqrt(np.mean((np.hypot(xs - cx, ys - cy) - radius) ** 2)))
+        if residual > c.candidate_max_residual_m or not c.candidate_min_radius_m <= radius <= c.candidate_max_radius_m:
+            return None
+        right_bend = cy < float(np.mean(ys))  # the centre beyond the kerb: the road bends right
+        lane_radius = radius + kr if right_bend else radius - kr  # the lane centre is keep_right to the kerb's left
+        if lane_radius <= 1.0:
+            return None
+        sample = np.arange(c.start_m, min(c.horizon_m, float(xs.max()) + c.extrapolate_m) + 1e-9, c.step_m)
+        inside = lane_radius**2 - (sample - cx) ** 2
+        valid = inside > 0
+        if valid.sum() < 2:
+            return None
+        ys_lane = cy + np.sqrt(inside[valid]) if right_bend else cy - np.sqrt(inside[valid])
+        return dict(radius=radius, centre=(float(cx), float(cy)), right_bend=bool(right_bend), centre_body=np.column_stack((sample[valid], ys_lane)), residual=residual, bend_rms=bend_rms, stations=int(len(xs)))
+
+    def _update(self, grid, pose, time_s, anchor=True):
         if not isinstance(grid, TerrainGrid) or not isinstance(pose, Pose2D):
             raise TypeError("update(TerrainGrid, Pose2D, time_s)")
         c = self.config
