@@ -3698,6 +3698,26 @@ is the next step if r17 shows the curve again.
 
 **r17** = the batch on this code.
 
+### Fifteenth review (1 Nov, external, on the r16 report; `ed0efe6` not available to it): hardening taken, the curve candidate scheduled
+
+The review agrees with the r16 diagnosis and the two fixes, and names the architectural
+issue behind the curve: the kerb search is gated 0.75 m around last tick's reference, and a
+straight reference tangent to the R≈35 curve leaves the kerb by 0.72 m at 7 m and 1.5 m at
+10 m, so the fit never sees the bend until the car is in it (the late hand-back in S3_5312,
+whose reference already bent, carried 25 points and 29 m through the same stretch). Taken
+now, small and behaviour-preserving for r17: a refit without near anchors needs 10 points
+**and** 8 m of span (a count is not geometry); every tick reports `corridor_refit` (near
+and far counts, span, refitted or why not); the standstill recovery tries at most three
+searches a standstill and then declares "corridor stalled" instead of cycling
+(`corridor_stall_attempts`). Agreed and scheduled after r17 if the curve still binds: a
+bounded two-hypothesis corridor — the carried reference plus a curvature candidate from
+kerb stations admitted by a distance-widening gate, accepted on span, support, heading and
+persistence — profiled on recorded frames first. Stated open: the carry-forward renews its
+evidence time from any edge hit (the review's three-timestamp separation is the right
+shape); a hold on a carried line blocks the stall recovery by design; the semantic shadow
+scored through the curve (configuration B) is the first ML experiment. Response:
+`claude/reviews/review16_external_r16.md`.
+
 ## Running Phase 0 live
 
 Run with CARLA 0.9.16 and no other clients:

@@ -100,6 +100,7 @@ class CorridorConfig:
     # straight line to 29 m, the reference left the kerb for good, and the car drove out of
     # the curve on the line, 2.7 m off, towards a "lead" that was scenery).
     refit_free_evidence: int = 10
+    refit_free_span_m: float = 8.0  # ... and those must span at least this far (fifteenth review: a count is not geometry)
     refit_anchor_points: int = 2
     refit_anchor_m: float = 12.0
     extrapolate_m: float = 6.0
@@ -262,6 +263,7 @@ class CorridorEstimator:
         # 0 while moving and before the first motion).
         self.standing_s = 0.0
         self._standing_anchor = None  # the line (odometry) when the standstill began
+        self.last_refit = None  # the last update's evidence and whether it refitted the line (diagnostics)
         self._calibration_began_s = None
         self.calibration_summary = None
 
@@ -733,12 +735,17 @@ class CorridorEstimator:
         ey = ref[has] + centre[has] * np.cos(heading[has])
         evidence = np.column_stack((ex, ey))
 
-        anchored = len(ex) >= c.refit_free_evidence or int(np.sum(ex <= c.refit_anchor_m)) >= c.refit_anchor_points
+        near = int(np.sum(ex <= c.refit_anchor_m))
+        span = float(np.ptp(ex)) if len(ex) >= 2 else 0.0
+        anchored = near >= c.refit_anchor_points or (len(ex) >= c.refit_free_evidence and span >= c.refit_free_span_m)
+        self.last_refit = dict(near=near, far=int(len(ex) - near), span_m=round(span, 1), refit=False, why="")
         if (len(ex) < c.min_evidence or not anchored) and self.previous is not None and prior_end >= c.min_valid_m:
             # Too little to refit, or too little near the car: keep last tick's line as it
             # is. Refitting the prior on its own extrapolates it a little further each tick
             # and drifts; a few far points alone are as likely some other edge.
+            self.last_refit["why"] = "too few points" if len(ex) < c.min_evidence else "no evidence near the car"
             return self._carry_forward(grid, pose, time_s, stations, ref, accepted_right, left, blocked, evidence, prior_end)
+        self.last_refit["refit"] = True
         # Standing still the kerb has not moved, and the cells inside the LiDAR's blind ring
         # are no longer hit and age out, so a refit sees less and less of the road: stopped
         # on a 12 m bend for a pole, the evidence span fell under 8 m within 1 s, the refit

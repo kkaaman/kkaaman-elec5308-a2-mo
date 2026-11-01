@@ -103,6 +103,7 @@ class DriverConfig:
     # the car moved 2.5 m on the carried line after the removal and stood on its 6 m end
     # to the time limit, the line never faulting because stray edge hits kept it fresh).
     corridor_stall_s: float = 4.0
+    corridor_stall_attempts: int = 3  # searches from the car's own line before the stall is a declared fault (no cycling)
     mouth_release_m: float = 0.5  # a standing car's mouth moves on to an opening read this much further ...
     mouth_release_s: float = 1.0  # ... steadily (within mouth_release_m) for this long
     # The path the far points' ground is read along (``classify_sweep``'s path_xy) is the last
@@ -253,6 +254,7 @@ class MaplessDriver:
         self._still_since = None  # when the current standstill began (once the car has moved)
         self._still_base = 0.0  # credit carried into it from a standstill just before
         self._still_credit = 0.0  # time stood still, kept until the car has moved still_credit_m
+        self._stall_attempts = 0  # corridor searches from the car's own line during this standstill
         self._still_odo = None  # where the last standstill was (odometry)
 
     def _brake(self, mode, reason, diagnostics):
@@ -387,10 +389,19 @@ class MaplessDriver:
             # for: a deadlock (the line cannot grow without moving, the car cannot move
             # without it). Search again from the car's own line, as after a lost corridor.
             # A hold behind an obstacle is not this: its line is kept as the standing rule
-            # keeps it, and the hold's own release lets the car go.
-            self.corridor.reset()
-            corridor = self.corridor.update(self.grid, motion.odometry, t)
-            d.update(corridor_reacquire=True, corridor_stalled_s=round(standing, 1))
+            # keeps it, and the hold's own release lets the car go. The search is tried
+            # corridor_stall_attempts times a standstill (one every corridor_stall_s), then
+            # the stall is a declared fault rather than a cycle (fifteenth review, 5.3).
+            if self._stall_attempts >= c.corridor_stall_attempts:
+                d.update(corridor_stalled_s=round(standing, 1), corridor_stall_attempts=self._stall_attempts)
+                return self._fault(f"corridor stalled: {corridor.valid_length_m:.1f} m of carried line, {len(corridor.evidence_body)} kerb points, {self._stall_attempts} searches", d, motion, t, dt)
+            if standing >= c.corridor_stall_s * (self._stall_attempts + 1):
+                self._stall_attempts += 1
+                self.corridor.reset()
+                corridor = self.corridor.update(self.grid, motion.odometry, t)
+                d.update(corridor_reacquire=True, corridor_stalled_s=round(standing, 1), corridor_stall_attempts=self._stall_attempts)
+        if standing == 0.0:
+            self._stall_attempts = 0
         lap("corridor")
         d.update(
             corridor_ok=corridor.ok,
@@ -402,6 +413,7 @@ class MaplessDriver:
             corridor_evidence=int(len(corridor.evidence_body)),
             right_edge_5m=corridor.right_edge_from_centre_m(5.0),
             right_kerb_body=corridor.right_edge_body(5.0),
+            corridor_refit=self.corridor.last_refit,
         )
         guidance = self.progress.update(motion.route.x_m, motion.route.y_m)
         d.update(route_index=guidance.index, goal_distance_m=guidance.goal_distance_m, route_finished=guidance.finished)
