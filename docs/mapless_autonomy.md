@@ -17,7 +17,7 @@ reports and `route.json` files are the evidence that travels with each batch.
 | G1a | Local trajectory controller | yes | yes | yes (inside G1b) | yes | — |
 | G1b | Straight, curve, obstacle stop, sensor-only | yes | yes | MEASURED_PASS (Town10HD, Town05) | straight at 4 m/s, stops with a car and a cone, the curve once | the curve again; sensor outages are injected, not met |
 | G1c | Commanded 90° turn | yes | yes | right (Town10HD) and left (Town03) MEASURED_PASS; r8–r11 left turns with oncoming and parked cars | the Town03 left turn, five batches | one right-turn site; skewed junctions unsupported (sites within 10° of a right angle); the exit-kerb far bias |
-| G2 | Segmenter, painting, road model, stack; S0–S5 × 5 on the baseline route | yes; the mission scenario and its aggregator (31 Oct) | yes (fake world; synthetic 468) | the stack's straight, stop, leads, crossings, turns; **the gate run five times: r12 S0 and r13 failed at junction 468; r14 19/30, r15 24/30, r16 27/30 (`22c77b6`), r17 24/30 (`ed0efe6`: the refit anchor reached into the crossing's seeds, fixed), r18 28/30 (`757fd09`), the junction crossed cleanly by every run since r16** — the exit curve's kerb observability (8 m window, 7.8 m kerb) is the last mechanism | S0, S3, S4, S5 (r18); S4 (four batches) | r19 runs the gate with the curve candidate; the segmenter is shadow only (v2 right edge 0.76 m inside the kerb) and part of no decision |
+| G2 | Segmenter, painting, road model, stack; S0–S5 × 5 on the baseline route | yes; the mission scenario and its aggregator (31 Oct) | yes (fake world; synthetic 468) | the stack's straight, stop, leads, crossings, turns; the gate run eight times: r12 S0 and r13 failed at junction 468; r14 19/30, r15 24/30, r16 27/30 (`22c77b6`), r17 24/30 (`ed0efe6`: the refit anchor reached into the crossing's seeds, fixed), r18 28/30 (`757fd09`), **r19s 30/30 (`3adf639`): every behaviour gate, the curve candidate taking the exit curve in the three runs that entered it short of kerb**; the junction crossed cleanly by every run since r16 | all six (r19s) | real time: 24 of 30 over budget in r19s (the worker's lock contention, fixed in `32f02d6`); r20 reruns the gate on it; the segmenter is shadow only (v2 right edge 0.76 m inside the kerb) and part of no decision |
 | G3 | Tracker, radar, prediction, following, M04–M06 | yes | yes | braking lead, cut-in, crossing walker and car, radar-first: MEASURED_PASS, r8–r11 | the leads and crossings, four batches | the A/B/C ablation with a lead still moving beyond the LiDAR's reach; rear radars admitted, no behaviour reads them |
 | G4 | Lights, junction yielding, lane changes, faults, mixed route | the left turn's oncoming gate; the junction crossed straight (31 Oct, curving exit 1 Nov); injected sensor outages | yes | the oncoming turns (r8–r12); the outages (r11); the crossing not yet | the oncoming turn | lights (M07), lane changes (M09–M11), the mixed route (M13), a two-lane opposing carriageway at the gate |
 | G5 | Learning | the segmenter trained (mIoU 0.879, Town02 held out) | — | shadow only | — | no learned component affects a command; no configuration C |
@@ -3917,6 +3917,31 @@ PC 3 ~30). Tried and not taken: a shorter interpreter switch interval (5 → 1 �
 11.9 → 10.9 ms only. Test: the hand-off follows the plan on every job tick, the model
 still built; the F6-01 test (commands, caps and the model the same inline and threaded)
 unchanged.
+
+### Live on PC 3 (2 Nov, `3adf639`): r19s, the G2 batch — 30 of 30
+
+Every behaviour gate passed in all six scenarios, five seeds each: the first complete G2
+pass. The worst footprint corner 1.605 m of 1.75 (S0_5312; r18's worst passing 1.68), the
+median 1.44 (r18 1.53). Real time over budget in 24 of 30 (all but S0_5309 and S4): the
+semantic worker's lock contention, detection at 8.3-8.5 ms in nearly every run; fixed in
+`32f02d6` after this batch started, so r19s ran without it.
+
+**The exit curve, read off the per-tick corridor report:**
+- S1/S2_5310, r18's failure: tick-identical to r18 up to s 128.75, where seven near kerb
+  points and one far glimpse made r18 a cubic and `3adf639` a lower order (the
+  seventeenth review's fix); the commands part there. The car met the exit curve 0.4 m
+  further left (lane offset +0.1 against −0.3 at s 186), the far kerb stayed in the search
+  window, and the line held 24-26 kerb points through the curve (r18: 6-7, then 0).
+- S1/S2_5308 (tick-identical) and S5_5311 entered the curve in r18 S1_5310's state: 6-7
+  kerb points over 5-6 m, the line valid to 13-16 m, the car 0.25-0.47 m right. The curve
+  candidate found the bend from s 186.5 (R 18-26 m, 17-19 stations), held it five ticks
+  running and seeded the refit at s 188.7 / 189.1 (R 25.9 / 25.2): evidence 7 → 24 / 21,
+  the line valid 13 → 29.5 m. The lane offset through the rest of the curve stayed within
+  0.47 / 0.37 m. No other run triggered it; the gap rule dropped nothing in the curve.
+- Not yet taken: the candidate's streak restarts when one tick's chain misses a gate
+  (S1_5308: first found at s 186.5, taken at 188.7). A streak that tolerates a missed tick
+  would take it ~2 m sooner; not needed for this gate, measured first if a later batch
+  shows the curve tight again.
 
 ## Running Phase 0 live
 
