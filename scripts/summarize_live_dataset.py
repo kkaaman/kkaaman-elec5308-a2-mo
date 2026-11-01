@@ -11,7 +11,7 @@ from pathlib import Path
 
 import numpy as np
 
-from evaluation.dataset import sha256
+from evaluation.dataset import local_file, sha256
 
 
 def close_value(a, b):
@@ -86,11 +86,76 @@ def clustered_interval(values, seed=5308):
     )
 
 
+def compare_depth(rows, root):
+    """One exact indexed frame per static scene; observed differences, not causality."""
+    groups = defaultdict(dict)
+    for row in rows:
+        if row["sequence_index"] != 0:
+            continue
+        scenario, condition, repetition = row["weather_cell_id"].split("-")
+        groups[(scenario, repetition, row["sample_id"].split("/")[-1])][condition] = row
+    results = []
+    for condition in ("HardRainNoon", "ClearNight"):
+        frames = []
+        for group in groups.values():
+            if "ClearNoon" not in group or condition not in group:
+                continue
+            a = np.load(local_file(root, group["ClearNoon"]["depth"]), allow_pickle=False)
+            b = np.load(local_file(root, group[condition]["depth"]), allow_pickle=False)
+            valid = np.isfinite(a) & np.isfinite(b)
+            difference = np.abs(a[valid] - b[valid])
+            frames.append(
+                dict(
+                    pixels=int(a.size),
+                    joint_finite=int(valid.sum()),
+                    reference_invalid=int((~np.isfinite(a)).sum()),
+                    condition_invalid=int((~np.isfinite(b)).sum()),
+                    median_abs_difference_m=float(np.median(difference))
+                    if len(difference)
+                    else None,
+                    p95_abs_difference_m=float(np.percentile(difference, 95))
+                    if len(difference)
+                    else None,
+                    max_abs_difference_m=float(difference.max()) if len(difference) else None,
+                )
+            )
+        medians = [
+            f["median_abs_difference_m"] for f in frames if f["median_abs_difference_m"] is not None
+        ]
+        results.append(
+            dict(
+                condition=condition,
+                paired_scenes=len(frames),
+                pixels=sum(f["pixels"] for f in frames),
+                joint_finite=sum(f["joint_finite"] for f in frames),
+                reference_invalid=sum(f["reference_invalid"] for f in frames),
+                condition_invalid=sum(f["condition_invalid"] for f in frames),
+                median_of_scene_medians_m=float(np.median(medians)) if medians else None,
+                maximum_observed_difference_m=max(
+                    (
+                        f["max_abs_difference_m"]
+                        for f in frames
+                        if f["max_abs_difference_m"] is not None
+                    ),
+                    default=None,
+                ),
+                scene_statistics=frames,
+            )
+        )
+    return dict(
+        status="OBSERVED_PAIRED_DEPTH_DIFFERENCES",
+        comparisons=results,
+        lidar_weather_effect="NOT_MEASURED",
+        limitation="Differences include rendering/animated-object variation; settings or raw differences do not establish weather-caused sensor corruption.",
+    )
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dataset", type=Path, required=True)
     parser.add_argument("--perception", type=Path, required=True)
     parser.add_argument("--weather", type=Path, required=True)
+    parser.add_argument("--depth-comparison", action="store_true")
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     manifest = json.loads((args.dataset / "manifest.json").read_text())
@@ -131,6 +196,12 @@ def main():
         weather_status=weather["status"],
         operational_acceptance=False,
     )
+    if args.depth_comparison:
+        report["depth_comparison"] = (
+            compare_depth(rows, args.dataset)
+            if report["pairing"]["status"] == "PAIRED"
+            else {"status": "NOT_EVALUATED_PAIRING_FAILED"}
+        )
     args.output.mkdir(parents=True, exist_ok=False)
     (args.output / "summary.json").write_text(json.dumps(report, indent=2, allow_nan=False) + "\n")
     lines = [

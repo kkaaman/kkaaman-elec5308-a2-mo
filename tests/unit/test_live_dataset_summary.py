@@ -40,3 +40,31 @@ def test_pairing_detects_pose_drift_and_keeps_failed_targets():
     assert pairing(rows)["failed_target_scenes"]
     with pytest.raises(ValueError, match="Duplicate"):
         pairing(rows + [rows[0]])
+
+
+def test_depth_comparison_retains_nonfinite_denominators(tmp_path):
+    import numpy as np
+
+    from scripts.summarize_live_dataset import compare_depth
+
+    rows = []
+    for name, array in (
+        ("ClearNoon", [[1.0, float("nan")], [2.0, 3.0]]),
+        ("HardRainNoon", [[1.0, float("nan")], [2.1, 3.0]]),
+        ("ClearNight", [[1.0, float("nan")], [2.0, 3.0]]),
+    ):
+        np.save(tmp_path / (name + ".npy"), np.asarray(array, np.float32))
+        rows.append(
+            dict(
+                sequence_index=0,
+                weather_cell_id=f"S0-{name}-r1",
+                sample_id=f"{name}/sample_0",
+                depth=name + ".npy",
+            )
+        )
+    report = compare_depth(rows, tmp_path)
+    rain = report["comparisons"][0]
+    assert rain["pixels"] == 4 and rain["joint_finite"] == 3
+    assert rain["reference_invalid"] == 1 and rain["condition_invalid"] == 1
+    assert rain["maximum_observed_difference_m"] == pytest.approx(0.1)
+    assert report["lidar_weather_effect"] == "NOT_MEASURED"
