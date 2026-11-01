@@ -17,7 +17,7 @@ reports and `route.json` files are the evidence that travels with each batch.
 | G1a | Local trajectory controller | yes | yes | yes (inside G1b) | yes | — |
 | G1b | Straight, curve, obstacle stop, sensor-only | yes | yes | MEASURED_PASS (Town10HD, Town05) | straight at 4 m/s, stops with a car and a cone, the curve once | the curve again; sensor outages are injected, not met |
 | G1c | Commanded 90° turn | yes | yes | right (Town10HD) and left (Town03) MEASURED_PASS; r8–r11 left turns with oncoming and parked cars | the Town03 left turn, five batches | one right-turn site; skewed junctions unsupported (sites within 10° of a right angle); the exit-kerb far bias |
-| G2 | Segmenter, painting, road model, stack; S0–S5 × 5 on the baseline route | yes; the mission scenario and its aggregator (31 Oct) | yes (fake world; synthetic 468) | the stack's straight, stop, leads, crossings, turns; **the gate run five times: r12 S0 and r13 failed at junction 468; r14 19/30, r15 24/30, r16 27/30 (`22c77b6`), r17 24/30 (`ed0efe6`: the refit anchor reached into the crossing's seeds, fixed), the junction crossed cleanly by every run since r16** — the exit road's 0.4 m kerb bias after the hand-back is the margin | S4 (four batches) | r18 runs the gate with seeded refits unanchored; the segmenter is shadow only (v2 right edge 0.76 m inside the kerb) and part of no decision |
+| G2 | Segmenter, painting, road model, stack; S0–S5 × 5 on the baseline route | yes; the mission scenario and its aggregator (31 Oct) | yes (fake world; synthetic 468) | the stack's straight, stop, leads, crossings, turns; **the gate run five times: r12 S0 and r13 failed at junction 468; r14 19/30, r15 24/30, r16 27/30 (`22c77b6`), r17 24/30 (`ed0efe6`: the refit anchor reached into the crossing's seeds, fixed), r18 28/30 (`757fd09`), the junction crossed cleanly by every run since r16** — the exit curve's kerb observability (8 m window, 7.8 m kerb) is the last mechanism | S0, S3, S4, S5 (r18); S4 (four batches) | the two-hypothesis corridor for the exit curve (offline first) before r19; the segmenter is shadow only (v2 right edge 0.76 m inside the kerb) and part of no decision |
 | G3 | Tracker, radar, prediction, following, M04–M06 | yes | yes | braking lead, cut-in, crossing walker and car, radar-first: MEASURED_PASS, r8–r11 | the leads and crossings, four batches | the A/B/C ablation with a lead still moving beyond the LiDAR's reach; rear radars admitted, no behaviour reads them |
 | G4 | Lights, junction yielding, lane changes, faults, mixed route | the left turn's oncoming gate; the junction crossed straight (31 Oct, curving exit 1 Nov); injected sensor outages | yes | the oncoming turns (r8–r12); the outages (r11); the crossing not yet | the oncoming turn | lights (M07), lane changes (M09–M11), the mixed route (M13), a two-lane opposing carriageway at the gate |
 | G5 | Learning | the segmenter trained (mIoU 0.879, Town02 held out) | — | shadow only | — | no learned component affects a command; no configuration C |
@@ -3752,6 +3752,47 @@ the straight fit through kerb that begins to curve right at 14 m is the first th
 settle after r18.
 
 **r18** = the batch on this code.
+
+### Live on PC 3 (1 Nov, `757fd09`): r18, the G2 batch — 28 of 30
+
+S0, S3, S4, S5 5/5; S1 and S2 4/5. Real time within the 5 % budget on 24 of 30 runs (S5
+and S4_5310 over), the first batch mostly inside it. The two failures are one mechanism:
+S1_5310 and S2_5310 (tick-identical) left the lane in 468's exit curve, as S1/S2_5311 did
+in r16, and the per-tick `corridor_refit` shows how. At s 193.8 the fit held seven kerb
+points over 3–9 m **and one point at 45 m** — some other edge — so the evidence "spanned"
+42 m: a cubic, a line valid to 31 m straight across the right-hand curve, scenery 27 m
+ahead on it a "lead" with an obstacle hold, the near kerb then outside the gate for good,
+and the car out of the lane at 22°. The anchored refit passed it, rightly by its own rule
+(seven near points). **Tried and not taken:** dropping, or keeping out of the span and
+reach, one or two lane-centre points beyond a gap along the stations (6 m growing 0.3 m
+per metre with distance, the ring crossings' spacing). It fixes this run and improves the
+synthetic probes (seed 5311 of the curve sweep 0.34 → 0.23 m) — and it faults the
+shoulder-parking road: the kerb glimpsed beyond a parked car *is* one or two far points,
+and they are what carries the line past the car (G1b's parked-car test stopped at the
+first car and faulted). A stray far point and a kerb glimpsed past an occluder cannot be
+told apart by count and gap; they can by what fills the gap (an occluder's cells, or open
+road with no kerb), which is the corridor work below.
+
+**Why the curve is marginal, measured.** Seed 5310 ran the curve four times in r18: S0
+left of centre (+0.1 m) saw 12 far kerb points through the bend and tracked it within
+0.1 m; S3 right of centre (−0.25 m) held 7 near points over 6 m until the bend showed in
+them at s 192 (11 points, a quadratic) and passed; S1 at −0.33 m held 7 points over 5–6 m
+and never saw the bend. On this road the kerb is 7.8 m right and the lateral search
+reaches 8 m from the reference: a kerb bending away leaves the window 0.2 m out, ~3.5 m
+into the bend, before the 0.75 m gate even binds. **Tried and not taken:** the search
+window extended `curve_search_m` past `keep_right` on the kerb's side and the gate
+widened for stations that leave it as a bend of R ≥ 15 m would (capped at +1 m, the chain
+unbroken). The curve is then seen 10 m earlier — and the polynomial fit cuts the corner:
+on the wide-road synthetic curve (kerb 7.8 m right, R 27 at the kerb) the peak offset went
+0.23 → 0.48 m with the window alone and 0.69 m with both, 0.40–0.46 m with the far
+evidence weighted down (`evidence_range_m` 6–10). A single polynomial through a straight
+and an arc bends before the arc does. That, with occlusion-aware gaps, is the fifteenth
+review's two-hypothesis corridor (a curvature candidate beside the carried reference,
+accepted on span, support, heading and persistence), and it is the next piece of work,
+offline first, on the recorded frames and the synthetic curves.
+
+`757fd09` stays the baseline: r18's 28/30 is its measure. A rerun on the same code is
+tick-identical and adds nothing; r19 waits for the corridor work.
 
 ## Running Phase 0 live
 
