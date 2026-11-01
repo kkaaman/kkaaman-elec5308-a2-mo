@@ -259,3 +259,36 @@ def test_new_remote_session_without_source_family_change_forces_hold_reconfirmat
         assert motion.temporal_filter.source_id == "hybrid:remote:recovered"
     finally:
         stack.close()
+
+
+def test_worker_source_is_checked_before_namespace_rewrite():
+    hybrid, motion, detector, stack = setup()
+    hybrid.local = SimpleNamespace(backend=SimpleNamespace(source_id="configured"))
+    try:
+        packet = stack.step(frame(0))
+        assert packet.command.brake == 1
+        assert "Hybrid worker source identity mismatch" in stack._emergency
+        assert motion.temporal_filter.source_id == "initial"
+    finally:
+        stack.close()
+
+
+def test_unconfigured_worker_cannot_change_its_initial_source(monkeypatch):
+    from dataclasses import replace
+
+    hybrid, motion, detector, stack = setup()
+    try:
+        stack.step(frame(0))
+        original = hybrid.poll
+        def wrong_source():
+            decision = original()
+            detected = decision.batch
+            return replace(decision, batch=replace(
+                detected, metadata=replace(detected.metadata, source_id="foreign")))
+        monkeypatch.setattr(hybrid, "poll", wrong_source)
+        value = frame(1)
+        detector.submit(value)
+        assert stack.step(value).command.brake == 1
+        assert "Hybrid worker source identity mismatch" in stack._emergency
+    finally:
+        stack.close()
