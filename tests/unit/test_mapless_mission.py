@@ -149,6 +149,14 @@ def test_the_scenario_gates_are_scored_as_the_plan_says():
     log, _ = _rows(stops=31.5, n=600)
     rows = {name: (ok, v) for name, ok, v in mm.score_mission(s4, log, "held at the obstacle", 60, None, 0.05)}
     assert rows["held"][0] and rows["obstacle_stop"][0] and "resume" not in rows
+    # r15: brake taps are reported for the obstacle scenarios too; the stop for the
+    # obstacle ("obstacle", then "holding ...") is not a tap.
+    assert rows["brake_taps"] == (None, dict(count=0, standstills=0, taps=[]))
+    log[200]["mode"], log[200]["reason"] = "stopping", "obstacle"
+    log[200]["driver"] = dict(speed_cap_reason="stationary lead: the obstacle stop's")
+    log[100]["mode"], log[100]["reason"], log[100]["driver"] = "stopping", "", dict(speed_cap_reason="predicted conflict on the path")
+    rows = {name: (ok, v) for name, ok, v in mm.score_mission(s4, log, "held at the obstacle", 60, None, 0.05)}
+    assert rows["brake_taps"][1]["count"] == 1 and rows["brake_taps"][1]["taps"][0]["reason"] == "predicted conflict on the path"
     # Too close: the band fails it.
     log, _ = _rows(stops=34.0, n=600)
     rows = {name: (ok, v) for name, ok, v in mm.score_mission(s4, log, "held at the obstacle", 60, None, 0.05)}

@@ -439,7 +439,7 @@ class MaplessDriver:
             d.update(crossing_entry_m=round(float(entry_b[0]), 1), crossing_exit_m=round(float(exit_b[0]), 1))
             self.crossing.latch(corridor, motion.odometry, entry_b)
             if self.crossing.should_enter(entry_b):
-                self.crossing.enter(entry_i)
+                self.crossing.enter(entry_i, motion.odometry)
             if self.crossing.active:
                 handed = False
                 d.update(crossing_heading_hold_deg=round(math.degrees(self.crossing.hold_heading(motion.odometry)), 2))
@@ -503,6 +503,13 @@ class MaplessDriver:
                         # the exit. The exit may curve (Town10HD 468: 50 degrees over 30 m, r13):
                         # the kerb corridor follows a curve, no line or sat-nav arc does; a side
                         # road's fillet runs away from the route and is refused by the route test.
+                        past_exit_near = self.crossing.past_exit_point_m(motion.odometry, (x_near, y_path_near))
+                        # Short of the exit the line is still being moved onto the kerb: the
+                        # car is handed over once the step at the car is small (r15: steps
+                        # of 0.56-0.81 m swung it 4-8 degrees). Past reanchor_past_exit_m
+                        # nothing moves the line any more and the larger step is taken.
+                        moving_line = past_exit_near is not None and past_exit_near <= c.crossing.reanchor_past_exit_m
+                        step_bound = c.crossing.handback_step_m if moving_line else c.crossing.handback_offset_m
                         if span >= c.crossing.handback_span_m and agrees_near:
                             x_far = min(float(ex.max()), found.valid_length_m)
                             far = (x_far, found.lateral_offset_at(x_far))
@@ -518,12 +525,11 @@ class MaplessDriver:
                                 # controller refuses such a trajectory and the car stops).
                                 step_here = abs(taken.lateral_offset_at(0.0) - float(np.interp(0.0, path[:, 0], path[:, 1])))
                                 d.update(crossing_handback_step_m=round(step_here, 2))
-                                if taken.ok and step_here <= c.crossing.handback_offset_m and abs(_wrap(taken.heading_at(0.0) - heading_here)) <= c.crossing.handback_heading_rad:
+                                if taken.ok and step_here <= step_bound and abs(_wrap(taken.heading_at(0.0) - heading_here)) <= c.crossing.handback_heading_rad:
                                     corridor, handed = taken, True
                                     self._turn_done = entry_i
                                     self.crossing.reset()
                                     d.update(crossing="handed back to the kerb corridor")
-                        past_exit_near = self.crossing.past_exit_point_m(motion.odometry, (x_near, y_path_near))
                         bound = c.crossing.reanchor_max_m if past_exit_near is not None and past_exit_near < 0.0 else c.crossing.reanchor_exit_max_m
                         if not handed and past_exit_near is not None and past_exit_near <= c.crossing.reanchor_past_exit_m and abs(lateral_near) <= bound and span >= 6.0 and abs(turn_near) <= c.crossing.handback_heading_rad:
                             # Kerb along the latched line, short of the exit point, moves the

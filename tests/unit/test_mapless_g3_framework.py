@@ -1272,12 +1272,16 @@ def test_r11_motion_its_leading_edge_does_not_bear_out_is_predicted_as_standing(
     assert kept[0].speed_mps == pytest.approx(0.6)
 
 
-def test_a_newborn_vehicle_track_beyond_the_kerb_is_a_provisional_threat_not_a_stop():
-    """r14 on Town10HD (two lanes, the kerb 7.8 m right): tracks born at the kerb and beyond
-    it, 2-3 m/s "towards the path", gone within a second, stopped the car dead for 0.3 s at
-    the same two spots in run after run. A vehicle-sized track beyond the kerb line is a
-    provisional threat (the young floor, 1.5 m/s) until it has lasted offroad_young_min_hits;
-    the same track within the kerb, or old enough, is admitted outright."""
+def test_beyond_the_kerb_line_reach_decides_and_a_newborn_vehicle_is_provisional():
+    """r14/r15 on Town10HD (two lanes, the kerb 7.8 m right): tracks born at the kerb and
+    beyond it, 2-3 m/s "towards the path" from their centroids settling, gone within a
+    second, stopped the car dead at the same two spots in run after run (r15: a parked car
+    12 m right, 0.9 m/s towards the path, its envelope covering the car's own position at
+    the horizon's end). Beyond the kerb line reach decides, road or no road: a vehicle that
+    cannot reach the lane band within the horizon at the speed it is coming is dropped;
+    one that can is a provisional threat (the young floor) until it has lasted
+    offroad_young_min_hits, then admitted outright. Within the kerb a vehicle is admitted
+    whatever its speed. The same reach test holds for a smaller track beyond the kerb."""
     from mapless.prediction import predict
     from mapless.stack import StackConfig, plausible_crossers
     from mapless.terrain import CellLabel
@@ -1286,8 +1290,8 @@ def test_a_newborn_vehicle_track_beyond_the_kerb_is_a_provisional_threat_not_a_s
     path = np.column_stack((np.arange(-2.0, 40.0, 0.5), np.zeros(84)))
     uniform = {k: 0.2 for k in ("car", "truck", "bike", "pedestrian", "unknown")}
 
-    def born(tid, y, hits):
-        return ObjectTrack(tid, 0.0, [11.0, y, -2.8, 0.8], np.diag([0.05] * 4), uniform, TrackStatus.CONFIRMED, hits, 0, support=("lidar",), footprint=(4.5, 1.9, 0.0), travelled_m=1.0, recent_speed_mps=2.9)
+    def born(tid, y, hits, towards=0.8, footprint=(4.5, 1.9, 0.0)):
+        return ObjectTrack(tid, 0.0, [11.0, y, -2.8, towards], np.diag([0.05] * 4), uniform, TrackStatus.CONFIRMED, hits, 0, support=("lidar",), footprint=footprint, travelled_m=1.0, recent_speed_mps=2.9)
 
     class Open:
         def tall_evidence(self, xy, max_age_s=None):
@@ -1296,9 +1300,20 @@ def test_a_newborn_vehicle_track_beyond_the_kerb_is_a_provisional_threat_not_a_s
         def labels(self, xy, max_age_s=None):
             return np.full(len(np.asarray(xy).reshape(-1, 2)), CellLabel.ROAD, dtype=np.int8)
 
-    for y, hits, expect_young in ((-8.3, 3, True), (-11.5, 5, True), (-8.3, 12, False), (-6.0, 3, False)):
-        t = born(1, y, hits)
+    def admit(t):
         why, young = {}, set()
         kept = plausible_crossers([t], [predict(t, c.prediction)], path, keep_right_m=7.79, config=c, ego_speed_mps=2.0, grid=Open(), why=why, young=young)
-        assert [p.track_id for p in kept] == [1], (y, hits, why)
-        assert (1 in young) is expect_young, (y, hits, why)
+        return [p.track_id for p in kept] == [1], 1 in young, why.get(1)
+
+    assert admit(born(1, -8.3, 3)) == (False, False, None)  # 6 m from the band at 0.8 m/s: 7.6 s, beyond the horizon
+    assert admit(born(1, -11.5, 5)) == (False, False, None)
+    assert admit(born(1, -8.3, 3, towards=3.0))[:2] == (True, True)  # 2 s away: a provisional threat while newborn ...
+    assert admit(born(1, -8.3, 12, towards=3.0))[:2] == (True, False)  # ... admitted outright once it has lasted
+    assert admit(born(1, -8.3, 40))[:2] == (True, False)  # old enough (kerbside_young_hits), its motion borne out: the timed check decides (H2)
+    assert admit(born(1, -6.0, 3))[:2] == (True, False)  # within the kerb: a vehicle is a vehicle
+    assert admit(born(1, 3.9, 3))[:2] == (True, False)  # to the left there is no kerb: the opposing lane's side is the timed check's ...
+    assert not admit(born(1, 8.3, 3))[0]  # ... but two lanes out and young, reach decides there too
+    assert admit(born(1, 8.3, 40))[0]
+    assert admit(born(1, -8.6, 3, towards=3.0, footprint=(1.3, 0.3, 0.0)))[0]  # a smaller track 2 s from the band is kept ...
+    assert not admit(born(1, -8.6, 3, towards=1.2, footprint=(1.3, 0.3, 0.0)))[0]  # ... and dropped at 5 s from it ...
+    assert admit(born(1, -8.6, 40, towards=1.2, footprint=(1.3, 0.3, 0.0)))[0]  # ... unless its motion is borne out

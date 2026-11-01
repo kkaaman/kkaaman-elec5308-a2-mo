@@ -8,7 +8,7 @@ the working record, oldest first; the table is the current state.
 
 "Implemented" means the code exists; "offline" that it passes the harness and replay
 tests; "live" that it has passed on CARLA at least once; "repeated" that it has passed on
-more than one site or run without retuning. The live batches are r6–r13 (29 Oct–1 Nov); their
+more than one site or run without retuning. The live batches are r6–r15 (29 Oct–1 Nov); their
 reports and `route.json` files are the evidence that travels with each batch.
 
 | Gate | Scope | Implemented | Offline | Live | Repeated | Open |
@@ -17,7 +17,7 @@ reports and `route.json` files are the evidence that travels with each batch.
 | G1a | Local trajectory controller | yes | yes | yes (inside G1b) | yes | — |
 | G1b | Straight, curve, obstacle stop, sensor-only | yes | yes | MEASURED_PASS (Town10HD, Town05) | straight at 4 m/s, stops with a car and a cone, the curve once | the curve again; sensor outages are injected, not met |
 | G1c | Commanded 90° turn | yes | yes | right (Town10HD) and left (Town03) MEASURED_PASS; r8–r11 left turns with oncoming and parked cars | the Town03 left turn, five batches | one right-turn site; skewed junctions unsupported (sites within 10° of a right angle); the exit-kerb far bias |
-| G2 | Segmenter, painting, road model, stack; S0–S5 × 5 on the baseline route | yes; the mission scenario and its aggregator (31 Oct) | yes (fake world; synthetic 468) | the stack's straight, stop, leads, crossings, turns; **the gate run twice (r12 S0, r13 all) and failed at junction 468 both times** — S4 passed ×5 | no | r14 runs the gate on the curve-exit crossing (`0b9a7cc`); the segmenter is shadow only (v2 right edge 0.76 m inside the kerb) and part of no decision |
+| G2 | Segmenter, painting, road model, stack; S0–S5 × 5 on the baseline route | yes; the mission scenario and its aggregator (31 Oct) | yes (fake world; synthetic 468) | the stack's straight, stop, leads, crossings, turns; **the gate run four times: r12 S0 and r13 failed at junction 468; r14 19/30 and r15 24/30 (`0c1fa01`) with every run across the junction** — S3 and S4 5/5, the six failures the drift seeds' footprint at the hand-back | S3, S4 (two batches) | r16 runs the gate with the latch straightened and the hand-back bounded; the segmenter is shadow only (v2 right edge 0.76 m inside the kerb) and part of no decision |
 | G3 | Tracker, radar, prediction, following, M04–M06 | yes | yes | braking lead, cut-in, crossing walker and car, radar-first: MEASURED_PASS, r8–r11 | the leads and crossings, four batches | the A/B/C ablation with a lead still moving beyond the LiDAR's reach; rear radars admitted, no behaviour reads them |
 | G4 | Lights, junction yielding, lane changes, faults, mixed route | the left turn's oncoming gate; the junction crossed straight (31 Oct, curving exit 1 Nov); injected sensor outages | yes | the oncoming turns (r8–r12); the outages (r11); the crossing not yet | the oncoming turn | lights (M07), lane changes (M09–M11), the mixed route (M13), a two-lane opposing carriageway at the gate |
 | G5 | Learning | the segmenter trained (mIoU 0.879, Town02 held out) | — | shadow only | — | no learned component affects a command; no configuration C |
@@ -3590,6 +3590,78 @@ answered here — the runs recorded no frames; r15 S0 should be run with
 
 **r15** = the batch on this code, after `rescore_mission.py` over r14 (S3 flips; the
 footprint runs need the rerun).
+
+### Live on PC 3 (1 Nov, `0c1fa01`): r15, the G2 batch — 24 of 30, the drift seeds
+
+S3 5/5, S4 5/5, S1 and S2 4/5, S0 and S5 3/5 (`g2_acceptance.json`: MEASURED_FAIL, 24/30,
+one identity, no unprovenanced run). All six failures are `lane_footprint` on seeds 5311
+and 5312 (corners 1.76–2.04 m against 1.75) at s 171–182, at and just after the hand-back;
+the other eighteen footprints peak at 1.28–1.73 m. Live runs are tick-identical across
+scenarios until they diverge (S1 and S2 at a seed match exactly; S0_5311 matches r14).
+S0_5308 recorded frames.
+
+**The drift seeds' footprint — the latch, not the hold.** The compass hold tracks the
+odometry's drift through the box well enough (hold − Δε within 0.2–0.4°), but the line
+was latched 0.3–0.8° off the lane on the drift seeds (5311: −0.77°, 5309: −0.62°, 5310:
+−0.45°; 5308: +0.1°). The latched heading is the car's own track over the last 40 m in the
+odometry frame, and that frame turns at the gyro's bias residual (0.002–0.003 rad/s here):
+the track, straight in truth (within 0.1–0.3° of the lane on every run), is bent in the
+odometry frame, and its chord points where the frame pointed on average over the window,
+not where it points at the latch — half the window's drift behind. The car then ran the
+box at a steady heading error of 0.7–1.0° (5310, 5311) and arrived at the hand-back 0.4–0.5
+m off, where the kerb corridor's step (0.56–0.81 m at the car, the exit road's kerb also
+~0.25 m from where `keep_right` puts the centre) swung it 4–8° and the corner out.
+Taken, three things:
+
+- `StraightCrossing._track_heading` straightens the track: each step is turned by the
+  smoothed odometry-minus-compass yaw gap's change since it was driven (the smoothing's
+  lag is the same at both ends and cancels), so the chord is the lane's heading in the
+  frame as it stands. Unit test: 0.003 rad/s of drift over 60 s, the raw chord 0.4°+ off,
+  the straightened one within 0.05°. The synthetic curve sweep (seeds 5308–5314): max
+  offset 0.30–0.40 m on every seed; the 2σ-drift seed 5311 went from 1.24 m to 0.34 m.
+- Re-anchoring is slew-limited: at most `reanchor_slope` (0.05, 2.9°) per metre driven
+  since the line last moved and `reanchor_step_m` (now 0.1 m) a time. In the mouth of the
+  exit the kerb fits disagreed with each other by a metre (S0_5312: −0.36 m, then
+  +1.26 m), and 0.25 m every 0.4 m driven was a 30° slew at 2 m/s (−3.7° at s 169).
+- The hand-back waits for a small step: short of the exit, the kerb corridor is handed
+  the car once its centre at the car is within `handback_step_m` (0.35 m) of the path,
+  the line meanwhile slewing onto the kerb; past `reanchor_past_exit_m`, where nothing
+  moves the line any more, `handback_offset_m` (0.75 m) holds as before.
+
+**Brake taps, root cause found on the frames.** S0_5308's frames replayed open-loop
+through `MaplessStack` reproduce the live caps tick for tick. s 52.8: a parked car 14 m
+ahead and 12 m right of the path (beyond the 7.8 m kerb), tracked for 4 ticks, 3.3 m/s
+from its centroid settling (travelled 1.4 m in 0.2 s, decaying 15 %/tick), 0.9 m/s
+"towards" the path — 11 s from the lane band — whose prediction envelope (2.9 m/s of
+growth) covered the car's own position at the horizon's end: `first_occupied_arc` at the
+car, cap 0, and the young floor's "stop only where hard braking must" was exactly there.
+At 8 hits it was admitted outright ("within reach": the trajectory polyline ends short of
+it and the projection clamps) and the car stopped dead. s 71.4: a 1.3 × 0.3 m cluster
+8.6 m right, level with the car, "approaching at 3.0 m/s", slowing tick by tick, then
+`crossing_yield` kept the car standing 0.3 s longer. Taken: **beyond the kerb line, reach
+decides, road or no road** — a young track (vehicle-sized or not; `kerbside_young_hits`,
+20 hits, its motion not yet borne out) that cannot reach the lane band within the horizon
+plus a second at the speed it is coming is dropped from the conflict candidates, as F6-03
+already did off the road; it is kept the tick it can (a walker 0.5 m beyond a 1.75 m kerb
+is a second from the band and kept; a car crossing from a side road at 5 m/s is 1.5 s from
+it), and an older track is the timed check's as before (H2's car pulling out 9 m right at
+1.5 m/s, 4.5 s from the band, still stops the car). The kerb is on the right; on the left
+the rule begins two lanes out (`offside_reach_m`, 6 m: the opposing lane stays the timed
+check's — T10 2C's car moving off 3.9 m left still restricts the car within 0.5 s), which
+takes the third tap too (s 199–204 in S0_5308 and S3_5310: a 3.8 × 0.3 m stretch 16 m
+left in the exit curve, 3 hits old, "4.8 m/s", 10 s from the band). The whole-run replay
+of S0_5308 with the rule shows no cap at any of the three spots and none new. `brake_taps` is now reported for the obstacle scenarios too (the stop
+for the obstacle is not a tap); `rescore_mission.py` adds the row to recorded runs.
+
+Not changed: the swing after the hand-back on the exit road (±0.3–0.6 m, 3–8° for 15 m
+even on the no-drift seeds: 5308 peaks at 0.26 m, 5309 at 0.41 m) is the kerb corridor's
+on the junction's connecting road, whose kerb-to-centre distance differs from the
+approach's `keep_right` by ~0.25 m; with the step at the hand-back bounded it stays
+inside the footprint. Real time ran 11–19 % over budget in 17 of 30 runs (the soft gate),
+as in r14.
+
+**r16** = the batch on this code. `rescore_mission.py` over r15 adds the `brake_taps`
+rows but changes no status (the six failures are driving).
 
 ## Running Phase 0 live
 

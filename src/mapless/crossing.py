@@ -55,7 +55,7 @@ class CrossingConfig:
     seed_offsets_m: tuple = (0.0, -0.75, 0.75, -1.5, 1.5, -2.25, 2.25, -3.0, -3.75)  # the kerb is on the right: to 3.75 m that side (a path 2.5 m left of the lane, r13), 2.25 m the other (a car 3 m right of its lane is at the kerb already)
     seed_every_ticks: int = 4  # the search runs every this many ticks (its cost: one kerb fit per seed)
     reanchor_gain: float = 0.5
-    reanchor_step_m: float = 0.25  # at most this far a time (r14: one 0.88 m step at 2 m/s swung the car 7 degrees, a corner 2.1 m out)
+    reanchor_step_m: float = 0.1  # at most this far a time (r14: one 0.88 m step at 2 m/s swung the car 7 degrees, a corner 2.1 m out; r15: 0.25 m steps still 3.7 degrees)
     reanchor_exit_max_m: float = 1.5  # past the arc's start, a fit further off than this is the exit corner's geometry, not the line's drift (r14: 1.75 m, the car centred)
     # The crossing's exit is a curve on Town10HD 468 (50 degrees over 30 m from the exit
     # point, r13): no exit *line* fits it, the kerb corridor does. Hand back as soon as a
@@ -85,22 +85,18 @@ class CrossingConfig:
     exit_curvature_min: float = 1.0 / 400.0  # a gentler arc is driven straight on the line
     exit_curvature_max: float = 1.0 / 15.0  # a STRAIGHT's exit is no tighter than this
     exit_lead_m: float = 10.0  # the arc begins this far before the route's exit point (468: the lane bends 7 m before it; the synthetic bend, 14 m)
-    # The crossing's exit is a curve on Town10HD 468: no exit *line* fits it, the kerb
-    # corridor does. Hand back as soon as a kerb fit agrees with the path at the car and
-    # runs to within this of the route past the exit (a side road's fillet runs away from it).
-    # The latched line lives in the odometry frame, which turns with the gyro's bias
-    # residual (the stationary estimate is 1 s long; r12/r13: 0.4-1.5 m off by the end of a
-    # 45 m kerbless box, a 2-sigma seed 2.6 m). The compass does not drift. The line's
-    # heading follows the smoothed odometry-minus-compass yaw since the latch, rotating
-    # about the car's foot on it. (The route EKF's yaw was tried as the reference: it
-    # integrates the raw gyro between compass updates and drifts more than the odometry.)
-    heading_hold: bool = True
-    heading_hold_alpha: float = 0.01  # EMA weight a tick on the yaw gap (5 s at 20 Hz: compass noise 0.03 rad -> ~0.002)
-    handback_route_m: float = 5.0
-    reanchor_past_exit_m: float = 8.0  # kerb evidence up to this far past the arc's start (it has barely begun) still moves the path sideways
-    handback_span_m: float = 6.0  # the fit's kerb evidence spans at least this ...
-    handback_min_evidence: int = 7  # ... with at least this many lane-centre points (the far kerb is sparse: 5-8 stations at 20-30 m)
     handback_from_entry_m: float = 10.0  # the kerb corridor may take over from this far past the entry
+    # Handing back puts the kerb corridor's centre under the controller at once; a step of
+    # 0.56-0.81 m at the car swung it 4-8 degrees and a corner 1.76-2.04 m out (r15, seeds
+    # 5311/5312, the drift seeds). Short of the exit the line is first moved onto the kerb
+    # (re-anchoring, below) and the car is handed over once the step is within this; past
+    # reanchor_past_exit_m, where nothing moves the line any more, handback_offset_m holds.
+    handback_step_m: float = 0.35
+    # Re-anchoring moves the line sideways no faster than this per metre driven (0.05: 2.9
+    # degrees), and by at most reanchor_step_m a time: the kerb fits in the mouth of the
+    # exit disagree with each other by a metre (r15 S0_5312: -0.36 m, then +1.26 m), and
+    # a 0.25 m step every 0.4 m driven is a 30 degree slew at 2 m/s.
+    reanchor_slope: float = 0.05
 
     def __post_init__(self):
         if not 0.0 < self.freeze_m < self.latch_from_m:
@@ -149,7 +145,8 @@ class StraightCrossing:
         self.active = False
         self.entry_i = None
         self.note = ""
-        self._track = []  # the rear axle's odometry positions, oldest first (the lane's direction)
+        self._track = []  # (x, y, smoothed yaw gap) of the rear axle, odometry frame, oldest first (the lane's direction)
+        self._reanchor_at = None  # where the line was last moved sideways (the slew limit)
         self.path_odo = None  # the latched path (line, arc) in the odometry frame, once the exit is known
         self._geometry = None
         self.bend_rad = 0.0
@@ -166,17 +163,33 @@ class StraightCrossing:
         if not moving:
             return
         here = (pose.x_m, pose.y_m)
-        if self._track and math.dist(self._track[-1], here) < 0.25:
+        if self._track and math.dist(self._track[-1][:2], here) < 0.25:
             return
-        self._track.append(here)
-        while len(self._track) > 2 and math.dist(self._track[0], here) > self.config.history_m:
+        self._track.append((pose.x_m, pose.y_m, self._yaw_gap))
+        while len(self._track) > 2 and math.dist(self._track[0][:2], here) > self.config.history_m:
             self._track.pop(0)
 
     def _track_heading(self):
-        """Direction of the car's track over the last history_m, or None when too short."""
-        if len(self._track) < 4 or math.dist(self._track[0], self._track[-1]) < self.config.history_min_m:
+        """Direction of the car's track over the last history_m, in the odometry frame as it
+        stands now, or None when too short.
+
+        The odometry frame turns with the gyro's bias residual, so the track is bent: its
+        chord points where the frame pointed on average over the window, not where it
+        points now. Latched as it was, the line sat 0.3-0.8 degrees off the lane on the
+        drift seeds (r15, 5309-5312: 0.3-0.5 m off by the end of the box, every footprint
+        failure). Each step of the track is turned by the smoothed odometry-minus-compass
+        yaw gap's change since it was driven, which straightens it (the smoothing's lag is
+        the same at both ends and cancels)."""
+        if len(self._track) < 4 or math.dist(self._track[0][:2], self._track[-1][:2]) < self.config.history_min_m:
             return None
-        xy = np.asarray(self._track, dtype=float)
+        xy = np.asarray([p[:2] for p in self._track], dtype=float)
+        gaps = [p[2] for p in self._track]
+        if self.config.heading_hold and all(g is not None for g in gaps):
+            steps = np.diff(xy, axis=0)
+            turn = np.array([_wrap_angle(gaps[-1] - g) for g in gaps[:-1]])
+            cos, sin = np.cos(turn), np.sin(turn)
+            steps = np.column_stack([cos * steps[:, 0] - sin * steps[:, 1], sin * steps[:, 0] + cos * steps[:, 1]])
+            xy = np.vstack([xy[:1], xy[0] + np.cumsum(steps, axis=0)])
         d = xy - xy.mean(axis=0)
         _, _, vt = np.linalg.svd(d, full_matrices=False)
         direction = vt[0]
@@ -206,8 +219,9 @@ class StraightCrossing:
     def should_enter(self, entry_body):
         return self.line is not None and not self.active and float(entry_body[0]) <= self.config.enter_m
 
-    def enter(self, entry_i):
+    def enter(self, entry_i, pose=None):
         self.active, self.entry_i = True, entry_i
+        self._reanchor_at = None if pose is None else (pose.x_m, pose.y_m)
         self.note = "crossing on the latched lane line"
 
     def hold_heading(self, pose):
@@ -377,12 +391,19 @@ class StraightCrossing:
     def reanchor(self, pose, lateral_m, heading_rad=0.0):
         """Move the path sideways towards a kerb fit: ``lateral_m`` left of the path where
         the fit's evidence is (at the car, in the junction, the fit is its seed). Half the
-        difference a time; a fit further off than ``reanchor_max_m`` is some other kerb."""
+        difference a time, at most ``reanchor_step_m`` and ``reanchor_slope`` times the
+        distance driven since the last move; a fit further off than ``reanchor_max_m`` is
+        some other kerb."""
         c = self.config
         if self.line is None or abs(lateral_m) > c.reanchor_max_m:
             return False
+        here = (pose.x_m, pose.y_m)
+        cap = c.reanchor_step_m if self._reanchor_at is None else min(c.reanchor_step_m, c.reanchor_slope * math.dist(self._reanchor_at, here))
+        if cap <= 0.0:
+            return False
         x0, y0, h = self.line
-        shift = float(np.clip(c.reanchor_gain * lateral_m, -c.reanchor_step_m, c.reanchor_step_m))
+        shift = float(np.clip(c.reanchor_gain * lateral_m, -cap, cap))
+        self._reanchor_at = here
         n = np.array([-math.sin(pose.yaw_rad), math.cos(pose.yaw_rad)])  # the car's left, odometry frame
         self.line = (float(x0 + shift * n[0]), float(y0 + shift * n[1]), float(h))
         if self._geometry is not None:
