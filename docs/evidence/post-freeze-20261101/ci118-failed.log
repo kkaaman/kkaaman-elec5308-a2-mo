@@ -1,0 +1,139 @@
+test	Run tests	﻿2026-11-01T01:50:04.6738301Z ##[group]Run python -m pytest
+test	Run tests	2026-11-01T01:50:04.6738596Z [36;1mpython -m pytest[0m
+test	Run tests	2026-11-01T01:50:04.6756388Z shell: /usr/bin/bash -e {0}
+test	Run tests	2026-11-01T01:50:04.6756530Z env:
+test	Run tests	2026-11-01T01:50:04.6756679Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.15/x64
+test	Run tests	2026-11-01T01:50:04.6756916Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.15/x64/lib/pkgconfig
+test	Run tests	2026-11-01T01:50:04.6757141Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+test	Run tests	2026-11-01T01:50:04.6757347Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+test	Run tests	2026-11-01T01:50:04.6757550Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+test	Run tests	2026-11-01T01:50:04.6757752Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.15/x64/lib
+test	Run tests	2026-11-01T01:50:04.6757927Z ##[endgroup]
+test	Run tests	2026-11-01T01:50:08.7649975Z ============================= test session starts ==============================
+test	Run tests	2026-11-01T01:50:08.7650744Z platform linux -- Python 3.12.15, pytest-9.2.0, pluggy-1.7.0
+test	Run tests	2026-11-01T01:50:08.7651487Z rootdir: /home/runner/work/26-S2-Assignment2-Group7/26-S2-Assignment2-Group7
+test	Run tests	2026-11-01T01:50:08.7652090Z configfile: pyproject.toml
+test	Run tests	2026-11-01T01:50:08.7652428Z testpaths: tests
+test	Run tests	2026-11-01T01:50:08.7652732Z plugins: anyio-4.15.1
+test	Run tests	2026-11-01T01:50:08.7653045Z collected 1558 items
+test	Run tests	2026-11-01T01:50:08.7653455Z 
+test	Run tests	2026-11-01T01:50:08.7661214Z tests/carla/test_topology.py s                                           [  0%]
+test	Run tests	2026-11-01T01:50:20.2814874Z tests/integration/test_parking.py ........                               [  0%]
+test	Run tests	2026-11-01T01:50:20.3026334Z tests/navigation_control/test_controller.py ............................ [  2%]
+test	Run tests	2026-11-01T01:50:20.3205557Z ............................                                             [  4%]
+test	Run tests	2026-11-01T01:50:20.3267470Z tests/navigation_control/test_path.py ..........                         [  4%]
+test	Run tests	2026-11-01T01:50:20.3352359Z tests/navigation_control/test_speed.py ......                            [  5%]
+test	Run tests	2026-11-01T01:50:20.3391742Z tests/test_carla_adapter.py ......                                       [  5%]
+test	Run tests	2026-11-01T01:50:20.3877396Z tests/test_lane_path.py .......                                          [  6%]
+test	Run tests	2026-11-01T01:50:20.4123442Z tests/test_perception.py .............                                   [  6%]
+test	Run tests	2026-11-01T01:50:20.4178808Z tests/test_traffic_perception.py ........                                [  7%]
+test	Run tests	2026-11-01T01:50:20.4563574Z tests/unit/test_a1_capture.py ...........                                [  8%]
+test	Run tests	2026-11-01T01:50:20.5000956Z tests/unit/test_a1_comparison.py ...                                     [  8%]
+test	Run tests	2026-11-01T01:50:23.3804028Z tests/unit/test_acceptance.py ..........                                 [  8%]
+test	Run tests	2026-11-01T01:50:23.5030192Z tests/unit/test_all_flags_faults.py .................................... [ 11%]
+test	Run tests	2026-11-01T01:50:23.7385413Z ........................................................................ [ 15%]
+test	Run tests	2026-11-01T01:50:23.9708079Z ........................................................................ [ 20%]
+test	Run tests	2026-11-01T01:50:25.9115711Z ...............................................                          [ 23%]
+test	Run tests	2026-11-01T01:50:25.9173472Z tests/unit/test_asset_identity.py ......                                 [ 23%]
+test	Run tests	2026-11-01T01:50:26.0867855Z tests/unit/test_baseline_aggregation.py ................                 [ 24%]
+test	Run tests	2026-11-01T01:50:27.5588766Z tests/unit/test_baseline_freeze_review.py .................              [ 25%]
+test	Run tests	2026-11-01T01:50:27.7118501Z tests/unit/test_baseline_mission.py ..............                       [ 26%]
+test	Run tests	2026-11-01T01:50:27.7225340Z tests/unit/test_behaviour.py ..................                          [ 28%]
+test	Run tests	2026-11-01T01:50:30.8148691Z tests/unit/test_boundary.py ............................................ [ 30%]
+test	Run tests	2026-11-01T01:50:30.9033632Z ....                                                                     [ 31%]
+test	Run tests	2026-11-01T01:50:30.9127625Z tests/unit/test_box_depth.py ..........                                  [ 31%]
+test	Run tests	2026-11-01T01:50:30.9224585Z tests/unit/test_carla_rgb_patch.py ........                              [ 32%]
+test	Run tests	2026-11-01T01:50:30.9449199Z tests/unit/test_corridor.py ..............................               [ 34%]
+test	Run tests	2026-11-01T01:50:30.9471261Z tests/unit/test_depth_calibration.py ...                                 [ 34%]
+test	Run tests	2026-11-01T01:50:30.9542007Z tests/unit/test_detector_contracts.py ..........                         [ 35%]
+test	Run tests	2026-11-01T01:50:30.9744282Z tests/unit/test_detector_lifecycle.py .................                  [ 36%]
+test	Run tests	2026-11-01T01:50:30.9875816Z tests/unit/test_detector_replay_scoring.py .........                     [ 36%]
+test	Run tests	2026-11-01T01:50:31.2446642Z tests/unit/test_evaluation_truth_isolation.py ...                        [ 36%]
+test	Run tests	2026-11-01T01:50:31.2500065Z tests/unit/test_forward_mission.py ......                                [ 37%]
+test	Run tests	2026-11-01T01:50:31.6102713Z tests/unit/test_g1_admission.py ...........................              [ 39%]
+test	Run tests	2026-11-01T01:50:31.6451108Z tests/unit/test_geometry.py ...................................          [ 41%]
+test	Run tests	2026-11-01T01:50:31.6605451Z tests/unit/test_hybrid_control_adapter.py ...........                    [ 41%]
+test	Run tests	2026-11-01T01:50:33.4910473Z tests/unit/test_hybrid_fault_matrix.py ................................. [ 44%]
+test	Run tests	2026-11-01T01:50:37.5024404Z ........................................................................ [ 48%]
+test	Run tests	2026-11-01T01:50:37.6706253Z ...                                                                      [ 48%]
+test	Run tests	2026-11-01T01:50:38.1174520Z tests/unit/test_inference_server.py ..................                   [ 50%]
+test	Run tests	2026-11-01T01:50:38.1978416Z tests/unit/test_interfaces.py ..............                             [ 50%]
+test	Run tests	2026-11-01T01:50:38.1998000Z tests/unit/test_issue40_geometry.py ..                                   [ 51%]
+test	Run tests	2026-11-01T01:50:38.2070235Z tests/unit/test_junction_planner.py ..........                           [ 51%]
+test	Run tests	2026-11-01T01:50:38.2548433Z tests/unit/test_kinematic_world.py ..................................... [ 54%]
+test	Run tests	2026-11-01T01:50:38.7732033Z ...................                                                      [ 55%]
+test	Run tests	2026-11-01T01:50:38.7982822Z tests/unit/test_lane_compatibility.py .....                              [ 55%]
+test	Run tests	2026-11-01T01:50:38.9229479Z tests/unit/test_lane_graph.py ........................                   [ 57%]
+test	Run tests	2026-11-01T01:50:38.9306516Z tests/unit/test_lane_graph_audit.py .......                              [ 57%]
+test	Run tests	2026-11-01T01:50:38.9381981Z tests/unit/test_lane_inference_contract.py ........                      [ 58%]
+test	Run tests	2026-11-01T01:50:39.0214425Z tests/unit/test_layout.py .........                                      [ 58%]
+test	Run tests	2026-11-01T01:50:39.0620137Z tests/unit/test_lidar_capture.py .....................                   [ 60%]
+test	Run tests	2026-11-01T01:50:39.0816758Z tests/unit/test_lidar_contract.py .....................                  [ 61%]
+test	Run tests	2026-11-01T01:50:39.1285875Z tests/unit/test_lidar_fusion.py ..............                           [ 62%]
+test	Run tests	2026-11-01T01:50:39.1932447Z tests/unit/test_lidar_obstacles.py ................                      [ 63%]
+test	Run tests	2026-11-01T01:50:39.4550344Z tests/unit/test_lidar_replay.py .....                                    [ 63%]
+test	Run tests	2026-11-01T01:50:39.4565959Z tests/unit/test_longitudinal.py .                                        [ 63%]
+test	Run tests	2026-11-01T01:50:39.4744741Z tests/unit/test_mission.py ..........................                    [ 65%]
+test	Run tests	2026-11-01T01:50:39.4930669Z tests/unit/test_obstacle_tracking.py .................                   [ 66%]
+test	Run tests	2026-11-01T01:50:39.5303941Z tests/unit/test_operational_freshness.py .............                   [ 67%]
+test	Run tests	2026-11-01T01:50:39.5333892Z tests/unit/test_operational_range_audit.py ....                          [ 67%]
+test	Run tests	2026-11-01T01:50:40.1146082Z tests/unit/test_parking.py ..........................................    [ 70%]
+test	Run tests	2026-11-01T01:50:40.1231207Z tests/unit/test_perception_replay.py ..                                  [ 70%]
+test	Run tests	2026-11-01T01:50:40.1362317Z tests/unit/test_recorded_detector.py .................                   [ 71%]
+test	Run tests	2026-11-01T01:50:43.9964502Z tests/unit/test_remote_hybrid_detector.py ............................   [ 73%]
+test	Run tests	2026-11-01T01:50:44.1115292Z tests/unit/test_replay_prediction_retention.py .                         [ 73%]
+test	Run tests	2026-11-01T01:50:44.1520040Z tests/unit/test_reproduction.py .......F.                                [ 73%]
+test	Run tests	2026-11-01T01:50:44.1593083Z tests/unit/test_reproduction_preflight.py ......                         [ 74%]
+test	Run tests	2026-11-01T01:50:44.1794520Z tests/unit/test_rgbd_capture.py ..........                               [ 74%]
+test	Run tests	2026-11-01T01:50:44.1824548Z tests/unit/test_rgbd_spawn_order.py ..                                   [ 75%]
+test	Run tests	2026-11-01T01:50:44.1877291Z tests/unit/test_rgbd_specification.py .......                            [ 75%]
+test	Run tests	2026-11-01T01:50:44.2186467Z tests/unit/test_s0_metrics.py .......................................... [ 78%]
+test	Run tests	2026-11-01T01:50:44.2284776Z .........                                                                [ 78%]
+test	Run tests	2026-11-01T01:50:44.2711487Z tests/unit/test_s0_runner.py .................                           [ 79%]
+test	Run tests	2026-11-01T01:50:44.3440075Z tests/unit/test_same_frame_operation.py .........                        [ 80%]
+test	Run tests	2026-11-01T01:50:44.3510542Z tests/unit/test_scenario_events.py ...........                           [ 81%]
+test	Run tests	2026-11-01T01:50:45.7242661Z tests/unit/test_scenario_world.py ..........                             [ 81%]
+test	Run tests	2026-11-01T01:50:45.7651373Z tests/unit/test_scenarios.py ............................                [ 83%]
+test	Run tests	2026-11-01T01:50:45.7774707Z tests/unit/test_speed_governor.py .....................                  [ 84%]
+test	Run tests	2026-11-01T01:50:45.7955888Z tests/unit/test_stack_skeleton.py ......................                 [ 86%]
+test	Run tests	2026-11-01T01:50:45.9801997Z tests/unit/test_steering_calibration.py .............                    [ 87%]
+test	Run tests	2026-11-01T01:50:45.9826130Z tests/unit/test_steering_settling.py ...                                 [ 87%]
+test	Run tests	2026-11-01T01:50:45.9856614Z tests/unit/test_steering_speed_load.py ....                              [ 87%]
+test	Run tests	2026-11-01T01:50:45.9991947Z tests/unit/test_stop_truth.py ...........                                [ 88%]
+test	Run tests	2026-11-01T01:50:46.0177777Z tests/unit/test_synthetic_observations.py ................               [ 89%]
+test	Run tests	2026-11-01T01:50:46.0544928Z tests/unit/test_topology_export.py ....................                  [ 90%]
+test	Run tests	2026-11-01T01:50:46.0773143Z tests/unit/test_track_benchmark.py ..............                        [ 91%]
+test	Run tests	2026-11-01T01:50:46.0997969Z tests/unit/test_track_capture.py ...................                     [ 92%]
+test	Run tests	2026-11-01T01:50:46.1046603Z tests/unit/test_vehicle_acknowledgement.py .......                       [ 93%]
+test	Run tests	2026-11-01T01:50:46.1172658Z tests/unit/test_vehicle_geometry.py ..................                   [ 94%]
+test	Run tests	2026-11-01T01:50:46.1383725Z tests/unit/test_wayfinder_astar.py .................                     [ 95%]
+test	Run tests	2026-11-01T01:50:46.2517795Z tests/unit/test_wayfinder_guidance.py ..........                         [ 96%]
+test	Run tests	2026-11-01T01:50:46.5887357Z tests/unit/test_wayfinder_route.py .............                         [ 96%]
+test	Run tests	2026-11-01T01:50:46.5976760Z tests/unit/test_weather_capture_plan.py ......                           [ 97%]
+test	Run tests	2026-11-01T01:50:46.6139495Z tests/unit/test_weather_evaluation.py .............                      [ 98%]
+test	Run tests	2026-11-01T01:50:46.6245540Z tests/unit/test_weather_matrix.py ............                           [ 98%]
+test	Run tests	2026-11-01T01:50:47.0878634Z tests/unit/test_world_lifecycle.py ................                      [100%]
+test	Run tests	2026-11-01T01:50:47.0879157Z 
+test	Run tests	2026-11-01T01:50:47.0879368Z =================================== FAILURES ===================================
+test	Run tests	2026-11-01T01:50:47.0879816Z _______ ReproductionTests.test_read_only_path_never_calls_install_or_lfs _______
+test	Run tests	2026-11-01T01:50:47.0880119Z 
+test	Run tests	2026-11-01T01:50:47.0880452Z self = <tests.unit.test_reproduction.ReproductionTests testMethod=test_read_only_path_never_calls_install_or_lfs>
+test	Run tests	2026-11-01T01:50:47.0880873Z 
+test	Run tests	2026-11-01T01:50:47.0881071Z     def test_read_only_path_never_calls_install_or_lfs(self):
+test	Run tests	2026-11-01T01:50:47.0881987Z         with patch.object(setup, "run", return_value=True) as run, \
+test	Run tests	2026-11-01T01:50:47.0882382Z                 patch.object(setup, "pip_install") as install, \
+test	Run tests	2026-11-01T01:50:47.0882738Z                 patch.object(setup, "pull_lfs_weights") as lfs:
+test	Run tests	2026-11-01T01:50:47.0883178Z >           self.assertEqual(self.invoke_setup(["--offline", "--check-only", "--assets-only"]), 0)
+test	Run tests	2026-11-01T01:50:47.0883927Z E           AssertionError: 1 != 0
+test	Run tests	2026-11-01T01:50:47.0884124Z 
+test	Run tests	2026-11-01T01:50:47.0884291Z tests/unit/test_reproduction.py:78: AssertionError
+test	Run tests	2026-11-01T01:50:47.0884649Z =============================== warnings summary ===============================
+test	Run tests	2026-11-01T01:50:47.0885244Z tests/unit/test_inference_server.py::test_fastapi_auth_health_reset_and_bounded_body
+test	Run tests	2026-11-01T01:50:47.0886101Z   /opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/starlette/testclient.py:40: DeprecationWarning: The anyio.abc.BlockingPortal alias is deprecated, use anyio.from_thread.BlockingPortal instead.
+test	Run tests	2026-11-01T01:50:47.0886976Z     _PortalFactoryType = typing.Callable[[], typing.ContextManager[anyio.abc.BlockingPortal]]
+test	Run tests	2026-11-01T01:50:47.0887327Z 
+test	Run tests	2026-11-01T01:50:47.0887567Z -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+test	Run tests	2026-11-01T01:50:47.0888023Z =========================== short test summary info ============================
+test	Run tests	2026-11-01T01:50:47.0888629Z FAILED tests/unit/test_reproduction.py::ReproductionTests::test_read_only_path_never_calls_install_or_lfs - AssertionError: 1 != 0
+test	Run tests	2026-11-01T01:50:47.0889239Z ============ 1 failed, 1556 passed, 1 skipped, 1 warning in 41.81s =============
+test	Run tests	2026-11-01T01:50:48.1700562Z ##[error]Process completed with exit code 1.

@@ -1,0 +1,10 @@
+{
+  "run_id": 41262507092,
+  "conclusion": "FAIL",
+  "lint": "PASS",
+  "docs": "PASS",
+  "fault_fixtures": "PASS",
+  "failure": "One pre-existing reproduction control-flow test relied on workstation model assets; CI checks out LFS pointers.",
+  "correction": "Isolated verified local fixture tests success and corruption failure; 15 focused tests and 2 subtests pass.",
+  "source_admission_unchanged": true
+}
