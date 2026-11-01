@@ -638,3 +638,42 @@ def test_a_low_detection_just_ahead_of_tall_points_is_as_tall_as_they_are():
     assert car.obstacle is not None and abs(car.obstacle.distance_m - 5.0) < 0.2 and car.obstacle.height_m == 1.4
     brick = observe_path(sweep([(sills, PointClass.RAISED)]), straight(), BODY)
     assert brick.obstacle is not None and abs(brick.obstacle.height_m - 0.2) < 1e-6
+
+
+def test_a_refit_from_a_few_far_points_alone_carries_the_line_instead():
+    """r16 S1_5311 (Town10HD, junction 468's exit curve): the near kerb dropped out for a
+    tick and five far points — some other edge, straight ahead across the curve — refitted
+    a straight line to 29 m; the reference left the kerb for good and the car drove out of
+    the curve on it. A refit from fewer than refit_free_evidence points needs
+    refit_anchor_points within refit_anchor_m of the car; otherwise last tick's line is
+    carried. With enough far points, or with near ones, the refit is taken."""
+    c = CorridorConfig(keep_right_m=1.75)
+    pose = Pose2D(0.0, 0.0, 0.0)
+    bent = np.column_stack((np.arange(-2.0, 25.0, 1.0), -0.004 * np.clip(np.arange(-2.0, 25.0, 1.0), 0.0, None) ** 2))  # a line bending right
+
+    def estimator_with(edge_stations):
+        e = CorridorEstimator(c)
+        e.seed(bent, pose, 0.0)
+        e._support = lambda grid, p, xy: 40.0  # the road ahead is seen
+
+        def edges(grid, p, stations, ref):
+            right = np.full(len(stations), np.nan)
+            for s in edge_stations:
+                right[int(np.searchsorted(stations, s))] = -c.keep_right_m + 0.4  # a kerb 0.4 m inside keep_right: a different line
+            e._edge_seen_s = np.where(np.isfinite(right), 1.0, -np.inf)
+            return right, np.full(len(stations), np.nan), np.zeros(len(stations), dtype=bool), np.zeros(len(stations))
+
+        e._edges_along = edges
+        return e
+
+    grid = TerrainGrid()
+    far_only = estimator_with((20.0, 22.0, 24.0, 26.0, 28.0))  # five points, none within 12 m
+    carried = far_only.update(grid, pose, 1.0)
+    assert carried.ok and len(carried.evidence_body) == 5
+    assert np.allclose(carried.centre_body, bent[bent[:, 0] <= carried.valid_length_m + 1e-9], atol=1e-6)  # last tick's line, as it was
+    anchored = estimator_with((4.0, 8.0, 20.0, 22.0, 24.0))  # two of them near the car
+    refit = anchored.update(grid, pose, 1.0)
+    assert refit.ok and not np.allclose(refit.centre_body[: len(carried.centre_body)], carried.centre_body, atol=0.05)
+    many_far = estimator_with(tuple(np.arange(16.0, 28.0, 1.0)))  # twelve far points: enough on their own
+    refit_far = many_far.update(grid, pose, 1.0)
+    assert refit_far.ok and refit_far.valid_length_m > carried.valid_length_m

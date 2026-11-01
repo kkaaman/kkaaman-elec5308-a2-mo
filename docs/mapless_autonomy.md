@@ -17,7 +17,7 @@ reports and `route.json` files are the evidence that travels with each batch.
 | G1a | Local trajectory controller | yes | yes | yes (inside G1b) | yes | — |
 | G1b | Straight, curve, obstacle stop, sensor-only | yes | yes | MEASURED_PASS (Town10HD, Town05) | straight at 4 m/s, stops with a car and a cone, the curve once | the curve again; sensor outages are injected, not met |
 | G1c | Commanded 90° turn | yes | yes | right (Town10HD) and left (Town03) MEASURED_PASS; r8–r11 left turns with oncoming and parked cars | the Town03 left turn, five batches | one right-turn site; skewed junctions unsupported (sites within 10° of a right angle); the exit-kerb far bias |
-| G2 | Segmenter, painting, road model, stack; S0–S5 × 5 on the baseline route | yes; the mission scenario and its aggregator (31 Oct) | yes (fake world; synthetic 468) | the stack's straight, stop, leads, crossings, turns; **the gate run four times: r12 S0 and r13 failed at junction 468; r14 19/30 and r15 24/30 (`0c1fa01`) with every run across the junction** — S3 and S4 5/5, the six failures the drift seeds' footprint at the hand-back | S3, S4 (two batches) | r16 runs the gate with the latch straightened and the hand-back bounded; the segmenter is shadow only (v2 right edge 0.76 m inside the kerb) and part of no decision |
+| G2 | Segmenter, painting, road model, stack; S0–S5 × 5 on the baseline route | yes; the mission scenario and its aggregator (31 Oct) | yes (fake world; synthetic 468) | the stack's straight, stop, leads, crossings, turns; **the gate run five times: r12 S0 and r13 failed at junction 468; r14 19/30, r15 24/30, r16 27/30 (`22c77b6`), the junction crossed cleanly by every run in r16** — S0, S3, S4 5/5; the three failures in the exit curve downstream | S3, S4 (three batches) | r17 runs the gate with the corridor refit anchored and the standstill deadlock broken; the segmenter is shadow only (v2 right edge 0.76 m inside the kerb) and part of no decision |
 | G3 | Tracker, radar, prediction, following, M04–M06 | yes | yes | braking lead, cut-in, crossing walker and car, radar-first: MEASURED_PASS, r8–r11 | the leads and crossings, four batches | the A/B/C ablation with a lead still moving beyond the LiDAR's reach; rear radars admitted, no behaviour reads them |
 | G4 | Lights, junction yielding, lane changes, faults, mixed route | the left turn's oncoming gate; the junction crossed straight (31 Oct, curving exit 1 Nov); injected sensor outages | yes | the oncoming turns (r8–r12); the outages (r11); the crossing not yet | the oncoming turn | lights (M07), lane changes (M09–M11), the mixed route (M13), a two-lane opposing carriageway at the gate |
 | G5 | Learning | the segmenter trained (mIoU 0.879, Town02 held out) | — | shadow only | — | no learned component affects a command; no configuration C |
@@ -3662,6 +3662,41 @@ as in r14.
 
 **r16** = the batch on this code. `rescore_mission.py` over r15 adds the `brake_taps`
 rows but changes no status (the six failures are driving).
+
+### Live on PC 3 (1 Nov, `22c77b6`): r16, the G2 batch — 27 of 30, the junction solved
+
+S0 5/5, S3 5/5, S4 5/5, S1, S2 and S5 4/5. Every run crossed 468 with the box offset
+0.05–0.44 m (r15's drift seeds: 0.5–0.8), hand-back steps 0.02–0.35 m, and the passing
+footprints' corners 1.38–1.68 m; seeds 5311 and 5312, r15's six failures, all pass. The
+three live brake taps are gone (a one-tick dip at s 70.8 remains in some runs, no
+standstill; `brake_taps` now shows the other stops as well, mostly the obstacle scenarios'
+own). The three failures are new and all in 468's exit curve, s 193–199, which the car now
+reaches cleanly:
+
+- **S1_5311 and S2_5311 (tick-identical; "left the lane")**: the near kerb dropped out for
+  a tick at s 193.9 and the corridor refitted a straight line to 29 m through exactly five
+  far points — some other edge, straight ahead across the right-hand curve. The reference
+  then left the real kerb for good (0 evidence from s 196), the line was carried on road
+  support alone, scenery 27 m ahead on it became a "lead" with an obstacle hold, and the
+  car drove out of the curve at 22°, 2.7 m off. Taken: a refit from fewer than
+  `refit_free_evidence` (10) points must have `refit_anchor_points` (2) within
+  `refit_anchor_m` (12 m) of the car, else last tick's line is carried (unit test).
+- **S5_5310 (time limit)**: S5's obstacle stands in the curve (s 205); the car held for it
+  at s 195.9 with the kerb already lost (0–4 points), moved 2.5 m on the carried line after
+  the removal and stood on its 6 m end to the time limit — the line never faulted (stray
+  edge hits keep its evidence fresh) and could not grow without moving. Taken: standing
+  `corridor_stall_s` (4 s) on a corridor too short to move off along, with fewer than
+  `min_evidence` kerb points in view and no obstacle held, the corridor is given up and
+  searched for again from the car's own line (the lost-corridor rule, without waiting for
+  the evidence to age).
+
+The curve itself is the weak spot: the kerb corridor enters it with 6–7 lane-centre points
+over 3–10 m (the straight short fit and the 0.75 m edge gate keep the curving kerb beyond
+~16 m out) and valid 9–13 m, where a run that was handed back late (S3_5312) carried
+24–28 points and 29 m through the same stretch. A reference that admits the bend earlier
+is the next step if r17 shows the curve again.
+
+**r17** = the batch on this code.
 
 ## Running Phase 0 live
 

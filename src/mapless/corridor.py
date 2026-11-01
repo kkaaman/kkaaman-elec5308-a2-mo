@@ -93,6 +93,15 @@ class CorridorConfig:
     standing_refit_tol_m: float = 0.25  # standing still, a refit further than this from the carried line is not taken
     bend_min_rms_m: float = 0.1  # short evidence is fitted with a quadratic when a line leaves this much and a quadratic halves it
     min_evidence: int = 5
+    # A refit from fewer than refit_free_evidence lane-centre points must have
+    # refit_anchor_points of them within refit_anchor_m of the car, else last tick's line
+    # is carried (r16 S1_5311, Town10HD 468's exit curve: the near kerb dropped out for a
+    # tick, five far points — some other edge, straight ahead across the curve — refitted a
+    # straight line to 29 m, the reference left the kerb for good, and the car drove out of
+    # the curve on the line, 2.7 m off, towards a "lead" that was scenery).
+    refit_free_evidence: int = 10
+    refit_anchor_points: int = 2
+    refit_anchor_m: float = 12.0
     extrapolate_m: float = 6.0
     max_heading_rad: float = 0.9
     min_valid_m: float = 6.0
@@ -724,9 +733,11 @@ class CorridorEstimator:
         ey = ref[has] + centre[has] * np.cos(heading[has])
         evidence = np.column_stack((ex, ey))
 
-        if len(ex) < c.min_evidence and self.previous is not None and prior_end >= c.min_valid_m:
-            # Too little to refit: keep last tick's line as it is. Refitting the prior on its
-            # own extrapolates it a little further each tick and drifts.
+        anchored = len(ex) >= c.refit_free_evidence or int(np.sum(ex <= c.refit_anchor_m)) >= c.refit_anchor_points
+        if (len(ex) < c.min_evidence or not anchored) and self.previous is not None and prior_end >= c.min_valid_m:
+            # Too little to refit, or too little near the car: keep last tick's line as it
+            # is. Refitting the prior on its own extrapolates it a little further each tick
+            # and drifts; a few far points alone are as likely some other edge.
             return self._carry_forward(grid, pose, time_s, stations, ref, accepted_right, left, blocked, evidence, prior_end)
         # Standing still the kerb has not moved, and the cells inside the LiDAR's blind ring
         # are no longer hit and age out, so a refit sees less and less of the road: stopped
