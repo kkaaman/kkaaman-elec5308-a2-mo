@@ -3890,6 +3890,34 @@ the live decision reproducible; the open-loop replay establishes the sensitivity
 decision. Not built yet; the recorded frames and the per-tick reports are what r19's
 analysis has. Response: `claude/reviews/review18_external_757fd09.md`.
 
+### The real-time budget (2 Nov): the semantic job handed over after the plan
+
+r18 ran within the 5 % real-time budget on 24 of 30 runs, r16 and r17 on 11 and 7, with no
+change to the timed code between them and the same machine. Read off the per-tick stage
+times of r16-r18 (89 runs), each run is in one of two modes: the stack's detection at
+~6 ms (26 runs, 2 over budget) or ~8.3 ms (47 runs, 41 over budget), with the same LiDAR
+points (~20,870) and the same tracks (71) in either, and the driver's classification —
+whose cost is fixed — at 3.4-3.6 ms in every run. On the tick of four with no semantic
+job, detection is 4.8 ms in every run; on a job tick 6.8 ms in a fast run and 9.5-10 ms in
+a slow one, tracking likewise. The semantic worker is a thread of the same interpreter,
+and its job was handed over before detection: it ran beside detection, tracking and
+planning and took the lock from them, by an amount that settles per run (in the slow
+runs the worker's own job ran faster, 17.8 against 19.8 ms). r18's six over-budget runs
+were its slow ones (S5, S4_5310); the driving is unaffected (synchronous simulation; the
+worker's output is logged only).
+
+Taken: the job is still built where it was, from the tick's inputs as they stand (the
+sweep's copy, the grid's snapshot or view, the corridor), and the newest result is still
+taken there; the job is submitted once the cap is computed, so it runs while the harness
+logs, applies the command and waits for the next tick (~30 ms a tick on PC 3). On the
+r18 S1_5310 frames, replayed paced at 50 ms in this container, detection on the
+contended tick 11.9-12.1 → 6.2-6.4 ms, the same as with the worker off (6.1-6.3), the
+step's p95 71-73 → 64 ms (57 with the worker off: this container has ~5 ms idle a tick,
+PC 3 ~30). Tried and not taken: a shorter interpreter switch interval (5 → 1 → 0.5 ms),
+11.9 → 10.9 ms only. Test: the hand-off follows the plan on every job tick, the model
+still built; the F6-01 test (commands, caps and the model the same inline and threaded)
+unchanged.
+
 ## Running Phase 0 live
 
 Run with CARLA 0.9.16 and no other clients:

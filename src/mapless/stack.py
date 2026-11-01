@@ -495,6 +495,7 @@ class MaplessStack:
         self._unreachable = []
         self._departures = []
         coverage = {s.name: s.state.value for s in frame.status}
+        pending_job = None  # this tick's semantic job, handed to the worker after the plan
         # -- local frame rebuild -----------------------------------------------------------
         rebuilt = bool(step.diagnostics.get("frame_rebuilt"))
         if rebuilt:
@@ -519,12 +520,19 @@ class MaplessStack:
             build = self._tick % c.road_model_every == self.schedule["road_model_phase"]
             if self.semantic_worker is not None:
                 # Off the control path (F6-01): the job, then the newest finished model.
+                # The job is built here, from this tick's inputs as they stand, and handed
+                # to the worker only once the command and the cap are computed (below): the
+                # worker runs in the same interpreter, and a job started here ran beside
+                # detection, tracking and planning and took the lock from them — 4.8 ms of
+                # detection on a tick without a job, 6.8-10 ms on one, by run (r16-r18 on
+                # PC 3: the runs over the real-time budget were the slow ones). Handed over
+                # at the end, it runs while the harness logs and waits for the next tick.
                 segment = bool(cameras) and self._tick % c.segment_every == 0
                 if segment or build:
                     corridor = self.driver.last_corridor
                     path = corridor.centre_body.copy() if corridor is not None and corridor.ok else None
                     grid = self.driver.grid.snapshot() if build else self.driver.grid.view()
-                    self.semantic_worker.submit(SemanticJob(frame.frame_id, t, self._epoch, pose, np.array(sweep.xyz, copy=True), tuple(cameras), segment, grid, build, path))
+                    pending_job = SemanticJob(frame.frame_id, t, self._epoch, pose, np.array(sweep.xyz, copy=True), tuple(cameras), segment, grid, build, path)
                 result = self.semantic_worker.take(t, self._epoch)
                 if result is not None:
                     self._model, self._semantic = result.model, result.semantic
@@ -589,6 +597,10 @@ class MaplessStack:
             cap, cap_reason = self._speed_cap(motion, pose, live, predictions, t)
             self._oncoming_update(self.driver.last_gate, live, t)
             timing["plan"] = (time.perf_counter() - begun) * 1000
+            if pending_job is not None:
+                begun = time.perf_counter()
+                self.semantic_worker.submit(pending_job)
+                timing["semantic_submit"] = timing.get("semantic_submit", 0.0) + (time.perf_counter() - begun) * 1000
             # -- road model ------------------------------------------------------------------
             if self.semantic_worker is None and build and c.semantic_mode == "inline":
                 begun = time.perf_counter()
