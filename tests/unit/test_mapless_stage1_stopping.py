@@ -42,6 +42,7 @@ from mapless.obstacles import (
 from mapless.planner import LanePlanner, PlannerConfig
 from mapless.sensor_suite import load_sensor_suite
 from mapless.terrain import (
+    CellLabel,
     ClassifiedSweep,
     PointClass,
     TerrainConfig,
@@ -684,3 +685,90 @@ def test_a_refit_from_a_few_far_points_alone_carries_the_line_instead():
     kept = short.update(grid, pose, 1.0)
     assert np.allclose(kept.centre_body, bent[bent[:, 0] <= kept.valid_length_m + 1e-9], atol=1e-6)
     assert short.last_refit == dict(near=0, far=7, span_m=6.0, refit=False, why="no evidence near the car")
+
+
+class _ArcKerbGrid(TerrainGrid):
+    """ROAD everywhere but a BARRIER band along a kerb that runs straight at y = -kerb_m to
+    x = bend_from_m, then bends with radius ``radius_m`` (right when positive)."""
+
+    def __init__(self, kerb_m=7.8, bend_from_m=0.0, radius_m=27.0, cell_m=0.25):
+        super().__init__()
+        self.kerb_m, self.bend_from_m, self.radius_m, self.cell = kerb_m, bend_from_m, radius_m, cell_m
+
+    def kerb_y(self, x):
+        x = np.asarray(x, dtype=float)
+        y = np.full(x.shape, -self.kerb_m)
+        d = x - self.bend_from_m
+        on = d > 0
+        if self.radius_m:
+            inside = np.clip(self.radius_m**2 - d[on] ** 2, 0.0, None)
+            y[on] = -self.kerb_m - (abs(self.radius_m) - np.sqrt(inside)) * np.sign(self.radius_m)
+        return y
+
+    def labels(self, xy_world, max_age_s=None):
+        xy = np.asarray(xy_world, dtype=float).reshape(-1, 2)  # the pose is the origin in these tests
+        yk = self.kerb_y(xy[:, 0])
+        band = np.abs(xy[:, 1] - yk) <= self.cell / 2 + 1e-9
+        out = np.full(len(xy), CellLabel.ROAD, dtype=np.int8)
+        out[band] = CellLabel.BARRIER
+        out[xy[:, 1] < yk - self.cell / 2] = CellLabel.UNKNOWN
+        return out
+
+    def tall_evidence(self, xy, max_age_s=None):
+        return np.zeros(len(np.asarray(xy).reshape(-1, 2)))
+
+    def seen_at(self, xy, kind):
+        return np.ones(len(np.asarray(xy).reshape(-1, 2)))
+
+
+def test_the_curve_candidate_finds_a_bending_kerb_along_the_cars_own_heading():
+    """r18 S1_5310 (Town10HD 468's exit curve, the kerb 7.8 m right): the fit held 7 kerb
+    points over 3-9 m while a reference-free chain along the car's heading held 15-23
+    stations and fitted a circle of R 27-31 from s 189. The candidate: a kerb bending at
+    R 27 from 6 m ahead is found with that radius and the lane circle 7.8 m inside it,
+    passing by the car's own lane position; a straight kerb and a fillet-tight one are not."""
+    c = CorridorConfig(keep_right_m=7.8)
+    e = CorridorEstimator(c)
+    pose = Pose2D(0.0, 0.0, 0.0)
+    found = e._curve_candidate(_ArcKerbGrid(bend_from_m=6.0, radius_m=27.0), pose)
+    assert found is not None and found["right_bend"] and 24.0 <= found["radius"] <= 30.0 and found["stations"] >= 10
+    line = found["centre_body"]
+    assert abs(float(np.interp(0.0, line[:, 0], line[:, 1]))) < 0.35  # the lane circle passes by the car
+    assert float(np.interp(20.0, line[:, 0], line[:, 1])) < -2.0  # and bends right 20 m on
+    assert e._curve_candidate(_ArcKerbGrid(bend_from_m=6.0, radius_m=0.0), pose) is None  # straight: no bend
+    assert e._curve_candidate(_ArcKerbGrid(bend_from_m=6.0, radius_m=8.0), pose) is None  # a fillet: too tight
+
+
+def test_a_persistent_curve_candidate_bends_a_short_straight_line():
+    """The line is straight and short on evidence (seven near points: the gate around it
+    excludes the bending kerb). Seen five ticks running with a steady radius and meeting
+    the line at the car, the candidate seeds a refit; the corridor then bends with the kerb
+    and holds more of it. Without the candidate the line stays straight."""
+    grid = _ArcKerbGrid(bend_from_m=3.0, radius_m=27.0)  # bending from 3 m on: within the gate to ~9 m, seven stations, as live
+    pose = Pose2D(0.0, 0.0, 0.0)
+    straight = np.column_stack((np.arange(-2.0, 25.0, 1.0), np.zeros(27)))
+
+    def run(enabled):
+        e = CorridorEstimator(CorridorConfig(keep_right_m=7.8, candidate_enabled=enabled))
+        e.seed(straight, pose, 0.0)
+        e._support = lambda g, p, xy: 40.0
+
+        def edges(g, p, stations, ref):  # the reference-gated search: the kerb within 0.75 m of keep_right from the reference (the live gate)
+            kerb = grid.kerb_y(stations) - ref
+            right = np.where((np.abs(kerb + 7.8) <= 0.75) & (stations >= 3.0), kerb, np.nan)
+            e._edge_seen_s = np.where(np.isfinite(right), 1.0, -np.inf)
+            return right, np.full(len(stations), np.nan), np.zeros(len(stations), dtype=bool), np.zeros(len(stations))
+
+        e._edges_along = edges
+        last, accepted_at = None, None
+        for k in range(8):
+            last = e.update(grid, pose, 0.05 * (k + 1))
+            if e.last_candidate is not None and e.last_candidate["accepted"] and accepted_at is None:
+                accepted_at = k
+        return e, last, accepted_at
+
+    e, corridor, accepted_at = run(True)
+    assert accepted_at == 4  # the fifth tick running
+    assert corridor.ok and len(corridor.evidence_body) >= 12 and corridor.lateral_offset_at(20.0) < -1.5  # more kerb, and the line bends with it
+    plain, flat, never = run(False)
+    assert never is None and flat.ok and len(flat.evidence_body) == 7 and abs(flat.lateral_offset_at(20.0)) < 0.5

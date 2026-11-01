@@ -17,7 +17,7 @@ reports and `route.json` files are the evidence that travels with each batch.
 | G1a | Local trajectory controller | yes | yes | yes (inside G1b) | yes | — |
 | G1b | Straight, curve, obstacle stop, sensor-only | yes | yes | MEASURED_PASS (Town10HD, Town05) | straight at 4 m/s, stops with a car and a cone, the curve once | the curve again; sensor outages are injected, not met |
 | G1c | Commanded 90° turn | yes | yes | right (Town10HD) and left (Town03) MEASURED_PASS; r8–r11 left turns with oncoming and parked cars | the Town03 left turn, five batches | one right-turn site; skewed junctions unsupported (sites within 10° of a right angle); the exit-kerb far bias |
-| G2 | Segmenter, painting, road model, stack; S0–S5 × 5 on the baseline route | yes; the mission scenario and its aggregator (31 Oct) | yes (fake world; synthetic 468) | the stack's straight, stop, leads, crossings, turns; **the gate run five times: r12 S0 and r13 failed at junction 468; r14 19/30, r15 24/30, r16 27/30 (`22c77b6`), r17 24/30 (`ed0efe6`: the refit anchor reached into the crossing's seeds, fixed), r18 28/30 (`757fd09`), the junction crossed cleanly by every run since r16** — the exit curve's kerb observability (8 m window, 7.8 m kerb) is the last mechanism | S0, S3, S4, S5 (r18); S4 (four batches) | the two-hypothesis corridor for the exit curve (offline first) before r19; the segmenter is shadow only (v2 right edge 0.76 m inside the kerb) and part of no decision |
+| G2 | Segmenter, painting, road model, stack; S0–S5 × 5 on the baseline route | yes; the mission scenario and its aggregator (31 Oct) | yes (fake world; synthetic 468) | the stack's straight, stop, leads, crossings, turns; **the gate run five times: r12 S0 and r13 failed at junction 468; r14 19/30, r15 24/30, r16 27/30 (`22c77b6`), r17 24/30 (`ed0efe6`: the refit anchor reached into the crossing's seeds, fixed), r18 28/30 (`757fd09`), the junction crossed cleanly by every run since r16** — the exit curve's kerb observability (8 m window, 7.8 m kerb) is the last mechanism | S0, S3, S4, S5 (r18); S4 (four batches) | r19 runs the gate with the curve candidate; the segmenter is shadow only (v2 right edge 0.76 m inside the kerb) and part of no decision |
 | G3 | Tracker, radar, prediction, following, M04–M06 | yes | yes | braking lead, cut-in, crossing walker and car, radar-first: MEASURED_PASS, r8–r11 | the leads and crossings, four batches | the A/B/C ablation with a lead still moving beyond the LiDAR's reach; rear radars admitted, no behaviour reads them |
 | G4 | Lights, junction yielding, lane changes, faults, mixed route | the left turn's oncoming gate; the junction crossed straight (31 Oct, curving exit 1 Nov); injected sensor outages | yes | the oncoming turns (r8–r12); the outages (r11); the crossing not yet | the oncoming turn | lights (M07), lane changes (M09–M11), the mixed route (M13), a two-lane opposing carriageway at the gate |
 | G5 | Learning | the segmenter trained (mIoU 0.879, Town02 held out) | — | shadow only | — | no learned component affects a command; no configuration C |
@@ -3811,6 +3811,36 @@ doing. Its other recommendations were already in `f9b5a8c`/`757fd09` (span on fa
 refits, the refit note, the stall cap) or are the curve work. Response:
 `claude/reviews/review17_external_r16.md`; the `757fd09` source snapshot and the r17/r18
 reports go to the reviewer.
+
+### The curve candidate (2 Nov): the kerb chained along the car's own heading
+
+The exit curve's mechanism, measured in r18 and on the recorded S1_5310 frames: the kerb
+is searched within `edge_gate_m` of where last tick's line puts it and within
+`lateral_search_m` (8 m) of that line, so on a road with the kerb 7.8 m right a line that
+is straight where the road bends loses the bending kerb 0.2 m out — 3.5 m into the bend —
+and holds the 6–7 near points that keep it straight. The open-loop replay of the S1_5310
+frames shows the other side: a reference-free chain of the kerb along the car's own
+heading holds 15–23 stations from s 184 and fits a circle of R 27–31 m at the kerb (the
+lane's R 35 less 7.8) within 0.1 m from s 189, five metres before the live line lost the
+kerb; the junction's fillet before it fits at R 17–22, 0.2–0.3 m off.
+
+`CorridorEstimator._curve_candidate` is that chain, run only when the fit is short on
+evidence (`candidate_trigger_span_m` 8 m or `candidate_trigger_points` 10) and never for a
+seeded refit or at a standstill: the kerb is sought in a band `candidate_band_m` (2 m
+inside, 6 m outside) of `keep_right` along the car's heading, chained with the edge
+continuity rule, and is a bend when a line leaves it by `candidate_min_bend_rms_m` (0.3 m),
+a circle fits within `candidate_max_residual_m` (0.15 m) and the radius lies in
+[`candidate_min_radius_m` 15, `candidate_max_radius_m` 400]. Seen `candidate_persist_ticks`
+(5) ticks running with the radius within 30 % of the last and meeting the current line at
+the car within `candidate_agree_m` (0.75), the lane circle `keep_right` inside the kerb
+seeds a refit, taken only when it holds more kerb than the line had; otherwise nothing
+changes. `corridor_candidate` per tick reports radius, residual, bend rms, stations,
+streak, the candidate's lateral at the car and whether it was taken. Unit tests: the
+finder on a synthetic R 27 kerb (and a straight kerb and an R 8 fillet, both refused);
+the acceptance on a short straight line (seven points → fifteen, the line bending). The
+synthetic probes are unchanged (no probe is short on evidence). Not reproducible offline:
+the open-loop replay of the live failure, whose corridor state diverges from the live
+run's at the hand-back and then sees the curve on its own — r19 is the test.
 
 ## Running Phase 0 live
 
