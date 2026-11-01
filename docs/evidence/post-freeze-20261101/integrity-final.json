@@ -1,0 +1,9 @@
+{
+  "status": "PASS",
+  "new_fault_archive_sha256": "83ba2808a8111a0827db3e28877f5861493efaa075d1a6c8c6b910adceed5e1d",
+  "retained_before_failures": 12,
+  "after_passed": 216,
+  "local_replay_frames": 200,
+  "frozen_release": "9a283d41b19c3339aa5762468a0968b421a524d5",
+  "existing_evidence_reused": true
+}

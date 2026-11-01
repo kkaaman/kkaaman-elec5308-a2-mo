@@ -105,3 +105,17 @@ def test_unmatched_detection_counts_false_positive():
     )
     report = evaluate_weather(obs, matrix)
     assert sum(r["fp"] for r in report["rows"]) == 1
+
+
+def test_missing_depth_is_retained_without_fabricated_zero_range():
+    obs, matrix = inputs()
+    for frame in obs["frames"]:
+        for label in frame["labels"]:
+            label.update(depth_valid=False, distance_m=None)
+    report = evaluate_weather(obs, matrix)
+    assert report["status"] == "INCOMPLETE"
+    assert len(report["missing_range_evidence"]) == 6
+    assert all(row["recall"] == 1 and row["invalid_depth_labels"] == 9 for row in report["rows"])
+    obs["frames"][0]["labels"][0]["depth_valid"] = True
+    with pytest.raises(ValueError):
+        evaluate_weather(obs, matrix)

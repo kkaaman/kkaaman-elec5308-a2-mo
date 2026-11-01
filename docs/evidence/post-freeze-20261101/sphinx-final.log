@@ -1,0 +1,146 @@
+Running Sphinx v9.1.0
+loading translations [en]... done
+loading pickled environment... done
+myst v5.1.0: MdParserConfig(commonmark_only=False, gfm_only=False, enable_extensions=set(), disable_syntax=[], all_links_external=False, links_external_new_tab=False, url_schemes=('http', 'https', 'mailto', 'ftp'), ref_domains=None, fence_as_directive=set(), number_code_blocks=[], title_to_header=False, heading_anchors=0, heading_slug_func=None, html_meta={}, footnote_sort=True, footnote_transition=True, words_per_minute=200, substitutions={}, linkify_fuzzy_links=True, dmath_allow_labels=True, dmath_allow_space=True, dmath_allow_digits=True, dmath_double_inline=False, update_mathjax=True, mathjax_classes='tex2jax_process|mathjax_process|math|output_area', enable_checkboxes=False, strikethrough_single_tilde=False, colon_fence_exact_match=False, suppress_warnings=[], highlight_code_blocks=True)
+building [mo]: targets for 0 po files that are out of date
+writing output... 
+building [html]: targets for 6 source files that are out of date
+updating environment: 0 added, 11 changed, 0 removed
+reading sources... [  9%] api
+reading sources... [ 18%] baseline_threshold_freeze
+reading sources... [ 27%] evidence_index
+reading sources... [ 36%] gates/G1
+reading sources... [ 45%] gates/G1-admission-notes
+reading sources... [ 55%] module_notes
+reading sources... [ 64%] parking
+reading sources... [ 73%] post_freeze_20261101
+reading sources... [ 82%] release_evidence_map
+reading sources... [ 91%] release_live_queue
+reading sources... [100%] release_remaining
+
+looking for now-outdated files... none found
+pickling environment... done
+checking consistency... done
+preparing documents... done
+copying assets... 
+copying downloadable files... [  1%] gates/G1-admission.json
+copying downloadable files... [  2%] ../../configs/mission_baseline.json
+copying downloadable files... [  3%] evidence/BL-D-06/operational-approach/provenance.json
+copying downloadable files... [  4%] evidence/BL-D-06/history/D005-decision.txt
+copying downloadable files... [  5%] evidence/BL-C-05-refresh/capture-attempt.json
+copying downloadable files... [  7%] evidence/BL-C-05-refresh/provenance.json
+copying downloadable files... [  8%] evidence/BL-C-05-refresh/sequences.json
+copying downloadable files... [  9%] evidence/BL-C-05-refresh/benchmark.json
+copying downloadable files... [ 10%] evidence/BL-C-05-refresh/analysis.json
+copying downloadable files... [ 11%] evidence/BL-C-05-refresh/frame-analysis.csv
+copying downloadable files... [ 12%] evidence/BL-C-05-refresh/capture-summary.json
+copying downloadable files... [ 13%] evidence/BL-C-05-refresh/artifact-manifest.json
+copying downloadable files... [ 14%] evidence/BL-C-05-refresh/regression.xml
+copying downloadable files... [ 15%] evidence/BL-D-06/operational-range-review.json
+copying downloadable files... [ 16%] evidence/BL-D-06/fresh-range-regression.xml
+copying downloadable files... [ 18%] evidence/BL-D-06/rejection-investigation-tests.xml
+copying downloadable files... [ 19%] evidence/BL-D-06/operational-approach/raw-evidence.zip
+copying downloadable files... [ 20%] evidence/BL-D-06/operational-approach/capture-command.json
+copying downloadable files... [ 21%] evidence/BL-D-06/operational-approach/review.json
+copying downloadable files... [ 22%] evidence/BL-D-06/operational-approach/measured-source.zip
+copying downloadable files... [ 23%] evidence/BL-D-06/operational-approach/artifact-manifest.json
+copying downloadable files... [ 24%] evidence/BL-D-06/operational-approach/attempt-index.json
+copying downloadable files... [ 25%] evidence/BL-D-06/operational-approach/preflight-01-report.json
+copying downloadable files... [ 26%] evidence/BL-D-06/operational-approach/background-preflight-01-report.json
+copying downloadable files... [ 27%] evidence/BL-D-06/review.json
+copying downloadable files... [ 29%] evidence/BL-D-06/operational-approach/regression.xml
+copying downloadable files... [ 30%] evidence/BL-D-06/operational-approach/raw-evidence.sha256
+copying downloadable files... [ 31%] evidence/BL-D-06/operational-approach/raw-evidence.manifest.json
+copying downloadable files... [ 32%] evidence/E5-P1/results.json
+copying downloadable files... [ 33%] evidence/E5-P1/provenance.json
+copying downloadable files... [ 34%] evidence/E5-P1/regression.xml
+copying downloadable files... [ 35%] evidence/E5-P1/phase-j-20261028/local-rebind-validation.json
+copying downloadable files... [ 36%] evidence/E5-P1/phase-j-20261028/local-control-pytest.log
+copying downloadable files... [ 37%] evidence/E5-P1/phase-j-20261028/local-candidate-pytest.log
+copying downloadable files... [ 38%] evidence/E5-P1/phase-j-20261028/local-candidate-regression.xml
+copying downloadable files... [ 40%] evidence/TEST-02/rgb-repair-regression.xml
+copying downloadable files... [ 41%] evidence/TEST-02/rgb-repair-results.json
+copying downloadable files... [ 42%] evidence/TEST-02/rgb-repair-evidence.zip
+copying downloadable files... [ 43%] evidence/TEST-02/rgb-repair-evidence.sha256
+copying downloadable files... [ 44%] evidence/TEST-02/environment.json
+copying downloadable files... [ 45%] evidence/TEST-02/results.json
+copying downloadable files... [ 46%] evidence/TEST-02/raw-evidence.zip
+copying downloadable files... [ 47%] evidence/TEST-02/raw-evidence.sha256
+copying downloadable files... [ 48%] evidence/TEST-02/regression.xml
+copying downloadable files... [ 49%] evidence/TEST-02/route.svg
+copying downloadable files... [ 51%] evidence/TEST-18/development-evidence.zip
+copying downloadable files... [ 52%] evidence/BL-C-04-06/sensor-wait-timing-review.json
+copying downloadable files... [ 53%] evidence/BL-A-02-double-check.json
+copying downloadable files... [ 54%] evidence/BL-A-02-validation.json
+copying downloadable files... [ 55%] evidence/issue40-geometry-20261029/admission-review.json
+copying downloadable files... [ 56%] evidence/E2-01-04/replay-synthetic.json
+copying downloadable files... [ 57%] evidence/live-session-20261029/raw-intensity-verification.json
+copying downloadable files... [ 58%] evidence/live-session-20261029/weather-installed-settings.json
+copying downloadable files... [ 59%] evidence/live-session-20261029/official-state.json
+copying downloadable files... [ 60%] evidence/phase-j-final/pre-final-report.txt
+copying downloadable files... [ 62%] evidence/phase-j-final/official-state.json
+copying downloadable files... [ 63%] evidence/baseline-batch/detector.json
+copying downloadable files... [ 64%] evidence/BL-C-04-06/benchmark.json
+copying downloadable files... [ 65%] evidence/phase-j-88/pr106-module-notes.txt
+copying downloadable files... [ 66%] evidence/RV-05-regression.txt
+copying downloadable files... [ 67%] evidence/BL-C-04-06/capture-summary.json
+copying downloadable files... [ 68%] evidence/BL-C-04-06/depth-calibration.json
+copying downloadable files... [ 69%] evidence/BL-C-04-06/longitudinal.json
+copying downloadable files... [ 70%] evidence/BL-C-04-06/temporal-depth-tests.xml
+copying downloadable files... [ 71%] evidence/BL-C-04-06/sensor-failure-tests.xml
+copying downloadable files... [ 73%] evidence/BL-C-04-06/sensor-wait-tests.xml
+copying downloadable files... [ 74%] evidence/E3-wayfinder/frame_01.png
+copying downloadable files... [ 75%] evidence/BL-D-06/history/D007-rejection-decision.txt
+copying downloadable files... [ 76%] evidence/BL-D-06/history/D007-rejection-review.json
+copying downloadable files... [ 77%] evidence/TEST-13/depth_calibration.json
+copying downloadable files... [ 78%] evidence/TEST-13/depth_analysis.json
+copying downloadable files... [ 79%] evidence/BL-E-03/longitudinal.json
+copying downloadable files... [ 80%] ../../configs/reproduction.json
+copying downloadable files... [ 81%] ../../.github/workflows/ci.yml
+copying downloadable files... [ 82%] ../../tests/unit/test_acceptance.py
+copying downloadable files... [ 84%] ../../tests/fixtures/acceptance/golden.json
+copying downloadable files... [ 85%] ../../tests/conftest.py
+copying downloadable files... [ 86%] gates/G1-admission-validation.json
+copying downloadable files... [ 87%] evidence/post-freeze-20261101/hybrid-faults.zip
+copying downloadable files... [ 88%] evidence/post-freeze-20261101/fault-summary.json
+copying downloadable files... [ 89%] evidence/release-20261031/deadline-freeze/five-run-summary.json
+copying downloadable files... [ 90%] evidence/release-20261031/deadline-freeze/parked-sensors.png
+copying downloadable files... [ 91%] evidence/release-20261031/deadline-freeze/parked-recording.mp4
+copying downloadable files... [ 92%] evidence/release-20261031/deadline-freeze/navigation-summary.json
+copying downloadable files... [ 93%] evidence/release-20261031/deadline-freeze/navigation-samples.csv
+copying downloadable files... [ 95%] evidence/release-20261031/deadline-freeze/wayfinder/guidance_log.json
+copying downloadable files... [ 96%] evidence/release-20261031/deadline-freeze/all-attempts.json
+copying downloadable files... [ 97%] evidence/release-20261031/deadline-freeze/final-weather-preflight.json
+copying downloadable files... [ 98%] evidence/release-20261031/final-docker-smoke.log
+copying downloadable files... [ 99%] evidence/TEST-18/continuation/fixture-report/report.json
+copying downloadable files... [100%] evidence/post-freeze-20261101/issues-before.json
+
+copying static files... 
+Writing evaluated template result to /tmp/elec5308-docs-20261101/_static/basic.css
+Writing evaluated template result to /tmp/elec5308-docs-20261101/_static/language_data.js
+Writing evaluated template result to /tmp/elec5308-docs-20261101/_static/documentation_options.js
+Writing evaluated template result to /tmp/elec5308-docs-20261101/_static/alabaster.css
+copying static files: done
+copying extra files... 
+copying extra files: done
+copying assets: done
+writing output... [  8%] api
+writing output... [ 17%] baseline_threshold_freeze
+writing output... [ 25%] evidence_index
+writing output... [ 33%] gates/G1
+writing output... [ 42%] gates/G1-admission-notes
+writing output... [ 50%] index
+writing output... [ 58%] module_notes
+writing output... [ 67%] parking
+writing output... [ 75%] post_freeze_20261101
+writing output... [ 83%] release_evidence_map
+writing output... [ 92%] release_live_queue
+writing output... [100%] release_remaining
+
+generating indices... genindex py-modindex done
+writing additional pages... search done
+dumping search index in English (code: en)... done
+dumping object inventory... done
+build succeeded.
+
+The HTML pages are in ../elec5308-docs-20261101.

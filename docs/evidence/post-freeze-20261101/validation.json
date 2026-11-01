@@ -1,0 +1,21 @@
+{
+  "status": "PASS",
+  "production_revision": "60e8611",
+  "full_pytest": {
+    "passed": 1557,
+    "skipped": 1,
+    "subtests": 3,
+    "log": "full-final.log"
+  },
+  "admission": "IDENTITY_AND_LOADER_PASS",
+  "negative_probes": 19,
+  "ruff": "PASS",
+  "boundary_imports": 110,
+  "generated_inventory": "PASS",
+  "sphinx": "PASS",
+  "assets": "PASS",
+  "docker": "Existing real-model smoke reused: service/deployment/protocol unchanged",
+  "live_carla": "NOT RUN",
+  "source_scope": "No new motion, weather, hybrid or clearance admission",
+  "earlier_environment_attempt": "1548 passed; two missing-FastAPI failures retained; corrected service 18/18, final full suite passed"
+}

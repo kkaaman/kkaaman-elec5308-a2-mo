@@ -142,6 +142,9 @@ def main():
         "--camera-z", type=float, default=2.0, help="Height above the Tesla actor origin, metres"
     )
     parser.add_argument("--camera-x", type=float, default=1.5)
+    parser.add_argument("--weather-cell", help="Approved paired stationary S0/S1/S2 dataset cell")
+    parser.add_argument("--weather-config", type=Path,
+                        default=Path(__file__).resolve().parents[2]/"configs/weather/robustness_v1.json")
     parser.add_argument("--follow", action="store_true")
     args = parser.parse_args()
     if (
@@ -158,6 +161,11 @@ def main():
         or not math.isfinite(args.camera_x)
     ):
         parser.error("Invalid sample count or camera/spacing parameters")
+    from carla_adapter.weather_experiment import select_capture_cell
+
+    weather_cell = select_capture_cell(args.weather_config, args.weather_cell) if args.weather_cell else None
+    if weather_cell:
+        args.seed = weather_cell["seed"]
     import carla
 
     output = args.output.resolve()
@@ -180,6 +188,7 @@ def main():
         "no_actor_leaks": False,
         "failure": None,
     }
+    report["weather_experiment"] = weather_cell
     world = None
     original_settings = original_weather = original_view = None
     owned = []
@@ -305,10 +314,21 @@ def main():
             for name in ("car", "person")
         ]
         cases += [("car", 15, 4), ("car", 25, -4), ("none", 0, 0), ("none", 0, 0)]
+        if weather_cell:
+            from carla_adapter.weather_experiment import apply_capture_weather, verify_settings
+
+            verify_settings(carla, json.loads(args.weather_config.read_text()))
+            name = {"S0": "none", "S1": "car", "S2": "person"}[weather_cell["scenario"]]
+            cases = [(name, distance, 0) for distance in (5, 10, 15, 20, 25, 30)]
+
         with index_path.open("x", encoding="utf-8", buffering=1) as index:
             for round_index in range(args.rounds):
                 weather_name = weather_names[round_index % len(weather_names)]
-                world.set_weather(getattr(carla.WeatherParameters, weather_name))
+                if weather_cell:
+                    weather_name = weather_cell["condition"]
+                    report["weather_readback"] = apply_capture_weather(carla, world, ego, weather_cell)
+                else:
+                    world.set_weather(getattr(carla.WeatherParameters, weather_name))
                 for point in ordered:
                     if report["sample_count"] >= args.samples:
                         break
@@ -473,6 +493,9 @@ def main():
                             "sensor_frames": {name: image.frame for name, image in images.items()},
                             "sim_time_s": images["rgb"].timestamp,
                             "weather": weather_name,
+                            "weather_cell_id": weather_cell["cell_id"] if weather_cell else None,
+                            "scene_pair_id": (f"{weather_cell['scenario']}-r{weather_cell['repetition']}-road{point.road_id}-s{point.s:.3f}"
+                                              if weather_cell else f"{run_id}-pose{pose_number:06d}"),
                             "camera_world": transform_dict(images["rgb"].transform),
                             "ego_world": transform_dict(snapshot.find(ego.id).get_transform()),
                             "target_evaluation_only": target_metadata,

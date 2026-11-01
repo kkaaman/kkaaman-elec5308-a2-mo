@@ -128,3 +128,9 @@ demonstration for the autonomous perception and navigation library.
 
    evidence/release-20261031/live-final-20261031/README
    evidence/release-20261031/deadline-freeze/README
+
+.. toctree::
+   :hidden:
+
+   post_freeze_20261101
+   contribution_evidence

@@ -458,7 +458,7 @@ Role (source summary)::
 
 Why: Contain simulator ownership and coordinate conversion at the boundary; keep the core reusable.
 
-Declared public classes/functions: ``verify_settings``, ``main``.
+Declared public classes/functions: ``verify_settings``, ``select_capture_cell``, ``apply_capture_weather``, ``main``.
 
 carla_adapter/world.py
 ~~~~~~~~~~~~~~~~~~~~~~
@@ -591,6 +591,17 @@ Role (source summary)::
 Why: Keep recorded observations and metric analysis separate from controller inputs.
 
 Declared public classes/functions: ``percentile``, ``first_sustained``, ``stopped_margin``, ``read_json``, ``validate_s0_criteria``, ``evaluate_run``, ``aggregate``.
+
+evaluation/perception_replay.py
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Role (source summary)::
+
+    Recorded RGB-D replay; instance labels are scored after production inference.
+
+Why: Keep recorded observations and metric analysis separate from controller inputs.
+
+Declared public classes/functions: ``axial_image``, ``overlap``, ``replay``, ``range_summary``.
 
 evaluation/run_log.py
 ~~~~~~~~~~~~~~~~~~~~~

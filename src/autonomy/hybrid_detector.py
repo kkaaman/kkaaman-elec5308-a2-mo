@@ -22,6 +22,10 @@ class LocalTrackingBackend:
     def __init__(self, frame_detector):
         self.backend = frame_detector
 
+    @property
+    def source_id(self):
+        return self.backend.source_id
+
     def reset(self, *, episode_id):
         self.backend.reset(episode_id=episode_id)
 
@@ -53,12 +57,14 @@ class HybridFrameDetector:
         self.frame = None
         self.active_source = None
         self.last_decision = None
+        self.worker_sources = {}
 
     def reset(self, *, episode_id):
         self.hybrid.reset(episode_id=episode_id)
         self.episode_id = episode_id
         self.generation += 1
         self.frame = self.active_source = self.last_decision = None
+        self.worker_sources = {}
 
     def submit(self, frame):
         """Start both bounded workers; caller may perform other work before step()."""
@@ -112,6 +118,14 @@ class HybridFrameDetector:
         batch = decision.batch
         if decision.source not in ("local", "remote") or not matches(batch, frame):
             raise ValueError("Hybrid decision has invalid source/frame identity")
+        # Validate the worker identity before rewriting it into a source/session
+        # namespace. Otherwise an invalid source is laundered into trusted input.
+        worker = getattr(self.hybrid, decision.source, None)
+        expected = getattr(getattr(worker, "backend", None), "source_id", None)
+        if expected is None:
+            expected = self.worker_sources.setdefault(decision.source, batch.metadata.source_id)
+        if batch.metadata.source_id != expected:
+            raise ValueError("Hybrid worker source identity mismatch")
         if batch.metadata.model_version != self.model_version:
             raise ValueError("Hybrid model identity differs from configured weights")
         session = (

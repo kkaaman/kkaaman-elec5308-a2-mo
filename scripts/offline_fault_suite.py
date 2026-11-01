@@ -162,6 +162,7 @@ class Rig:
         elif fault == "invalid_state":
             object.__setattr__(frame.ego.state, "speed_mps", float("nan"))
         before = self.policy.guard.clear_count
+        self.prepare(frame)
         packet = self.stack.step(frame)
         return packet, {"input_session": frame.episode_id, "input_frame": frame.frame_id,
                         "source": self.detector.source_id, "session": packet.episode_id,
@@ -175,6 +176,9 @@ class Rig:
                         "stack_emergency": self.stack._emergency,
                         "stage_durations_s": list(packet.diagnostics.stage_durations_s)}
 
+    def prepare(self, frame):
+        """Optional worker orchestration outside the command-selection step."""
+
     def close(self):
         self.stack.close()
         self.closed = True
@@ -185,10 +189,10 @@ def full_brake(packet):
             and packet.command.steering_angle_rad == 0)
 
 
-def run_case(profile, behaviour, tracking, fault):
-    if profile not in PROFILES[:2] or behaviour not in BEHAVIOURS or type(tracking) is not bool or fault not in FAULTS:
+def run_case(profile, behaviour, tracking, fault, *, rig_factory=Rig):
+    if (profile not in PROFILES[:2] and rig_factory is Rig) or behaviour not in BEHAVIOURS or type(tracking) is not bool or fault not in FAULTS:
         raise ValueError("Unsupported fixture combination; remote/hybrid must remain blocked")
-    rig = Rig(profile, behaviour, tracking)
+    rig = rig_factory(profile, behaviour, tracking)
     rows = []
     checks = {}
     try:
