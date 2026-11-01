@@ -8,6 +8,7 @@ import argparse
 import json
 import subprocess
 import sys
+from collections import Counter
 from pathlib import Path
 
 from scripts.prepare_weather_matrix import prepare
@@ -48,6 +49,10 @@ def combine_captures(output, cells, specification_sha256):
     result = dict(
         manifests[0],
         sample_count=len(rows),
+        requested_samples=len(rows),
+        split_counts=dict(Counter(row["split"] for row in rows)),
+        seed=None,
+        paired_seeds=sorted({m["seed"] for m in manifests if m.get("seed") is not None}),
         samples_sha256=hashlib.sha256(index.read_bytes()).hexdigest(),
         combined_cells=[c["cell_id"] for c in cells],
         specification_sha256=specification_sha256,
@@ -56,6 +61,7 @@ def combine_captures(output, cells, specification_sha256):
         },
     )
     result["weather_experiment"] = None
+    result.pop("weather_readback", None)
     with (output / "manifest.json").open("x") as stream:
         json.dump(result, stream, indent=2)
     read_dataset(output)

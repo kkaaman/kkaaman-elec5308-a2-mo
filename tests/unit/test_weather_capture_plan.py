@@ -103,6 +103,7 @@ def test_combined_index_keeps_real_jsonl_and_original_asset_references(tmp_path,
             label_tag=24,
         )
         row = dict(
+            split="test",
             sample_id="a",
             run_id="run",
             sequence_id="scene",
@@ -116,6 +117,9 @@ def test_combined_index_keeps_real_jsonl_and_original_asset_references(tmp_path,
     monkeypatch.setattr(dataset, "read_dataset", read)
     combine_captures(tmp_path, [dict(cell_id="cell1"), dict(cell_id="cell2")], "s")
     rows = [json.loads(line) for line in (tmp_path / "samples.jsonl").read_text().splitlines()]
+    manifest = json.loads((tmp_path / "manifest.json").read_text())
+    assert manifest["split_counts"] == {"test": 2}
+    assert manifest["requested_samples"] == 2 and manifest["seed"] is None
     assert rows[0]["rgb"] == "cell1/data/rgb.png"
     assert rows[1]["sequence_id"] == "cell2/scene"
     assert not (tmp_path / "cell1").exists()  # no image copy was made
@@ -181,7 +185,8 @@ def test_resume_reuses_complete_cells_and_archives_failed_attempt(tmp_path, monk
 
 def test_cleanup_does_not_skip_owned_actors_missing_from_cached_snapshot():
     from carla_adapter.dataset_capture import destroy_owned_actors  # noqa: TID251
-    calls=[]
-    actor=SimpleNamespace(id=7,is_alive=False,destroy=lambda:calls.append(7) or True)
-    assert destroy_owned_actors([actor])==[]
-    assert calls==[7]
+
+    calls = []
+    actor = SimpleNamespace(id=7, is_alive=False, destroy=lambda: calls.append(7) or True)
+    assert destroy_owned_actors([actor]) == []
+    assert calls == [7]
