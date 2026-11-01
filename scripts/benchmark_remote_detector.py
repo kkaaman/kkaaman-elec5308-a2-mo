@@ -51,6 +51,7 @@ def summarize(rows, deadline_s):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--frames", required=True, type=Path, help="Directory of >=200 RGB uint8 .npy frames")
+    parser.add_argument("--frame-pattern", default="*.npy", help="Select RGB files only, e.g. *-rgb.npy")
     parser.add_argument("--annotations", type=Path, help="JSON mapping every filename to class_name/xyxy truth list")
     parser.add_argument("--output", required=True, type=Path, help="New evidence directory")
     parser.add_argument("--local-factory", required=True, help="module:factory; no arguments")
@@ -65,7 +66,7 @@ def main(argv=None):
     parser.add_argument("--deadline-s", type=float, default=.1)
     args = parser.parse_args(argv)
     positive(args.deadline_s, "deadline_s")
-    files = sorted(args.frames.glob("*.npy"))
+    files = sorted(args.frames.glob(args.frame_pattern))
     if len(files) < 200 or args.warmup < 1:
         parser.error("At least 200 replay frames and one warm-up call required")
     if any(not 1 <= q <= 100 for q in args.qualities):
@@ -96,6 +97,7 @@ def main(argv=None):
         manifest["accuracy"] = dict(status="ANNOTATED", matcher="class-aware confidence-greedy IoU >= 0.5; micro precision/recall",
                                     annotations_sha256=hashlib.sha256(args.annotations.read_bytes()).hexdigest())
     all_rows = []
+    predictions = []
     for mode, endpoint in (("local", None), ("LAN", args.lan_endpoint), ("cloud", args.cloud_endpoint)):
         if mode != "local" and not endpoint:
             manifest["modes"][mode] = {"status": "NOT RUN", "reason": "No endpoint supplied"}
@@ -140,6 +142,13 @@ def main(argv=None):
                             counts = (None, None, None) if truth is None else match_counts(
                                 batch.detections if status == "OK" else (), truth,
                                 scale_x=width/original_width, scale_y=height/original_height)
+                            predictions.append(dict(
+                                mode=mode, width=width, height=height, jpeg_quality=quality,
+                                frame=path.name, status=status, total_s=total,
+                                detections=[dict(class_name=d.class_name, confidence=d.confidence,
+                                                 xyxy=[d.box.x_min, d.box.y_min, d.box.x_max, d.box.y_max])
+                                            for d in batch.detections] if status == "OK" else [],
+                                original_width=original_width, original_height=original_height))
                             rows.append(dict(mode=mode, width=width, height=height, jpeg_quality=quality,
                                 frame=path.name, status=status, error=error, total_s=total,
                                 tp=counts[0], fp=counts[1], fn=counts[2],
@@ -154,6 +163,9 @@ def main(argv=None):
                                            **summarize(rows, args.deadline_s)))
                 all_rows.extend(rows)
         manifest["modes"][mode] = dict(status="MEASURED", configurations=configurations)
+    with (args.output / "predictions.jsonl").open("x") as stream:
+        for prediction in predictions:
+            stream.write(json.dumps(prediction, allow_nan=False)+"\n")
     with (args.output / "latency.csv").open("w", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=list(all_rows[0]))
         writer.writeheader()
