@@ -96,6 +96,13 @@ class DriverConfig:
     # at the first metre, the windows collapsed and a car that had waited 12 s at the mouth
     # found its road ahead "unseen" and never moved (full review of 73ae759, S7).
     still_credit_m: float = 3.0
+    # Standing this long on a corridor too short to move off along (its end within the
+    # car's front, the stop gap and a metre) with fewer than the corridor's min_evidence
+    # kerb points in view, the corridor is given up and searched for again from the car's
+    # own line (r16 S5_5310: held for the obstacle in 468's exit curve with the kerb lost,
+    # the car moved 2.5 m on the carried line after the removal and stood on its 6 m end
+    # to the time limit, the line never faulting because stray edge hits kept it fresh).
+    corridor_stall_s: float = 4.0
     mouth_release_m: float = 0.5  # a standing car's mouth moves on to an opening read this much further ...
     mouth_release_s: float = 1.0  # ... steadily (within mouth_release_m) for this long
     # The path the far points' ground is read along (``classify_sweep``'s path_xy) is the last
@@ -369,6 +376,21 @@ class MaplessDriver:
             if self._still_odo is not None and float(np.hypot(*(here - self._still_odo))) > c.still_credit_m:
                 self._still_credit, self._still_odo = 0.0, None
         corridor = self.corridor.update(self.grid, motion.odometry, t)
+        if (
+            corridor.ok
+            and standing >= c.corridor_stall_s
+            and not self.planner.holding
+            and corridor.valid_length_m < c.body.front_m + c.planner.stop_gap_m + 1.0
+            and len(corridor.evidence_body) < c.corridor.min_evidence
+        ):
+            # Standing on the end of a carried line with no kerb in view and nothing held
+            # for: a deadlock (the line cannot grow without moving, the car cannot move
+            # without it). Search again from the car's own line, as after a lost corridor.
+            # A hold behind an obstacle is not this: its line is kept as the standing rule
+            # keeps it, and the hold's own release lets the car go.
+            self.corridor.reset()
+            corridor = self.corridor.update(self.grid, motion.odometry, t)
+            d.update(corridor_reacquire=True, corridor_stalled_s=round(standing, 1))
         lap("corridor")
         d.update(
             corridor_ok=corridor.ok,
