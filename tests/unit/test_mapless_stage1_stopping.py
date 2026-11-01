@@ -677,6 +677,9 @@ def test_a_refit_from_a_few_far_points_alone_carries_the_line_instead():
     many_far = estimator_with(tuple(np.arange(16.0, 28.0, 1.0)))  # twelve far points over 11 m: enough on their own
     refit_far = many_far.update(grid, pose, 1.0)
     assert refit_far.ok and refit_far.valid_length_m > carried.valid_length_m and many_far.last_refit["refit"]
+    seeded = estimator_with((20.0, 22.0, 24.0, 26.0, 28.0))  # the same five far points on a seed (anchor=False): refitted — beyond a
+    tested = seeded.update(grid, pose, 1.0, anchor=False)  # junction the kerb is all far evidence (r17: carried seeds were "found" and
+    assert tested.ok and seeded.last_refit["refit"]  # handed the car, 24/30 against r16's 27)
     short = estimator_with(tuple(np.arange(20.0, 27.0, 1.0)))  # seven far points over 6 m: a count is not geometry (fifteenth review)
     kept = short.update(grid, pose, 1.0)
     assert np.allclose(kept.centre_body, bent[bent[:, 0] <= kept.valid_length_m + 1e-9], atol=1e-6)
