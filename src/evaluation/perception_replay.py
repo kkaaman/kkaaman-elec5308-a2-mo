@@ -137,6 +137,7 @@ def replay(folder, manifest, rows, detector, convention, *, fault=None):
                 used.add(index)
             truths.append(
                 dict(
+                    xyxy=truth["xyxy"],
                     instance_code=truth["instance_code"],
                     class_name=truth["class_name"],
                     distance_m=distance,
@@ -152,7 +153,9 @@ def replay(folder, manifest, rows, detector, convention, *, fault=None):
         records.append(
             dict(
                 sample_id=row["sample_id"],
+                valid=batch.valid,
                 sequence_id=sequence,
+                independent_pose_id=row.get("scene_pair_id", sequence),
                 sequence_index=row["sequence_index"],
                 sim_time_s=row["sim_time_s"],
                 frame_id=row["frame_id"],
@@ -193,13 +196,15 @@ def range_summary(records):
         sequences.append(
             dict(
                 sequence_id=sequence,
+                independent_pose_id=trace[0][0].get("independent_pose_id", sequence),
                 class_name=name,
                 instance_code=identity,
                 distance_m=float(np.median(distances)),
                 frames=len(trace),
                 confirmation_s=confirmation,
                 first_confirmed_distance_m=next(
-                    (t["distance_m"] for _, t in trace if t["confirmed"]), None),
+                    (t["distance_m"] for _, t in trace if t["confirmed"]), None
+                ),
                 recall=sum(t["detected"] for _, t in trace) / len(trace),
                 valid_depth_fraction=sum(t["valid_depth"] for _, t in trace) / len(trace),
                 id_switches=sum(a != b for a, b in zip(ids, ids[1:])),
@@ -230,12 +235,12 @@ def range_summary(records):
                 and r["max_abs_depth_error_m"] is not None
                 and r["max_abs_depth_error_m"] <= 1.0
             ]
-            passed = len({r["sequence_id"] for r in rows}) >= 5 and len(valid) == len(rows)
+            passed = len({r["independent_pose_id"] for r in rows}) >= 5 and len(valid) == len(rows)
             bins.append(
                 dict(
                     class_name=name,
                     bin_centre_m=centre,
-                    independent_sequences=len({r["sequence_id"] for r in rows}),
+                    independent_sequences=len({r["independent_pose_id"] for r in rows}),
                     usable_sequences=len(valid),
                     status="PASS" if passed else "INSUFFICIENT_OR_FAIL",
                 )

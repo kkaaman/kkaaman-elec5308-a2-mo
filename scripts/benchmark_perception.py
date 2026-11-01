@@ -21,9 +21,16 @@ def main():
     args = parser.parse_args()
     manifest, rows = read_dataset(args.dataset)
     calibration = json.loads(args.depth_calibration.read_text())
-    if (calibration.get("status") != "MEASURED_PASS"
-            or calibration.get("opendrive_sha256") != manifest.get("opendrive_sha256")
-            or calibration.get("rig") != manifest.get("camera")):
+    if (
+        calibration.get("status") != "MEASURED_PASS"
+        or calibration.get("opendrive_sha256") != manifest.get("opendrive_sha256")
+        or calibration.get("rig")
+        != dict(
+            manifest["camera"],
+            width=manifest["image_size_wh"][0],
+            height=manifest["image_size_wh"][1],
+        )
+    ):
         raise ValueError("Matching measured map/camera depth calibration required")
     selected = [r for r in rows if r["split"] == "test"]
     if not selected:

@@ -75,7 +75,7 @@ def _check_inputs(matrix, observations):
                     or not _box(label["xyxy"])
                     or type(label["visible"]) is not bool
                     or type(label["depth_valid"]) is not bool
-                    or not _finite(label["distance_m"])
+                    or not (_finite(label["distance_m"]) or (label["distance_m"] is None and not label["depth_valid"]))
                 ):
                     raise ValueError("Invalid labelled object")
             for detection in detections:
@@ -138,6 +138,7 @@ def evaluate_weather(observations, matrix):
             "class_name": class_name,
             "frames": 0,
             "invalid_frames": 0,
+            "invalid_depth_labels": 0,
             "labelled_objects": 0,
             "tp": 0,
             "fn": 0,
@@ -173,6 +174,7 @@ def evaluate_weather(observations, matrix):
                 result["frames"] += 1
                 result["invalid_frames"] += not frame["valid"]
                 result["labelled_objects"] += len(visible_labels)
+                result["invalid_depth_labels"] += sum(not labels[i]["depth_valid"] for i in visible_labels)
                 result["tp"] += len(set(visible_labels) & matched_labels)
                 result["fn"] += len(set(visible_labels) - matched_labels)
                 result["fp"] += len(set(class_detections) - matched_detections)
@@ -209,7 +211,9 @@ def evaluate_weather(observations, matrix):
 
     missing_cells = sorted(set(cells) - set(frames_by_cell))
     invalid_cells = sorted({f["cell_id"] for f in observations["frames"] if not f["valid"]})
-    complete = not missing_cells and not missing_denominators and not invalid_cells
+    missing_ranges = [f"{r['weather']}:{r['class_name']}" for r in rows
+                      if r["first_confirmed_range_m"]["minimum"] is None]
+    complete = not missing_cells and not missing_denominators and not invalid_cells and not missing_ranges
     return {
         "status": "COMPLETE" if complete else "INCOMPLETE",
         "origin": observations["origin"],
@@ -217,6 +221,7 @@ def evaluate_weather(observations, matrix):
         "invalid_cells": invalid_cells,
         "missing_cells": missing_cells,
         "missing_denominators": missing_denominators,
+        "missing_range_evidence": missing_ranges,
         "rows": rows,
     }
 
