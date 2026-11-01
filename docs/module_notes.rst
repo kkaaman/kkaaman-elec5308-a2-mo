@@ -315,7 +315,7 @@ Role (source summary)::
 
 Why: Contain simulator ownership and coordinate conversion at the boundary; keep the core reusable.
 
-Declared public classes/functions: ``FrameBuffer``, ``transform_dict``, ``target_surface_reference``, ``location_for_target``, ``main``.
+Declared public classes/functions: ``FrameBuffer``, ``transform_dict``, ``target_surface_reference``, ``location_for_target``, ``destroy_owned_actors``, ``verify_owned_cleanup``, ``main``.
 
 carla_adapter/depth_calibration.py
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
