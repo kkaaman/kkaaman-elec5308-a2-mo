@@ -225,3 +225,7 @@ integration nor a black-image Docker smoke establishes real LAN/deployment
 accuracy, the 100 ms budget or #41 acceptance. Comparable labelled >=200-frame
 local/LAN evidence remains a separate #57 deliverable; unavailable cloud stays
 NOT_RUN. No baseline threshold/config or safety guard is weakened.
+
+## Post-freeze status — 1 November 2026
+
+Earlier missing-server/control-adapter warnings are historical: PR105/109 are merged. [Current results and remaining acceptance](post_freeze_20261101.md) supersede them. Retained predictions enable later held-out scoring without remeasuring latency. Wrong-source workers fail before namespace rewriting. LAN/cloud and accuracy remain unmeasured.

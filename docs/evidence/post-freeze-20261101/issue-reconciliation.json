@@ -1,0 +1,230 @@
+[
+  {
+    "number": 40,
+    "title": "BL-D-08–09: Implement and validate stop-hold-resume behaviour",
+    "classification": "BLOCKED BY #40",
+    "remaining": "Positive full-region clearance and autonomous RESUME unsupported; STOP/HOLD retained."
+  },
+  {
+    "number": 41,
+    "title": "BL-F-06–07 / BL-E-04 / G2-01: Integrate perception-to-control in CARLA",
+    "classification": "BLOCKED BY #41",
+    "remaining": "Normal target-induced sensor-driven stationary-car stop absent; trash-can false positive unresolved."
+  },
+  {
+    "number": 42,
+    "title": "RV-06 / TEST-07 / TEST-10 / TEST-22: Finish lane-monitor and bend-obstacle integration",
+    "classification": "BLOCKED BY #41",
+    "remaining": "Lane-divider/pristine validation and five target-induced S5 stops. Independent lane identity fix/tooling prepared on #101."
+  },
+  {
+    "number": 43,
+    "title": "BL-C-07 / TEST-09: Harden tracking and audit perception performance",
+    "classification": "CARLA VALIDATION ONLY",
+    "remaining": "Fresh held-out labelled scenes and real flicker/range audit; existing development frames cannot establish holdout."
+  },
+  {
+    "number": 44,
+    "title": "TEST-04 / TEST-15: Validate stop-resume and HOLD fail-safe behaviour",
+    "classification": "BLOCKED BY #40",
+    "remaining": "S1/S2 ten-trial stop/resume and physical 60-second occlusion HOLD; only remaining criteria, not missing unit infrastructure."
+  },
+  {
+    "number": 45,
+    "title": "RV-08 / TEST-05 / TEST-17: Validate sensor behaviour and runtime cost",
+    "classification": "BLOCKED BY #41",
+    "remaining": "Full-stack S3 roadside negative and S4 repeated physical HOLD. Docs/cadence/workload instrumentation exists."
+  },
+  {
+    "number": 46,
+    "title": "RV-07 / TEST-06 / TEST-16: Validate navigation and controller fail-safe behaviour",
+    "classification": "BLOCKED BY #41",
+    "remaining": "Five final full-perception S0 runs and physical controller faults. Import/API/expiry checks complete."
+  },
+  {
+    "number": 47,
+    "title": "TEST-08: Aggregate the complete baseline acceptance evidence",
+    "classification": "BLOCKED BY #41",
+    "remaining": "All 30 real baseline runs and complete attempt register; no invented aggregation."
+  },
+  {
+    "number": 48,
+    "title": "G3-01 / PROC-04: Freeze the baseline and record deferred behaviour scope",
+    "classification": "BLOCKED BY #41",
+    "remaining": "Mandatory baseline acceptance (also #40) before G3; supported presentation freeze is distinct."
+  },
+  {
+    "number": 49,
+    "title": "E1-01\\u201302: Establish the weather robustness test matrix",
+    "classification": "CARLA VALIDATION ONLY",
+    "remaining": "Capture all approved paired weather conditions with readbacks; runner prepared."
+  },
+  {
+    "number": 50,
+    "title": "E1-03: Measure detector robustness across weather conditions",
+    "classification": "CARLA VALIDATION ONLY",
+    "remaining": "Evaluate actual paired labelled captures; no fixture robustness claim."
+  },
+  {
+    "number": 51,
+    "title": "E1-04\\u201305: Validate and admit the weather extension",
+    "classification": "BLOCKED BY #41",
+    "remaining": "27 weather driving runs and 30-run admission; stationary dataset is separate."
+  },
+  {
+    "number": 53,
+    "title": "E2-05\\u201306: Validate and admit the LiDAR extension",
+    "classification": "BLOCKED BY #41",
+    "remaining": "Live L1 stop and 30-run added-latency admission; geometry/capture evidence retained."
+  },
+  {
+    "number": 55,
+    "title": "E3-04\\u201306: Validate Wayfinder and decide deferred routing scope",
+    "classification": "BLOCKED BY #41",
+    "remaining": "Five live legal route pairs and 30-run baseline admission; core/replay and v2 defer decision complete."
+  },
+  {
+    "number": 57,
+    "title": "E4-04\\u201305 / E4-07 / E4-09: Build the nonblocking client, fallback and latency evidence",
+    "classification": "REPORT/PRESENTATION/HUMAN",
+    "remaining": "Offline client/fallback/evaluation and real 200-frame local latency complete; actual available LAN endpoint/hardware plus fresh labels required. Cloud NOT RUN."
+  },
+  {
+    "number": 58,
+    "title": "E4-08 / E4-10\\u201313: Validate failover and decide hybrid admission",
+    "classification": "BLOCKED BY #41",
+    "remaining": "Actual live failover/frame-age/timing and 30-run server-off admission; protocol/Docker and source/session fault tests exist."
+  },
+  {
+    "number": 60,
+    "title": "E5-06\\u201307: Validate and admit forward parking",
+    "classification": "BLOCKED BY #41",
+    "remaining": "Five live P1 tolerance/blocked-bay trials and 30-run baseline admission; eight synthetic cases retained."
+  },
+  {
+    "number": 61,
+    "title": "E5-04\\u201305 / E5-08\\u201309: Evaluate reverse parking or record the cut",
+    "classification": "COMPLETE — CLOSE NOW",
+    "remaining": "Conditional P2 cut; no reverse result claimed."
+  },
+  {
+    "number": 63,
+    "title": "TEST-18: Run the offline all-flags fault suite",
+    "classification": "BLOCKED BY #41",
+    "remaining": "432 component fault cases now executable/passing. Selected admitted all-flags production matrix awaits #48/#58; fixtures are not certification."
+  },
+  {
+    "number": 64,
+    "title": "DOC-08 / DOC-12 / TEST-19 / G5-01: Verify and prepare the final release",
+    "classification": "REPORT/PRESENTATION/HUMAN",
+    "remaining": "Owner evidence checklist replaces internal signed checklist. Actual final report/video/package/submissions still missing."
+  },
+  {
+    "number": 65,
+    "title": "DOC-02 / DOC-04 / DOC-06: Draft the report scope, evidence and figures",
+    "classification": "REPORT/PRESENTATION/HUMAN",
+    "remaining": "Repository outline/evidence/figures exist; final four-section evidence draft and publication layout remain report work."
+  },
+  {
+    "number": 66,
+    "title": "DOC-09 / DOC-15 / DOC-17 / DOC-18: Assemble the final report and Q&A release package",
+    "classification": "REPORT/PRESENTATION/HUMAN",
+    "remaining": "Final report PDF/count/render, Q&A/submission bundle; cloud/defer documentation prepared."
+  },
+  {
+    "number": 67,
+    "title": "TEST-11 / G4-01: Regress combined extensions and freeze the demo configuration",
+    "classification": "BLOCKED BY #41",
+    "remaining": "30 combined full-baseline trials and G4 admission; supported parked presentation flag/cut record already exists."
+  },
+  {
+    "number": 68,
+    "title": "DEMO-02 / DOC-14: Capture backup evidence and document LiDAR/segmentation results",
+    "classification": "REPORT/PRESENTATION/HUMAN",
+    "remaining": "Actual backup video playback/readability on both laptops and Canvas-ready selection; LiDAR limitations documented."
+  },
+  {
+    "number": 70,
+    "title": "TEST-20: Validate final sensors and held-green mission constraints",
+    "classification": "CARLA VALIDATION ONLY",
+    "remaining": "Final applicable release sensor/held-green smoke, with unsupported moving/full-fusion scope kept explicit."
+  },
+  {
+    "number": 71,
+    "title": "DOC-07 / TEST-12: Document design limitations and reproduce the demo on the backup machine",
+    "classification": "REPORT/PRESENTATION/HUMAN",
+    "remaining": "Second physical laptop fresh-checkout full-mission/hardware comparison; design/cut text already recorded."
+  },
+  {
+    "number": 72,
+    "title": "DOC-10 / DOC-11 / DOC-16: Audit claims and package navigation/parking evidence",
+    "classification": "REPORT/PRESENTATION/HUMAN",
+    "remaining": "Final report numeric/figure claim audit; navigation/P1 evidence and exact P2 cut documented."
+  },
+  {
+    "number": 74,
+    "title": "DOC-13 / TEST-21: Package Wayfinder evidence and validate demo cold-start fallback",
+    "classification": "REPORT/PRESENTATION/HUMAN",
+    "remaining": "Physical cold-start/keyboard stop/displays/video check; architecture docs and pose replay already prepared."
+  },
+  {
+    "number": 75,
+    "title": "DEMO-03 / *-R1: Run rehearsal one and random cross-module Q&A",
+    "classification": "REPORT/PRESENTATION/HUMAN",
+    "remaining": "Actual timed rehearsal and cross-module Q&A; no invented attendance."
+  },
+  {
+    "number": 76,
+    "title": "DEMO-04 / *-R2: Run rehearsal two and final cross-module Q&A",
+    "classification": "REPORT/PRESENTATION/HUMAN",
+    "remaining": "Actual final rehearsal/Q&A; remove redundant acknowledgement but retain actual competence."
+  },
+  {
+    "number": 78,
+    "title": "REV/COM Week 2: Complete peer review, integration and cross-training",
+    "classification": "COMPLETE — CLOSE NOW",
+    "remaining": "Internally invented weekly pair/duplicate acknowledgement checklist superseded by canonical objective review."
+  },
+  {
+    "number": 79,
+    "title": "REV/COM Week 3: Complete peer review, integration and cross-training",
+    "classification": "COMPLETE — CLOSE NOW",
+    "remaining": "Same objective-review policy; actual demo competence remains #75/#76."
+  },
+  {
+    "number": 80,
+    "title": "IND-MOH: Complete private individual submission readiness",
+    "classification": "REPORT/PRESENTATION/HUMAN",
+    "remaining": "Central contribution links prepared; only member's private journal/reflection/lab/peer/SparkPLUS/submission actions remain."
+  },
+  {
+    "number": 81,
+    "title": "IND-ABD: Complete private individual submission readiness",
+    "classification": "REPORT/PRESENTATION/HUMAN",
+    "remaining": "Same confidential individual duties; central public contribution links prepared."
+  },
+  {
+    "number": 82,
+    "title": "IND-RIC: Complete private individual submission readiness",
+    "classification": "REPORT/PRESENTATION/HUMAN",
+    "remaining": "Same confidential individual duties; central public contribution links prepared."
+  },
+  {
+    "number": 83,
+    "title": "IND-ALA: Complete private individual submission readiness",
+    "classification": "REPORT/PRESENTATION/HUMAN",
+    "remaining": "Same confidential individual duties; central public contribution links prepared."
+  },
+  {
+    "number": 84,
+    "title": "IND-ZHA: Complete private individual submission readiness",
+    "classification": "REPORT/PRESENTATION/HUMAN",
+    "remaining": "Same confidential individual duties; central public contribution links prepared."
+  },
+  {
+    "number": 85,
+    "title": "IND-SAV: Complete private individual submission readiness",
+    "classification": "REPORT/PRESENTATION/HUMAN",
+    "remaining": "Same confidential individual duties; central public contribution links prepared."
+  }
+]

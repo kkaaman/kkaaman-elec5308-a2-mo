@@ -1,0 +1,10 @@
+{
+  "status": "COMPONENT_MATRIX_PASS",
+  "scope": "Real AsyncDetector/HybridDetector/HybridFrameDetector/SkeletonStack with synthetic sensor/backend inputs; no HTTP or live admission.",
+  "counts": {
+    "executed": 216,
+    "passed": 216,
+    "failed": 0,
+    "blocked_combinations": 0
+  }
+}

@@ -179,3 +179,7 @@ The Windows baseline hash issue is fixed by explicit LF attributes for the 30
 existing files byte-pinned by the BL-D-06 evidence review. Their contents match
 Git's LF blobs. No checksum, evidence threshold or runtime baseline setting is
 changed to obtain a pass.
+
+## Conditional reverse scope — 1 November 2026
+
+P2 is cut because baseline/P1 live prerequisites are not green. See the [canonical cut record](post_freeze_20261101.md); no reverse prototype or physical gear/sign result is claimed.
