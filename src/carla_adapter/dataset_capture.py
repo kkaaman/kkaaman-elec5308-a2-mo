@@ -115,6 +115,33 @@ def location_for_target(carla, waypoint, distance, lateral):
     return carla.Transform(transform.location, transform.rotation)
 
 
+
+
+def destroy_owned_actors(owned):
+    """Destroy known-owned actors even before their first cached world snapshot."""
+    errors = []
+    for actor in reversed(owned):
+        try:
+            if not actor.destroy():
+                errors.append(f"Destroy failed: {actor.id}")
+        except Exception as error:
+            errors.append(str(error))
+    return errors
+
+
+def verify_owned_cleanup(world, owned_ids, *, timeout_s=5.0):
+    """Wait for post-destroy asynchronous snapshots without advancing sync ticks."""
+    deadline = time.monotonic() + timeout_s
+    while True:
+        remaining = any(actor.id in owned_ids for actor in world.get_actors())
+        if not remaining:
+            return True
+        budget = deadline-time.monotonic()
+        if budget <= 0:
+            return False
+        world.wait_for_tick(min(.5, budget))
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, required=True)
@@ -577,12 +604,7 @@ def main():
             except Exception as error:
                 cleanup.append(str(error))
         ids = [actor.id for actor in owned]
-        for actor in reversed(owned):
-            try:
-                if actor.is_alive and not actor.destroy():
-                    cleanup.append(f"Destroy failed: {actor.id}")
-            except Exception as error:
-                cleanup.append(str(error))
+        cleanup.extend(destroy_owned_actors(owned))
         if world is not None and original_settings is not None:
             try:
                 world.set_weather(original_weather)
@@ -600,7 +622,7 @@ def main():
                 report["settings_restored"] = all(
                     getattr(current, k) == getattr(original_settings, k) for k in fields
                 )
-                report["no_actor_leaks"] = not any(actor.id in ids for actor in world.get_actors())
+                report["no_actor_leaks"] = verify_owned_cleanup(world, set(ids))
             except Exception as error:
                 cleanup.append(str(error))
         report["cleanup_errors"] = cleanup

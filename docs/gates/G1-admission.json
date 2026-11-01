@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
   "decision": "PASS",
-  "publication_state": "POST_FREEZE_SOURCE_REVIEWED_20261101",
+  "publication_state": "LIVE_REPLAY_POLICY_SOURCE_REVIEWED_20261101",
   "review_process": "Issue38 designated reviewer/owner; final bytes published for team review; later objections tracked separately, not unanimous individual sign-off",
   "review_process_url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/38#issuecomment-6395116981",
   "scope_evidence_acknowledgement_url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/38#issuecomment-6394910845",
-  "final_change_review": "Source review under the project owner's 1 November 2026 instruction; wrong-source hybrid results rejected before namespace rewrite; PR69 perception replay adapted to canonical tracking. No live or extension acceptance added. Approved paired stationary weather capture and missing-depth evidence processing added; no baseline driving or weather admission.",
+  "final_change_review": "Retained-prediction evaluation now uses admitted tracking and 25m depth policies. No detector inference, mission/model/sensor or historical runner changes. No motion or clearance acceptance.",
   "admitted_profile": "stationary_vehicle_g2_only",
   "operational_scope": "Stationary-vehicle obstacle profile for the G2 stationary-car baseline only; pedestrian operational first-admission range unestablished/deferred.",
   "frozen_values": {
@@ -71,7 +71,7 @@
         "src/carla_adapter/a1_capture.py": "6cfdee27b732a2d95d46b5bdec6a3e92d2a7b51f2109e08f3460e27385c226ed",
         "src/carla_adapter/adapter.py": "251bd4b7cfc532f8b952d4464d0f63f128ba779ecbc74906f90e2cd7dd7e30ac",
         "src/carla_adapter/conversions.py": "935091861bdedece4b2b25e1c2ef60a2e56323341a020785a95f3af2d2e5d78e",
-        "src/carla_adapter/dataset_capture.py": "9e3df91b5f3ad07596dbfbb13654eee8e220660b918a4209eb586ce904f83fc9",
+        "src/carla_adapter/dataset_capture.py": "5e7c2d41ff434e0fa3fc0514f6a7006f8813b4df7ef8a6a3974b5ad7c85ae07f",
         "src/carla_adapter/depth_calibration.py": "e658985d15748abfca46998ca876239beed62704dd0c4dcc68bf8fbc8f0dcdd3",
         "src/carla_adapter/environment_check.py": "50d070c01f71148b159e93f5189bdbf6045585270d28a5b869963c46f778a6b5",
         "src/carla_adapter/lidar.py": "7b7ccec73400d836293fd91fb5630c29e6f0de6790b5458c9a6a58b1a5900e77",
@@ -84,7 +84,7 @@
         "src/carla_adapter/topology.py": "2777a67403e9e8184e30431dfb0aa318add0b5bd90c9c9e2d86d02844812a372",
         "src/carla_adapter/vehicle.py": "1580fb5124b3bf7fa2d0e46b788e757da6566f17a551bbd24d85a29a23203493",
         "src/carla_adapter/vehicle_geometry.py": "575c7c6f3b0130641b17b2462270a1c2de11707720a3e3cee2ef87b3942b80d1",
-        "src/carla_adapter/weather_experiment.py": "deb309f33b580150ce1b3d7b0e8fcfc48a09b874a8d1c5d79e7a726c137a014a",
+        "src/carla_adapter/weather_experiment.py": "8d9dece6ed194dcdfbcbfaa4da8ae60442896d773ffaf5444ba2d06dbe646863",
         "src/carla_adapter/world.py": "2d844de3e9e8f8cd71023469094891ca4974eb72a008ffb9dc81f036e5561161",
         "src/cloud/__init__.py": "b5907b3e456935e8fc2553ce289f0254eba06df72e0f7bc17e1cb0fa2fb0c99b",
         "src/cloud/server.py": "4e4089ee857b12c24f54ed56370da249e0f7d08822d1efa8ccd308019ea8820d",
@@ -97,7 +97,7 @@
         "src/evaluation/longitudinal.py": "fba33a7c243b7fb52a2f8aea7c7721d7747ec2aa8b2968b299bc17fbd44b770a",
         "src/evaluation/masking.py": "dcee1e3b5db83ff114a4675008a7aa4731e34d0608f2afcfdb80c9574f53f7af",
         "src/evaluation/metrics.py": "4a79758bc757b4cbfcd7fdae7c0331adb3af743c605100a86c44d31f17a93ac3",
-        "src/evaluation/perception_replay.py": "a0531ed36c91e99f414b2e737cc6ebf648d73b5d986958cb06f162191bd6a873",
+        "src/evaluation/perception_replay.py": "8253c703da3d80b9221f05293f8b9399a823f63f088a3cdbea46d171c5ba3231",
         "src/evaluation/run_log.py": "acaf970aa61b1789306a133e2c3deab56bd56274163769bb9a182e4a846fbb0b",
         "src/evaluation/s0_metrics.py": "ed498f9227fee68003edb93d06943c6e23a53451733a566bc70a5c325c697541",
         "src/evaluation/scenario_events.py": "672851c760b0b15c35b53071629bd86d18e9b45d04e28e9aad61e911084f8cdf",
@@ -199,7 +199,7 @@
         "configs/weather/robustness_v1.json": "0bfc4770bfcdb6f5eff0276dd80d8ffbb9b4f296c383d5899e7e4eac87184874",
         "docs/evidence/BL-D-06/sources/depth-calibration.json": "89d64df2475790eea16a0fc2b862a9fcbafdf125c9f3fd5ef3f74453afc9cf5f"
       },
-      "scope_sha256": "9ca9274ec3aa05a0a085318c515fdd84022eb3837abeda51e22c8d4b1906d6b3"
+      "scope_sha256": "61cc8a74dfb462fe01897eb6ae34d1112401218dcc3525291cc1a763276bf8ac"
     },
     "issue41_runner": {
       "kind": "issue41_runner",
@@ -332,22 +332,16 @@
     "scope": "Bounded stationary-vehicle experiment authorization, not completed #39/#41 or S1-S5; pedestrian operational range deferred; 3.2 BL-C screen only, 4.9 withdrawn, 5.7 not admitted"
   },
   "inventory_rebind": {
-    "statement": "Reviewed source-only rebind; mission/model/sensor identities and historical runner variant unchanged.",
-    "source_revision": "60e86110dc293db7cd05892d3991ddda34dcee1d",
-    "previous_admission_record": "docs/gates/history/G1-admission-before-post-freeze-20261101.json",
-    "previous_admission_record_sha256": "1bf0c1689f2ccba3ceaf95596cfb31e47ff78f18b115e6343a14fef30011d7c0",
-    "previous_loader_scope_sha256": "ed42f70670961ea0792e8c637225ffa33dd15f15bbc6d7c0ba7484125ecf43fb",
-    "new_loader_scope_sha256": "9ca9274ec3aa05a0a085318c515fdd84022eb3837abeda51e22c8d4b1906d6b3",
+    "source_revision": "d1cbadad543b0715345f5aa5861ddad5b366b56d",
+    "previous_admission_record": "docs/gates/history/G1-admission-main-before-live-replay-policy-20261101.json",
+    "previous_admission_record_sha256": "60c67e42004a33e1370a0b4b2287680ef405a4c50548a94f589952876a8859af",
+    "previous_loader_scope_sha256": "677e90b177f9add46f6156179b45e604ad7aaef8f45b13c086e933b2642a9994",
+    "new_loader_scope_sha256": "61cc8a74dfb462fe01897eb6ae34d1112401218dcc3525291cc1a763276bf8ac",
     "inventory_delta": {
-      "added": [
-        "src/evaluation/perception_replay.py"
-      ],
+      "added": [],
       "removed": [],
       "changed": [
-        "src/autonomy/hybrid_detector.py",
-        "src/carla_adapter/dataset_capture.py",
-        "src/carla_adapter/weather_experiment.py",
-        "src/evaluation/weather.py"
+        "src/evaluation/perception_replay.py"
       ]
     }
   }

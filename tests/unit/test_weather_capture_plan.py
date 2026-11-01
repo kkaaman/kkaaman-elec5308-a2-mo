@@ -37,8 +37,21 @@ def test_actual_weather_and_light_readback_is_mandatory(drift):
                 self.value.precipitation = 42
             return self.value
 
+    class Flags:
+        def __init__(self, value):
+            self.value = int(value)
+
+        def __int__(self):
+            return self.value
+
+        def __or__(self, other):
+            return self.value | int(other)  # CARLA Boost.Python enum behavior
+
+    Flags.NONE, Flags.Position, Flags.LowBeam = Flags(0), Flags(1), Flags(2)
+
     class Ego:
         def set_light_state(self, flags):
+            assert isinstance(flags, Flags)
             self.flags = flags
 
         def get_light_state(self):
@@ -46,7 +59,7 @@ def test_actual_weather_and_light_readback_is_mandatory(drift):
 
     carla = SimpleNamespace(
         WeatherParameters=lambda **kw: SimpleNamespace(**kw),
-        VehicleLightState=SimpleNamespace(NONE=0, Position=1, LowBeam=2),
+        VehicleLightState=Flags,
     )
     if drift == "none":
         assert apply_capture_weather(carla, World(), Ego(), cell)["vehicle_light_flags"] == 3
@@ -73,19 +86,107 @@ def test_combined_index_keeps_real_jsonl_and_original_asset_references(tmp_path,
 
     def read(folder):
         if folder == tmp_path:
-            records=[json.loads(line) for line in (folder/"samples.jsonl").read_text().splitlines()]
-            assert len(records)==2
+            records = [
+                json.loads(line) for line in (folder / "samples.jsonl").read_text().splitlines()
+            ]
+            assert len(records) == 2
             return {}, records
-        identity=folder.name
-        manifest=dict(weather_experiment=dict(cell_id=identity,specification_sha256="s"),
-                      settings_restored=True,no_actor_leaks=True,weather_readback={},
-                      camera={},image_size_wh=[4,4],opendrive_sha256="map",label_tag=24)
-        row=dict(sample_id="a",run_id="run",sequence_id="scene",
-                 rgb="data/rgb.png",lane="data/lane.png",instance="data/instance.png",depth="data/depth.npy")
-        return manifest,[row]
-    monkeypatch.setattr(dataset,"read_dataset",read)
-    combine_captures(tmp_path,[dict(cell_id="cell1"),dict(cell_id="cell2")],"s")
-    rows=[json.loads(line) for line in (tmp_path/"samples.jsonl").read_text().splitlines()]
-    assert rows[0]["rgb"]=="cell1/data/rgb.png"
-    assert rows[1]["sequence_id"]=="cell2/scene"
-    assert not (tmp_path/"cell1").exists()  # no image copy was made
+        identity = folder.name
+        manifest = dict(
+            weather_experiment=dict(cell_id=identity, specification_sha256="s"),
+            settings_restored=True,
+            no_actor_leaks=True,
+            weather_readback={},
+            camera={},
+            image_size_wh=[4, 4],
+            opendrive_sha256="map",
+            label_tag=24,
+        )
+        row = dict(
+            split="test",
+            sample_id="a",
+            run_id="run",
+            sequence_id="scene",
+            rgb="data/rgb.png",
+            lane="data/lane.png",
+            instance="data/instance.png",
+            depth="data/depth.npy",
+        )
+        return manifest, [row]
+
+    monkeypatch.setattr(dataset, "read_dataset", read)
+    combine_captures(tmp_path, [dict(cell_id="cell1"), dict(cell_id="cell2")], "s")
+    rows = [json.loads(line) for line in (tmp_path / "samples.jsonl").read_text().splitlines()]
+    manifest = json.loads((tmp_path / "manifest.json").read_text())
+    assert manifest["split_counts"] == {"test": 2}
+    assert manifest["requested_samples"] == 2 and manifest["seed"] is None
+    assert rows[0]["rgb"] == "cell1/data/rgb.png"
+    assert rows[1]["sequence_id"] == "cell2/scene"
+    assert not (tmp_path / "cell1").exists()  # no image copy was made
+
+
+def test_cleanup_waits_for_async_destroy_snapshot_without_own_tick():
+    from carla_adapter.dataset_capture import verify_owned_cleanup  # noqa: TID251
+
+    class World:
+        pending = True
+
+        def get_actors(self):
+            return [SimpleNamespace(id=7)] if self.pending else []
+
+        def wait_for_tick(self, timeout):
+            self.pending = False
+
+    assert verify_owned_cleanup(World(), {7})
+    stuck = SimpleNamespace(get_actors=lambda: [SimpleNamespace(id=7)])
+    assert verify_owned_cleanup(stuck, {7}, timeout_s=0) is False
+
+
+def test_resume_reuses_complete_cells_and_archives_failed_attempt(tmp_path, monkeypatch):
+    from evaluation import dataset
+    from scripts import capture_weather_dataset as script
+
+    output = tmp_path / "queue"
+    common = ["capture", "--output", str(output), "--cells", "S0-ClearNoon-r1", "S0-ClearNoon-r2"]
+    monkeypatch.setattr("sys.argv", common)
+    assert script.main() == 0
+    report = json.loads((output / "queue.json").read_text())
+    report["cells"][0]["status"] = "COLLECTED"
+    report["cells"][1]["status"] = "FAILED"
+    (output / "queue.json").write_text(json.dumps(report))
+    for cell in report["cells"]:
+        folder = output / cell["cell_id"]
+        folder.mkdir()
+        (folder / "sentinel").write_text(cell["status"])
+    (output / "S0-ClearNoon-r2.log").write_text("original failure")
+    monkeypatch.setattr(
+        dataset,
+        "read_dataset",
+        lambda folder: (dict(sample_count=600, settings_restored=True, no_actor_leaks=True), []),
+    )
+    calls = []
+
+    def run(command, **kwargs):
+        calls.append(command)
+        Path(command[command.index("--output") + 1]).mkdir()
+        return SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr(script.subprocess, "check_output", lambda *args, **kwargs: "fixture-sha")
+    monkeypatch.setattr(script.subprocess, "run", run)
+    monkeypatch.setattr(script, "combine_captures", lambda *args: None)
+    monkeypatch.setattr("sys.argv", common + ["--resume", "--execute"])
+    assert script.main() == 0
+    assert len(calls) == 1 and "S0-ClearNoon-r2" in calls[0]
+    assert (output / "S0-ClearNoon-r1/sentinel").read_text() == "COLLECTED"
+    archive = next((output / "attempt-history").glob("S0-ClearNoon-r2-attempt-*"))
+    assert (archive / "capture/sentinel").read_text() == "FAILED"
+    assert (archive / "capture.log").read_text() == "original failure"
+
+
+def test_cleanup_does_not_skip_owned_actors_missing_from_cached_snapshot():
+    from carla_adapter.dataset_capture import destroy_owned_actors  # noqa: TID251
+
+    calls = []
+    actor = SimpleNamespace(id=7, is_alive=False, destroy=lambda: calls.append(7) or True)
+    assert destroy_owned_actors([actor]) == []
+    assert calls == [7]
