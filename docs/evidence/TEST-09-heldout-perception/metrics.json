@@ -1,0 +1,23 @@
+{
+  "source": "retained postfreeze-live-20261101 outputs",
+  "class_metrics": {
+    "car": {
+      "precision": 0.6933628318584071,
+      "recall": 0.1450925925925926
+    },
+    "person": {
+      "precision": 0.9683377308707124,
+      "recall": 0.643859649122807
+    }
+  },
+  "invalid_depth_detections": 1567,
+  "first_confirmed_distance": {
+    "non_null_count": 95,
+    "null_count": 502,
+    "min_m": 4.068673133850098,
+    "max_m": 24.98543357849121,
+    "null_means": "no confirmed detection in that retained sequence"
+  },
+  "observed_id_switches": 3,
+  "scope": "Stationary held-out sequences. Range is not moving first-admission or stopping evidence."
+}
