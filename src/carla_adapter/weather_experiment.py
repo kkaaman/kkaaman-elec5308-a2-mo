@@ -83,9 +83,10 @@ def apply_capture_weather(carla_module, world, ego, cell):
     """Apply explicit weather/lights and retain measured readback; no sensor claim."""
     weather = carla_module.WeatherParameters(**cell["weather"])
     world.set_weather(weather)
-    flags = carla_module.VehicleLightState.NONE
+    flags = int(carla_module.VehicleLightState.NONE)
     for name in cell["vehicle_lights"]:
-        flags |= getattr(carla_module.VehicleLightState, name)
+        flags |= int(getattr(carla_module.VehicleLightState, name))
+    flags = carla_module.VehicleLightState(flags)
     ego.set_light_state(flags)
     actual = world.get_weather()
     readback = {name: getattr(actual, name) for name in cell["weather"]}
