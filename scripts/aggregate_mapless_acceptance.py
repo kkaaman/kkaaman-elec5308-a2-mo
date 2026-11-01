@@ -14,9 +14,10 @@ Finds every ``drive_report.json`` under the root whose run was ``--scenario miss
 - MEASURED_FAIL: any run failed a gate;
 - INCOMPLETE: anything else — a seed missing or unexpected, a run INCOMPLETE or
   NOT_EXERCISED (counted and listed apart: it passed its gates without reaching what its
-  scenario is for), a run without its provenance, runs of more than one identity, or an
-  unreadable report (twelfth review, 4: a missing commit was once "the same commit", and
-  mixed route noise went unnoticed).
+  scenario is for), a run without its provenance, runs of more than one identity, a run
+  from a dirty working tree, or an unreadable report (twelfth review, 4: a missing commit
+  was once "the same commit", and mixed route noise went unnoticed). Runs that recorded
+  frames are named: their timing carries the recording's I/O.
 
 Writes the JSON summary and prints a table. The plan's static gates (zero collisions, the
 stop margin, HOLD speed ≤ 0.1 m/s, completion) are the runs' own checks; this only counts.
@@ -35,6 +36,17 @@ PASSING = ("MEASURED_PASS", "MEASURED_PASS_OVER_BUDGET")
 IDENTITY = ("code", "mission", "route_noise_m", "suite_sha256", "stack_config_sha256", "segmenter_sha256", "admission", "rescored_commit")
 OPTIONAL = ("segmenter_sha256", "rescored_commit")  # None is an identity of its own (the constant segmenter; a run scored as it ran)
 FROZEN_SEEDS = (5308, 5309, 5310, 5311, 5312)
+
+
+def _recorded_frames(argv):
+    """Whether the run recorded sensor frames (--record-frames other than none): its timing
+    carries the recording's I/O and is not the stack's (fourteenth review, 5)."""
+    for k, a in enumerate(argv):
+        if a == "--record-frames" and k + 1 < len(argv):
+            return argv[k + 1] != "none"
+        if a.startswith("--record-frames="):
+            return a.split("=", 1)[1] != "none"
+    return False
 
 
 def collect(root):
@@ -71,6 +83,8 @@ def collect(root):
                 segmenter_sha256=stack.get("segmenter_sha256"),
                 admission=stack.get("admission"),
                 rescored_commit=(report.get("rescored") or {}).get("commit"),
+                dirty=str(report.get("source_commit") or "").endswith("-dirty"),
+                recorded_frames=_recorded_frames(report.get("argv") or []),
                 failed=failed,
                 incomplete=incomplete,
                 collisions=len(report.get("collisions") or []),
@@ -121,11 +135,13 @@ def aggregate(runs, repeats=5, seeds=FROZEN_SEEDS):
     else:
         complete = all(len(per_scenario[sid]["seeds"]) >= repeats and per_scenario[sid]["runs"] >= repeats for sid in SCENARIOS)
     unreadable = [r for r in runs if "error" in r]
+    dirty = [dict(folder=r["folder"], code=r["code"]) for r in valid if r.get("dirty")]
+    recorded = [dict(folder=r["folder"], scenario=r["scenario"], seed=r["seed"], status=r["status"]) for r in valid if r.get("recorded_frames")]
     any_fail = any(per_scenario[sid]["failed"] for sid in SCENARIOS)
     any_incomplete = any(per_scenario[sid]["incomplete"] or per_scenario[sid]["not_exercised"] for sid in SCENARIOS)
     if any_fail:
         verdict = "MEASURED_FAIL"
-    elif not complete or any_incomplete or not homogeneous or unprovenanced or unreadable or not valid:
+    elif not complete or any_incomplete or not homogeneous or unprovenanced or unreadable or dirty or not valid:
         verdict = "INCOMPLETE"
     else:
         verdict = "MEASURED_PASS"
@@ -142,6 +158,8 @@ def aggregate(runs, repeats=5, seeds=FROZEN_SEEDS):
         identities=len(identities),
         homogeneous=homogeneous,
         unprovenanced=unprovenanced,
+        dirty=dirty,
+        recorded_frames=recorded,
         scenarios=per_scenario,
         unreadable=unreadable,
     )
@@ -169,6 +187,10 @@ def table(summary):
         lines.append(f"  NO PROVENANCE {u['folder']}: missing {', '.join(u['missing'])}")
     for u in summary["unreadable"]:
         lines.append(f"  UNREADABLE {u['folder']}: {u['error']}")
+    for u in summary["dirty"]:
+        lines.append(f"  DIRTY TREE {u['folder']}: {u['code']} (uncommitted changes ran; not reproducible)")
+    for u in summary["recorded_frames"]:
+        lines.append(f"  RECORDED FRAMES {u['scenario']} seed {u['seed']} ({u['status']}): its timing carries the recording's I/O")
     return "\n".join(lines)
 
 
