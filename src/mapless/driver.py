@@ -431,6 +431,7 @@ class MaplessDriver:
             corridor_refit=self.corridor.last_refit,
             corridor_road_support_m=self.corridor.last_road_support_m,
             corridor_candidate=self.corridor.last_candidate,
+            corridor_gap=self.corridor.last_gap,
             corridor_change=change,
         )
         guidance = self.progress.update(motion.route.x_m, motion.route.y_m)
