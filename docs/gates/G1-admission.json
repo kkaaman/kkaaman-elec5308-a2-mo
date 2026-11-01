@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
   "decision": "PASS",
-  "publication_state": "LIVE_REPLAY_POLICY_SOURCE_REVIEWED_20261101",
+  "publication_state": "LANE_DIAGNOSTICS_SOURCE_REVIEWED_20261101",
   "review_process": "Issue38 designated reviewer/owner; final bytes published for team review; later objections tracked separately, not unanimous individual sign-off",
   "review_process_url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/38#issuecomment-6395116981",
   "scope_evidence_acknowledgement_url": "https://github.com/USYD-ELEC5308/26-S2-Assignment2-Group7/issues/38#issuecomment-6394910845",
-  "final_change_review": "Retained-prediction evaluation now uses admitted tracking and 25m depth policies. No detector inference, mission/model/sensor or historical runner changes. No motion or clearance acceptance.",
+  "final_change_review": "Reviewed source-only rebind for diagnostic lane monitoring, HUD, cadence and loop-timing tooling. Frozen mission values, model/sensor identities, stationary-vehicle operational scope and historical issue41 runner binding are unchanged. This rebind does not establish lane-monitor acceptance, obstacle acceptance, clearance/RESUME acceptance or additional live admission.",
   "admitted_profile": "stationary_vehicle_g2_only",
   "operational_scope": "Stationary-vehicle obstacle profile for the G2 stationary-car baseline only; pedestrian operational first-admission range unestablished/deferred.",
   "frozen_values": {
@@ -95,6 +95,7 @@
         "src/evaluation/a1_comparison.py": "9a3badb52d9f6a12a5bc00e26f63cb03cf961ddbd7ddf8ccbbca76dbd017f390",
         "src/evaluation/dataset.py": "bc5c5a69823b71d15b8165dbcd6b2d9260a749299c8f4829df75020c944df262",
         "src/evaluation/longitudinal.py": "fba33a7c243b7fb52a2f8aea7c7721d7747ec2aa8b2968b299bc17fbd44b770a",
+        "src/evaluation/loop_timing.py": "e141097b6787a8b73f2195afbf7d8562d0ede4cf4feb688b785c0fb97b6b18e6",
         "src/evaluation/masking.py": "dcee1e3b5db83ff114a4675008a7aa4731e34d0608f2afcfdb80c9574f53f7af",
         "src/evaluation/metrics.py": "4a79758bc757b4cbfcd7fdae7c0331adb3af743c605100a86c44d31f17a93ac3",
         "src/evaluation/perception_replay.py": "8253c703da3d80b9221f05293f8b9399a823f63f088a3cdbea46d171c5ba3231",
@@ -131,6 +132,7 @@
         "src/overlay_enhancements.py": "23959eb8982a18a8dee3ebfabf07a621165952eae846e4df067b62b45163a371",
         "src/perception/__init__.py": "6fa69230d78367ee0f5363e6964c332fd194f1be25d11e48c4d00074afb67fd5",
         "src/perception/async_detector.py": "8d6051c459299be176c27f033d1fd32ca0645c0e57ff0d14e0c4a325a4aabc20",
+        "src/perception/cadence.py": "47d79f76d09994198d30ba997340daa6e5103b7f3346d2c0aeba8a5dcdedf22b",
         "src/perception/frame_detector.py": "acef9fa4cc86bf40d7fb90fb8df6ded6879966929dd2ad9f9804e8ee3354f65b",
         "src/perception/hybrid_detector.py": "e3be66a61d5aae9b2b32f003ab47f55b0998d4f78906d882037d2b29230d9a89",
         "src/perception/lane_inference.py": "8b64f02d5406d2b8af6a44cb9d7ef316bc6ea531988a499e9cee6ce5fc5fc623",
@@ -176,7 +178,10 @@
         "src/traffic_perception/distance.py": "8c35320437f000f3eb2407d445a8751089636e75b419f5cecbfaedba3b02c877",
         "src/traffic_perception/types.py": "d2f1153d644ad7629845f09b3bbb6ba5aeb054364175c61c673f27c385ef5b0f",
         "src/turn_decision.py": "05e87f8272d0e9da79f904b99dbbd1c8ccb6ae429f6be414b2221847cb4813cd",
-        "src/visualisation/__init__.py": "589c65f47cb689ca49206cf37fd164469b7f25d6918fae27b906e59882ee36c9",
+        "src/visualisation/__init__.py": "08b32f86cfba47f2d34cf02a48e850320b15ae566d4dd224708c300fb5204cb0",
+        "src/visualisation/hud.py": "44abdda5b0e917ee2bead48034216ae66cb3e17e295f67c2d084f36289c97874",
+        "src/visualisation/lane_departure.py": "f5f89eb5deea19138c578179fa5e7d73358f78448ac1270d38ad85568c08fcad",
+        "src/visualisation/release_observer.py": "54a550678a8679679f8fb8fdb4e69115e06acb0483329c668ba411ec663b65d5",
         "configs/README.md": "efaefeb4f69401c52231dc78d04f4f4a33d4f37e80208f3122450b616e6b1c07",
         "configs/acceptance.json": "9f8ba3cf712dedd6d0483eb228a6df8155e9f2e65880bd6a560ec07495c6c7d8",
         "configs/lidar_issue40.json": "5e7dd673b6d279bfb8307dd75975c9e86f68a4e68fbba0dec164768aedd7cd8e",
@@ -199,7 +204,7 @@
         "configs/weather/robustness_v1.json": "0bfc4770bfcdb6f5eff0276dd80d8ffbb9b4f296c383d5899e7e4eac87184874",
         "docs/evidence/BL-D-06/sources/depth-calibration.json": "89d64df2475790eea16a0fc2b862a9fcbafdf125c9f3fd5ef3f74453afc9cf5f"
       },
-      "scope_sha256": "61cc8a74dfb462fe01897eb6ae34d1112401218dcc3525291cc1a763276bf8ac"
+      "scope_sha256": "4dec56352239357abaf62e28ffa4a76318829842f1c8b027b58c56aa312a810f"
     },
     "issue41_runner": {
       "kind": "issue41_runner",
@@ -332,16 +337,23 @@
     "scope": "Bounded stationary-vehicle experiment authorization, not completed #39/#41 or S1-S5; pedestrian operational range deferred; 3.2 BL-C screen only, 4.9 withdrawn, 5.7 not admitted"
   },
   "inventory_rebind": {
-    "source_revision": "d1cbadad543b0715345f5aa5861ddad5b366b56d",
-    "previous_admission_record": "docs/gates/history/G1-admission-main-before-live-replay-policy-20261101.json",
-    "previous_admission_record_sha256": "60c67e42004a33e1370a0b4b2287680ef405a4c50548a94f589952876a8859af",
-    "previous_loader_scope_sha256": "677e90b177f9add46f6156179b45e604ad7aaef8f45b13c086e933b2642a9994",
-    "new_loader_scope_sha256": "61cc8a74dfb462fe01897eb6ae34d1112401218dcc3525291cc1a763276bf8ac",
+    "statement": "Reviewed source-only rebind; mission/model/sensor identities and historical runner variant unchanged.",
+    "source_revision": "cf4716020c8b6c4f72c51743c58eba570915b1f1",
+    "previous_admission_record": "docs/gates/history/G1-admission-before-lane-diagnostics-20261101.json",
+    "previous_admission_record_sha256": "f55fe67f1d01343ecee03f36bbcf4a212dfeb33403b75e0acd073f2b1606fe2e",
+    "previous_loader_scope_sha256": "61cc8a74dfb462fe01897eb6ae34d1112401218dcc3525291cc1a763276bf8ac",
+    "new_loader_scope_sha256": "4dec56352239357abaf62e28ffa4a76318829842f1c8b027b58c56aa312a810f",
     "inventory_delta": {
-      "added": [],
+      "added": [
+        "src/evaluation/loop_timing.py",
+        "src/perception/cadence.py",
+        "src/visualisation/hud.py",
+        "src/visualisation/lane_departure.py",
+        "src/visualisation/release_observer.py"
+      ],
       "removed": [],
       "changed": [
-        "src/evaluation/perception_replay.py"
+        "src/visualisation/__init__.py"
       ]
     }
   }
