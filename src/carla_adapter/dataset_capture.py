@@ -116,6 +116,19 @@ def location_for_target(carla, waypoint, distance, lateral):
 
 
 
+
+def destroy_owned_actors(owned):
+    """Destroy known-owned actors even before their first cached world snapshot."""
+    errors = []
+    for actor in reversed(owned):
+        try:
+            if not actor.destroy():
+                errors.append(f"Destroy failed: {actor.id}")
+        except Exception as error:
+            errors.append(str(error))
+    return errors
+
+
 def verify_owned_cleanup(world, owned_ids, *, timeout_s=5.0):
     """Wait for post-destroy asynchronous snapshots without advancing sync ticks."""
     deadline = time.monotonic() + timeout_s
@@ -591,12 +604,7 @@ def main():
             except Exception as error:
                 cleanup.append(str(error))
         ids = [actor.id for actor in owned]
-        for actor in reversed(owned):
-            try:
-                if actor.is_alive and not actor.destroy():
-                    cleanup.append(f"Destroy failed: {actor.id}")
-            except Exception as error:
-                cleanup.append(str(error))
+        cleanup.extend(destroy_owned_actors(owned))
         if world is not None and original_settings is not None:
             try:
                 world.set_weather(original_weather)

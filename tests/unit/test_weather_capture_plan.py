@@ -177,3 +177,11 @@ def test_resume_reuses_complete_cells_and_archives_failed_attempt(tmp_path, monk
     archive = next((output / "attempt-history").glob("S0-ClearNoon-r2-attempt-*"))
     assert (archive / "capture/sentinel").read_text() == "FAILED"
     assert (archive / "capture.log").read_text() == "original failure"
+
+
+def test_cleanup_does_not_skip_owned_actors_missing_from_cached_snapshot():
+    from carla_adapter.dataset_capture import destroy_owned_actors  # noqa: TID251
+    calls=[]
+    actor=SimpleNamespace(id=7,is_alive=False,destroy=lambda:calls.append(7) or True)
+    assert destroy_owned_actors([actor])==[]
+    assert calls==[7]
