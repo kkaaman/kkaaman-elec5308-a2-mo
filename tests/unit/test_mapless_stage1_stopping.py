@@ -674,6 +674,10 @@ def test_a_refit_from_a_few_far_points_alone_carries_the_line_instead():
     anchored = estimator_with((4.0, 8.0, 20.0, 22.0, 24.0))  # two of them near the car
     refit = anchored.update(grid, pose, 1.0)
     assert refit.ok and not np.allclose(refit.centre_body[: len(carried.centre_body)], carried.centre_body, atol=0.05)
-    many_far = estimator_with(tuple(np.arange(16.0, 28.0, 1.0)))  # twelve far points: enough on their own
+    many_far = estimator_with(tuple(np.arange(16.0, 28.0, 1.0)))  # twelve far points over 11 m: enough on their own
     refit_far = many_far.update(grid, pose, 1.0)
-    assert refit_far.ok and refit_far.valid_length_m > carried.valid_length_m
+    assert refit_far.ok and refit_far.valid_length_m > carried.valid_length_m and many_far.last_refit["refit"]
+    short = estimator_with(tuple(np.arange(20.0, 27.0, 1.0)))  # seven far points over 6 m: a count is not geometry (fifteenth review)
+    kept = short.update(grid, pose, 1.0)
+    assert np.allclose(kept.centre_body, bent[bent[:, 0] <= kept.valid_length_m + 1e-9], atol=1e-6)
+    assert short.last_refit == dict(near=0, far=7, span_m=6.0, refit=False, why="no evidence near the car")
