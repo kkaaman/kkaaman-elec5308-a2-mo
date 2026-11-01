@@ -683,7 +683,11 @@ class CorridorEstimator:
             self.previous = corridor
         return corridor
 
-    def update(self, grid, pose, time_s):
+    def update(self, grid, pose, time_s, anchor=True):
+        """Refit the corridor from this tick's grid. ``anchor`` False: the previous line is a
+        seed (a junction's exit line, the crossing's path at an offset: a hypothesis to be
+        tested by the kerb, which beyond a junction is all far evidence), so the anchor rule
+        does not carry it in place of a refit."""
         if not isinstance(grid, TerrainGrid) or not isinstance(pose, Pose2D):
             raise TypeError("update(TerrainGrid, Pose2D, time_s)")
         c = self.config
@@ -737,7 +741,7 @@ class CorridorEstimator:
 
         near = int(np.sum(ex <= c.refit_anchor_m))
         span = float(np.ptp(ex)) if len(ex) >= 2 else 0.0
-        anchored = near >= c.refit_anchor_points or (len(ex) >= c.refit_free_evidence and span >= c.refit_free_span_m)
+        anchored = not anchor or near >= c.refit_anchor_points or (len(ex) >= c.refit_free_evidence and span >= c.refit_free_span_m)
         self.last_refit = dict(near=near, far=int(len(ex) - near), span_m=round(span, 1), refit=False, why="")
         if (len(ex) < c.min_evidence or not anchored) and self.previous is not None and prior_end >= c.min_valid_m:
             # Too little to refit, or too little near the car: keep last tick's line as it

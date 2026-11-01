@@ -488,7 +488,7 @@ class MaplessDriver:
                     found, gathered = None, []
                     for offset in c.crossing.seed_offsets_m:
                         self.corridor.seed(path + np.array([0.0, offset]), motion.odometry, t)
-                        resumed = self.corridor.update(self.grid, motion.odometry, t)
+                        resumed = self.corridor.update(self.grid, motion.odometry, t, anchor=False)
                         if resumed.ok and len(resumed.evidence_body):
                             gathered.append(resumed.evidence_body)
                         if resumed.ok and len(resumed.evidence_body) >= c.crossing.handback_min_evidence:
@@ -504,7 +504,7 @@ class MaplessDriver:
                         # corridor along what they traced, from the car, and let it fit.
                         traced = _traced_seed(pooled, float(np.interp(0.0, path[:, 0], path[:, 1])))
                         self.corridor.seed(traced, motion.odometry, t)
-                        resumed = self.corridor.update(self.grid, motion.odometry, t)
+                        resumed = self.corridor.update(self.grid, motion.odometry, t, anchor=False)
                         d.update(crossing_traced=f"{len(resumed.evidence_body)} {'ok' if resumed.ok else resumed.reason}")
                         if resumed.ok and len(resumed.evidence_body) >= c.crossing.handback_min_evidence:
                             found = resumed
@@ -553,7 +553,7 @@ class MaplessDriver:
                                 fitted = found.centre_body[found.centre_body[:, 0] >= x_near]
                                 composite = np.vstack([path[path[:, 0] < x_near], fitted]) if len(fitted) >= 2 else path
                                 self.corridor.seed(composite, motion.odometry, t)
-                                taken = self.corridor.update(self.grid, motion.odometry, t)
+                                taken = self.corridor.update(self.grid, motion.odometry, t, anchor=False)
                                 # The refit through the composite and the kerb must still start
                                 # at the car (a cubic over 30 m can leave it 2 m off there: the
                                 # controller refuses such a trajectory and the car stops).
@@ -625,7 +625,7 @@ class MaplessDriver:
                     resumed = None
                     if abs(exit_heading_body) <= c.junction.exit_tolerance_rad and self._turn_corridor is not None:
                         self.corridor.seed(motion.odometry.to_body(self._turn_corridor.centre_odometry), motion.odometry, t)
-                        resumed = self.corridor.update(self.grid, motion.odometry, t)
+                        resumed = self.corridor.update(self.grid, motion.odometry, t, anchor=False)
                     if resumed is not None and resumed.ok:
                         corridor, hold_at = resumed, None
                         self._turning = False
@@ -666,7 +666,7 @@ class MaplessDriver:
                     # Hand back to kerb following only once it can take over: seed it with
                     # the latched exit line and see that it finds its own corridor.
                     self.corridor.seed(plan_turn.corridor.centre_body, motion.odometry, t)
-                    resumed = self.corridor.update(self.grid, motion.odometry, t)
+                    resumed = self.corridor.update(self.grid, motion.odometry, t, anchor=False)
                     if resumed.ok:
                         corridor, hold_at = resumed, None
                         self._turning = False

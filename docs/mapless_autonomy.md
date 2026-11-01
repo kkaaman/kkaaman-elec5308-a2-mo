@@ -17,7 +17,7 @@ reports and `route.json` files are the evidence that travels with each batch.
 | G1a | Local trajectory controller | yes | yes | yes (inside G1b) | yes | — |
 | G1b | Straight, curve, obstacle stop, sensor-only | yes | yes | MEASURED_PASS (Town10HD, Town05) | straight at 4 m/s, stops with a car and a cone, the curve once | the curve again; sensor outages are injected, not met |
 | G1c | Commanded 90° turn | yes | yes | right (Town10HD) and left (Town03) MEASURED_PASS; r8–r11 left turns with oncoming and parked cars | the Town03 left turn, five batches | one right-turn site; skewed junctions unsupported (sites within 10° of a right angle); the exit-kerb far bias |
-| G2 | Segmenter, painting, road model, stack; S0–S5 × 5 on the baseline route | yes; the mission scenario and its aggregator (31 Oct) | yes (fake world; synthetic 468) | the stack's straight, stop, leads, crossings, turns; **the gate run five times: r12 S0 and r13 failed at junction 468; r14 19/30, r15 24/30, r16 27/30 (`22c77b6`), the junction crossed cleanly by every run in r16** — S0, S3, S4 5/5; the three failures in the exit curve downstream | S3, S4 (three batches) | r17 runs the gate with the corridor refit anchored and the standstill deadlock broken; the segmenter is shadow only (v2 right edge 0.76 m inside the kerb) and part of no decision |
+| G2 | Segmenter, painting, road model, stack; S0–S5 × 5 on the baseline route | yes; the mission scenario and its aggregator (31 Oct) | yes (fake world; synthetic 468) | the stack's straight, stop, leads, crossings, turns; **the gate run five times: r12 S0 and r13 failed at junction 468; r14 19/30, r15 24/30, r16 27/30 (`22c77b6`), r17 24/30 (`ed0efe6`: the refit anchor reached into the crossing's seeds, fixed), the junction crossed cleanly by every run since r16** — the exit road's 0.4 m kerb bias after the hand-back is the margin | S4 (four batches) | r18 runs the gate with seeded refits unanchored; the segmenter is shadow only (v2 right edge 0.76 m inside the kerb) and part of no decision |
 | G3 | Tracker, radar, prediction, following, M04–M06 | yes | yes | braking lead, cut-in, crossing walker and car, radar-first: MEASURED_PASS, r8–r11 | the leads and crossings, four batches | the A/B/C ablation with a lead still moving beyond the LiDAR's reach; rear radars admitted, no behaviour reads them |
 | G4 | Lights, junction yielding, lane changes, faults, mixed route | the left turn's oncoming gate; the junction crossed straight (31 Oct, curving exit 1 Nov); injected sensor outages | yes | the oncoming turns (r8–r12); the outages (r11); the crossing not yet | the oncoming turn | lights (M07), lane changes (M09–M11), the mixed route (M13), a two-lane opposing carriageway at the gate |
 | G5 | Learning | the segmenter trained (mIoU 0.879, Town02 held out) | — | shadow only | — | no learned component affects a command; no configuration C |
@@ -3717,6 +3717,41 @@ evidence time from any edge hit (the review's three-timestamp separation is the 
 shape); a hold on a carried line blocks the stall recovery by design; the semantic shadow
 scored through the curve (configuration B) is the first ML experiment. Response:
 `claude/reviews/review16_external_r16.md`.
+
+### Live on PC 3 (1 Nov, `ed0efe6`): r17, the G2 batch — 24 of 30, a regression of my own
+
+S4 5/5; S0, S1, S2, S5 4/5; S3 3/5; six `lane_footprint` failures (corners 1.77–1.88 m,
+all finished), every one at s 173–178 right after the hand-back, on seeds other than r16's
+(5308, 5310, 5312). r16's three failures all pass (S1/S2_5311 corners 1.68, S5_5310 1.66);
+the stall recovery never fired; the brake taps are 0.05–0.3 s dips (one 0.3 s standstill at
+s 70.8 on seed 5309).
+
+**Cause: the anchored refit reached into the crossing's seed search.** Inside the junction
+the kerb corridor is seeded from the path at nine offsets and refitted; the kerb there is
+always far (10–30 m ahead, no near points by nature), so with the new rule a seed was
+*carried* in place of a refit — and a carried seed with seven or more far points passed as
+"found". Its lateral offset is the seed's own offset, not the kerb's. The line was then
+re-anchored towards that for 5 m instead of 1.5 (S1_5308: the corridor's centre read
+−0.11 → −0.21 while the truth went −0.31 → −0.55), and the hand-back took a carried seed
+with a 0.1 m "step". Every run arrived at the hand-back 0.1–0.2 m further right than in
+r16, on top of the exit road's own kerb bias (see below), and six corners went over.
+Taken: `CorridorEstimator.update(..., anchor=False)` for every seeded update (the
+crossing's seeds, the composite hand-back, the turn exits) — a seed is a hypothesis to be
+tested by whatever kerb there is; the anchor rule keeps lane following, where the previous
+line is trusted and far-only evidence is suspect. Unit test extended; the synthetic curve
+sweep is unchanged (0.30–0.34 m). The offline suite had not caught it: the synthetic
+junction's exit kerb begins near the car.
+
+**The exit road's kerb bias.** From the hand-back to s≈183 no kerb is seen within 7 m of
+the car (`right_kerb_body` None) and the corridor's centre comes from 5–9 far points; it
+reads the car as centred while the truth has it 0.4–0.5 m right (r16 and r17 alike). The
+car converges to the true centre by s 190–195 as the near kerb returns. That 0.4 m is most
+of the footprint margin spent in every passing run (corners 1.6–1.7 against 1.75) and the
+reason small upstream changes flip runs; whether it is the connecting road's kerb line or
+the straight fit through kerb that begins to curve right at 14 m is the first thing to
+settle after r18.
+
+**r18** = the batch on this code.
 
 ## Running Phase 0 live
 
