@@ -570,6 +570,17 @@ Why: Keep recorded observations and metric analysis separate from controller inp
 
 Declared public classes/functions: ``braking_summary``.
 
+evaluation/loop_timing.py
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Role (source summary)::
+
+    Loop-timing profiles from retained run diagnostics (TEST-22, TEST-17).
+
+Why: Keep recorded observations and metric analysis separate from controller inputs.
+
+Declared public classes/functions: ``load_timing_rows``, ``rows_from_diagnostics``, ``profile_rows``, ``compare_profiles``.
+
 evaluation/masking.py
 ~~~~~~~~~~~~~~~~~~~~~
 
@@ -965,6 +976,17 @@ Role (source summary)::
 Why: Expose RGB perception and deterministic fixtures through simulator-independent APIs.
 
 Declared public classes/functions: ``positive``, ``matches``, ``Work``, ``AsyncDetector``.
+
+perception/cadence.py
+~~~~~~~~~~~~~~~~~~~~~
+
+Role (source summary)::
+
+    Rate-limited optional workloads with explicit stale-result handling (TEST-17).
+
+Why: Expose RGB perception and deterministic fixtures through simulator-independent APIs.
+
+Declared public classes/functions: ``CadenceResult``, ``RateLimitedWorkload``.
 
 perception/frame_detector.py
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1471,3 +1493,36 @@ Role (source summary)::
 Why: Reserve the visualisation namespace; existing overlays still live in legacy helper modules.
 
 No public top-level classes/functions declared; see exports/source.
+
+visualisation/hud.py
+~~~~~~~~~~~~~~~~~~~~
+
+Role (source summary)::
+
+    HUD overlay hook for the lane-departure monitor (RV-06, E3).
+
+Why: Reserve the visualisation namespace; existing overlays still live in legacy helper modules.
+
+Declared public classes/functions: ``departure_hud_lines``, ``draw_departure_overlay``.
+
+visualisation/lane_departure.py
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Role (source summary)::
+
+    Lane-departure monitor: image-derived lateral offset versus map-based CTE (RV-06).
+
+Why: Reserve the visualisation namespace; existing overlays still live in legacy helper modules.
+
+Declared public classes/functions: ``LaneEstimate``, ``MonitorConfig``, ``DepartureReport``, ``lane_estimate_from_centerline``, ``LaneDepartureMonitor``.
+
+visualisation/release_observer.py
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Role (source summary)::
+
+    Optional lane/semantic HUD composed inside the shared control deadline.
+
+Why: Reserve the visualisation namespace; existing overlays still live in legacy helper modules.
+
+Declared public classes/functions: ``ReleaseHudObserver``, ``AsyncHudObserver``, ``ProcessHudObserver``.
