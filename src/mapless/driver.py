@@ -255,6 +255,7 @@ class MaplessDriver:
         self._still_base = 0.0  # credit carried into it from a standstill just before
         self._still_credit = 0.0  # time stood still, kept until the car has moved still_credit_m
         self._stall_attempts = 0  # corridor searches from the car's own line during this standstill
+        self._last_centre_odo = None  # last tick's corridor line (odometry), for the path-change report
         self._still_odo = None  # where the last standstill was (odometry)
 
     def _brake(self, mode, reason, diagnostics):
@@ -398,11 +399,25 @@ class MaplessDriver:
             if standing >= c.corridor_stall_s * (self._stall_attempts + 1):
                 self._stall_attempts += 1
                 self.corridor.reset()
+                self._profile_path = None  # the abandoned line classifies no more far ground (sixteenth review, 4)
                 corridor = self.corridor.update(self.grid, motion.odometry, t)
                 d.update(corridor_reacquire=True, corridor_stalled_s=round(standing, 1), corridor_stall_attempts=self._stall_attempts)
         if standing == 0.0:
             self._stall_attempts = 0
         lap("corridor")
+        change = None
+        if corridor.ok and self._last_centre_odo is not None and len(self._last_centre_odo) >= 2:
+            # How far the line moved since last tick, at fixed distances ahead (sixteenth
+            # review, 7): an obstacle "appearing" on a line that just moved a metre is the
+            # line's doing, not the object's.
+            previous = motion.odometry.to_body(self._last_centre_odo)
+            if np.all(np.diff(previous[:, 0]) > 0):
+                change = {}
+                for x in (3.0, 5.0, 10.0, 15.0):
+                    if previous[0, 0] <= x <= previous[-1, 0] and corridor.centre_body[0, 0] <= x <= corridor.centre_body[-1, 0]:
+                        change[f"dy_{int(x)}m"] = round(float(corridor.lateral_offset_at(x) - np.interp(x, previous[:, 0], previous[:, 1])), 2)
+                change["heading_deg"] = round(math.degrees(_wrap(corridor.heading_at(0.0) - math.atan2(*(previous[1] - previous[0])[::-1]))), 1)
+        self._last_centre_odo = corridor.centre_odometry.copy() if corridor.ok else None
         d.update(
             corridor_ok=corridor.ok,
             corridor_reason=corridor.reason,
@@ -414,6 +429,8 @@ class MaplessDriver:
             right_edge_5m=corridor.right_edge_from_centre_m(5.0),
             right_kerb_body=corridor.right_edge_body(5.0),
             corridor_refit=self.corridor.last_refit,
+            corridor_road_support_m=self.corridor.last_road_support_m,
+            corridor_change=change,
         )
         guidance = self.progress.update(motion.route.x_m, motion.route.y_m)
         d.update(route_index=guidance.index, goal_distance_m=guidance.goal_distance_m, route_finished=guidance.finished)
@@ -590,6 +607,7 @@ class MaplessDriver:
                 # Stopped and the corridor is gone for good: assume again that the car stands
                 # in its lane, so the next sweeps search for the kerb from the car's own line.
                 self.corridor.reset()
+                self._profile_path = None
                 d.update(corridor_reacquire=True)
             return self._fault(f"no corridor: {corridor.reason}", d, motion, t, dt)
         # -- junction turns (G1c) -------------------------------------------------------

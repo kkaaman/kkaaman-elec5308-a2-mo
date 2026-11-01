@@ -264,6 +264,7 @@ class CorridorEstimator:
         self.standing_s = 0.0
         self._standing_anchor = None  # the line (odometry) when the standstill began
         self.last_refit = None  # the last update's evidence and whether it refitted the line (diagnostics)
+        self.last_road_support_m = None  # how far the last line was observed as road, occupied cells not counted (diagnostics)
         self._calibration_began_s = None
         self.calibration_summary = None
 
@@ -332,6 +333,11 @@ class CorridorEstimator:
         labels = grid.labels(pose.to_world(pts), max_age_s=c.support_max_age_s).reshape(len(xs), len(band))
         observed = np.any((labels == CellLabel.ROAD) | (labels == CellLabel.OCCUPIED), axis=1)
         kerb = np.any(labels == CellLabel.BARRIER, axis=1)
+        # Reported apart: how far the line is observed as *road* (sixteenth review, 3:
+        # occupied cells show the space was seen, not that it is the lane; a wrong line
+        # through roadside scenery is "supported" by the scenery it would stop for).
+        road_only = np.any(labels == CellLabel.ROAD, axis=1)
+        self.last_road_support_m = float(xs[road_only].max()) if road_only.any() else 0.0
         # A raised strip with the road going on within 2 m past it (a brick, a kerbstone, a
         # narrow island) is not the road's end: it is an object on the road, the obstacle
         # check's to stop for. Ending the corridor at it stopped the car on a fault short of

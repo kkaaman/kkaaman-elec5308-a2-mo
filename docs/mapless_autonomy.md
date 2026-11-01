@@ -3794,6 +3794,24 @@ offline first, on the recorded frames and the synthetic curves.
 `757fd09` stays the baseline: r18's 28/30 is its measure. A rerun on the same code is
 tick-identical and adds nothing; r19 waits for the corridor work.
 
+### Sixteenth review (1 Nov, external, on the r16 report and the `0041ea8` source): two source findings confirmed and fixed
+
+The review, written before r17 and r18 reached it, raises two source-level points besides
+restating the curve: (3) `_support` counts occupied cells as observed — right for the
+obstacle stop, but "supported" then does not mean "road" (r18 S1_5310 from s 196: 0 kerb
+points, 24–30 m of support, scenery held as a lead); (4) a corridor reset left
+`_profile_path`, the line the far LiDAR ground is classified along, in place for up to
+0.5 s, so a recovery could re-find the geometry it had just abandoned. Both confirmed in
+the current code. Taken: `corridor_road_support_m` (how far the line is observed as road
+alone) reported beside `corridor_support_m`, behaviour unchanged; `_profile_path` cleared
+on both resets (the stall recovery and the lost-corridor reacquire); `corridor_change`
+per tick (Δy at 3/5/10/15 m and the heading change against last tick's line, the review's
+§7), so a stop that appears on the same tick as a jump of the line reads as the line's
+doing. Its other recommendations were already in `f9b5a8c`/`757fd09` (span on far-only
+refits, the refit note, the stall cap) or are the curve work. Response:
+`claude/reviews/review17_external_r16.md`; the `757fd09` source snapshot and the r17/r18
+reports go to the reviewer.
+
 ## Running Phase 0 live
 
 Run with CARLA 0.9.16 and no other clients:
