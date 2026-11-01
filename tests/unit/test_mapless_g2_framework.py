@@ -846,3 +846,44 @@ def test_f6_01_the_semantic_worker_changes_no_command_and_still_delivers_the_roa
     assert [s.command for s in off] == [s.command for s in inline]
     assert off[-1].road_model is None and off[-1].diagnostics["semantic_worker"] is None
     assert not {"paint", "road_model", "semantic_submit"} & set(off[-1].decision.timing_ms)
+
+
+def test_the_semantic_job_reaches_the_worker_only_after_the_plan():
+    """r16-r18 on PC 3: the worker shares the interpreter with the control path, and a job
+    handed over before detection ran beside detection, tracking and planning — detection
+    4.8 ms on a tick without a job, 6.8-10 ms on one. The job is built from the tick's
+    inputs where it was, and submitted once the cap is computed; the road model still
+    arrives (the F6-01 test above: commands, caps and the model unchanged)."""
+    car = ParkedCar(55.0, 1.75)
+    scene = RoadScene(KerbLine([Straight(150)]), parked=(car,))
+    car_xy = scene.kerb.pose_at(car.s_m)
+    car_world = (car_xy[0] - car.offset_m * math.sin(car_xy[2]), car_xy[1] + car.offset_m * math.cos(car_xy[2]))
+    world = MaplessRoadWorld(scene, SUITE, start_s_m=15.0)
+    config = DriverConfig(body=BODY, control=control(), corridor=CorridorConfig(keep_right_m=1.75))
+    stack = MaplessStack(SUITE, world.route(70.0), config, StackConfig(admission=Admission.preset("C"), semantic_mode="thread"), DT)
+    events = []
+    submit, speed_cap = stack.semantic_worker.submit, stack._speed_cap
+
+    def recorded_submit(job):
+        events.append(("submit", job.frame_id))
+        return submit(job)
+
+    def recorded_speed_cap(*args, **kwargs):
+        events.append(("plan", None))
+        return speed_cap(*args, **kwargs)
+
+    stack.semantic_worker.submit = recorded_submit
+    stack._speed_cap = recorded_speed_cap
+    try:
+        for _ in range(int(4 / DT)):
+            before = len(events)
+            step = stack.step(with_camera_and_radar(world.frame(), world, car_world))
+            world.apply(step.command)
+            stack.semantic_worker.wait_idle()
+            tick = [kind for kind, _ in events[before:]]
+            if "submit" in tick:
+                assert tick.index("submit") > tick.index("plan")  # the plan first, then the hand-off
+        assert sum(kind == "submit" for kind, _ in events) >= 40
+        assert stack.semantic_worker.stats()["built"] >= 15 and stack.semantic_worker.stats()["errors"] == 0
+    finally:
+        stack.close()
