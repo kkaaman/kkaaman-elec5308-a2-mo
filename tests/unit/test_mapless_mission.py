@@ -188,10 +188,10 @@ def test_the_scenario_gates_are_scored_as_the_plan_says():
     assert rows["no_stop_for_roadside_car"][0] is False and rows["goal"][0] is False
 
 
-def _report(folder, scenario, seed, status, failed=(), commit="abc", mission="a1_test01", route_noise_m=2.0, suite="suite0", stack=True):
+def _report(folder, scenario, seed, status, failed=(), commit="abc", mission="a1_test01", route_noise_m=2.0, suite="suite0", stack=True, argv=()):
     folder.mkdir(parents=True, exist_ok=True)
     checks = [dict(check="no_collision", status="PASS")] + [dict(check=c, status="FAIL") for c in failed]
-    report = dict(acceptance=dict(scenario=scenario, seed=seed, mission=mission, route_noise_m=route_noise_m), status=status, end="finished", source_commit=commit, suite_sha256=suite, checks=checks, collisions=[])
+    report = dict(acceptance=dict(scenario=scenario, seed=seed, mission=mission, route_noise_m=route_noise_m), status=status, end="finished", source_commit=commit, suite_sha256=suite, checks=checks, collisions=[], argv=list(argv))
     if stack:
         report["stack"] = dict(admission="B", segmenter="constant", segmenter_sha256=None, stack_config_sha256="stack0")
     (folder / "drive_report.json").write_text(json.dumps(report), encoding="utf-8")
@@ -240,6 +240,15 @@ def test_the_aggregator_passes_only_a_complete_homogeneous_set(tmp_path):
     _report(tmp_path / "S0_5308", "S0", 5308, "MEASURED_PASS")
     whole = agg.aggregate(agg.collect(tmp_path))
     assert whole["verdict"] == "MEASURED_PASS" and whole["identity"]["route_noise_m"] == 2.0 and whole["seeds_required"] == [5308, 5309, 5310, 5311, 5312]
+    # A run from a dirty tree is not reproducible: INCOMPLETE, and named. A run that recorded
+    # frames is named too (its timing is not the stack's), and still counts.
+    _report(tmp_path / "S0_5308", "S0", 5308, "MEASURED_PASS", commit="abc-dirty")
+    soiled = agg.aggregate(agg.collect(tmp_path))
+    assert soiled["verdict"] == "INCOMPLETE" and len(soiled["dirty"]) == 1 and "DIRTY TREE" in agg.table(soiled)
+    _report(tmp_path / "S0_5308", "S0", 5308, "MEASURED_PASS_OVER_BUDGET", argv=("--record-frames", "all"))
+    taped = agg.aggregate(agg.collect(tmp_path))
+    assert taped["verdict"] == "MEASURED_PASS" and taped["recorded_frames"][0]["seed"] == 5308 and "RECORDED FRAMES S0 seed 5308" in agg.table(taped)
+    _report(tmp_path / "S0_5308", "S0", 5308, "MEASURED_PASS")
     # The frozen seed set is required exactly; "any" five distinct seeds is the loose form.
     assert agg.aggregate(agg.collect(tmp_path), seeds=(1, 2, 3, 4, 5))["verdict"] == "INCOMPLETE"
     assert agg.aggregate(agg.collect(tmp_path), seeds=None)["verdict"] == "MEASURED_PASS"
