@@ -3842,6 +3842,54 @@ synthetic probes are unchanged (no probe is short on evidence). Not reproducible
 the open-loop replay of the live failure, whose corridor state diverges from the live
 run's at the hand-back and then sees the curve on its own — r19 is the test.
 
+### Seventeenth review (2 Nov, external, on the `757fd09` source): two confirmed findings fixed, the candidate benchmarked
+
+The review audited `757fd09`, ran eleven tests and reproduced two implementation issues.
+(3) One far point sets the fit's degree and reach: seven near points plus one at 39 m made a
+36 m span, a cubic and a line valid to 40 m — the r18 S1_5310 mechanism, in a controlled
+set. Taken: a single point glimpsed beyond a gap (`evidence_gap_m` growing
+`evidence_gap_per_m` with distance, the ring-crossing spacing) stays in the fit and the
+reach but raises the fit's order by one at most above what the evidence that runs on earns
+(`_degree_for` by span: a line under 8 m, a quadratic under 20 m, a cubic beyond) — seven
+points over 6 m and one at 39 m are a quadratic, the bend towards the point, not a cubic
+free over the 30 m between; twenty points over 19 m and one at 39 m are the cubic they
+were; the degree and the reach are settled again after the outlier pass; and a glimpse of
+one or two points beyond a gap of `evidence_gap_drop_min_m` (20 m) or more is judged by
+what fills the gap at the kerb's place along the reference: open road on
+`evidence_gap_open_share` (half) or more of the gap's stations, and the kerb has gone (the
+bend of r18 S1_5310) — the points are dropped; unseen or occupied cells, and the kerb is
+hidden (the shoulder-parking road's parked car) — the points are kept and carry the line,
+as before. Shorter gaps are left alone: a side road's mouth (7–15 m) is open at the kerb's
+place too, and the kerb beyond it is the road's own (the first suite run caught this on the
+turn and crossing tests). Two stricter degree rules were tried on the way and faulted the
+turn tests: counting the evidence in separate 10 m stretches refused the quadratic to 468's
+exit kerb seen in one dense run, and the car waited at the mouth of the walker-on-the-exit-
+lane turn for a radius that never cleared; giving the glimpse no order at all (or a
+quadratic at most) flipped the approach line of the divided exit road between a cubic and a
+quadratic tick to tick as its 22-point run crossed 20 m, and the car took the far
+carriageway. One order over the run keeps both and still gives the lone point no cubic.
+`corridor_gap` reports the judgement. The degree rule counts the core evidence (stretches
+with two points or more): a dense run of it earns the order too (eight points over 8 m a
+quadratic, twelve over 20 m a cubic — the kerb of 468's exit seen whole from the
+hand-back), a lone far point never. This is the occlusion test the fifteenth
+and sixteenth reviews asked for, and it separates the two cases that a count-and-gap
+rule could not (tried and reverted on 1 Nov). (4) `corridor_refit` said `refit: True` for a
+line the standstill rule then carried; the flag is now set only for a line that is taken,
+with the reason otherwise ("standing: the refit left the line the car stopped on", or the
+fit's own reason). Tests: the review's seven-near-plus-one-far set with an open and with
+a hidden gap (dropped / kept at most as a quadratic, never a cubic), a spread set that earns the cubic,
+the standing rejection's note.
+
+**The candidate's cost (§10), on the recorded S1_5310 frames, driver only, this
+container:** called on 356 of 2,182 ticks (the fit short on evidence), 0.8 ms mean, 2.8 ms
+max; the driver step p50 17.8 → 18.4 ms, p95 31.0 → 33.5, p99 46.2 → 49.5. The stack's
+tracking and prediction are not in these figures; r19 measures the whole.
+
+**The replay's divergence (§6):** agreed — a stateful checkpoint before s 193 would make
+the live decision reproducible; the open-loop replay establishes the sensitivity, not the
+decision. Not built yet; the recorded frames and the per-tick reports are what r19's
+analysis has. Response: `claude/reviews/review18_external_757fd09.md`.
+
 ## Running Phase 0 live
 
 Run with CARLA 0.9.16 and no other clients:

@@ -772,3 +772,85 @@ def test_a_persistent_curve_candidate_bends_a_short_straight_line():
     assert corridor.ok and len(corridor.evidence_body) >= 12 and corridor.lateral_offset_at(20.0) < -1.5  # more kerb, and the line bends with it
     plain, flat, never = run(False)
     assert never is None and flat.ok and len(flat.evidence_body) == 7 and abs(flat.lateral_offset_at(20.0)) < 0.5
+
+
+class _GapGrid(TerrainGrid):
+    """ROAD everywhere; the kerb's place (y = -kerb_m) is ``gap_label`` between x = gap_from and
+    gap_to (the gap in the kerb evidence): ROAD where the kerb has gone, UNKNOWN behind an occluder."""
+
+    def __init__(self, kerb_m=1.75, gap_from=10.0, gap_to=38.0, gap_label=CellLabel.ROAD):
+        super().__init__()
+        self.kerb_m, self.gap_from, self.gap_to, self.gap_label = kerb_m, gap_from, gap_to, gap_label
+
+    def labels(self, xy_world, max_age_s=None):
+        xy = np.asarray(xy_world, dtype=float).reshape(-1, 2)
+        out = np.full(len(xy), CellLabel.ROAD, dtype=np.int8)
+        at_kerb = np.abs(xy[:, 1] + self.kerb_m) <= 0.6
+        in_gap = (xy[:, 0] > self.gap_from) & (xy[:, 0] < self.gap_to)
+        out[at_kerb & in_gap] = self.gap_label
+        return out
+
+    def seen_at(self, xy, kind):
+        return np.ones(len(np.asarray(xy).reshape(-1, 2)))
+
+
+def test_one_far_point_confers_no_degree_or_reach_unless_the_gap_can_hide_a_kerb():
+    """Seventeenth review, 3 (reproduced there on 757fd09): seven near points plus one at
+    39 m made a 36 m span, a cubic and a line valid to 40 m. Now a single point beyond a gap
+    earns at most a quadratic (the cubic needs the evidence that runs on to reach 20 m), and
+    an isolated far point is judged by what fills the gap to it: open road at the kerb's place (the kerb bent away: r18 S1_5310) drops it;
+    unseen cells (a parked car hides the kerb) keep it, as the shoulder-parking road needs."""
+    c = CorridorConfig(keep_right_m=1.75)
+    pose = Pose2D(0.0, 0.0, 0.0)
+    straight = np.column_stack((np.arange(-2.0, 25.0, 1.0), np.zeros(27)))
+
+    def estimator_with(edge_stations):
+        e = CorridorEstimator(c)
+        e.seed(straight, pose, 0.0)
+        e._support = lambda grid, p, xy: 40.0
+
+        def edges(grid, p, stations, ref):
+            right = np.full(len(stations), np.nan)
+            for s in edge_stations:
+                right[int(np.searchsorted(stations, s))] = -c.keep_right_m
+            e._edge_seen_s = np.where(np.isfinite(right), 1.0, -np.inf)
+            return right, np.full(len(stations), np.nan), np.zeros(len(stations), dtype=bool), np.zeros(len(stations))
+
+        e._edges_along = edges
+        return e
+
+    near_and_far = (3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 39.0)
+    open_gap = estimator_with(near_and_far)
+    fit = open_gap.update(_GapGrid(gap_label=CellLabel.ROAD), pose, 1.0)
+    assert fit.ok and open_gap.last_gap["dropped"] and open_gap.last_gap["open_share"] >= 0.5
+    assert len(fit.evidence_body) == 7 and open_gap.last_refit["span_m"] == 6.0 and fit.valid_length_m <= 25.0 + 1e-9  # the previous line's reach, no further
+    hidden = estimator_with(near_and_far)
+    fit = hidden.update(_GapGrid(gap_label=CellLabel.UNKNOWN), pose, 1.0)
+    assert fit.ok and not hidden.last_gap["dropped"] and len(fit.evidence_body) == 8  # the glimpse beyond the occluder is kept ...
+    assert fit.valid_length_m >= 39.0  # ... and carries the line past it
+    assert len(fit.coefficients) <= 3  # ... but never a cubic: one point earns at most the bend towards it
+    spread = estimator_with(tuple(np.arange(3.0, 36.0, 3.0)))  # kerb in every 10 m stretch: a cubic is earned
+    fit = spread.update(_GapGrid(gap_label=CellLabel.ROAD), pose, 1.0)
+    assert fit.ok and len(fit.coefficients) == 4
+
+
+def test_a_standing_refit_the_anchor_rejects_is_not_reported_as_a_refit():
+    """Seventeenth review, 4 (reproduced there): the refit note said refit=True for a line the
+    standstill rule then carried instead. The note now says why it was not taken."""
+    c = CorridorConfig(keep_right_m=1.75)
+    pose = Pose2D(0.0, 0.0, 0.0)
+    straight = np.column_stack((np.arange(-2.0, 25.0, 1.0), np.zeros(27)))
+    e = CorridorEstimator(c)
+    e.seed(straight, pose, 0.0)
+    e._support = lambda grid, p, xy: 40.0
+    e.standing_s = 1.0
+
+    def edges(grid, p, stations, ref):  # a kerb 0.5 m from where the carried line puts it, 3-25 m
+        right = np.where((stations >= 3.0) & (stations <= 25.0), -c.keep_right_m + 0.5, np.nan)
+        e._edge_seen_s = np.where(np.isfinite(right), 1.0, -np.inf)
+        return right, np.full(len(stations), np.nan), np.zeros(len(stations), dtype=bool), np.zeros(len(stations))
+
+    e._edges_along = edges
+    carried = e.update(TerrainGrid(), pose, 1.0)
+    assert carried.ok and np.allclose(carried.centre_body[:, 1], 0.0, atol=1e-6)  # the line the car stopped on
+    assert e.last_refit["refit"] is False and e.last_refit["why"].startswith("standing")

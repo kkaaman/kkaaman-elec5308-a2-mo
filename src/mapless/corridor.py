@@ -128,6 +128,11 @@ class CorridorConfig:
     candidate_persist_ticks: int = 5
     candidate_radius_tol: float = 0.3
     candidate_agree_m: float = 0.75
+    evidence_gap_m: float = 6.0
+    evidence_gap_per_m: float = 0.3
+    evidence_gap_max_points: int = 2
+    evidence_gap_open_share: float = 0.5
+    evidence_gap_drop_min_m: float = 20.0  # only a gap this long is judged by what fills it: a side road's mouth (7-15 m) has open road at the kerb's place and the kerb beyond it is the road's own
     refit_free_evidence: int = 10
     refit_free_span_m: float = 8.0  # ... and those must span at least this far (fifteenth review: a count is not geometry)
     refit_anchor_points: int = 2
@@ -259,6 +264,29 @@ def _edges(labels, j0, max_gap_cells):
     return out
 
 
+_GLIMPSE_POINTS = 1  # a glimpse beyond a gap: this many points or fewer raise the order by one at most
+
+
+def _degree_for(x):
+    """The polynomial degree the lane-centre evidence ``x`` (stations, m) supports by its
+    span: a line under 8 m, a quadratic under 20 m, a cubic beyond."""
+    span = float(np.ptp(x)) if len(x) >= 2 else 0.0
+    return 1 if span < 8.0 else 2 if span < 20.0 else 3
+
+
+def _earned_degree(x, glimpse):
+    """``_degree_for`` with the glimpses (single points beyond a gap, ``glimpse`` a mask)
+    allowed to raise the order by one above what the evidence that runs on earns, never
+    by two: seven points over 6 m and one at 39 m are a quadratic (the bend towards the
+    point), not a cubic free over the 30 m between (seventeenth review, 3); twenty points
+    over 19 m and one at 39 m are the cubic they were. A single point beyond a junction's
+    mouth still bends the exit line onto its carriageway."""
+    degree = _degree_for(x)
+    if glimpse.any() and (~glimpse).any():
+        degree = min(degree, _degree_for(x[~glimpse]) + 1)
+    return degree
+
+
 def _shows_bend(x, y, min_rms_m):
     """The evidence on its own bends: a line leaves more than ``min_rms_m`` rms, and a
     quadratic halves that. On a straight the two leave the same scatter."""
@@ -295,6 +323,7 @@ class CorridorEstimator:
         self.last_refit = None  # the last update's evidence and whether it refitted the line (diagnostics)
         self.last_road_support_m = None  # how far the last line was observed as road, occupied cells not counted (diagnostics)
         self.last_candidate = None  # the curve candidate's note this tick (diagnostics)
+        self.last_gap = None  # the last isolated far evidence judged, and whether it was dropped (diagnostics)
         self._candidate_streak = 0
         self._candidate_radius = None
         self._calibration_began_s = None
@@ -872,9 +901,46 @@ class CorridorEstimator:
             else:
                 centre[i] = r + keep_right
         has = np.isfinite(centre)
+        isolated = np.zeros(len(stations), dtype=bool)
+        self.last_gap = None
+        if has.sum() >= 2:
+            # One or two lane-centre points beyond a gap along the stations (evidence_gap_m,
+            # growing with distance as the LiDAR's ring crossings do) are the kerb again past
+            # an occluder (a parked car: the kerb's place in the gap is unseen or occupied)
+            # or some other edge (r18 S1_5310: one point at 45 m across junction 468's exit
+            # curve, where the kerb had bent away and its place along the straight line was
+            # open road). What fills the gap decides (seventeenth review, 3): open road at
+            # the kerb's place on most of the gap's stations, and the points are dropped.
+            idx = np.flatnonzero(has)
+            gaps = np.diff(stations[idx])
+            allowed = c.evidence_gap_m + c.evidence_gap_per_m * np.maximum(stations[idx[:-1]], 0.0)
+            breaks = np.flatnonzero(gaps > allowed)
+            for b in breaks:
+                nxt = breaks[breaks > b]
+                end = int(nxt[0]) + 1 if nxt.size else len(idx)
+                if end - (b + 1) > c.evidence_gap_max_points:
+                    continue
+                if end - (b + 1) <= _GLIMPSE_POINTS:
+                    # One point beyond a gap sets no model order; two agree on a place and a
+                    # heading and earn their stretch (seventeenth review, 3).
+                    isolated[idx[b + 1 : end]] = True
+                if gaps[b] < c.evidence_gap_drop_min_m:
+                    continue
+                inside = (stations > stations[idx[b]]) & (stations < stations[idx[b + 1]])
+                if not inside.any():
+                    continue
+                at_kerb = np.column_stack((stations[inside] + keep_right * np.sin(heading[inside]), ref[inside] - keep_right * np.cos(heading[inside])))  # the kerb's place: keep_right to the reference's right
+                band = np.array([-0.5, 0.0, 0.5])
+                pts = np.column_stack((np.repeat(at_kerb[:, 0], 3), (at_kerb[:, 1][:, None] + band[None, :]).ravel()))
+                labels = grid.labels(pose.to_world(pts), max_age_s=c.edge_max_age_s).reshape(len(at_kerb), 3)
+                open_share = float(np.mean(np.all(labels == CellLabel.ROAD, axis=1)))
+                self.last_gap = dict(from_m=float(stations[idx[b]]), to_m=float(stations[idx[b + 1]]), points=int(end - (b + 1)), open_share=round(open_share, 2), dropped=open_share >= c.evidence_gap_open_share)
+                if open_share >= c.evidence_gap_open_share:
+                    has[idx[b + 1 : end]] = False
         ex = stations[has] - centre[has] * np.sin(heading[has])
         ey = ref[has] + centre[has] * np.cos(heading[has])
         evidence = np.column_stack((ex, ey))
+        glimpse = isolated[has]  # the kept glimpses: in the fit and the reach, not the degree
 
         near = int(np.sum(ex <= c.refit_anchor_m))
         span = float(np.ptp(ex)) if len(ex) >= 2 else 0.0
@@ -886,7 +952,6 @@ class CorridorEstimator:
             # and drifts; a few far points alone are as likely some other edge.
             self.last_refit["why"] = "too few points" if len(ex) < c.min_evidence else "no evidence near the car"
             return self._carry_forward(grid, pose, time_s, stations, ref, accepted_right, left, blocked, evidence, prior_end)
-        self.last_refit["refit"] = True
         # Standing still the kerb has not moved, and the cells inside the LiDAR's blind ring
         # are no longer hit and age out, so a refit sees less and less of the road: stopped
         # on a 12 m bend for a pole, the evidence span fell under 8 m within 1 s, the refit
@@ -922,11 +987,12 @@ class CorridorEstimator:
             reason = f"corridor reaches only {valid:.1f} m"
         coefficients = (0.0, 0.0)
         if not reason:
-            # The degree follows how far the evidence itself reaches, not the prior: a cubic
+            # The degree follows how far the evidence itself reaches, not the prior (a cubic
             # fitted to 12 m of kerb plus last tick's line bent 2.5 m by 35 m on the
-            # shoulder-parking road.
-            span = float(np.ptp(ex)) if len(ex) >= 2 else 0.0
-            degree = 1 if span < 8 else 2 if span < 20 else 3
+            # shoulder-parking road) — and a single point glimpsed beyond a gap raises the
+            # order by one at most (seventeenth review, 3; r18 S1_5310: one point at 45 m
+            # made a cubic of seven near points).
+            degree = _earned_degree(ex, glimpse)
             if degree == 1 and _shows_bend(ex, ey, c.bend_min_rms_m):
                 # Short evidence that itself bends: stopped on a 12 m radius bend, two
                 # stations went missing, the span fell to 7.7 m, the line went straight
@@ -935,7 +1001,19 @@ class CorridorEstimator:
                 degree = 2
             degree = min(degree, len(x_all) - 1)
             coefficients, keep = _fit(x_all, y_all, w_all, degree, c.outlier_m, len(ex))
-            evidence = evidence[keep[: len(ex)]]
+            kept = keep[: len(ex)]
+            if kept.sum() >= 2 and _earned_degree(ex[kept], glimpse[kept]) < degree and not (degree == 2 and _shows_bend(ex[kept], ey[kept], c.bend_min_rms_m)):
+                # The outliers carried the degree: fit again at the degree the kept evidence
+                # supports (seventeenth review, 3: model selection after outlier rejection).
+                degree = min(_earned_degree(ex[kept], glimpse[kept]), len(x_all) - 1)
+                coefficients, keep = _fit(x_all, y_all, w_all, degree, c.outlier_m, len(ex))
+                kept = keep[: len(ex)]
+            evidence = evidence[kept]
+            if kept.any():
+                # The line reaches as far as the kept evidence plus the extrapolation, or last
+                # tick's line, whichever is further: an outlier sets no reach.
+                ex, ey = ex[kept], ey[kept]
+                valid = min(c.horizon_m, max(float(ex.max()) + c.extrapolate_m, prior_end))
             xs = np.arange(c.start_m, valid + 1e-9, c.step_m)
             ys = np.polyval(coefficients, xs)
             # Past the evidence, do not extrapolate the polynomial. Continue along its tangent,
@@ -994,7 +1072,12 @@ class CorridorEstimator:
             support_m=float(support),
         )
         if standing and not self._agrees(corridor, pose, prior_end):
+            self.last_refit["why"] = "standing: the refit left the line the car stopped on"
             return self._carry_forward(*carry_args)
+        if reason:
+            self.last_refit["why"] = reason
+        else:
+            self.last_refit["refit"] = True  # only a line that is taken (seventeenth review, 4)
         if corridor.ok:
             self.previous = corridor
         return corridor
