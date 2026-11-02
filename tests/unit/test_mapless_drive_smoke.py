@@ -50,8 +50,8 @@ class Transform:
 
 
 class VehicleControl:
-    def __init__(self, throttle=0.0, steer=0.0, brake=0.0, hand_brake=False, reverse=False):
-        self.throttle, self.steer, self.brake = throttle, steer, brake
+    def __init__(self, throttle=0.0, steer=0.0, brake=0.0, hand_brake=False, reverse=False, manual_gear_shift=False):
+        self.throttle, self.steer, self.brake, self.reverse = throttle, steer, brake, reverse
 
 
 LANE_TYPE = SimpleNamespace(Driving="Driving", Sidewalk="Sidewalk", Shoulder="Shoulder", Any="Any")
@@ -920,3 +920,27 @@ def test_parallel_parking_finds_the_gap_between_two_parked_cars_and_parks(monkey
     assert report["end"] == "finished" and report["parking"]["gap_m"] == 8.0 and by_name["no_collision"]["status"] == "PASS"
     with pytest.raises(SystemExit):
         drive.main(["--scenario", "parallel_park", "--output", str(tmp_path / "s")], stack=True)  # the parker runs alone
+
+
+def test_the_parking_adapter_reports_a_reverse_speed_and_sends_the_reverse_gear(monkeypatch):
+    """park_t1 (PC 1, 2 Nov): the parking adapter built its state as a VehicleState, whose
+    speed must be non-negative, so the first roll-back refused the run. Its state carries
+    the signed speed; its commands carry the gear and the steering to the physical lock."""
+    from mapless.parking import ParkCommand
+
+    sent = []
+    vehicle = SimpleNamespace(
+        is_alive=True,
+        get_transform=lambda: Transform(Vector(10.0, -2.0, 0.0), Rotation(yaw=0.0)),
+        get_velocity=lambda: Vector(-0.6, 0.0, 0.0),
+        apply_control=sent.append,
+    )
+    adapter = object.__new__(drive.ParkingAdapter)
+    adapter.vehicle = vehicle
+    adapter.geometry = SimpleNamespace(rear_axle_offset_m=OFFSET, physical_steering_limit_rad=math.radians(70))
+    adapter.roll_back_ticks = 0
+    monkeypatch.setitem(sys.modules, "carla", fake_carla_module())
+    state = adapter.state()
+    assert state.speed_mps == pytest.approx(-0.6) and state.x_m == pytest.approx(10.0 - OFFSET)
+    control = adapter.apply(ParkCommand(math.radians(-35.0), 0.3, 0.0, True))
+    assert sent and control.reverse is True and control.steer == pytest.approx(0.5) and control.throttle == 0.3
