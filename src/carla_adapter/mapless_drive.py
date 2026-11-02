@@ -150,6 +150,39 @@ def run_status(checks):
     if any(c["status"] == OVER_BUDGET for c in checks):
         return "MEASURED_PASS_OVER_BUDGET"  # every behaviour gate passed; the 20 Hz deadline was missed (``real_time``)
     return "MEASURED_PASS"
+# Named weather (G3, 2 Nov). CARLA's weather changes what the cameras see; the LiDAR, the
+# radar and the tyres are unaffected, so a geometric drive in rain tests the cameras and
+# the shadow segmenter, not wet-road braking (``--drop-sensor`` is the sensor-loss test).
+WEATHER_PRESETS = {
+    "clear_noon": ("ClearNoon", {}),
+    "cloudy_noon": ("CloudyNoon", {}),
+    "wet_noon": ("WetNoon", {}),
+    "moderate_rain": ("MidRainyNoon", {}),
+    "hard_rain": ("HardRainNoon", {}),
+    "light_fog": ("CloudyNoon", dict(fog_density=35.0, fog_distance=10.0, fog_falloff=1.0)),
+    "clear_sunset": ("ClearSunset", {}),
+    "clear_night": ("ClearNight", {}),
+}
+WEATHER_FIELDS = ("cloudiness", "precipitation", "precipitation_deposits", "wind_intensity", "sun_azimuth_angle", "sun_altitude_angle", "fog_density", "fog_distance", "wetness")
+
+
+def weather_parameters(carla, preset):
+    """CARLA WeatherParameters for a named preset (``WEATHER_PRESETS``)."""
+    base, overrides = WEATHER_PRESETS[preset]
+    weather = getattr(carla.WeatherParameters, base)
+    if overrides:  # a copy: the named preset is shared
+        weather = carla.WeatherParameters(**{k: getattr(weather, k) for k in WEATHER_FIELDS if hasattr(weather, k)})
+        for k, v in overrides.items():
+            setattr(weather, k, v)
+    return weather
+
+
+def weather_record(preset, weather):
+    """The preset and every weather field it set, for the run report."""
+    fields = {k: round(float(v), 2) for k in WEATHER_FIELDS if isinstance(v := getattr(weather, k, None), (int, float))}
+    return dict(preset=preset, **fields)
+
+
 TURN_SCENARIOS = {"turn_left": "LEFT", "turn_right": "RIGHT"}
 LANE_SCENARIOS = ("straight", "curve", "stop")
 MISSION_SCENARIO = "mission"  # the baseline route with a baseline obstacle scenario (G2's gate; mapless_mission.py)
@@ -1058,7 +1091,9 @@ class MaplessDrive:
 
     def setup(self):
         carla, args = self.carla, self.args
-        self.world.set_weather(carla.WeatherParameters.ClearNoon)
+        weather = weather_parameters(carla, getattr(args, "weather", "clear_noon"))
+        self.world.set_weather(weather)
+        self.report["weather"] = weather_record(getattr(args, "weather", "clear_noon"), weather)
         carla_map = self.world.get_map()
         if self.turn_command:
             return self.setup_turn(carla_map)
@@ -1811,6 +1846,7 @@ def main(argv=None, stack=False):
         metavar="N",
         help="with --record-frames: also every camera's image as JPEG every N ticks, on the ticks the stack segments when N is its segment_every (2): ~160 KB a recorded tick (0: none)",
     )
+    parser.add_argument("--weather", choices=tuple(WEATHER_PRESETS), default="clear_noon", help="named CARLA weather; changes the camera images only (LiDAR, radar and grip are unaffected)")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=2000)
     args = parser.parse_args(argv)

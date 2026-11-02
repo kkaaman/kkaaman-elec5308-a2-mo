@@ -1264,6 +1264,11 @@ def test_r11_motion_its_leading_edge_does_not_bear_out_is_predicted_as_standing(
     assert not edge_unsupported(track(edge=0.5), c)  # borne out
     assert not edge_unsupported(track(edge=None), c)  # unknown
     assert not edge_unsupported(track(vy=-2.5, edge=0.0), c)  # faster than edge_check_max_mps
+    # ... unless its edge went the other way (r20 S3_5309: a wall sliver "approaching at
+    # 3.4 m/s" whose leading edge receded at 2.1 m/s): no rigid object advances so.
+    assert edge_unsupported(track(vy=-3.4, edge=-2.1), c)
+    assert not edge_unsupported(track(vy=-3.4, edge=-0.5), c)  # receding by less than a quarter of its speed: noise
+    assert not edge_unsupported(track(vy=-3.4, edge=3.2), c)  # a car coming, its front with it
     assert not edge_unsupported(track(classes={"pedestrian": 1.0}), c)
     assert not edge_unsupported(track(support=("radar",)), c)
     held = predictable_tracks([track()], config=c, in_lane=lambda tr: False)
