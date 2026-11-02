@@ -9,15 +9,21 @@ A deterministic manoeuvre beside the driver, from the car's own sensors only:
    with the parked cars' near faces giving the line to park on.
 2. **Stop** past the gap, at the place the two-arc manoeuvre needs (below), or beyond it.
 3. **Reverse** straight to the arc start, then on two arcs of radius
-   ``wheelbase / tan(steer_rad)``: full right until the heading has turned by theta, full
-   left until it is back to the start heading. Two equal arcs shift the rear axle
-   ``2R(1 - cos theta)`` sideways over ``2R sin theta``: theta is chosen for the shift to
-   the parking line. The wheels are turned only at a standstill.
+   ``wheelbase / tan(lock_gain x steer_rad)``: full right until the heading has turned by
+   theta, full left until it is back to the start heading. Two equal arcs shift the rear
+   axle ``2R(1 - cos theta)`` sideways over ``2R sin theta``: theta is chosen for the shift
+   to the parking line. The wheels are turned only at a standstill. The radius the car
+   actually turns on is measured on the first arc (distance over heading turned) and theta
+   re-solved from where the car is, for the arcs to end on the parking line.
 4. **Centre** between the two cars and stop. If the rear runs out of room before the second
    arc has straightened the car, it finishes forwards with the wheels the other way.
 
 Odometry is dead reckoning from the wheel speed (its sign from the gear selected) and the
-gyro's yaw rate: over a 15 s manoeuvre its drift is centimetres. A point of an obstacle
+gyro's yaw rate, the heading pulled towards the compass's (against its mean at the
+start) as the car moves and re-referenced to it at every standstill, where the gyro's
+bias is refined too: a 1 s bias estimate leaves about 0.001 rad/s, 4 deg over the minute
+the manoeuvre takes (park_t5: 2 deg), and a heading off by that bends the dead-reckoned
+frame the gap is measured in. A point of an obstacle
 within ``clear_m`` of the body in the direction of travel stops the car where it is
 (``blocked``), whatever the phase.
 
@@ -31,6 +37,8 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
+from mapless.geometry import wrap, yaw_from_compass
+
 
 @dataclass(frozen=True)
 class ParkingConfig:
@@ -38,6 +46,13 @@ class ParkingConfig:
     reverse_mps: float = 0.7
     centre_mps: float = 0.4
     steer_rad: float = math.radians(35.0)  # the arcs' steering, half the Tesla's lock (the drive's controller cap is 20 deg)
+    # The share of steer_rad the car's turning achieves: the arcs are planned on
+    # wheelbase / tan(lock_gain x steer_rad). 1: the bicycle model (the synthetic road);
+    # the CARLA drive passes the Tesla's (park_t5: 5.14 m at 35 deg, 0.85).
+    lock_gain: float = 1.0
+    radius_after_deg: float = 10.0  # the first arc's radius measured once it has turned this far ...
+    radius_min_mps: float = 0.15  # ... over its ticks at least this fast (a crawl reads as a standstill)
+    radius_bounds: tuple = (0.7, 1.5)  # ... and used if within these shares of the planned one
     steer_settle_s: float = 0.6  # wheels turned at a standstill, then this long before moving
     extra_m: float = 2.5  # a gap must be the car's length plus this
     bin_m: float = 0.25
@@ -52,7 +67,9 @@ class ParkingConfig:
     heading_tol_deg: float = 4.0  # arc 2 stopped short of the rear car with more than this: finish forwards
     heading_kp: float = 1.5
     speed_kp: float = 0.6
-    calibrate_s: float = 1.0  # standing at the start: the gyro's bias is its mean yaw rate
+    calibrate_s: float = 2.0  # standing at the start: the gyro's bias is its mean yaw rate, the compass's mean the reference heading
+    standstill_settle_s: float = 0.15  # at a standstill, compass and gyro readings count from this long after it began
+    compass_gain: float = 0.02  # per tick, moving: the compass's pull on the gyro's heading (2.5 s; its 0.02 rad noise to ~0.1 deg)
     standstill_mps: float = 0.08  # wheel speeds below this are a standstill (the encoder's noise is 0.05 m/s)
     rear_margin_m: float = 0.8  # the arcs end with the rear this far from the rear car
     sweep_margin_m: float = 0.4  # the planned path's body keeps this clear of both cars
@@ -103,13 +120,17 @@ class ParallelParker:
         self.body, self.wheelbase_m, self.dt = body, float(wheelbase_m), float(dt_s)
         self.config = config or ParkingConfig()
         self.state = ParkingState()
-        self.radius_m = self.wheelbase_m / math.tan(self.config.steer_rad)
+        self.radius_m = self.planned_radius_m = self.wheelbase_m / math.tan(self.config.lock_gain * self.config.steer_rad)
+        self.measured_radius_m = None
+        self._arc_turn, self._arc_dist = 0.0, 0.0  # the first arc's heading turned and distance, over ticks at a measurable speed
         self._reverse = False
         self._bins = {}  # bin index -> nearest face y seen there
         self._seen = (math.inf, -math.inf)  # the profile's covered range
         self._bias = 0.0
         self._last_gaps = None
         self._bias_sum, self._bias_n = 0.0, 0
+        self._compass0 = None  # the compass's mean heading at the start (vehicle-frame yaw, rad)
+        self._compass = []  # (sin, cos) of the compass headings, this standstill or the start's
         self.state.phase = "calibrate"
 
     # -- odometry ----------------------------------------------------------------------
@@ -122,7 +143,28 @@ class ParallelParker:
         st.x += speed * self.dt * math.cos(heading)
         st.y += speed * self.dt * math.sin(heading)
         st.yaw += rate * self.dt
+        if frame.imu is not None and self._compass0 is not None:
+            # The compass pulls the gyro's heading back (a complementary filter): a residual
+            # bias turned the car 2.3 deg over the 30 s pass (synthetic seed 5310), 0.9 m off
+            # its dead-reckoned line, and the arcs, solved in that frame, ended 0.57 m out.
+            error = wrap(yaw_from_compass(frame.imu.compass_rad) - self._compass0 - st.yaw)
+            st.yaw += self.config.compass_gain * error
         st.speed = speed
+
+    def _standstill(self, frame):
+        """At a standstill (the wheels turned, nothing moving): the gyro's readings refine its
+        bias, the compass's mean re-references the heading (park_t5: the body does not turn
+        while the wheels do)."""
+        if frame.imu is None or self.state.phase_t < self.config.standstill_settle_s:
+            return
+        self._bias_sum += float(frame.imu.yaw_rate_rps)
+        self._bias_n += 1
+        self._bias = self._bias_sum / self._bias_n
+        heading = yaw_from_compass(frame.imu.compass_rad)
+        self._compass.append((math.sin(heading), math.cos(heading)))
+        if self._compass0 is not None:
+            s, c = np.mean(self._compass, axis=0)
+            self.state.yaw = wrap(math.atan2(s, c) - self._compass0)
 
     def _points(self, frame):
         """Obstacle points in the dead-reckoned frame, and in the body frame (N x 2 each)."""
@@ -179,9 +221,12 @@ class ParallelParker:
     def _plan(self, slot):
         """theta, the arc start, the arcs' end and the centred pose for this slot from the
         car's lateral place now, or None when the swept body would come within
-        ``sweep_margin_m`` of either car. The arcs end at the back of the gap (the rear
-        ``rear_margin_m`` from the rear car): starting them further forward swings the rear
-        corner into the front car's side (simulated, 2 Nov). ``centre`` then drives forward."""
+        ``sweep_margin_m`` of either car. The arcs end at the back of the gap: the rear
+        ``rear_margin_m`` from the rear car at most, less when the swept body's clearance to
+        the front car is less, the two balanced (starting the arcs further forward swings
+        the rear corner into the front car's side, simulated 2 Nov; with the Tesla's 5.1 m
+        arcs the 9 m gap, seen as 8.25 m, kept 0.36 m from the front car at a 0.8 m rear
+        margin, 0.58 m from both at 0.58). ``centre`` then drives forward."""
         b, c, st = self.body, self.config, self.state
         target_y = slot.face_y_m - b.half_width_m - 0.05  # the car's near side just inside the parked cars' line
         shift = st.y - target_y
@@ -189,35 +234,50 @@ class ParallelParker:
         if not -1.0 < cos_theta < 1.0:
             return None
         theta = math.acos(cos_theta)
-        target_x = slot.rear_end_m - b.rear_m + c.rear_margin_m
-        arc_start_x = target_x + 2.0 * self.radius_m * math.sin(theta)
-        centre_x = max(target_x, 0.5 * (slot.rear_end_m + slot.front_end_m) - 0.5 * (b.front_m + b.rear_m))
-        if not self._path_clear(theta, arc_start_x, st.y, slot):
+        back_x = slot.rear_end_m - b.rear_m  # the arcs' end with the rear at the rear car
+        sweep = 2.0 * self.radius_m * math.sin(theta)
+        front, rear = self._clearances(theta, back_x + sweep, st.y, slot)
+        # The path moves along x with the margin: front - m to the front car, rear + m behind.
+        margin = min(c.rear_margin_m, 0.5 * (front - rear)) if math.isfinite(front) and math.isfinite(rear) else c.rear_margin_m
+        if min(front - margin, rear + margin) < c.sweep_margin_m:
             return None
+        target_x = back_x + margin
+        arc_start_x = target_x + sweep
+        centre_x = max(target_x, 0.5 * (slot.rear_end_m + slot.front_end_m) - 0.5 * (b.front_m + b.rear_m))
         return theta, arc_start_x, target_x, target_y, centre_x
 
-    def _path_clear(self, theta, x0, y0, slot, samples=40):
-        """The planned arcs' body corners against the two cars, each the half-plane region
-        beyond its end and outside the parked cars' line."""
+    def _path_clear(self, theta, x0, y0, slot):
+        """The planned arcs' body corners keep ``sweep_margin_m`` from both cars."""
+        front, rear = self._clearances(theta, x0, y0, slot)
+        return min(front, rear) >= self.config.sweep_margin_m
+
+    def _clearances(self, theta, x0, y0, slot, samples=40):
+        """The planned arcs' body corners against the two cars: the least distance along the
+        lane to the front car's end and past the rear car's, of the corners within
+        ``sweep_margin_m`` of the parked cars' line or inside it (inf: none there)."""
         b, c, r = self.body, self.config, self.radius_m
-        local = [(b.front_m, b.half_width_m), (b.front_m, -b.half_width_m), (b.rear_m, -b.half_width_m), (b.rear_m, b.half_width_m)]
+        u = np.array([b.front_m, b.front_m, b.rear_m, b.rear_m])
+        v = np.array([b.half_width_m, -b.half_width_m, -b.half_width_m, b.half_width_m])
         # Arc 1 about the centre to the right of the start, arc 2 about one to the left of its end.
-        poses = []
-        for k in range(samples + 1):
-            a = theta * k / samples
-            poses.append((x0 - r * math.sin(a), y0 - r * (1.0 - math.cos(a)), a))
-        x1, y1 = poses[-1][0], poses[-1][1]
-        for k in range(samples + 1):
-            a = theta * (1.0 - k / samples)
-            poses.append((x1 - r * (math.sin(theta) - math.sin(a)), y1 - r * (math.cos(a) - math.cos(theta)), a))
-        face = slot.face_y_m + c.sweep_margin_m
-        for x, y, h in poses:
-            ch, sh = math.cos(h), math.sin(h)
-            for u, v in local:
-                px, py = x + ch * u - sh * v, y + sh * u + ch * v
-                if py < face and (px > slot.front_end_m - c.sweep_margin_m or px < slot.rear_end_m + c.sweep_margin_m):
-                    return False
-        return True
+        a1 = theta * np.arange(samples + 1) / samples
+        x1, y1 = x0 - r * np.sin(a1), y0 - r * (1.0 - np.cos(a1))
+        a2 = theta * (1.0 - np.arange(samples + 1) / samples)
+        x2, y2 = x1[-1] - r * (math.sin(theta) - np.sin(a2)), y1[-1] - r * (np.cos(a2) - math.cos(theta))
+        x, y, h = np.concatenate((x1, x2))[:, None], np.concatenate((y1, y2))[:, None], np.concatenate((a1, a2))[:, None]
+        px = x + np.cos(h) * u - np.sin(h) * v
+        py = y + np.sin(h) * u + np.cos(h) * v
+        inside = py < slot.face_y_m + c.sweep_margin_m
+        if not inside.any():
+            return math.inf, math.inf
+        return float((slot.front_end_m - px[inside]).min()), float((px[inside] - slot.rear_end_m).min())
+
+    def _resolve_theta(self):
+        """theta for the arcs from where the car is on the first arc (heading yaw, radius
+        R): the second arc then ends, at heading 0, with the rear axle at
+        y - R cos(yaw) + 2R cos(theta) - R; theta puts that on target_y."""
+        st, r = self.state, self.radius_m
+        cos_theta = (st.target_y - st.y + r * math.cos(st.yaw) + r) / (2.0 * r)
+        st.theta = math.acos(float(np.clip(cos_theta, -1.0, 1.0)))
 
     # -- control -----------------------------------------------------------------------
     def _blocked(self, body_xy, reverse):
@@ -266,9 +326,11 @@ class ParallelParker:
 
     def _enter(self, phase):
         self.state.phase, self.state.phase_t = phase, 0.0
+        self._compass = []
 
     def step(self, frame):
         c, st = self.config, self.state
+        yaw_before = st.yaw
         self._integrate(frame)
         st.phase_t += self.dt
         world, body_xy = self._points(frame)
@@ -277,8 +339,13 @@ class ParallelParker:
             if frame.imu is not None:
                 self._bias_sum += float(frame.imu.yaw_rate_rps)
                 self._bias_n += 1
+                heading = yaw_from_compass(frame.imu.compass_rad)
+                self._compass.append((math.sin(heading), math.cos(heading)))
             if st.phase_t >= c.calibrate_s:
                 self._bias = self._bias_sum / max(1, self._bias_n)
+                if self._compass:
+                    s, co = np.mean(self._compass, axis=0)
+                    self._compass0 = math.atan2(s, co)
                 st.x = st.y = st.yaw = 0.0
                 self._enter("search")
             return self._stop()
@@ -323,10 +390,25 @@ class ParallelParker:
             return self._drive(c.reverse_mps, 0.0, True)
         if st.phase in ("steer_right", "steer_left"):
             steer = -c.steer_rad if st.phase == "steer_right" else c.steer_rad
+            self._standstill(frame)
             if st.phase_t >= c.steer_settle_s:
                 self._enter("arc1" if st.phase == "steer_right" else "arc2")
+                if st.phase == "arc1":
+                    self._arc_turn, self._arc_dist = 0.0, 0.0
+                    self._resolve_theta()  # from the heading the compass gave at the standstill
             return self._stop(steer)
         if st.phase == "arc1":
+            if abs(st.speed) >= c.radius_min_mps:
+                self._arc_dist += abs(st.speed) * self.dt
+                self._arc_turn += st.yaw - yaw_before
+            if self._arc_turn >= math.radians(c.radius_after_deg):
+                # The radius the car turns on (the Tesla's wheels reach less than they are
+                # asked: park_t5, 5.14 m where 4.29 was planned, the arcs ended 0.55 m deep).
+                radius = self._arc_dist / self._arc_turn
+                lo, hi = c.radius_bounds
+                if lo * self.planned_radius_m <= radius <= hi * self.planned_radius_m:
+                    self.radius_m = self.measured_radius_m = radius
+                    self._resolve_theta()
             if st.yaw >= st.theta:
                 if standing:
                     self._enter("steer_left")
@@ -348,6 +430,7 @@ class ParallelParker:
                 return self._stop(c.steer_rad)
             return self._drive(min(c.reverse_mps, 0.15 + c.arc_slow_gain * max(0.0, st.yaw)), c.steer_rad, True)
         if st.phase == "steer_fix":
+            self._standstill(frame)
             if st.phase_t >= c.steer_settle_s:
                 self._enter("fix")
             return self._stop(-c.steer_rad)
@@ -358,6 +441,7 @@ class ParallelParker:
                 return self._stop(-c.steer_rad)
             return self._drive(c.centre_mps, -c.steer_rad, False)
         if st.phase == "straighten":
+            self._standstill(frame)
             if st.phase_t >= c.steer_settle_s:
                 self._enter("centre")
             return self._stop(0.0)
@@ -384,7 +468,8 @@ class ParallelParker:
     def record(self):
         st = self.state
         return dict(
-            phase=st.phase, radius_m=round(self.radius_m, 2), theta_deg=None if st.theta is None else round(math.degrees(st.theta), 1),
+            phase=st.phase, radius_m=round(self.radius_m, 2), planned_radius_m=round(self.planned_radius_m, 2),
+            measured_radius_m=None if self.measured_radius_m is None else round(self.measured_radius_m, 2), theta_deg=None if st.theta is None else round(math.degrees(st.theta), 1),
             slot=None if st.slot is None else dict(rear_end_m=round(st.slot.rear_end_m, 2), front_end_m=round(st.slot.front_end_m, 2), length_m=round(st.slot.length_m, 2), face_y_m=round(st.slot.face_y_m, 2)),
             target_xy_m=None if st.target_x is None else [round(st.target_x, 2), round(st.target_y, 2)],
             centre_x_m=None if st.centre_x is None else round(st.centre_x, 2), gyro_bias_rps=round(self._bias, 5),

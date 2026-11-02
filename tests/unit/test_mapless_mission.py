@@ -328,3 +328,32 @@ def test_a_junction_where_the_chain_turns_gets_its_turn_command(monkeypatch, tur
     assert [c for c in commands if c is not Command.LANEFOLLOW] == [command]
     assert route.provenance["junctions"][0]["command"] == command.value
     assert mm.junction_command(bent_site(), 90.0, 110.0) is Command.STRAIGHT
+
+
+def test_a_red_light_stop_beside_the_roadside_car_is_not_a_stop_for_it_but_nothing_else_is_excused():
+    """Nineteenth review, 3 (reproduced on 757fd09): the roadside car at s 120 and a red
+    light's hold at 130-135 m, inside the car's window (90-140 m), failed the gate. The
+    red's stop passes it; the same stop for a predicted conflict with scenery, for a light
+    that was green (a false red), or for an obstacle while the red is in force fails it."""
+    s3 = mm.load_scenario("S3", ROOT / "configs/scenarios")
+    log, _ = _rows(stops=None, obstacle_s=None, n=3000)
+    log[-1]["truth"]["goal_distance_m"] = 0.3
+    stop = [r for r in log if 130.0 <= r["truth"]["s_m"] <= 135.0]
+    assert stop
+
+    def scored(**fields):
+        for r in stop:
+            r["mode"] = "stopping"
+            r["light_truth"] = fields.get("truth", "Red")
+            r["driver"] = dict(light_hold_m=fields.get("hold", 2.0), stop_reason=fields.get("reason", "junction"), speed_cap_mps=fields.get("cap"), speed_cap_reason=fields.get("cap_reason"))
+        rows = {name: (ok, v) for name, ok, v in mm.score_mission(s3, log, "finished", 0, None, 0.05, obstacle_s_m=120.0)}
+        return rows["no_stop_for_roadside_car"]
+
+    ok, values = scored()
+    assert ok and values["window_s_m"] == [90.0, 140.0] and values["stopping_ticks"] == 0
+    taps = {name: v for name, ok, v in mm.score_mission(s3, log, "finished", 0, None, 0.05, obstacle_s_m=120.0)}["brake_taps"]
+    assert taps["count"] == 0  # the red's stop is not a brake tap either
+    assert scored(truth="Yellow")[0]
+    for wrong in (dict(hold=None, cap=0.0, cap_reason="predicted conflict on the path"), dict(truth="Green"), dict(reason="obstacle"), dict(cap=0.0, cap_reason="predicted conflict on the path")):
+        ok, values = scored(**wrong)
+        assert ok is False and values["stopping_ticks"] == len(stop), wrong

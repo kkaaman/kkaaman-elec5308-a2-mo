@@ -4015,9 +4015,42 @@ light scripted red (`--lights scripted`), which the car must see for itself
 - **Parking.** `mapless/parking.py`: gyro bias at a standstill, the gap from the LiDAR's
   right-side profile, two reversing arcs planned from the back of the gap with the swept
   body checked against both cars, centred on the gaps the LiDAR sees, a clearance stop.
-  `ParkingAdapter` allows the reverse gear for this scenario only. Synthetic and fake
-  CARLA: an 8 m gap parks without contact, under 5 deg, centred; 6.5 m is passed by. The
-  roof LiDAR does not see low objects within ~0.5 m of the rear bumper.
+  `ParkingAdapter` allows the reverse gear for this scenario only. The roof LiDAR does
+  not see low objects within ~0.5 m of the rear bumper.
+- **Parking live (`park_t5`, PC 1, `c5cbeb8`): MEASURED_PASS, marginal.** 9 m gap (seen
+  as 8.25 m), no contact, front/rear gaps 2.21/1.96 m, heading 2.3 deg, but 0.50 m inside
+  the parked cars' line (the bound) and the second arc out of room at 9.5 deg (finished
+  forwards). The cause: the Tesla turns on 5.14 m (both arcs and forwards, evaluator
+  truth; 5.2-5.3 m by its own odometry) where the plan had wheelbase/tan 35 deg = 4.29 m,
+  its wheels reaching about 30 of the 35 deg asked; the wider arcs ran 0.55 m deeper and
+  0.9 m further back. Taken: the plan uses `lock_gain` (0.85 for the Tesla, a property of
+  the car, `--park-lock-gain`); the first arc measures the radius again (distance over
+  heading turned, on ticks above 0.15 m/s, after 10 deg) and re-solves theta from where
+  the car is; the heading is re-referenced to the compass at every standstill (the body
+  does not turn while the wheels do) and the gyro bias refined there, after a 2 s start
+  (a 1 s bias leaves ~0.001 rad/s, 4 deg over the manoeuvre; park_t5 drifted 2 deg),
+  and the compass pulls the gyro's heading back while moving (synthetic seed 5310: a
+  residual bias turned the car 2.3 deg over the pass, 0.9 m off its dead-reckoned line,
+  and the arcs, solved in that bent frame, ended 0.57 m out). The arcs' end is balanced
+  between the cars (rear margin up to 0.8 m, less when the front car's sweep clearance is
+  less). Synthetic, wheels reaching 30.3 of 35 deg (the Tesla's 5.14 m), 9 m gap, seeds
+  5308-5311: parked 0.08-0.22 m inside the line, under 0.3 deg, no forward finish; planned
+  on 4.29 m, the first arc's measurement still lands it 0.10 m off. Seed 5312 passed the
+  9 m gap by (seen 8.0 m: the plan on the true radius needs 8.25 m seen for its 0.4 m
+  sweep margin, and the LiDAR sees a gap 0.5-1 m short). **The scenario's gap is now
+  10 m** (`--park-gap-m`; seen 9.25-9.5 m, 0.8/1.1 m planned clearance).
+- **The roadside-car gate and a red light (nineteenth review, 3).** A stopping tick in
+  S3's window is excused only when it is the red light's: the light's hold in force and
+  governing the plan's stop (`stop_reason` junction, no stopping speed cap), the
+  governing light red or yellow by the evaluator's truth (`mapless_mission.light_stop`).
+  A stop for scenery, an obstacle or a false red beside the car still fails it, and a
+  red's stop is no longer a brake tap. On a1_test01 the light's stop (s ~152) is outside
+  the car's window (90-140 m) anyway.
+- **The semantic worker without a segmenter (nineteenth review, 2).** Leaving out
+  `--segmenter` loads the constant segmenter; the default `--semantic thread` still
+  paints and builds the road model on its worker (showcase_t2: 13 ms per job, three ticks
+  in four). It governs nothing; `--semantic off` drops it. The overnight showcase runs on
+  PC 3 compare the two.
 
 ## Running Phase 0 live
 
