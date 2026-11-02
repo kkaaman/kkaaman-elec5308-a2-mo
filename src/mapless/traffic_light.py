@@ -44,6 +44,11 @@ class LightConfig:
     stop_frames: int = 2
     go_frames: int = 3
     max_age_s: float = 0.6
+    # With a classifier on the car: a route junction ahead is approached at approach_mps
+    # at most from approach_within_m of its entry (the front's distance), so a light read
+    # late can still be stopped for; and the stop line is looked for from there on.
+    approach_mps: float = 3.0
+    approach_within_m: float = 30.0
     unknown_after_s: float = 1.0
     yellow_decel_mps2: float = 2.0  # a yellow is stopped for only if this braking suffices
     red_decel_mps2: float = 4.0  # a red seen too late for this braking is driven through, not stopped in the box
@@ -140,17 +145,27 @@ def tiny_net(torch, classes=len(LIGHT_STATES)):
     return nn.Sequential(block(3, 24), block(24, 48), block(48, 96), block(96, 128), nn.AdaptiveMaxPool2d(1), nn.Flatten(), nn.Dropout(0.2), nn.Linear(128, classes))
 
 
-def preprocess(rgb, cv2):
-    """uint8 RGB (H x W x 3) to a float32 CHW array in [0, 1], cropped and resized."""
-    image = cv2.resize(crop(rgb), INPUT_WH, interpolation=cv2.INTER_AREA)
+def preprocess(rgb, cv2, band_scale=None):
+    """uint8 RGB (H x W x 3) to a float32 CHW array in [0, 1], cropped and resized: to
+    ``INPUT_WH`` (as trained), or the band times ``band_scale`` (the network is fully
+    convolutional with a global max pool, so any size reads: a far light enlarged)."""
+    band = crop(rgb)
+    if band_scale is None:
+        image = cv2.resize(band, INPUT_WH, interpolation=cv2.INTER_AREA)
+    else:
+        h, w = band.shape[:2]
+        size = (int(round(w * band_scale)), int(round(h * band_scale)))
+        image = cv2.resize(band, size, interpolation=cv2.INTER_LINEAR if band_scale >= 1.0 else cv2.INTER_AREA)
     return np.ascontiguousarray(image.transpose(2, 0, 1), dtype=np.float32) / 255.0
 
 
 class LightClassifier:
     """The trained classifier, from a checkpoint ``{"state_dict", "provenance"}``."""
 
-    def __init__(self, checkpoint_path, device=None):
+    def __init__(self, checkpoint_path, device=None, band_scale=None):
         import torch  # noqa: PLC0415
+
+        self.band_scale = band_scale  # None: the trained input size (``preprocess``)
 
         payload = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
         provenance = dict(payload.get("provenance") or {})
@@ -167,7 +182,7 @@ class LightClassifier:
         import cv2  # noqa: PLC0415
 
         torch = self._torch
-        x = torch.from_numpy(preprocess(rgb, cv2))[None].to(self.device)
+        x = torch.from_numpy(preprocess(rgb, cv2, self.band_scale))[None].to(self.device)
         with torch.no_grad():
             p = torch.softmax(self.model(x), dim=1)[0].cpu().numpy()
         k = int(np.argmax(p))

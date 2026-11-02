@@ -843,7 +843,7 @@ def test_the_stack_reads_the_scripted_red_stops_at_the_line_and_goes_on_green(mo
         return dataclasses.replace(f, cameras=(CameraImage("front", rgb, cal),), status=status)
 
     class ReadsTheLight:
-        def __init__(self, checkpoint, device=None):
+        def __init__(self, checkpoint, device=None, band_scale=None):
             self.provenance = {}
 
         def classify(self, image, time_s):
