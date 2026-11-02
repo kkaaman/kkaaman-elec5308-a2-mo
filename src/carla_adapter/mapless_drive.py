@@ -164,8 +164,14 @@ WEATHER_PRESETS = {
     "hard_rain": ("HardRainNoon", {}),
     "light_fog": ("CloudyNoon", dict(fog_density=35.0, fog_distance=10.0, fog_falloff=1.0)),
     "clear_sunset": ("ClearSunset", {}),
+    # The low sun on the other side of the sky (CARLA has no sunrise preset): driving into it
+    # on the legs the sunset lights from behind.
+    "clear_sunrise": ("ClearSunset", dict(sun_azimuth_angle=179.0, sun_altitude_angle=8.0)),
     "clear_night": ("ClearNight", {}),
 }
+# Presets dark enough that the car drives with its low beams on (set by the harness, as a
+# driver switches them on; the light classifier was trained on noon and sunset, not night).
+NIGHT_PRESETS = ("clear_night",)
 WEATHER_FIELDS = ("cloudiness", "precipitation", "precipitation_deposits", "wind_intensity", "sun_azimuth_angle", "sun_altitude_angle", "fog_density", "fog_distance", "wetness")
 
 
@@ -178,6 +184,16 @@ def weather_parameters(carla, preset):
         for k, v in overrides.items():
             setattr(weather, k, v)
     return weather
+
+
+def headlights_on(carla, vehicle):
+    """Low beams and position lights on (the night presets); what was set, or why not."""
+    try:
+        states = carla.VehicleLightState
+        vehicle.set_light_state(states(states.Position | states.LowBeam))
+        return "low beam"
+    except Exception as error:  # an older server, a fake world
+        return f"not set: {error}"[:120]
 
 
 def weather_record(preset, weather):
@@ -1525,6 +1541,8 @@ class MaplessDrive:
         self.setup()
         # Traffic lights (G4 M07, 2 Nov): set as --lights says, the route junctions' lights
         # found for the judging (evaluator side; the car reads lights only from its camera).
+        if getattr(args, "weather", "clear_noon") in NIGHT_PRESETS:
+            self.report["headlights"] = headlights_on(carla, self.ego)
         self.light_script = LightScript(getattr(args, "lights", "unchanged"))
         self.light_script.setup(carla, self.world, self.world.get_map(), getattr(self, "mission_site", None))
         lights_on = bool(self.light_script.junctions) or self.light_script.mode != "unchanged" or bool(getattr(args, "light_classifier", None))
