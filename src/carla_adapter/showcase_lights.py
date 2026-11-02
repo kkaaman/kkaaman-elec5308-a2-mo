@@ -50,10 +50,9 @@ class JunctionLights:
     carla_stop_s_m: float | None = None  # CARLA's stop waypoint along the route (recorded: the trigger volume's middle)
     red_at_front_s_m: float | None = None  # the car's front when the light turned red
     decided_red_at_front_s_m: float | None = None  # ... when the car first decided red
-    stood_front_s_m: float | None = None  # ... standing on red (the furthest)
+    stood_front_s_m: float | None = None  # ... where it first stood on red at the light
     past_line_on_red_m: float = 0.0  # the furthest the front went past the line while red
     moved_on_red: bool = False  # moved off from standing while still red
-    _standing: bool = False
 
 
 @dataclass
@@ -64,6 +63,7 @@ class LightScript:
     hold_s: float = 4.0
     max_red_s: float = 20.0
     read_within_m: float = 30.0
+    moved_m: float = 0.5  # beyond where it stood on red: moved off on red
     junctions: list = field(default_factory=list)
     log: list = field(default_factory=list)
 
@@ -130,14 +130,15 @@ class LightScript:
             if decision == "red" and j.red_at_front_s_m is not None and j.decided_red_at_front_s_m is None:
                 j.decided_red_at_front_s_m = round(s_m, 2)
             standing = speed_mps is not None and speed_mps < 0.05
-            if red and standing:
-                j.stood_front_s_m = round(s_m, 2) if j.stood_front_s_m is None else max(j.stood_front_s_m, round(s_m, 2))
             line = j.entry_s_m  # the painted line, at the junction's boundary
-            # Moving off on red counts from a stop at the light (within stop_zone_m of the
-            # line), not from the start of the run with the light already red ahead.
-            if red and j._standing and not standing:
+            # Moving off on red: half a metre beyond where the car first stood at the light
+            # (within stop_zone_m of the line), not from the start of the run with the light
+            # already red ahead, and not a few cm of creep or rocking (showcase_c2: 0.05-0.06
+            # m/s for 3 s at a standstill, s unchanged).
+            if red and standing and line - s_m <= self.stop_zone_m and j.stood_front_s_m is None:
+                j.stood_front_s_m = round(s_m, 2)
+            if red and j.stood_front_s_m is not None and s_m > j.stood_front_s_m + self.moved_m:
                 j.moved_on_red = True
-            j._standing = standing and red and line - s_m <= self.stop_zone_m
             if red:
                 j.past_line_on_red_m = max(j.past_line_on_red_m, round(s_m - line, 2))
         return state

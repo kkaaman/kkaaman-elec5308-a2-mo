@@ -1997,10 +1997,10 @@ def _config_dict(config):
 def main(argv=None, stack=False):
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--scenario", choices=LANE_SCENARIOS + (MISSION_SCENARIO, PARK_SCENARIO) + tuple(TURN_SCENARIOS) + tuple(ACTOR_SCENARIOS), required=True)
-    parser.add_argument("--park-gap-m", type=float, default=8.0, help="parallel_park: the gap between the two parked cars (bumper to bumper)")
+    parser.add_argument("--park-gap-m", type=float, default=9.0, help="parallel_park: the gap between the two parked cars (bumper to bumper; 8 m is too short for the planned sweep's 0.4 m margin)")
     parser.add_argument("--park-at-m", type=float, default=100.0, help="parallel_park: the rear parked car's centre along the mission's chain")
     parser.add_argument("--park-start-m", type=float, default=70.0, help="parallel_park: where the car starts along the chain")
-    parser.add_argument("--park-steer-deg", type=float, default=30.0, help="parallel_park: the reversing arcs' steering angle")
+    parser.add_argument("--park-steer-deg", type=float, default=35.0, help="parallel_park: the reversing arcs' steering angle")
     parser.add_argument("--mission", type=Path, default=Path("configs/missions/a1_test01.json"), help="mission: the baseline route definition (lane chain) to drive")
     parser.add_argument("--acceptance", choices=tuple(f"S{i}" for i in range(6)), default="S0", help="mission: the baseline obstacle scenario to run on it (configs/scenarios)")
     parser.add_argument("--scenarios-dir", type=Path, default=Path("configs/scenarios"), help="mission: where the S0–S5 scenario files are")

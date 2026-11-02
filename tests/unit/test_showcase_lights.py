@@ -56,3 +56,16 @@ def test_a_lit_junction_not_reached_is_incomplete_only_when_lights_are_tested():
         drive(script, [(100.0, 0.0)] * 5)  # held for good short of it (S4)
         assert red_light_check(script, classifier)["status"] == status
     assert red_light_check(LightScript("unchanged"), False) is None  # no lit junction, no classifier: no check
+
+
+def test_creep_at_the_light_is_not_moving_off_on_red_but_half_a_metre_is():
+    """showcase_c2 (PC 2): the car stood 1.3 m short of the line and crept at 0.05-0.06 m/s
+    without changing place; that was read as moving off on red. Only half a metre past
+    where it first stood counts."""
+    for creep, moved in ((0.02, False), (0.6, True)):
+        script = LightScript("scripted", hold_s=10.0)
+        script.junctions.append(JunctionLights(100.0, 468, [Light()]))
+        approach = [(70.0 + 0.2 * k, 3.0) for k in range(140)]  # to 97.8, red from 65
+        rocking = [(97.8 + (creep if k % 2 else 0.0), 0.06 if k % 2 else 0.0) for k in range(40)]
+        drive(script, approach + rocking)
+        assert script.report()["junctions"][0]["moved_on_red"] is moved

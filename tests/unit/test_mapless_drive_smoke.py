@@ -888,7 +888,7 @@ def test_a_scripted_walker_is_placed_on_the_mission_route_by_route_s(monkeypatch
 
 def test_parallel_parking_finds_the_gap_between_two_parked_cars_and_parks(monkeypatch, tmp_path):
     """The showcase's parking clip on the harness (2 Nov): two cars of the ego's model in
-    the same-direction lane to the right of the mission's chain, 8 m apart; the parker
+    the same-direction lane to the right of the mission's chain, 9 m apart; the parker
     finds the gap with the LiDAR, reverses into it and centres; the evaluator measures
     the gaps to both cars, the offset from their line and the heading, box to box."""
     import functools
@@ -897,7 +897,7 @@ def test_parallel_parking_finds_the_gap_between_two_parked_cars_and_parks(monkey
     from sim_harness.mapless_road import CarModel
 
     this = _sys.modules[__name__]
-    monkeypatch.setattr(this, "MaplessRoadWorld", functools.partial(MaplessRoadWorld, car=CarModel(max_steer_rad=math.radians(35))))
+    monkeypatch.setattr(this, "MaplessRoadWorld", functools.partial(MaplessRoadWorld, car=CarModel(max_steer_rad=math.radians(40))))
     monkeypatch.setattr(drive, "ParkingAdapter", FakeAdapter)
 
     class RightLane(Waypoint):
@@ -917,7 +917,7 @@ def test_parallel_parking_finds_the_gap_between_two_parked_cars_and_parks(monkey
     park = by_name["parallel_park"]
     assert park["status"] == "PASS", json.dumps(park, indent=1)
     assert park["front_gap_m"] >= 0.2 and park["rear_gap_m"] >= 0.2 and abs(park["lateral_from_line_m"]) <= 0.5 and abs(park["heading_deg"]) <= 5.0
-    assert report["end"] == "finished" and report["parking"]["gap_m"] == 8.0 and by_name["no_collision"]["status"] == "PASS"
+    assert report["end"] == "finished" and report["parking"]["gap_m"] == 9.0 and by_name["no_collision"]["status"] == "PASS"
     with pytest.raises(SystemExit):
         drive.main(["--scenario", "parallel_park", "--output", str(tmp_path / "s")], stack=True)  # the parker runs alone
 
