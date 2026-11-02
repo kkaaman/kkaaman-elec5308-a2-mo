@@ -58,7 +58,7 @@ def test_training_on_a_tiny_capture_labels_from_truth_and_refuses_test_towns(tmp
     train = capture("capture_Town03_s1", "Town03", rows)
     val = capture("capture_Town02_s1", "Town02", rows)
     items, counts = tl.index([train, val])
-    assert counts[str(train)] == dict(town="Town03", none=8, red=4, yellow=4, green=4)  # not at a light: none, whatever the state
+    assert counts[str(train)] == dict(town="Town03", approach_labelled=0, none=8, red=4, yellow=4, green=4)  # not at a light: none, whatever the state
     out = tmp_path / "light.pt"
     tl.main(["--run", str(train), "--run", str(val), "--output", str(out), "--epochs", "1", "--steps-per-epoch", "2", "--batch", "8", "--workers", "0", "--device", "cpu"])
     payload = torch.load(out, map_location="cpu", weights_only=False)
@@ -85,3 +85,22 @@ def test_scores_count_false_stops_and_red_recall():
     s = scores(confusion)
     assert s["red_recall"] == 0.9 and s["false_red_share"] == round(15 / 120, 4)
     assert s["balanced_accuracy"] == round((0.9 + 0.9 + 0.8 + 0.75) / 4, 4)
+
+
+def test_the_approach_to_a_light_takes_the_state_found_at_its_stop_line():
+    """The trigger zone starts near the stop line: the 20 m and 3 s before it are labelled
+    with the state the car finds there, so the light is read with room to stop; a jump in
+    position (a new episode) or time ends the look-back."""
+    from mapless_training.train_traffic_light import approach_labels
+
+    def row(t, x, at=False, state="Green"):
+        return dict(sim_time_s=t, truth=dict(at_traffic_light=at, traffic_light_state=state, ego_rear_axle=dict(x_m=x, y_m=0.0)))
+
+    rows = [row(0.0, 0.0), row(0.5, 4.0), row(1.0, 8.0), row(1.5, 12.0), row(2.0, 14.0, True, "Red"), row(2.5, 14.0, True, "Red")]
+    assert approach_labels(rows) == ["red", "red", "red", "red", "red", "red"]
+    assert approach_labels(rows, approach_m=9.0) == ["none", "none", "red", "red", "red", "red"]  # 10 m back is too far
+    assert approach_labels(rows, approach_s=1.2) == ["none", "none", "red", "red", "red", "red"]  # 1.5 s back is too long
+    jump = [row(0.0, 100.0)] + rows[1:]
+    assert approach_labels(jump)[0] == "none"  # a teleport: another episode
+    passing = [row(0.0, 0.0), row(0.5, 4.0, True, "Green"), row(1.0, 8.0)]
+    assert approach_labels(passing) == ["green", "green", "none"]

@@ -3,7 +3,8 @@
 Each capture sample's front image is labelled from the run's truth: ``none`` unless the
 car is at a traffic light (``at_traffic_light``: inside the light's trigger zone near the
 stop line), else the governing light's state (red, yellow, green; off or unknown read as
-none). Train on Town01/03/04/05/06, validate on Town02, refuse Town07 and Town10HD (the
+none); and the approach to a trigger zone (``approach_labels``: the last 20 m and 3 s)
+takes the state the car finds there, so the light is read with room to stop. Train on Town01/03/04/05/06, validate on Town02, refuse Town07 and Town10HD (the
 held-out test town and the development benchmark), as for the segmenter.
 
 The autopilot that drove the captures waits at reds, so red samples come in long runs of
@@ -34,7 +35,40 @@ def label_of(truth):
     return CARLA_STATES.get(str(truth.get("traffic_light_state")), "none")
 
 
-def index(runs, camera="front"):
+def _xy(row):
+    ego = ((row.get("truth") or {}).get("ego_rear_axle")) or {}
+    return None if "x_m" not in ego else (float(ego["x_m"]), float(ego["y_m"]))
+
+
+def approach_labels(rows, approach_m=20.0, approach_s=3.0):
+    """Each sample's label, the approach included: the samples up to ``approach_m``
+    travelled and ``approach_s`` before the car reaches a light's trigger zone (where
+    ``at_traffic_light`` turns on, near the stop line) take the state it finds there,
+    so the classifier learns to read the light while there is still room to stop. A gap
+    in time or a jump in position (a new episode) ends the look-back."""
+    labels = [label_of(r.get("truth")) for r in rows]
+    at = [bool((r.get("truth") or {}).get("at_traffic_light")) for r in rows]
+    for i in range(1, len(rows)):
+        if not at[i] or at[i - 1] or labels[i] == "none":
+            continue
+        travelled, j = 0.0, i - 1
+        while j >= 0 and not at[j]:
+            a, b = _xy(rows[j]), _xy(rows[j + 1])
+            dt = float(rows[i].get("sim_time_s", 0.0)) - float(rows[j].get("sim_time_s", 0.0))
+            if a is None or b is None or dt < 0 or dt > approach_s:
+                break
+            step = ((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2) ** 0.5
+            if step > 15.0:
+                break  # a new episode
+            travelled += step
+            if travelled > approach_m:
+                break
+            labels[j] = labels[i]
+            j -= 1
+    return labels
+
+
+def index(runs, camera="front", approach_m=20.0, approach_s=3.0):
     """[(image path, label index, town)] and per-run counts; refuses test towns."""
     items, counts = [], {}
     for run in map(Path, runs):
@@ -44,15 +78,16 @@ def index(runs, camera="front"):
             raise ValueError(f"{run}: {town} may not be trained or validated on")
         per = {s: 0 for s in LIGHT_STATES}
         with open(run / "samples.jsonl", encoding="utf-8") as lines:
-            for line in lines:
-                row = json.loads(line)
-                rgb = (row.get("files") or {}).get("rgb", {}).get(camera)
-                if rgb is None:
-                    continue
-                label = label_of(row.get("truth"))
-                per[label] += 1
-                items.append((run / rgb, LIGHT_STATES.index(label), town))
-        counts[str(run)] = dict(town=town, **per)
+            rows = [json.loads(line) for line in lines if line.strip()]
+        labels = approach_labels(rows, approach_m, approach_s)
+        approached = sum(1 for r, label in zip(rows, labels) if label != "none" and not (r.get("truth") or {}).get("at_traffic_light"))
+        for row, label in zip(rows, labels):
+            rgb = (row.get("files") or {}).get("rgb", {}).get(camera)
+            if rgb is None:
+                continue
+            per[label] += 1
+            items.append((run / rgb, LIGHT_STATES.index(label), town))
+        counts[str(run)] = dict(town=town, approach_labelled=approached, **per)
     return items, counts
 
 
@@ -84,17 +119,19 @@ def main(argv=None):
     p.add_argument("--epochs", type=int, default=12)
     p.add_argument("--batch", type=int, default=64)
     p.add_argument("--lr", type=float, default=2e-3)
-    p.add_argument("--steps-per-epoch", type=int, default=600)
+    p.add_argument("--steps-per-epoch", type=int, default=300)
     p.add_argument("--workers", type=int, default=6)
     p.add_argument("--device", default=None)
     p.add_argument("--seed", type=int, default=0)
+    p.add_argument("--approach-m", type=float, default=20.0, help="label the approach this far before a light's trigger zone with its state")
+    p.add_argument("--approach-s", type=float, default=3.0, help="... and no longer before it than this")
     args = p.parse_args(argv)
     import cv2  # noqa: PLC0415
     import torch  # noqa: PLC0415
 
     torch.manual_seed(args.seed)
     device = args.device or ("cuda" if torch.cuda.is_available() else "cpu")
-    items, counts = index(args.run)
+    items, counts = index(args.run, approach_m=args.approach_m, approach_s=args.approach_s)
     print(json.dumps(dict(runs=counts), indent=1), file=sys.stderr)
 
     class Data(torch.utils.data.Dataset):
@@ -168,7 +205,7 @@ def main(argv=None):
         if best is None or key > best[0]:
             best = (key, epoch, {k: v.detach().cpu().clone() for k, v in model.state_dict().items()})
     provenance = dict(
-        states=list(LIGHT_STATES), input_wh=list(INPUT_WH), architecture="tiny_net", training_towns=sorted({r[2] for r in train}),
+        states=list(LIGHT_STATES), input_wh=list(INPUT_WH), architecture="tiny_net", approach_m=args.approach_m, approach_s=args.approach_s, training_towns=sorted({r[2] for r in train}),
         validation_towns=sorted({r[2] for r in validation}), refused_towns=list(REFUSED_TOWNS), runs=counts,
         samples=dict(train=len(train), validation=len(validation)), epochs=args.epochs, batch=args.batch, lr=args.lr, seed=args.seed,
         best_epoch=best[1], selection="validation balanced accuracy" if validation else "training loss", history=history,
