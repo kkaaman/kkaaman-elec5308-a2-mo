@@ -114,3 +114,52 @@ class CarView:
 
     def record(self):
         return dict(window=self.window, video=None if self.video_path is None else str(self.video_path), frames=self.frames, camera=self.camera, note=self.note)
+
+
+class ChaseCamera:
+    """A camera behind and above the car, its images written to a video (the CARLA window's
+    ``--follow`` view, recorded without a screen recorder). Not part of the car's sensor
+    suite: its images never reach the driver. If the server will not give it (an older
+    blueprint, a fake world), the run goes on without it and ``note`` says why."""
+
+    def __init__(self, carla, world, ego, path, cv2, owner_actors=None, width=1280, height=720, fps=20.0, back_m=8.0, up_m=5.0, pitch_deg=-22.0):
+        self.cv2, self.path, self.fps = cv2, path, float(fps)
+        self.writer, self.sensor, self.latest, self.frames, self.note = None, None, None, 0, None
+        try:
+            bp = world.get_blueprint_library().find("sensor.camera.rgb")
+            for name, value in (("image_size_x", str(width)), ("image_size_y", str(height)), ("fov", "90"), ("sensor_tick", "0.0")):
+                bp.set_attribute(name, value)
+            transform = carla.Transform(carla.Location(x=-back_m, y=0.0, z=up_m), carla.Rotation(pitch=pitch_deg))
+            self.sensor = world.spawn_actor(bp, transform, attach_to=ego)
+            if owner_actors is not None:
+                owner_actors.append(self.sensor)
+            self.sensor.listen(self._receive)
+        except Exception as error:
+            self.sensor, self.note = None, f"chase camera off: {error}"[:160]
+
+    def _receive(self, image):
+        raw = np.frombuffer(image.raw_data, dtype=np.uint8).reshape((image.height, image.width, 4))
+        self.latest = raw[:, :, :3].copy()  # BGRA -> BGR
+
+    def write(self):
+        """The newest chase image into the video (once a tick, after the step)."""
+        if self.latest is None:
+            return
+        if self.writer is None:
+            h, w = self.latest.shape[:2]
+            self.writer = self.cv2.VideoWriter(str(self.path), self.cv2.VideoWriter_fourcc(*"mp4v"), self.fps, (w, h))
+        self.writer.write(self.latest)
+        self.frames += 1
+
+    def close(self):
+        if self.sensor is not None:
+            try:
+                self.sensor.stop()
+            except Exception:
+                pass
+        if self.writer is not None:
+            self.writer.release()
+            self.writer = None
+
+    def record(self):
+        return dict(video=str(self.path), frames=self.frames, note=self.note)
