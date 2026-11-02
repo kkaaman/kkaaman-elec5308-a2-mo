@@ -64,6 +64,7 @@ from navigation_control.local import LocalTrajectory, TrajectorySample
 @dataclass(frozen=True)
 class PlannerConfig:
     cruise_mps: float = 2.0
+    cruise_max_mps: float = 4.0  # the most a cruise target set per tick may ask (``MaplessDriver.cruise_target_mps``)
     lateral_accel_mps2: float = 1.5
     decel_mps2: float = 1.0
     stop_gap_m: float = 2.5
@@ -103,6 +104,8 @@ class PlannerConfig:
         for name in ("cruise_mps", "lateral_accel_mps2", "decel_mps2", "validity_s"):
             if not math.isfinite(getattr(self, name)) or getattr(self, name) <= 0:
                 raise ValueError(f"{name} must be positive")
+        if not math.isfinite(self.cruise_max_mps) or self.cruise_max_mps <= 0:
+            raise ValueError("cruise_max_mps must be positive")
         for name in ("stop_gap_m", "resume_clear_s"):
             if not math.isfinite(getattr(self, name)) or getattr(self, name) < 0:
                 raise ValueError(f"{name} must be non-negative")
@@ -315,7 +318,7 @@ class LanePlanner:
         hold.note = f"region bins {hold.region_bins[0]}/{bins}, {int(near.sum())} ground points"
         return bool(np.all(counts >= c.clear_region_min_points))
 
-    def plan(self, corridor, observation, goal_body, now_s, hold_at_m=None, speed_cap_mps=None):
+    def plan(self, corridor, observation, goal_body, now_s, hold_at_m=None, speed_cap_mps=None, cruise_mps=None):
         """``observation``: this sweep's ``PathObservation`` (None without a sweep this tick).
 
         ``goal_body``: the route goal in the vehicle frame, when it is within reach.
@@ -444,7 +447,8 @@ class LanePlanner:
 
         k = np.abs(polyline_curvature(line))
         curve = np.sqrt(c.lateral_accel_mps2 / np.maximum(k, 1e-6))
-        speed = np.minimum(c.cruise_mps if speed_cap_mps is None else min(c.cruise_mps, max(0.0, speed_cap_mps)), curve)
+        cruise = c.cruise_mps if cruise_mps is None else float(cruise_mps)
+        speed = np.minimum(cruise if speed_cap_mps is None else min(cruise, max(0.0, speed_cap_mps)), curve)
         speed = np.minimum(speed, np.sqrt(2.0 * c.decel_mps2 * np.maximum(0.0, stop_s - arcs)))
         sight = math.inf
         if c.sight_governed and observation is not None:

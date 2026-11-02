@@ -740,3 +740,23 @@ def test_t12_route_noise_leaves_the_start_and_the_destination_exact():
     moved = [math.dist(plane.to_local(p.latitude_deg, p.longitude_deg), (x, 0.0)) for p, x in zip(noisy.points[1:-1], (25.0, 50.0))]
     assert all(0.05 < m < 10.0 for m in moved)
     assert drive.perturb_route(SatNavRoute("r", points), 0.0, seed=1).points == points
+
+
+def test_weather_presets_copy_before_overriding_and_are_recorded():
+    """G3 (2 Nov): ``--weather`` names a CARLA preset; one with overrides (fog) is a copy,
+    so the shared preset is left as it was; the report carries the preset and its fields."""
+
+    class W:
+        def __init__(self, **kw):
+            for k in drive.WEATHER_FIELDS:
+                setattr(self, k, kw.get(k, 0.0))
+
+    W.ClearNoon, W.CloudyNoon = W(cloudiness=5.0, sun_altitude_angle=75.0), W(cloudiness=60.0, sun_altitude_angle=75.0)
+    fake = SimpleNamespace(WeatherParameters=W)
+    assert drive.weather_parameters(fake, "clear_noon") is W.ClearNoon
+    fog = drive.weather_parameters(fake, "light_fog")
+    assert fog is not W.CloudyNoon and fog.fog_density == 35.0 and fog.cloudiness == 60.0 and W.CloudyNoon.fog_density == 0.0
+    record = drive.weather_record("light_fog", fog)
+    assert record["preset"] == "light_fog" and record["fog_density"] == 35.0 and record["cloudiness"] == 60.0
+    assert drive.weather_record("clear_noon", "ClearNoon") == {"preset": "clear_noon"}  # the smoke tests' stand-in
+    assert set(drive.WEATHER_PRESETS) >= {"clear_noon", "moderate_rain", "light_fog"}

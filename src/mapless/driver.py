@@ -222,6 +222,10 @@ class MaplessDriver:
         self._turning = False
         self.crossing = StraightCrossing(config.crossing)  # a junction crossed straight on
         self.speed_cap_mps = None  # the stack's following/prediction cap for this tick (None: none)
+        # A cruise target set from outside for this tick (G5, 2 Nov: the learned cruise
+        # advisor), clamped to (0, planner.cruise_max_mps]; None: planner.cruise_mps. Every
+        # restriction still binds under it (curvature, sight, the stack's caps, holds).
+        self.cruise_target_mps = None
         self.last_motion = self.last_classified = self.last_plan = self.last_corridor = None
         self._profile_path = None  # (time, odometry polyline) of the last path planned along, for the far points' ground (terrain)
         self._turn_done = None  # route index of the junction entry whose turn is complete
@@ -287,6 +291,15 @@ class MaplessDriver:
             brake = max(HOLD, result.command.brake)
         diagnostics.update(fault_steering=how)
         return self._emit(ControlCommand(steer, 0.0, brake), DriveMode.FAULT, reason, diagnostics)
+
+    @property
+    def cruise_mps(self):
+        """This tick's cruise speed: ``cruise_target_mps`` when set, within (0,
+        ``planner.cruise_max_mps``], else the configured ``planner.cruise_mps``."""
+        c = self.config.planner
+        if self.cruise_target_mps is None:
+            return c.cruise_mps
+        return float(min(max(self.cruise_target_mps, 0.1), max(c.cruise_max_mps, c.cruise_mps)))
 
     def step(self, frame):
         if not isinstance(frame, SensorFrame):
@@ -840,7 +853,7 @@ class MaplessDriver:
         goal_body = None
         if guidance.index == len(self.progress.xy) - 1 and guidance.goal_distance_m < corridor.valid_length_m + 5:
             goal_body = motion.odometry.to_body(motion.route_to_odometry(np.array([self.progress.xy[-1]])))[0]
-        plan = self.planner.plan(corridor, observation, goal_body, t, hold_at_m=hold_at, speed_cap_mps=self.speed_cap_mps)
+        plan = self.planner.plan(corridor, observation, goal_body, t, hold_at_m=hold_at, speed_cap_mps=self.speed_cap_mps, cruise_mps=self.cruise_mps)
         lap("plan")
         self.last_plan, self.last_corridor = plan, corridor  # the path planned along this tick (a turn's, in a turn)
         self._profile_path = (t, corridor.centre_odometry) if corridor.ok else None

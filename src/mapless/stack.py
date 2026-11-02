@@ -739,7 +739,7 @@ class MaplessStack:
                 # ahead for 4.5 s (Town05 recorded frames). While the gap and the worst-case
                 # cap allow cruise it only watches the lead (fifth review, F5-01).
                 held = self.driver.speed_cap_mps if prev_cause == track.track_id else None
-                cap = self.following.target_speed(self.driver.config.planner.cruise_mps, motion.speed_mps, gap, along, self.driver.dt_s, held_cap_mps=held, keep_gap=not (continuation or {}).get("uncertain", False), lead_id=track.track_id)
+                cap = self.following.target_speed(self.driver.cruise_mps, motion.speed_mps, gap, along, self.driver.dt_s, held_cap_mps=held, keep_gap=not (continuation or {}).get("uncertain", False), lead_id=track.track_id)
                 reason = "" if cap is None else ("lead at a standstill" if cap <= 0.0 else "following the lead")
                 self._lead["following"] = dict(self.following.last)
                 self._followed = dict(track_id=track.track_id, time_s=t, gap_m=gap, speed_mps=along, cap=cap)
@@ -775,7 +775,7 @@ class MaplessStack:
             # made every conflict look far away and the cap flickered tick to tick).
             samples = plan.trajectory.samples
             xy = np.array([[smp.x_m, smp.y_m] for smp in samples])
-            speed = max(motion.speed_mps, min(self.driver.config.planner.cruise_mps, max(plan.curve_speed_mps, 0.5)))
+            speed = max(motion.speed_mps, min(self.driver.cruise_mps, max(plan.curve_speed_mps, 0.5)))
             seg = np.hypot(*np.diff(xy, axis=0).T)
             arcs = np.concatenate(([0.0], np.cumsum(seg)))
             # Time zero is the car itself, not the path's first sample (which lies behind it).
@@ -1112,17 +1112,25 @@ def incoherent_vehicle(track, config):
 
 def edge_unsupported(track, config):
     """A LiDAR track with a leading edge (a cluster ``TrackerConfig.edge_min_extent_m`` long
-    or longer), not decided a pedestrian, no faster than ``edge_check_max_mps``, whose
-    leading edge has not advanced with its motion (``ObjectTrack.edge_speed_mps`` at most
-    ``edge_min_share`` of its speed or ``edge_min_mps``): the motion is its visible part
-    changing, not the object moving. Not only vehicle-sized ones: seen end-on as the car
+    or longer), not decided a pedestrian, whose leading edge has not advanced with its
+    motion (``ObjectTrack.edge_speed_mps`` at most ``edge_min_share`` of its speed or
+    ``edge_min_mps``) when no faster than ``edge_check_max_mps``, or has receded by that
+    much when faster: the motion is its visible part changing, not the object moving. Not only vehicle-sized ones: seen end-on as the car
     drew level, the stopped crossing car's cluster shrank to 2.7-2.9 m and it went on
     "approaching at 0.5 m/s" as a road user of no class."""
-    if track.edge_speed_mps is None or "lidar" not in track.support or track.speed_mps > config.edge_check_max_mps:
+    if track.edge_speed_mps is None or "lidar" not in track.support:
         return False
     if decided_class(track) == "pedestrian":
         return False
-    return track.edge_speed_mps <= max(config.edge_min_mps, config.edge_min_share * track.speed_mps)
+    floor = max(config.edge_min_mps, config.edge_min_share * track.speed_mps)
+    if track.speed_mps > config.edge_check_max_mps:
+        # Faster than the check is trusted for: held only when the leading edge went the
+        # other way, receding by a share of the speed the centroid shows. No rigid object
+        # advances while its front retreats; a stretch of wall whose visible part slides as
+        # the car passes does (r20 S3_5309, PC 1, 2 Nov: a 2.8 x 0.3 m sliver 6 m beyond the
+        # kerb, "approaching at 3.4 m/s", its leading edge -2.1 m/s; one zero cap, a stop).
+        return track.edge_speed_mps <= -floor
+    return track.edge_speed_mps <= floor
 
 
 def stands_still(track, config):
