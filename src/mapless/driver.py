@@ -922,7 +922,9 @@ class MaplessDriver:
         )
         if (
             plan.stop_reason in ("obstacle", "obstacle_hold", "junction")
-            and plan.stop_distance_m < (c.junction_hold_within_m if plan.stop_reason == "junction" else c.hold_within_m)
+            # A light's hold is held on the brake like an obstacle's: the car stands short of
+            # the line (showcase_c2: 0.8 m short of the hold point, creeping at 0.05 m/s).
+            and plan.stop_distance_m < (c.junction_hold_within_m if plan.stop_reason == "junction" and light_hold is None else c.hold_within_m)
             and motion.stationary
         ):
             # Stopped at the stop point: hold the brake rather than let the speed loop

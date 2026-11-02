@@ -13,7 +13,8 @@ A deterministic manoeuvre beside the driver, from the car's own sensors only:
    left until it is back to the start heading. Two equal arcs shift the rear axle
    ``2R(1 - cos theta)`` sideways over ``2R sin theta``: theta is chosen for the shift to
    the parking line. The wheels are turned only at a standstill.
-4. **Centre** between the two cars and stop.
+4. **Centre** between the two cars and stop. If the rear runs out of room before the second
+   arc has straightened the car, it finishes forwards with the wheels the other way.
 
 Odometry is dead reckoning from the wheel speed (its sign from the gear selected) and the
 gyro's yaw rate: over a 15 s manoeuvre its drift is centimetres. A point of an obstacle
@@ -36,7 +37,7 @@ class ParkingConfig:
     search_mps: float = 1.5
     reverse_mps: float = 0.7
     centre_mps: float = 0.4
-    steer_rad: float = math.radians(30.0)  # the arcs' steering (the drive's controller cap is 20 deg)
+    steer_rad: float = math.radians(35.0)  # the arcs' steering, half the Tesla's lock (the drive's controller cap is 20 deg)
     steer_settle_s: float = 0.6  # wheels turned at a standstill, then this long before moving
     extra_m: float = 2.5  # a gap must be the car's length plus this
     bin_m: float = 0.25
@@ -48,12 +49,14 @@ class ParkingConfig:
     pass_m: float = 1.0  # stop this much beyond the arc start
     clear_m: float = 0.35  # an obstacle point this close to the body ahead of its travel stops it
     centre_tol_m: float = 0.15
+    heading_tol_deg: float = 4.0  # arc 2 stopped short of the rear car with more than this: finish forwards
     heading_kp: float = 1.5
     speed_kp: float = 0.6
     calibrate_s: float = 1.0  # standing at the start: the gyro's bias is its mean yaw rate
     standstill_mps: float = 0.08  # wheel speeds below this are a standstill (the encoder's noise is 0.05 m/s)
-    rear_margin_m: float = 0.6  # the arcs end with the rear this far from the rear car
-    sweep_margin_m: float = 0.3  # the planned path's body keeps this clear of both cars
+    rear_margin_m: float = 0.8  # the arcs end with the rear this far from the rear car
+    sweep_margin_m: float = 0.4  # the planned path's body keeps this clear of both cars
+    arc_slow_gain: float = 1.5  # in an arc, the speed is at most 0.15 + this x the heading still to turn (rad): the stop lands on it
 
 
 @dataclass(frozen=True)
@@ -292,6 +295,11 @@ class ParallelParker:
                 st.theta, st.arc_start_x, st.target_x, st.target_y, st.centre_x = plan
                 if st.phase == "search":
                     self._enter("pass")
+            elif st.phase == "pass" and same and plan is None:
+                # The gap, seen better, is too short for the planned sweep (its far end is
+                # seen best from beside it): not this one; search on.
+                st.slot = None
+                self._enter("search")
         if st.phase == "search":
             steer = float(np.clip(-c.heading_kp * st.yaw, -0.2, 0.2))
             return self._drive(c.search_mps, steer, False)
@@ -326,16 +334,29 @@ class ParallelParker:
             if self._blocked(body_xy, True):
                 self._enter("blocked")
                 return self._stop(-c.steer_rad)
-            return self._drive(c.reverse_mps, -c.steer_rad, True)
+            return self._drive(min(c.reverse_mps, 0.15 + c.arc_slow_gain * max(0.0, st.theta - st.yaw)), -c.steer_rad, True)
         if st.phase == "arc2":
             if st.yaw <= 0.0:
                 if standing:
                     self._enter("straighten")
                 return self._stop(c.steer_rad)
             if self._blocked(body_xy, True):
-                self._enter("blocked")
+                # Out of room behind with the nose still out (park_t4: 23 deg, 0.6 m from the
+                # rear car): finish forwards, wheels the other way, as a driver would.
+                if standing:
+                    self._enter("steer_fix" if st.yaw > math.radians(c.heading_tol_deg) else "straighten")
                 return self._stop(c.steer_rad)
-            return self._drive(c.reverse_mps, c.steer_rad, True)
+            return self._drive(min(c.reverse_mps, 0.15 + c.arc_slow_gain * max(0.0, st.yaw)), c.steer_rad, True)
+        if st.phase == "steer_fix":
+            if st.phase_t >= c.steer_settle_s:
+                self._enter("fix")
+            return self._stop(-c.steer_rad)
+        if st.phase == "fix":  # forwards, wheels right: the heading comes back as the nose swings in
+            if st.yaw <= math.radians(0.5) or self._blocked(body_xy, False):
+                if standing:
+                    self._enter("straighten")
+                return self._stop(-c.steer_rad)
+            return self._drive(c.centre_mps, -c.steer_rad, False)
         if st.phase == "straighten":
             if st.phase_t >= c.steer_settle_s:
                 self._enter("centre")
