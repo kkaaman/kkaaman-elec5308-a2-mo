@@ -73,6 +73,10 @@ def test_training_on_a_tiny_capture_labels_from_truth_and_refuses_test_towns(tmp
 
     reading = LightClassifier(out, device="cpu").classify(np.zeros((72, 128, 3), dtype=np.uint8), 1.0)
     assert reading.state in LIGHT_STATES and 0.0 <= reading.confidence <= 1.0
+    import pickle
+
+    sample = pickle.loads(pickle.dumps(tl.LightImages(items[:2], True)))  # Windows spawns DataLoader workers: the dataset must pickle
+    assert len(sample) == 2 and tuple(sample[0][0].shape) == (3, 192, 544)
     held_out = capture("capture_Town10HD_s1", "Town10HD", rows)
     with pytest.raises(ValueError):
         tl.index([held_out])
