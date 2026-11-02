@@ -24,12 +24,13 @@ ROOT = Path(__file__).resolve().parents[2]
 SUITE = load_sensor_suite(ROOT / "configs" / "sensor_suites" / "mapless_v2.json")
 
 
-def park(gap_m, seconds=70.0, seed=5308):
+def park(gap_m, seconds=70.0, seed=5308, behind=()):
     """Two cars 4.2 m long in the right lane (centres 1.75 m from the kerb), ``gap_m``
     apart; the car starts 30 m back in the left lane (5.25 m from the kerb)."""
     rear_c = 60.0
     front_c = rear_c + 4.2 + gap_m
-    scene = RoadScene(KerbLine([Straight(160)]), road_width_m=11.0, lane_centre_m=5.25, parked=(ParkedCar(rear_c, 1.75), ParkedCar(front_c, 1.75)))
+    cars = tuple(ParkedCar(s, 1.75) for s in behind) + (ParkedCar(rear_c, 1.75), ParkedCar(front_c, 1.75))
+    scene = RoadScene(KerbLine([Straight(160)]), road_width_m=11.0, lane_centre_m=5.25, parked=cars)
     world = MaplessRoadWorld(scene, SUITE, start_s_m=30.0, seed=seed, car=CarModel(max_steer_rad=math.radians(35)))
     parker = ParallelParker(VehicleBody(), 3.00465)
     collided = False
@@ -59,3 +60,10 @@ def test_the_car_parks_between_two_cars_in_an_8_m_gap():
 def test_a_gap_the_planned_sweep_does_not_fit_is_passed_by(gap_m):
     parker, truth, collided, _ = park(gap_m, seconds=40.0)
     assert parker.state.phase == "search" and parker.state.slot is None and not collided
+
+
+def test_a_gap_behind_the_start_is_not_the_one_the_car_was_sent_to():
+    """park_t3 (PC 1): roadside objects behind the start made a gap and the car reversed
+    towards it at once. Two cars 8 m apart behind the start: it parks in the gap ahead."""
+    parker, truth, collided, (gap_rear, gap_front) = park(8.0, behind=(10.0, 22.2))
+    assert parker.state.phase == "parked" and not collided and gap_rear < truth.s_m < gap_front
