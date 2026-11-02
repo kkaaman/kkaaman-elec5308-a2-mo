@@ -390,6 +390,62 @@ def test_the_cars_view_is_shown_and_recorded_without_touching_the_run(monkeypatc
     assert "10.8 km/h" in lines[0] and "reads red 0.99" in lines[2] and "decision red" in lines[2]
 
 
+def test_a_chase_camera_records_the_follow_view_and_a_world_without_one_runs_on(monkeypatch, tmp_path):
+    """``--chase-video``: a camera 8 m behind and 5 m above the car, its images written to
+    chase.mp4 (the --follow view without a screen recorder); not one of the car's
+    sensors. A world that will not give it (here the fake's blueprints take no
+    attributes) runs on without it and says why."""
+    cv2 = pytest.importorskip("cv2")
+    out, report = run_drive(monkeypatch, tmp_path / "a", "--scenario", "straight", "--goal-m", "30", "--snapshot-every", "0", "--chase-video")
+    assert report["chase_view"]["frames"] == 0 and report["chase_view"]["note"].startswith("chase camera off") and report["end"] == "finished"
+
+    cameras = []
+
+    class Camera:
+        def __init__(self, actor_id, parent):
+            self.id, self.parent, self.is_alive, self.callback, self.type_id = actor_id, parent, True, None, "sensor.camera.rgb"
+
+        def listen(self, callback):
+            self.callback = callback
+
+        def stop(self):
+            self.callback = None
+
+        def destroy(self):
+            self.is_alive = False
+            return True
+
+    attributes = {}
+    library = SimpleNamespace(find=lambda blueprint_id: SimpleNamespace(id=blueprint_id, has_attribute=lambda name: False, set_attribute=lambda k, v: attributes.__setitem__(k, v)))
+    spawn, tick = World.spawn_actor, World.tick
+
+    def spawn_actor(self, blueprint, transform, attach_to=None, attachment_type=None):
+        if blueprint.id != "sensor.camera.rgb":
+            return spawn(self, blueprint, transform, attach_to, attachment_type)
+        self.next_id += 1
+        camera = Camera(self.next_id, attach_to)
+        cameras.append((camera, transform))
+        self.actors.append(camera)
+        return camera
+
+    def ticked(self, timeout=None):
+        frame = tick(self, timeout)
+        image = SimpleNamespace(width=64, height=36, raw_data=np.full((36, 64, 4), 120, dtype=np.uint8).tobytes())
+        for camera, _ in cameras:
+            if camera.callback:
+                camera.callback(image)
+        return frame
+
+    monkeypatch.setattr(World, "get_blueprint_library", lambda self: library)
+    monkeypatch.setattr(World, "spawn_actor", spawn_actor)
+    monkeypatch.setattr(World, "tick", ticked)
+    out, report = run_drive(monkeypatch, tmp_path / "b", "--scenario", "straight", "--goal-m", "30", "--snapshot-every", "0", "--chase-video")
+    chase = report["chase_view"]
+    assert chase["note"] is None and chase["frames"] > 20 and (out / "chase.mp4").stat().st_size > 1000
+    (camera, transform), = cameras
+    assert attributes["image_size_x"] == "1280" and transform.location.x == -8.0 and transform.location.z == 5.0 and camera.parent is not None
+
+
 def test_straight_drive_reaches_the_goal_and_passes(monkeypatch, tmp_path):
     out, report = run_drive(monkeypatch, tmp_path, "--scenario", "straight", "--goal-m", "60", "--snapshot-every", "100", "--record-frames", "all")
     by_name = {c["check"]: c for c in report["checks"]}

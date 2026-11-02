@@ -1556,6 +1556,13 @@ class MaplessDrive:
             from mapless.traffic_light import CROP_COLS, CROP_ROWS  # noqa: PLC0415
 
             viewer = CarView(cv2, window=args.view, video_path=args.output / "car_view.mp4" if args.view_video else None, crop=(CROP_ROWS, CROP_COLS) if getattr(args, "lights", "unchanged") != "unchanged" else None)
+        chase = None
+        if getattr(args, "chase_video", False):
+            import cv2  # noqa: PLC0415
+
+            from carla_adapter.car_view import ChaseCamera  # noqa: PLC0415
+
+            chase = ChaseCamera(self.carla, self.world, self.ego, args.output / "chase.mp4", cv2, owner_actors=getattr(self.owner, "_actors", None))
         if self.turn_site is not None:
             ts = self.turn_site
             (args.output / "turn_truth.json").write_text(
@@ -1689,6 +1696,8 @@ class MaplessDrive:
                 log.append(row)
                 if viewer is not None:
                     viewer.show(sf, step.diagnostics, step.mode.value, step.reason, row["time_s"])  # after the step, outside its timing
+                if chase is not None:
+                    chase.write()
                 if args.snapshot_every and tick % args.snapshot_every == 0 and step.mode is not DriveMode.STARTUP:
                     render_snapshot(driver.driver if args.stack else driver, snapshots / f"t{tick:05d}.png")
                 if truth["speed_mps"] < 0.05 and not moved and sf.lidars:
@@ -1780,6 +1789,9 @@ class MaplessDrive:
         if viewer is not None:
             viewer.close()
             self.report["car_view"] = viewer.record()
+        if chase is not None:
+            chase.close()
+            self.report["chase_view"] = chase.record()
         self.report["roll_back_ticks"] = self.adapter.roll_back_ticks
         self.report["collisions"] = collisions.events
         self.report["rig"] = rig.record()
@@ -2085,6 +2097,7 @@ def main(argv=None, stack=False):
     parser.add_argument("--follow", action="store_true", help="Keep the CARLA spectator camera 8 m behind and 5 m above the car")
     parser.add_argument("--view", action="store_true", help="Show the car's front camera with what it makes of it (speed, light reading and decision, stop line, corridor) in a window")
     parser.add_argument("--view-video", action="store_true", help="Write that view to car_view.mp4 in the run folder, at the simulation's 20 Hz")
+    parser.add_argument("--chase-video", action="store_true", help="Record a camera 8 m behind and 5 m above the car (the --follow view) to chase.mp4; not part of the car's sensors")
     parser.add_argument("--seed", type=int, default=5308)
     parser.add_argument("--route-noise", type=float, default=0.0, metavar="SIGMA_M", help="move every sat-nav point but the first by Gaussian noise of this sigma per axis (m), seeded by --seed; 0: exact lane-centre points")
     parser.add_argument(
