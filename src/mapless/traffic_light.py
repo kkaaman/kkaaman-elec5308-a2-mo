@@ -8,7 +8,10 @@ colour; the governing light's truth is never an input.
 
 ``LightFilter`` turns per-frame readings into a decision the driver can act on: a stop
 needs two red-or-yellow readings running at or above ``stop_confidence``; going again
-needs ``go_frames`` green (or ``none``, the light passed) readings running; anything else
+needs ``go_frames`` green (or ``none``, the light passed) readings running at or above
+``go_confidence`` (showcase_n1 on PC 3, 2 Nov: ``light_v2`` at the stop line read the red
+at 0.45-0.6 with nones at 0.44-0.55 between, and three of those nones released the car on
+red; ``light_v1`` at 2.2x read it at 0.98-1.0 and the green as none at 0.8-0.9); anything else
 keeps the last decision. A reading older than ``max_age_s`` counts as none seen; once
 readings have come and then none fresh for ``unknown_after_s`` (the camera or the
 classifier lost), the decision is ``unknown``, held for like a red until ``go_frames``
@@ -43,6 +46,7 @@ class LightConfig:
     stop_confidence: float = 0.6
     stop_frames: int = 2
     go_frames: int = 3
+    go_confidence: float = 0.6  # a green or none this sure counts towards going again
     max_age_s: float = 0.6
     # With a classifier on the car: a route junction ahead is approached at approach_mps
     # at most from approach_within_m of its entry (the front's distance), so a light read
@@ -90,7 +94,7 @@ class LightFilter:
             return self.decision
         self.last = reading
         stopping = reading.state in ("red", "yellow") and reading.confidence >= c.stop_confidence
-        going = reading.state in ("green", "none")
+        going = reading.state in ("green", "none") and reading.confidence >= c.go_confidence
         self._stop_run = self._stop_run + 1 if stopping else 0
         self._go_run = self._go_run + 1 if going else 0
         if self._stop_run >= c.stop_frames:
@@ -178,12 +182,27 @@ class LightClassifier:
         self.model.eval().to(self.device)
         self._torch = torch
 
-    def classify(self, rgb, time_s):
-        import cv2  # noqa: PLC0415
-
+    def _input(self, rgb):
+        """The network's input on its device. Enlarged (``band_scale`` >= 1, the live
+        reading of a far light), the band goes to the device as uint8 and is scaled and
+        normalised there: at 2.2x the float image built on the CPU took 15-18 ms of the 50 ms
+        tick (showcase_n1, PC 3: the light_v1 runs 6-10 % of ticks over the budget) and
+        was 19 MB to copy. Same classes on the 272 recorded c1 and a1rec front frames,
+        probabilities within 0.01 of ``preprocess``; 6.8 against 15.8 ms on a CPU."""
         torch = self._torch
-        x = torch.from_numpy(preprocess(rgb, cv2, self.band_scale))[None].to(self.device)
+        if self.band_scale is None or self.band_scale < 1.0:
+            import cv2  # noqa: PLC0415
+
+            return torch.from_numpy(preprocess(rgb, cv2, self.band_scale))[None].to(self.device)
+        band = np.ascontiguousarray(crop(rgb))
+        h, w = band.shape[:2]
+        x = torch.from_numpy(band).to(self.device).permute(2, 0, 1)[None].float().div_(255.0)
+        size = (int(round(h * self.band_scale)), int(round(w * self.band_scale)))
+        return torch.nn.functional.interpolate(x, size=size, mode="bilinear", align_corners=False)
+
+    def classify(self, rgb, time_s):
+        torch = self._torch
         with torch.no_grad():
-            p = torch.softmax(self.model(x), dim=1)[0].cpu().numpy()
+            p = torch.softmax(self.model(self._input(rgb)), dim=1)[0].cpu().numpy()
         k = int(np.argmax(p))
         return LightReading(LIGHT_STATES[k], float(p[k]), float(time_s))
