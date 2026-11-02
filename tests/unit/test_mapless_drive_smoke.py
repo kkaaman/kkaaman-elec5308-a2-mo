@@ -358,6 +358,38 @@ def run_drive(monkeypatch, tmp_path, *extra, stack=False, light=False):
     return out, json.loads((out / "drive_report.json").read_text(encoding="utf-8"))
 
 
+def test_the_cars_view_is_shown_and_recorded_without_touching_the_run(monkeypatch, tmp_path):
+    """``--view`` shows the front camera with the car's own reading of it (speed, mode,
+    corridor, the light) in a window; ``--view-video`` writes it to car_view.mp4 at the
+    simulation's rate. Drawn after the step, from the car's diagnostics only."""
+    cv2 = pytest.importorskip("cv2")
+    shown = []
+    monkeypatch.setattr(cv2, "imshow", lambda name, image: shown.append(image.shape))
+    monkeypatch.setattr(cv2, "waitKey", lambda ms: -1)
+    monkeypatch.setattr(cv2, "destroyWindow", lambda name: None)
+    from autonomy.interfaces import CameraCalibration  # noqa: PLC0415
+    from carla_adapter import car_view  # noqa: PLC0415
+    from mapless.frame import CameraImage  # noqa: PLC0415
+
+    # The synthetic road renders no camera: hand the viewer a front image of its own.
+    cal = CameraCalibration(640.0, 640.0, 640.0, 360.0, ((0.0, 0.0, 1.0, 1.5), (-1.0, 0.0, 0.0, 0.0), (0.0, -1.0, 0.0, 2.0), (0.0, 0.0, 0.0, 1.0)))
+    rgb = np.full((720, 1280, 3), 90, dtype=np.uint8)
+    original = car_view.CarView.show
+    monkeypatch.setattr(car_view.CarView, "show", lambda self, sf, *rest: original(self, SimpleNamespace(cameras=(CameraImage("front", rgb, cal),)), *rest))
+    out, report = run_drive(monkeypatch, tmp_path, "--scenario", "straight", "--goal-m", "30", "--snapshot-every", "0", "--view", "--view-video")
+    view = report["car_view"]
+    assert view["frames"] > 20 and view["window"] and shown and shown[0][1] == 960
+    video = out / "car_view.mp4"
+    assert video.exists() and video.stat().st_size > 1000
+    capture = cv2.VideoCapture(str(video))
+    assert capture.isOpened() and int(capture.get(cv2.CAP_PROP_FRAME_COUNT)) == view["frames"]
+    capture.release()
+    from carla_adapter.car_view import hud_lines
+
+    lines = hud_lines(dict(speed_mps=3.0, target_speed_mps=3.0, light="red", light_reading=["red", 0.99, 0.0], light_hold_m=1.2, stop_line_m=2.0, corridor_valid_m=30.0), "stopping", "junction", 12.0)
+    assert "10.8 km/h" in lines[0] and "reads red 0.99" in lines[2] and "decision red" in lines[2]
+
+
 def test_straight_drive_reaches_the_goal_and_passes(monkeypatch, tmp_path):
     out, report = run_drive(monkeypatch, tmp_path, "--scenario", "straight", "--goal-m", "60", "--snapshot-every", "100", "--record-frames", "all")
     by_name = {c["check"]: c for c in report["checks"]}
