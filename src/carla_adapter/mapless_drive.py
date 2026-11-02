@@ -97,6 +97,7 @@ from carla_adapter.mapless_scenarios import (
 )
 from carla_adapter.sensor_rig import SensorRig, true_forward_speed
 from carla_adapter.sensor_rig_check import rear_axle_pose
+from carla_adapter.showcase_lights import LIGHT_MODES, LightScript
 from carla_adapter.vehicle import FixedVehicleAdapter
 from carla_adapter.world import SynchronousWorldSession, WorldTiming, _settings_record, ensure_map
 from evaluation.braking_table import assumptions as braking_assumptions
@@ -899,6 +900,32 @@ def sensor_to_actuator_report(marks, target_ms=STEP_TARGET_MS):
     return out
 
 
+def red_light_check(script, classifier):
+    """The ``red_light`` check (G4 M07, 2 Nov), or None when no light was in play: the
+    route junctions with lights, the governing light's state as the car's front entered
+    each, and the car's readings on the approach. An entry on red FAILs when the run tested
+    lights (``--lights scripted`` or a light classifier on the car) and is a REPORT
+    otherwise (the car was not asked to see lights). A scripted run PASSes once every lit
+    junction was entered on green after a stop at its red; a junction not reached leaves
+    it INCOMPLETE."""
+    if script is None or not (script.junctions or script.mode != "unchanged" or classifier):
+        return None
+    r = script.report()
+    tested = script.mode == "scripted" or classifier
+    entries = r["junctions"]
+    if not entries:
+        status, note = REPORT, "no junction with lights on the route"
+    elif r["red_entries"]:
+        status, note = (FAIL if tested else REPORT), f"{r['red_entries']} junction(s) entered on red"
+    elif any(e["state_at_entry"] is None for e in entries):
+        status, note = INCOMPLETE, "a junction with lights not reached"
+    elif script.mode == "scripted":
+        status, note = (PASS, "stopped at every red, entered on green") if r["exercised"] else (REPORT, "no red entry, but not every red was stood at")
+    else:
+        status, note = (PASS if classifier else REPORT), "no red entry"
+    return check("red_light", status, note=note, classifier=classifier, **r)
+
+
 def step_time_report(step_times_s, log, target_ms=STEP_TARGET_MS, response_s=None, brake_lag_s=BRAKE_LAG_S, dt_s=0.05, semantic_mode=None):
     """The driver step's wall-clock time against the 50 ms tick (third review: p95 and the
     worst case are first-class, so a passing drive cannot hide a missed deadline): p50,
@@ -1335,6 +1362,12 @@ class MaplessDrive:
     def run(self):
         carla, args = self.carla, self.args
         self.setup()
+        # Traffic lights (G4 M07, 2 Nov): set as --lights says, the route junctions' lights
+        # found for the judging (evaluator side; the car reads lights only from its camera).
+        self.light_script = LightScript(getattr(args, "lights", "unchanged"))
+        self.light_script.setup(carla, self.world, self.world.get_map(), getattr(self, "mission_site", None))
+        lights_on = bool(self.light_script.junctions) or self.light_script.mode != "unchanged" or bool(getattr(args, "light_classifier", None))
+        light_front_s = None
         self.body = vehicle_body(self.ego, self.offset)
         config = driver_config(self.body, self.adapter.geometry.wheelbase_m, self.adapter.geometry.controller_steering_limit_rad, args.speed, args.keep_right)
         self.report["driver_config"] = rounded(_config_dict(config))
@@ -1390,13 +1423,18 @@ class MaplessDrive:
                 snap = self.world.get_snapshot()
                 rig.read(frame, true_forward_speed(snap, self.ego.id), sim_time_s=snap.timestamp.elapsed_seconds)
             if args.stack:
-                stack_config = StackConfig(admission=Admission.preset(args.admission), segmenter=args.segmenter, detector=args.detector, semantic_mode=getattr(args, "semantic", "thread"))
+                stack_config = StackConfig(
+                    admission=Admission.preset(args.admission), segmenter=args.segmenter, detector=args.detector, semantic_mode=getattr(args, "semantic", "thread"),
+                    light_classifier=getattr(args, "light_classifier", None),
+                )
                 driver = MaplessStack(self.suite, self.route, config, stack_config, DT_S)
                 self.report["stack"] = dict(
                     admission=args.admission,
                     segmenter=args.segmenter or "constant",
                     segmenter_sha256=_file_sha256(args.segmenter) if args.segmenter not in (None, "constant") else None,
                     detector=args.detector or "none",
+                    light_classifier=stack_config.light_classifier,
+                    light_classifier_sha256=_file_sha256(stack_config.light_classifier) if stack_config.light_classifier else None,
                     stack_config_sha256=hashlib.sha256(json.dumps(dataclasses.asdict(stack_config), sort_keys=True, default=str).encode()).hexdigest(),
                     segmenter_load=getattr(driver.segmenter, "load_mode", None),
                     # Where the semantic work ran and on which ticks (sixth review, F6-01, F6-07).
@@ -1444,6 +1482,14 @@ class MaplessDrive:
                     end = f"adapter refused the vehicle state: {error}"
                     break
                 truth = self.truth()
+                light_truth = None
+                if lights_on:
+                    front_s = truth["s_m"] + self.body.front_m
+                    reading = step.diagnostics.get("light_reading")
+                    fresh = reading[0] if reading is not None and reading[2] == 0 else None
+                    light_truth = self.light_script.observe(self.ego, front_s, front_s if light_front_s is None else light_front_s, sf.sim_time_s, fresh)
+                    self.light_script.step(carla, front_s, truth["speed_mps"], sf.sim_time_s, DT_S)
+                    light_front_s = front_s
                 if self.actor is not None:
                     self.actor.step(tick, truth)
                     actor_truths.append(self.actor.truth())
@@ -1462,6 +1508,8 @@ class MaplessDrive:
                 )
                 if self.actor is not None and len(actor_sets[-1]) > 1:
                     row["actors"] = actor_sets[-1]  # all of them, by role (evaluator truth, log only)
+                if light_truth is not None:
+                    row["light_truth"] = light_truth  # the car's governing light (evaluator truth, log only)
                 out.write(json.dumps(rounded(row)) + "\n")
                 log.append(row)
                 if args.snapshot_every and tick % args.snapshot_every == 0 and step.mode is not DriveMode.STARTUP:
@@ -1509,7 +1557,9 @@ class MaplessDrive:
                     if finished_ticks >= 20:
                         end = "finished"
                         break
-                held = step.mode is DriveMode.STOPPING and step.reason.startswith("holding") and truth["speed_mps"] < 0.05
+                # A stop for a red light is not a hold at the obstacle (it ends with the green).
+                light_held = step.diagnostics.get("light_hold_m") is not None
+                held = step.mode is DriveMode.STOPPING and step.reason.startswith("holding") and truth["speed_mps"] < 0.05 and not light_held
                 # Hold ticks count only while a hold may end the run: a crossing walker's yield
                 # counted towards --hold-s, so the run ended the tick the walker cleared, with
                 # no ticks left for the car to resume (fresh-eyes review of 58adaf3).
@@ -1529,7 +1579,7 @@ class MaplessDrive:
                 # A turn that waits at the junction mouth (no confirmed opening, no clearing
                 # radius, exit kerb not measured) is a result, not a time-out: end it after
                 # --junction-hold-s and say why, instead of sitting out --max-s.
-                waiting = self.turn_site is not None and truth["speed_mps"] < 0.05 and step.diagnostics.get("stop_reason") == "junction"
+                waiting = self.turn_site is not None and truth["speed_mps"] < 0.05 and step.diagnostics.get("stop_reason") == "junction" and not light_held
                 junction_hold_ticks = junction_hold_ticks + 1 if waiting else 0
                 if junction_hold_ticks * DT_S >= args.junction_hold_s:
                     end = f"held at the junction for {args.junction_hold_s:g} s: {step.diagnostics.get('turn') or 'exit lane not measured'}"
@@ -1572,6 +1622,9 @@ class MaplessDrive:
             start_error = float(np.hypot(*(np.array(pose[:2]) - true)))
         checks.append(check("startup", PASS if start_s <= 3.0 else FAIL, seconds=start_s, route_pose_error_m=start_error))
         checks.append(check("no_collision", PASS if not self.report["collisions"] else FAIL, events=self.report["collisions"]))
+        light_check = red_light_check(getattr(self, "light_script", None), bool(getattr(args, "light_classifier", None)))
+        if light_check is not None:
+            checks.append(light_check)
         s0 = first["truth"]["s_m"]
         if self.turn_site is not None:
             # Junction-aware gates (review of 697d53c, point F): the car must leave the approach
@@ -1847,6 +1900,13 @@ def main(argv=None, stack=False):
         help="with --record-frames: also every camera's image as JPEG every N ticks, on the ticks the stack segments when N is its segment_every (2): ~160 KB a recorded tick (0: none)",
     )
     parser.add_argument("--weather", choices=tuple(WEATHER_PRESETS), default="clear_noon", help="named CARLA weather; changes the camera images only (LiDAR, radar and grip are unaffected)")
+    parser.add_argument(
+        "--lights",
+        choices=LIGHT_MODES,
+        default="unchanged",
+        help="traffic lights: CARLA's own cycle (default), all frozen green, or scripted: red as the car nears each route junction with lights, green once it has stood at the line (showcase_lights)",
+    )
+    parser.add_argument("--light-classifier", default=None, help="stack: traffic-light classifier checkpoint (train_traffic_light.py); the car then stops for red lights")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=2000)
     args = parser.parse_args(argv)
@@ -1859,6 +1919,10 @@ def main(argv=None, stack=False):
         parser.error("Output folder exists; choose a new one")
     if args.segmenter not in (None, "constant") and not Path(args.segmenter).is_file():
         parser.error(f"--segmenter {args.segmenter} not found (checkpoints are not in git; copy it from the PC that trained it, or omit --segmenter)")
+    if args.light_classifier is not None and not stack:
+        parser.error("--light-classifier is for the stack (scripts/run_mapless_stack.py)")
+    if args.light_classifier is not None and not Path(args.light_classifier).is_file():
+        parser.error(f"--light-classifier {args.light_classifier} not found (checkpoints are not in git; copy it from the PC that trained it)")
     if args.obstacle_m is None:
         args.obstacle_m = stop_obstacle_m(args.speed)
     if args.scenario == "stop" and not 15 <= args.obstacle_m <= args.goal_m - 10:

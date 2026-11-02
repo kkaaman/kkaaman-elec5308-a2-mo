@@ -67,6 +67,7 @@ def fake_carla_module():
         WeatherParameters=SimpleNamespace(ClearNoon="ClearNoon"),
         LaneType=LANE_TYPE,
         AttachmentType=SimpleNamespace(Rigid="Rigid"),
+        TrafficLightState=SimpleNamespace(Red="Red", Yellow="Yellow", Green="Green"),
     )
 
 
@@ -148,6 +149,10 @@ class Actor:
     def set_simulate_physics(self, enabled):
         pass
 
+    def get_traffic_light_state(self):
+        light = self.world.light  # one light governs the car's lane, when a test sets it
+        return "Green" if light is None else light.state
+
     def destroy(self):
         self.is_alive = False
         box = getattr(self, "box", None)
@@ -172,6 +177,29 @@ class CollisionSensor:
         return True
 
 
+class FakeLight:
+    type_id = "traffic.traffic_light"
+
+    def __init__(self):
+        self.state, self.frozen, self.states = "Green", False, []
+
+    def set_state(self, state):
+        self.state = state
+        self.states.append(state)
+
+    def freeze(self, frozen):
+        self.frozen = frozen
+
+
+class ActorList(list):
+    def __init__(self, items, lights=()):
+        super().__init__(items)
+        self.lights = list(lights)
+
+    def filter(self, pattern):
+        return [a for a in self.lights if a.type_id == pattern] + [a for a in self if a.type_id == pattern]
+
+
 class World:
     def __init__(self):
         self.settings = SimpleNamespace(
@@ -181,6 +209,7 @@ class World:
         self.ego = None
         self.suite = None
         self.road = None
+        self.light = None
         self.map = Map(MaplessRoadWorld(SCENE, _suite(), noise=False).plane)
 
     def get_settings(self):
@@ -193,7 +222,10 @@ class World:
         return self.map
 
     def get_actors(self):
-        return [a for a in self.actors if a.is_alive]
+        return ActorList([a for a in self.actors if a.is_alive], () if self.light is None else (self.light,))
+
+    def get_traffic_lights_from_waypoint(self, waypoint, distance):
+        return [] if self.light is None else [self.light]
 
     def set_weather(self, weather):
         pass
@@ -303,15 +335,17 @@ class Client:
 WORLD = []
 
 
-def run_drive(monkeypatch, tmp_path, *extra):
+def run_drive(monkeypatch, tmp_path, *extra, stack=False, light=False):
     pytest.importorskip("cv2")
     WORLD[:] = [World()]
+    if light:
+        WORLD[0].light = FakeLight()
     monkeypatch.setitem(sys.modules, "carla", fake_carla_module())
     monkeypatch.setattr(drive, "FixedVehicleAdapter", FakeAdapter)
     monkeypatch.setattr(drive, "HoldingVehicleAdapter", FakeAdapter)  # the harness's subclass of the baseline adapter (3c6a457)
     monkeypatch.setattr(drive, "SensorRig", FakeRig)
     out = tmp_path / "drive"
-    drive.main(["--suite", str(ROOT / "configs/sensor_suites/mapless_v2.json"), "--output", str(out), *extra])
+    drive.main(["--suite", str(ROOT / "configs/sensor_suites/mapless_v2.json"), "--output", str(out), *extra], stack=stack)
     return out, json.loads((out / "drive_report.json").read_text(encoding="utf-8"))
 
 
@@ -371,9 +405,9 @@ def _fake_mission_site(length_m=90.0, obstacle_s_m=None, junctions=()):
     return MissionSite("fake_mission", pts, arcs, tuple(junctions), length_m - 10.0, LANE_WIDTH, LANE_WIDTH / 2, "sidewalk", [], ("7:0:-1",), obstacle_s_m)
 
 
-def run_mission(monkeypatch, tmp_path, acceptance, *extra, obstacle_s_m=None, junctions=()):
+def run_mission(monkeypatch, tmp_path, acceptance, *extra, obstacle_s_m=None, junctions=(), stack=False, light=False):
     monkeypatch.setattr(drive, "resolve_mission", lambda carla, carla_map, path: _fake_mission_site(obstacle_s_m=obstacle_s_m, junctions=junctions))
-    return run_drive(monkeypatch, tmp_path, "--scenario", "mission", "--acceptance", acceptance, "--hold-s", "3", "--snapshot-every", "0", *extra)
+    return run_drive(monkeypatch, tmp_path, "--scenario", "mission", "--acceptance", acceptance, "--hold-s", "3", "--snapshot-every", "0", *extra, stack=stack, light=light)
 
 
 def test_mission_s1_holds_behind_the_car_resumes_when_it_leaves_and_finishes(monkeypatch, tmp_path):
@@ -760,3 +794,68 @@ def test_weather_presets_copy_before_overriding_and_are_recorded():
     assert record["preset"] == "light_fog" and record["fog_density"] == 35.0 and record["cloudiness"] == 60.0
     assert drive.weather_record("clear_noon", "ClearNoon") == {"preset": "clear_noon"}  # the smoke tests' stand-in
     assert set(drive.WEATHER_PRESETS) >= {"clear_noon", "moderate_rain", "light_fog"}
+
+
+def test_a_scripted_red_the_car_cannot_see_is_run_and_fails_the_red_light_check(monkeypatch, tmp_path):
+    """G4 M07 (2 Nov): ``--lights scripted`` freezes the lights and turns the route
+    junction's light red as the car's front comes within 35 m of the entry. The driver
+    alone has no light perception: it drives on, enters on red, and the run FAILs
+    ``red_light`` (the light was tested). The light's truth is logged per tick."""
+    out, report = run_mission(monkeypatch, tmp_path, "S0", "--lights", "scripted", junctions=((30.0, 50.0, 468),), light=True)
+    by_name = {c["check"]: c for c in report["checks"]}
+    light = by_name["red_light"]
+    assert light["status"] == "FAIL" and light["red_entries"] == 1 and light["mode"] == "scripted"
+    assert light["junctions"][0]["state_at_entry"] == "Red" and not light["junctions"][0]["stopped_on_red"]
+    assert WORLD[0].light.frozen and WORLD[0].light.states[:2] == ["Green", "Red"]
+    rows = [json.loads(r) for r in (out / "drive_log.jsonl").read_text(encoding="utf-8").splitlines()]
+    assert {r.get("light_truth") for r in rows} >= {"Red"}
+
+
+def test_the_stack_reads_the_scripted_red_stops_at_the_line_and_goes_on_green(monkeypatch, tmp_path):
+    """... and with a light classifier on the stack (here one that reads the fake light,
+    standing in for the trained network on the front image), the car stops short of the
+    entry, stands until the script turns the light green, and crosses on green:
+    ``red_light`` PASSes, exercised, with the approach readings counted against truth."""
+    import dataclasses  # noqa: PLC0415
+
+    from autonomy.interfaces import CameraCalibration  # noqa: PLC0415
+    from mapless import traffic_light  # noqa: PLC0415
+    from mapless.frame import CameraImage, SensorState, SensorStatus  # noqa: PLC0415
+
+    cal = CameraCalibration(64.0, 64.0, 64.0, 36.0, ((0.0, 0.0, 1.0, 1.5), (-1.0, 0.0, 0.0, 0.0), (0.0, -1.0, 0.0, 2.0), (0.0, 0.0, 0.0, 1.0)))
+    rgb = np.zeros((72, 128, 3), dtype=np.uint8)
+    plain = FakeRig.read
+    seen = []
+
+    def read(self, frame, true_speed_mps, **kw):
+        f = plain(self, frame, true_speed_mps, **kw)
+        status = tuple(x for x in f.status if x.name != "front") + (SensorStatus("front", "camera", SensorState.OK, f.sim_time_s),)
+        return dataclasses.replace(f, cameras=(CameraImage("front", rgb, cal),), status=status)
+
+    class ReadsTheLight:
+        def __init__(self, checkpoint, device=None):
+            self.provenance = {}
+
+        def classify(self, image, time_s):
+            seen.append(time_s)
+            return traffic_light.LightReading(WORLD[0].light.state.lower(), 0.97, time_s)
+
+    monkeypatch.setattr(FakeRig, "read", read)
+    monkeypatch.setattr(traffic_light, "LightClassifier", ReadsTheLight)
+    checkpoint = tmp_path / "light.pt"
+    checkpoint.write_bytes(b"stand-in")
+    out, report = run_mission(
+        monkeypatch, tmp_path, "S0", "--lights", "scripted", "--light-classifier", str(checkpoint), "--semantic", "off",
+        junctions=((30.0, 50.0, 468),), stack=True, light=True,
+    )
+    by_name = {c["check"]: c for c in report["checks"]}
+    light = by_name["red_light"]
+    assert light["status"] == "PASS" and light["exercised"] and light["classifier"], json.dumps(light, indent=2)
+    entry = light["junctions"][0]
+    assert entry["state_at_entry"] == "Green" and entry["stood_s"] >= 4.0
+    assert entry["readings"].get("red->red", 0) > 0 and not entry["readings"].get("red->green")
+    assert report["stack"]["light_classifier"] == str(checkpoint) and report["end"] == "finished"
+    assert 3.0 <= np.median(np.diff(seen)) / DT <= 5.0  # every 4th tick
+    rows = [json.loads(r) for r in (out / "drive_log.jsonl").read_text(encoding="utf-8").splitlines()]
+    stopped = [r for r in rows if r["driver"].get("light_hold_m") is not None and r["truth"]["speed_mps"] < 0.05]
+    assert stopped and max(r["truth"]["s_m"] for r in stopped) + 2.4 < 30.0  # the front short of the entry

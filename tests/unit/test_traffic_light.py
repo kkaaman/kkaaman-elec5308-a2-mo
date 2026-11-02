@@ -33,6 +33,10 @@ def test_a_red_holds_at_the_junction_entry_and_a_late_yellow_is_driven_through()
     assert stop_for("green", 10.0, 2.0, c) is None
     assert stop_for("yellow", 10.0, 2.0, c) == pytest.approx(9.0)  # 2 m/s stops in 1 m
     assert stop_for("yellow", 2.5, 4.0, c) is None  # 4 m/s needs 4 m at 2 m/s^2: through
+    assert stop_for("red", 3.5, 4.0, c) == pytest.approx(2.5)  # a red: 4 m/s stops in 2 m at 4 m/s^2
+    assert stop_for("red", 2.5, 4.0, c) is None  # 1.5 m to the line: too late even braking hard, through, not stopped in the box
+    assert stop_for("red", 1.0, 0.0, c) == pytest.approx(0.0)  # standing at the line: stays there
+    assert stop_for("red", -0.5, 0.0, c) is None  # the front past the entry
 
 
 def test_training_on_a_tiny_capture_labels_from_truth_and_refuses_test_towns(tmp_path):
