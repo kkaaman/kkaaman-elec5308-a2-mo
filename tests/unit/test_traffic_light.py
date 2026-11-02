@@ -83,10 +83,11 @@ def test_training_on_a_tiny_capture_labels_from_truth_and_refuses_test_towns(tmp
     items, counts = tl.index([train, val])
     assert counts[str(train)] == dict(town="Town03", approach_labelled=0, none=8, red=4, yellow=4, green=4)  # not at a light: none, whatever the state
     out = tmp_path / "light.pt"
-    tl.main(["--run", str(train), "--run", str(val), "--output", str(out), "--epochs", "1", "--steps-per-epoch", "2", "--batch", "8", "--workers", "0", "--device", "cpu"])
+    tl.main(["--run", str(train), "--run", str(val), "--output", str(out), "--epochs", "1", "--steps-per-epoch", "2", "--batch", "8", "--workers", "0", "--device", "cpu", "--select", "stop"])
     payload = torch.load(out, map_location="cpu", weights_only=False)
     p = payload["provenance"]
     assert p["training_towns"] == ["Town03"] and p["validation_towns"] == ["Town02"] and p["states"] == list(LIGHT_STATES)
+    assert p["selection"] == "validation red recall less false-red share"
     assert "Town10HD" in p["refused_towns"] and (tmp_path / "light.provenance.json").exists()
     from mapless.traffic_light import LightClassifier
 
@@ -95,7 +96,8 @@ def test_training_on_a_tiny_capture_labels_from_truth_and_refuses_test_towns(tmp
     import pickle
 
     sample = pickle.loads(pickle.dumps(tl.LightImages(items[:2], True)))  # Windows spawns DataLoader workers: the dataset must pickle
-    assert len(sample) == 2 and tuple(sample[0][0].shape) == (3, 192, 544)
+    assert len(sample) == 2 and tuple(sample[0][0].shape) == (3, 192, 544)  # augmented: zoomed back to the input size
+    assert tuple(tl.LightImages(items[:2], False)[1][0].shape) == (3, 192, 544)
     held_out = capture("capture_Town10HD_s1", "Town10HD", rows)
     with pytest.raises(ValueError):
         tl.index([held_out])
@@ -111,6 +113,7 @@ def test_scores_count_false_stops_and_red_recall():
                  [0, 5, 0, 15]]  # green
     s = scores(confusion)
     assert s["red_recall"] == 0.9 and s["false_red_share"] == round(15 / 120, 4)
+    assert s["green_as_red"] == 0.25 and s["red_as_green"] == 0.0
     assert s["balanced_accuracy"] == round((0.9 + 0.9 + 0.8 + 0.75) / 4, 4)
 
 

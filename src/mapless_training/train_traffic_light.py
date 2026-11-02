@@ -23,7 +23,7 @@ from pathlib import Path
 
 import numpy as np
 
-from mapless.traffic_light import INPUT_WH, LIGHT_STATES, preprocess, tiny_net
+from mapless.traffic_light import INPUT_WH, LIGHT_STATES, crop, preprocess, tiny_net
 from mapless_training.segmentation_data import REFUSED_TOWNS, TRAIN_TOWNS, VALIDATION_TOWNS, town_of
 
 CARLA_STATES = {"Red": "red", "Yellow": "yellow", "Green": "green"}
@@ -107,6 +107,11 @@ def scores(confusion):
         balanced_accuracy=round(float(recall[present].mean()), 4) if present.any() else 0.0,
         red_recall=round(float(recall[red]), 4),
         false_red_share=round(float((c[none, red] + c[green, red]) / go), 4) if go else 0.0,
+        # The confusions that change the drive at a lit junction: a green read red (a stop
+        # at a green) and a red read green (a run of a red). A none read red near a red
+        # light only moves when the stop is decided, not where.
+        green_as_red=round(float(c[green, red] / c[green].sum()), 4) if c[green].sum() else 0.0,
+        red_as_green=round(float(c[red, green] / c[red].sum()), 4) if c[red].sum() else 0.0,
         confusion=c.astype(int).tolist(),
     )
 
@@ -127,10 +132,19 @@ class LightImages:
         import torch  # noqa: PLC0415
 
         path, label, _ = self.rows[i]
-        bgr = cv2.imread(str(path), cv2.IMREAD_COLOR)
-        x = preprocess(bgr[:, :, ::-1], cv2)
-        if self.augment:
+        rgb = cv2.imread(str(path), cv2.IMREAD_COLOR)[:, :, ::-1]
+        if not self.augment:
+            x = preprocess(rgb, cv2)
+        else:
             g = np.random.default_rng()
+            # A zoom into the band (0.8-1 of it, anywhere): lights at other sizes and places.
+            band = crop(rgb)
+            h, w = band.shape[:2]
+            k = g.uniform(0.8, 1.0)
+            ch, cw = int(h * k), int(w * k)
+            y0, x0 = int(g.integers(0, h - ch + 1)), int(g.integers(0, w - cw + 1))
+            band = cv2.resize(np.ascontiguousarray(band[y0 : y0 + ch, x0 : x0 + cw]), INPUT_WH, interpolation=cv2.INTER_AREA)
+            x = np.ascontiguousarray(band.transpose(2, 0, 1), dtype=np.float32) / 255.0
             x = np.clip(x * g.uniform(0.7, 1.3) + g.uniform(-0.08, 0.08), 0.0, 1.0)  # exposure
             dx, dy = int(g.integers(-12, 13)), int(g.integers(-8, 9))  # a small shift
             x = np.roll(x, (dy, dx), axis=(1, 2))
@@ -143,6 +157,8 @@ def main(argv=None):
     p.add_argument("--output", type=Path, help="checkpoint (.pt); required unless --evaluate")
     p.add_argument("--evaluate", type=Path, default=None, help="only score this checkpoint on the given runs")
     p.add_argument("--epochs", type=int, default=12)
+    p.add_argument("--select", choices=("balanced", "stop"), default="balanced", help="the epoch kept: best validation balanced accuracy, or best red recall less false-red share (what the stop decision needs)")
+    p.add_argument("--weight-decay", type=float, default=1e-4)
     p.add_argument("--batch", type=int, default=64)
     p.add_argument("--lr", type=float, default=2e-3)
     p.add_argument("--steps-per-epoch", type=int, default=300)
@@ -190,7 +206,7 @@ def main(argv=None):
     sampler = torch.utils.data.WeightedRandomSampler(torch.as_tensor(weights, dtype=torch.double), num_samples=args.steps_per_epoch * args.batch, replacement=True)
     loader = torch.utils.data.DataLoader(Data(train, True), batch_size=args.batch, sampler=sampler, num_workers=args.workers, drop_last=True, persistent_workers=args.workers > 0)
     model = tiny_net(torch).to(device)
-    optimiser = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=1e-4)
+    optimiser = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
     schedule = torch.optim.lr_scheduler.OneCycleLR(optimiser, max_lr=args.lr, total_steps=args.epochs * args.steps_per_epoch)
     loss_fn = torch.nn.CrossEntropyLoss()
     best, history = None, []
@@ -210,14 +226,20 @@ def main(argv=None):
             record["validation"] = evaluate(model, validation)
         history.append(record)
         print(json.dumps({k: v for k, v in record.items() if k != "validation"} | ({"balanced": record["validation"]["balanced_accuracy"], "red_recall": record["validation"]["red_recall"], "false_red": record["validation"]["false_red_share"]} if validation else {})), file=sys.stderr, flush=True)
-        key = record["validation"]["balanced_accuracy"] if validation else -record["loss"]
+        if not validation:
+            key = -record["loss"]
+        elif args.select == "stop":
+            key = record["validation"]["red_recall"] - record["validation"]["false_red_share"]
+        else:
+            key = record["validation"]["balanced_accuracy"]
         if best is None or key > best[0]:
             best = (key, epoch, {k: v.detach().cpu().clone() for k, v in model.state_dict().items()})
     provenance = dict(
         states=list(LIGHT_STATES), input_wh=list(INPUT_WH), architecture="tiny_net", approach_m=args.approach_m, approach_s=args.approach_s, training_towns=sorted({r[2] for r in train}),
         validation_towns=sorted({r[2] for r in validation}), refused_towns=list(REFUSED_TOWNS), runs=counts,
         samples=dict(train=len(train), validation=len(validation)), epochs=args.epochs, batch=args.batch, lr=args.lr, seed=args.seed,
-        best_epoch=best[1], selection="validation balanced accuracy" if validation else "training loss", history=history,
+        best_epoch=best[1], selection=("validation " + ("red recall less false-red share" if args.select == "stop" else "balanced accuracy")) if validation else "training loss", history=history,
+        weight_decay=args.weight_decay,
         created=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
     )
     args.output.parent.mkdir(parents=True, exist_ok=True)

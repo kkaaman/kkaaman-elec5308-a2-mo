@@ -107,13 +107,14 @@ from mapless.corridor import CorridorConfig
 from mapless.driver import DriveMode, DriverConfig, MaplessDriver
 from mapless.frame import SensorState, SensorStatus
 from mapless.obstacles import project_onto_polyline
+from mapless.parking import ParallelParker, ParkingConfig
 from mapless.planner import PlannerConfig
 from mapless.satnav import Command, RoutePoint, SatNavRoute
 from mapless.sensor_suite import load_sensor_suite, parse_overrides
 from mapless.stack import Admission, MaplessStack, StackConfig
 from mapless.terrain import CellLabel, VehicleBody
 from navigation_control.local import LocalControlConfig
-from navigation_control.types import ControllerConfig
+from navigation_control.types import ControllerConfig, VehicleState
 
 DT_S = 0.05
 PARKED_CAR = "vehicle.audi.a2"
@@ -187,6 +188,7 @@ def weather_record(preset, weather):
 TURN_SCENARIOS = {"turn_left": "LEFT", "turn_right": "RIGHT"}
 LANE_SCENARIOS = ("straight", "curve", "stop")
 MISSION_SCENARIO = "mission"  # the baseline route with a baseline obstacle scenario (G2's gate; mapless_mission.py)
+PARK_SCENARIO = "parallel_park"  # the showcase's parking clip: two cars in the lane to the right on the mission's chain, a gap between
 
 
 # -- site and route (map side) ---------------------------------------------------------
@@ -546,6 +548,85 @@ class HoldingVehicleAdapter(FixedVehicleAdapter):
         if velocity.x * math.cos(yaw) + velocity.y * math.sin(yaw) < -0.05:
             self.roll_back_ticks += 1
         return forward_state(pose.location.x, pose.location.y, pose.rotation.yaw, velocity.x, velocity.y, self.geometry, reverse_tolerance_mps=self.roll_back_mps)
+
+
+class ParkingAdapter(HoldingVehicleAdapter):
+    """For the parking manoeuvre only: the reverse gear (``ParkCommand.reverse``) and a
+    signed speed, the steering up to the physical lock. The drive's adapters, forward only,
+    are unchanged; the parking runs never use them."""
+
+    def state(self):
+        if not self.vehicle.is_alive:
+            raise RuntimeError("Vehicle is no longer alive")
+        pose = self.vehicle.get_transform()
+        velocity = self.vehicle.get_velocity()
+        if abs(pose.rotation.pitch) > 5 or abs(pose.rotation.roll) > 5:
+            raise ValueError(f"Vehicle tilt exceeds planar adapter scope: pitch {pose.rotation.pitch:+.1f} deg, roll {pose.rotation.roll:+.1f} deg")
+        yaw = math.radians(pose.rotation.yaw)
+        speed = velocity.x * math.cos(yaw) + velocity.y * math.sin(yaw)
+        off = self.geometry.rear_axle_offset_m
+        return VehicleState(pose.location.x - off * math.cos(yaw), -pose.location.y + off * math.sin(yaw), -yaw, speed)
+
+    def apply(self, command):
+        import carla
+
+        try:
+            self.state()
+            steer = float(np.clip(-command.steering_angle_rad / self.geometry.physical_steering_limit_rad, -1.0, 1.0))
+            control = carla.VehicleControl(
+                throttle=command.throttle, brake=command.brake, steer=steer, reverse=bool(getattr(command, "reverse", False)), hand_brake=False, manual_gear_shift=False
+            )
+            self.vehicle.apply_control(control)
+            return control
+        except Exception:
+            self.stop()
+            raise
+
+
+class ParkingDriver:
+    """A ``ParallelParker`` behind the driver's step interface, for the harness's loop."""
+
+    def __init__(self, parker):
+        self.parker = parker
+
+    def step(self, frame):
+        from types import SimpleNamespace  # noqa: PLC0415
+
+        command = self.parker.step(frame)
+        phase = self.parker.state.phase
+        mode = DriveMode.STARTUP if phase == "calibrate" else (DriveMode.FINISHED if self.parker.done else DriveMode.DRIVING)
+        return SimpleNamespace(command=command, mode=mode, reason=phase, diagnostics=self.parker.record())
+
+
+def parking_result(ego, bay, site, parker, min_gap_m=0.2, max_lateral_m=0.5, max_heading_deg=5.0):
+    """The parked pose against the two cars (evaluator truth): front and rear gaps along
+    the lane (box to box), the car's offset from the parked cars' line, its heading to the
+    lane. Passed: parked, both gaps at least ``min_gap_m``, within ``max_lateral_m`` of
+    their line and ``max_heading_deg`` of the lane."""
+    from carla_adapter.mapless_scenarios import _box_truth  # noqa: PLC0415
+
+    boxes = [_box_truth(a, core_xy) for a in [ego] + list(bay)]
+    centre = np.mean([b["centre_xy"] for b in boxes[1:]], axis=0)
+    s_mid = float(site.arcs[int(np.argmin(np.hypot(*(site.points_xy - centre).T)))])
+    _, _, h = site.at(s_mid)
+    u_axis, v_axis = np.array([math.cos(h), math.sin(h)]), np.array([-math.sin(h), math.cos(h)])
+    u = [float(np.dot(b["centre_xy"], u_axis)) for b in boxes]
+    v = [float(np.dot(b["centre_xy"], v_axis)) for b in boxes]
+    half = [float(b["extent_m"][0]) for b in boxes]
+    (ue, ur, uf), (he, hr, hf) = u, half
+    rear, front = (ur, hr), (uf, hf)
+    if ur > uf:
+        rear, front = front, rear
+    front_gap = (front[0] - front[1]) - (ue + he)
+    rear_gap = (ue - he) - (rear[0] + rear[1])
+    lateral = v[0] - 0.5 * (v[1] + v[2])
+    heading = math.degrees((boxes[0]["yaw_rad"] - h + math.pi) % (2 * math.pi) - math.pi)
+    parked = parker.state.phase == "parked"
+    passed = parked and front_gap >= min_gap_m and rear_gap >= min_gap_m and abs(lateral) <= max_lateral_m and abs(heading) <= max_heading_deg
+    return dict(
+        passed=passed, phase=parker.state.phase, front_gap_m=round(front_gap, 2), rear_gap_m=round(rear_gap, 2), lateral_from_line_m=round(lateral, 2), heading_deg=round(heading, 1),
+        bounds=dict(min_gap_m=min_gap_m, max_lateral_m=max_lateral_m, max_heading_deg=max_heading_deg), parker=parker.record(),
+    )
 
 
 class CollisionMonitor:
@@ -1144,6 +1225,8 @@ class MaplessDrive:
             return self.setup_turn(carla_map)
         if args.scenario == MISSION_SCENARIO:
             return self.setup_mission(carla_map)
+        if args.scenario == PARK_SCENARIO:
+            return self.setup_parking(carla_map)
         length = args.goal_m + 15.0
         lane_kind = "straight" if self.actor_scenario else args.scenario
         sites, census = find_sites(carla, carla_map, lane_kind, length)
@@ -1267,6 +1350,56 @@ class MaplessDrive:
         )
         self.report["site"] = rounded(self.site | dict(map=carla_map.name, start_xy_m=self.lane[LANE_BACK_M].tolist()))
         self.report["acceptance"] = dict(scenario=args.acceptance, seed=args.seed, mission=site.name, route_noise_m=args.route_noise)
+
+    def setup_parking(self, carla_map):
+        """``parallel_park``: the car on the mission's chain at ``--park-start-m``, two
+        cars (its own model) parked in the same-direction lane to its right, the rear one
+        centred at ``--park-at-m``, ``--park-gap-m`` between their bumpers; the car finds
+        the gap with its LiDAR and parks in it (``mapless.parking``)."""
+        carla, args = self.carla, self.args
+        self.mission_site = site = resolve_mission(carla, carla_map, args.mission)
+        x0, y0, h0 = site.at(args.park_start_m)
+        spawn = carla.Transform(carla.Location(x=x0, y=-y0, z=0.3), carla.Rotation(yaw=-math.degrees(h0)))
+        ground = carla_map.get_waypoint(spawn.location, project_to_road=True, lane_type=carla.LaneType.Driving)
+        spawn.location.z = ground.transform.location.z + 0.3
+        self.ego = self.owner.try_spawn(self.library.find("vehicle.tesla.model3"), spawn)
+        if self.ego is None:
+            raise RuntimeError("Could not spawn the car at --park-start-m")
+        lane = site.points_xy
+        back = (lane[0] - lane[1]) / np.linalg.norm(lane[0] - lane[1])
+        on = (lane[-1] - lane[-2]) / np.linalg.norm(lane[-1] - lane[-2])
+        self.lane = np.vstack([lane[0] + back * k for k in range(LANE_BACK_M, 0, -1)] + [lane] + [lane[-1] + on * k for k in range(1, 16)])
+        self.ego.apply_control(carla.VehicleControl(brake=1.0))
+        for _ in range(30):
+            self.owner.tick()
+        self.adapter = ParkingAdapter(self.ego)
+        self.offset = self.adapter.geometry.rear_axle_offset_m
+        self.parked = self.actor = self.turn_site = None
+        self.bay = []
+        length = 2.0 * self.ego.bounding_box.extent.x
+        for s in (args.park_at_m, args.park_at_m + length + args.park_gap_m):
+            x, y, _ = site.at(s)
+            wp = carla_map.get_waypoint(carla.Location(x=x, y=-y, z=ground.transform.location.z), project_to_road=True, lane_type=carla.LaneType.Driving)
+            right = None if wp is None else wp.get_right_lane()
+            if right is None or right.lane_id * wp.lane_id <= 0 or str(right.lane_type).split(".")[-1] not in ("Driving", "Parking", "Shoulder"):
+                raise RuntimeError(f"No same-direction lane to the right at s={s:.1f} m to park in")
+            t = right.transform
+            t.location.z += 0.1
+            car = self.owner.try_spawn(self.library.find("vehicle.tesla.model3"), t)
+            if car is None:
+                raise RuntimeError(f"Could not place a parked car at s={s:.1f} m")
+            car.set_simulate_physics(False)
+            self.bay.append(car)
+        args.goal_m = site.length_m
+        args.snapshot_every = 0  # the snapshot draws the driver's grid; the parker has none
+        self.route = mission_route(carla_map, site)
+        self.route.save(args.output / "route.json")
+        self.goal_xy = lane[-1]
+        self.lane_arcs = np.concatenate(([0.0], np.cumsum(np.hypot(*np.diff(self.lane, axis=0).T))))
+        self.lane_end_s = float(self.lane_arcs[-1]) - LANE_BACK_M
+        self.site = dict(kerb_distance_m=site.kerb_distance_m, lane_width_m=site.lane_width_m, mission=site.name, length_m=round(site.length_m, 1), junctions=[])
+        self.report["site"] = rounded(self.site | dict(map=carla_map.name))
+        self.report["parking"] = dict(rear_car_s_m=args.park_at_m, front_car_s_m=round(args.park_at_m + length + args.park_gap_m, 2), gap_m=args.park_gap_m, start_s_m=args.park_start_m, steer_deg=args.park_steer_deg)
 
     def setup_turn(self, carla_map):
         carla, args, command = self.carla, self.args, self.turn_command
@@ -1468,6 +1601,10 @@ class MaplessDrive:
                 )
                 f = stack_config.following
                 self.report["braking_assumptions"] = braking_assumptions(config.planner.decel_mps2, stack_config.conflict_decel_mps2, f.ego_brake_mps2, f.response_s)
+            elif args.scenario == PARK_SCENARIO:
+                parker = ParallelParker(self.body, self.adapter.geometry.wheelbase_m, ParkingConfig(steer_rad=math.radians(args.park_steer_deg)), DT_S)
+                driver = ParkingDriver(parker)
+                self.report["braking_assumptions"] = braking_assumptions(config.planner.decel_mps2)
             else:
                 driver = MaplessDriver(self.suite, self.route, config, DT_S)
                 self.report["braking_assumptions"] = braking_assumptions(config.planner.decel_mps2)
@@ -1565,13 +1702,14 @@ class MaplessDrive:
                 if collisions.events:
                     end = "collision"
                     break
-                if self.turn_site is None and truth["s_m"] > args.goal_m + 10.0:
+                parking = args.scenario == PARK_SCENARIO  # it leaves the lane on purpose
+                if self.turn_site is None and not parking and truth["s_m"] > args.goal_m + 10.0:
                     end = "drove past the goal"
                     break
                 if truth["s_m"] >= self.lane_end_s - 1.0:
                     end = "reached the end of the truth lane"
                     break
-                if self.turn_site is None and abs(truth["lane_offset_m"]) > 3.0:
+                if self.turn_site is None and not parking and abs(truth["lane_offset_m"]) > 3.0:
                     end = "left the lane (more than 3 m off centre)"
                     break
                 if self.turn_site is not None and truth["corner_excess_m"] > 1.0:
@@ -1621,6 +1759,8 @@ class MaplessDrive:
             if self.actor is not None:
                 self.actor.destroy()
         self.report["end"] = end
+        if args.scenario == PARK_SCENARIO:
+            self.report["parking_result"] = parking_result(self.ego, self.bay, self.mission_site, driver.parker)
         if recorder is not None:
             recorder.close()
             self.report["frames_recorded"] = recorder.ticks
@@ -1649,6 +1789,10 @@ class MaplessDrive:
             start_error = float(np.hypot(*(np.array(pose[:2]) - true)))
         checks.append(check("startup", PASS if start_s <= 3.0 else FAIL, seconds=start_s, route_pose_error_m=start_error))
         checks.append(check("no_collision", PASS if not self.report["collisions"] else FAIL, events=self.report["collisions"]))
+        if args.scenario == PARK_SCENARIO:
+            result = self.report.get("parking_result") or {}
+            checks.append(check("parallel_park", PASS if result.get("passed") and not self.report["collisions"] else FAIL, **{k: v for k, v in result.items() if k != "passed"}))
+            return
         light_check = red_light_check(getattr(self, "light_script", None), bool(getattr(args, "light_classifier", None)))
         if light_check is not None:
             checks.append(light_check)
@@ -1849,7 +1993,11 @@ def _config_dict(config):
 
 def main(argv=None, stack=False):
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    parser.add_argument("--scenario", choices=LANE_SCENARIOS + (MISSION_SCENARIO,) + tuple(TURN_SCENARIOS) + tuple(ACTOR_SCENARIOS), required=True)
+    parser.add_argument("--scenario", choices=LANE_SCENARIOS + (MISSION_SCENARIO, PARK_SCENARIO) + tuple(TURN_SCENARIOS) + tuple(ACTOR_SCENARIOS), required=True)
+    parser.add_argument("--park-gap-m", type=float, default=8.0, help="parallel_park: the gap between the two parked cars (bumper to bumper)")
+    parser.add_argument("--park-at-m", type=float, default=100.0, help="parallel_park: the rear parked car's centre along the mission's chain")
+    parser.add_argument("--park-start-m", type=float, default=70.0, help="parallel_park: where the car starts along the chain")
+    parser.add_argument("--park-steer-deg", type=float, default=30.0, help="parallel_park: the reversing arcs' steering angle")
     parser.add_argument("--mission", type=Path, default=Path("configs/missions/a1_test01.json"), help="mission: the baseline route definition (lane chain) to drive")
     parser.add_argument("--acceptance", choices=tuple(f"S{i}" for i in range(6)), default="S0", help="mission: the baseline obstacle scenario to run on it (configs/scenarios)")
     parser.add_argument("--scenarios-dir", type=Path, default=Path("configs/scenarios"), help="mission: where the S0–S5 scenario files are")
@@ -1960,6 +2108,8 @@ def main(argv=None, stack=False):
         args.obstacle_m = stop_obstacle_m(args.speed)
     if args.scenario == "stop" and not 15 <= args.obstacle_m <= args.goal_m - 10:
         parser.error("--obstacle-m must be at least 15 m and 10 m short of the goal")
+    if args.scenario == PARK_SCENARIO and stack:
+        parser.error("parallel_park runs the parking manoeuvre alone: scripts/run_mapless_drive.py")
     if args.mission_actor is not None and args.scenario != MISSION_SCENARIO:
         parser.error("--mission-actor is for --scenario mission (an actor scenario on its own site: --scenario crossing_pedestrian)")
     if args.oncoming != "none" and args.scenario != "turn_left":
