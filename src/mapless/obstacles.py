@@ -273,8 +273,22 @@ def observe_path(sweep, corridor, body, config=None):
     line = corridor.centre_body
     ground = sweep.of(PointClass.ROAD)[:, :2]
     half = body.half_width_m + c.margin_m
-    lo, hi = line.min(axis=0) - half - 1.0 - c.beyond_line_m, line.max(axis=0) + half + 1.0 + c.beyond_line_m
-    ground = ground[np.all((ground >= lo) & (ground <= hi), axis=1)]
+    # Only two regions hold ground that can count below: within the tube's widest reach
+    # of the line (half + 1 m), and the stretch straight past its end (half either side,
+    # ``beyond_line_m`` on). One box around both, grown by ``beyond_line_m`` on every
+    # side, kept the whole road and both pavements: 12,000 points a sweep into the bound
+    # and 2 ms a tick (2 Nov, the real-time budget). The two boxes, each grown by a hair,
+    # keep every point that counts and leave out only points that never do.
+    eps = 1e-6
+    reach_lo, reach_hi = line.min(axis=0) - half - 1.0 - eps, line.max(axis=0) + half + 1.0 + eps
+    keep_box = np.all((ground >= reach_lo) & (ground <= reach_hi), axis=1)
+    if len(line) >= 2:
+        u_box = (line[-1] - line[-2]) / max(float(np.hypot(*(line[-1] - line[-2]))), 1e-9)
+        n_box = np.array([-u_box[1], u_box[0]])
+        corners = np.array([line[-1] + a * u_box + b * n_box for a in (0.0, c.beyond_line_m) for b in (-half, half)])
+        past_lo, past_hi = corners.min(axis=0) - 1e-3, corners.max(axis=0) + 1e-3
+        keep_box |= np.all((ground >= past_lo) & (ground <= past_hi), axis=1)
+    ground = ground[keep_box]
     if len(ground) and len(line) >= 2:
         # Only points within the tube's widest reach (half + 1 m on a bend) of the line, or
         # in the stretch straight past its end, can count below: the rest are left out
