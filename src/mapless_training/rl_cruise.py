@@ -250,7 +250,7 @@ def make_env(seed, **kwargs):
     """A ``CruiseEnv`` wrapped as a ``gymnasium.Env`` subclass (for stable-baselines3)."""
     import gymnasium as gym  # noqa: PLC0415
 
-    class _Env(gym.Env, CruiseEnv):
+    class _Env(CruiseEnv, gym.Env):  # CruiseEnv first: gym.Env's own step and close only raise
         def __init__(self):
             CruiseEnv.__init__(self, seed=seed, **kwargs)
 

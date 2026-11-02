@@ -360,14 +360,16 @@ class StackConfig:
     semantic_max_wall_age_s: float | None = None
     # Traffic lights (G4 M07, G5, 2 Nov): the state classifier's checkpoint (None: no
     # light perception), run on the light_camera image every light_every ticks (5 Hz at
-    # 0.05 s), inline before the driver's step, on ticks that submit no segmentation and
-    # build no road model at the defaults (light_phase 2 of the stack's tick count). The
+    # 0.05 s), inline before the driver's step, on ticks light_phase past a multiple of
+    # light_every, counted before the step (0 = the first): at the defaults phase 3, a tick
+    # the semantic worker is idle on (it segments on the tick after each odd one; v4 on
+    # PC 1 and PC 2, 2 Nov: those ticks were 18-20 ms slower with the real segmenter). The
     # reading goes to the driver, whose filter decides and whose hold stops the car short
     # of the route junction's entry (``mapless.traffic_light``).
     light_classifier: str | None = None
     light_camera: str = "front"
     light_every: int = 4
-    light_phase: int = 2
+    light_phase: int = 3
 
     def __post_init__(self):
         if self.semantic_mode not in ("inline", "thread", "off"):

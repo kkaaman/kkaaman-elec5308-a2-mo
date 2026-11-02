@@ -900,6 +900,20 @@ def sensor_to_actuator_report(marks, target_ms=STEP_TARGET_MS):
     return out
 
 
+MISSION_ACTORS = ("crossing_pedestrian",)  # the actor scenarios that place themselves by route s alone
+
+
+def mission_waypoints(carla, carla_map, site, z_m):
+    """CARLA waypoints along a mission's lane chain, one per metre of route s (index = s),
+    for the scripted actors (``mapless_scenarios``), which place themselves by metres along
+    such a list. Evaluator side: the car never sees them."""
+    out = []
+    for s in range(int(site.length_m) + 1):
+        x, y, _ = site.at(float(s))
+        out.append(carla_map.get_waypoint(carla.Location(x=x, y=-y, z=z_m), project_to_road=True, lane_type=carla.LaneType.Driving))
+    return out
+
+
 def red_light_check(script, classifier):
     """The ``red_light`` check (G4 M07, 2 Nov), or None when no light was in play: the
     route junctions with lights, the governing light's state as the car's front entered
@@ -1113,6 +1127,8 @@ class MaplessDrive:
         oncoming car of a left turn (``oncoming_stopped`` / ``oncoming_parked``)."""
         if self.actor_scenario:
             return self.actor_scenario
+        if getattr(self.args, "mission_actor", None):
+            return self.args.mission_actor
         mode = getattr(self.args, "oncoming", "none")
         return f"oncoming_{mode}" if mode != "none" else None
 
@@ -1212,6 +1228,13 @@ class MaplessDrive:
         self.adapter = HoldingVehicleAdapter(self.ego)
         self.offset = self.adapter.geometry.rear_axle_offset_m
         self.parked = self.actor = self.turn_site = None
+        if getattr(args, "mission_actor", None):
+            # A scripted actor on the route (the showcase, 2 Nov): the actor scenarios place
+            # themselves by metres along a waypoint list, so the chain is sampled every metre.
+            waypoints = mission_waypoints(carla, carla_map, site, ground.transform.location.z)
+            self.actor = make_scenario(carla, args.mission_actor, core_xy, **(args.actor_params or {}))
+            self.actor.spawn(self.owner, self.library, waypoints)
+            self.report["actor"] = self.actor.params.record() | dict(on="mission")
         self.removed_at_s = None
         placement = obstacle_placement(site, self.scenario)
         if placement is not None:
@@ -1857,6 +1880,12 @@ def main(argv=None, stack=False):
     parser.add_argument("--junction-hold-s", type=float, default=25.0, help="turns: end the run after waiting this long at the junction mouth")
     parser.add_argument("--actor-param", action="append", default=[], metavar="NAME=VALUE", help="moving actors: scenario parameter override")
     parser.add_argument(
+        "--mission-actor",
+        choices=MISSION_ACTORS,
+        default=None,
+        help="mission: a scripted actor on the route as well, placed by route s (crossing_pedestrian: crosses at --actor-param brake_at_m=S)",
+    )
+    parser.add_argument(
         "--oncoming",
         choices=("none", "stopped", "parked"),
         default="none",
@@ -1927,6 +1956,8 @@ def main(argv=None, stack=False):
         args.obstacle_m = stop_obstacle_m(args.speed)
     if args.scenario == "stop" and not 15 <= args.obstacle_m <= args.goal_m - 10:
         parser.error("--obstacle-m must be at least 15 m and 10 m short of the goal")
+    if args.mission_actor is not None and args.scenario != MISSION_SCENARIO:
+        parser.error("--mission-actor is for --scenario mission (an actor scenario on its own site: --scenario crossing_pedestrian)")
     if args.oncoming != "none" and args.scenario != "turn_left":
         parser.error("--oncoming is for turn_left only (the oncoming lane a left turn crosses)")
     configured = load_sensor_suite(args.suite).with_overrides(parse_overrides(args.set))

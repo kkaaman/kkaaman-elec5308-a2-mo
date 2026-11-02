@@ -25,7 +25,7 @@ DT = 0.05
 LANE_WIDTH = 3.5
 ROAD_M = 400.0
 OFFSET = 1.38641
-EXTENTS = {"vehicle.tesla.model3": (2.396, 1.082, 0.75), "vehicle.audi.a2": (1.86, 0.88, 0.77)}
+EXTENTS = {"vehicle.tesla.model3": (2.396, 1.082, 0.75), "vehicle.audi.a2": (1.86, 0.88, 0.77), "walker.pedestrian.0001": (0.25, 0.25, 0.9)}
 SCENE = RoadScene(KerbLine([Straight(ROAD_M)], start=(-50.0, 0.0, 0.0)), lane_centre_m=LANE_WIDTH / 2)
 
 
@@ -68,6 +68,8 @@ def fake_carla_module():
         LaneType=LANE_TYPE,
         AttachmentType=SimpleNamespace(Rigid="Rigid"),
         TrafficLightState=SimpleNamespace(Red="Red", Yellow="Yellow", Green="Green"),
+        WalkerControl=lambda direction=None, speed=0.0: SimpleNamespace(direction=direction, speed=speed, brake=0.0),
+        Vector3D=Vector,
     )
 
 
@@ -859,3 +861,17 @@ def test_the_stack_reads_the_scripted_red_stops_at_the_line_and_goes_on_green(mo
     rows = [json.loads(r) for r in (out / "drive_log.jsonl").read_text(encoding="utf-8").splitlines()]
     stopped = [r for r in rows if r["driver"].get("light_hold_m") is not None and r["truth"]["speed_mps"] < 0.05]
     assert stopped and max(r["truth"]["s_m"] for r in stopped) + 2.4 < 30.0  # the front short of the entry
+
+
+def test_a_scripted_walker_is_placed_on_the_mission_route_by_route_s(monkeypatch, tmp_path):
+    """The showcase (2 Nov): ``--mission-actor crossing_pedestrian`` places the walker by
+    route s on the mission's chain (sampled every metre), steps it each tick and scores
+    it as the actor scenarios are; the mission's own gates stand. (The fake walker does
+    not walk: what is under test is the placement and the plumbing.)"""
+    _, report = run_mission(monkeypatch, tmp_path, "S0", "--mission-actor", "crossing_pedestrian", "--actor-param", "brake_at_m=40")
+    by_name = {c["check"]: c for c in report["checks"]}
+    assert report["actor"]["on"] == "mission" and report["actor"]["name"] == "crossing_pedestrian" and report["actor"]["brake_at_m"] == 40.0
+    assert by_name["goal"]["status"] == "PASS" and by_name["separation"]["status"] in ("PASS", "INCOMPLETE")
+    assert "behaviour" in by_name and "exercised" in by_name
+    with pytest.raises(SystemExit):
+        run_drive(monkeypatch, tmp_path / "bad", "--scenario", "straight", "--mission-actor", "crossing_pedestrian")

@@ -300,3 +300,31 @@ def test_rescoring_a_recorded_run_rejudges_the_hold_and_keeps_the_original(tmp_p
     assert rescore.rescore(folder, commit="ghi") == ("MEASURED_FAIL", "MEASURED_FAIL")
     assert json.loads((folder / "drive_report.original.json").read_text(encoding="utf-8"))["status"] == "MEASURED_PASS"
     assert rescore.main([str(tmp_path)]) == 0
+
+
+def turning_site(turn_deg, junctions=((60.0, 75.0, 7),)):
+    """A 160 m chain: 60 m straight, a turn of ``turn_deg`` (left positive) over the 15 m
+    junction, straight on."""
+    pts, heading = [np.array([0.0, 0.0])], 0.0
+    for k in range(1, 161):
+        if 60 <= k < 75:
+            heading += math.radians(turn_deg) / 15
+        pts.append(pts[-1] + np.array([math.cos(heading), math.sin(heading)]))
+    pts = np.array(pts)
+    arcs = np.concatenate(([0.0], np.cumsum(np.hypot(*np.diff(pts, axis=0).T))))
+    return mm.MissionSite("turning", pts, arcs, tuple(junctions), 75.0, 3.5, 1.75, "sidewalk", [], ("1:0:1", "7:0:-1", "5:0:-1"), None)
+
+
+@pytest.mark.parametrize(("turn_deg", "command"), [(90.0, Command.LEFT), (-90.0, Command.RIGHT), (-70.0, Command.RIGHT), (35.0, Command.STRAIGHT), (0.0, Command.STRAIGHT)])
+def test_a_junction_where_the_chain_turns_gets_its_turn_command(monkeypatch, turn_deg, command):
+    """The showcase's turn extension (2 Nov): a chain that turns by 60 degrees or more
+    between a junction's entry and 5 m into its exit lane is a LEFT or RIGHT there; a
+    crossing whose exit lane curves (468: STRAIGHT in ``bent_site``) stays STRAIGHT."""
+    plane = LocalTangentPlane(-33.9, 151.2)
+    carla_map = SimpleNamespace(transform_to_geolocation=lambda loc: SimpleNamespace(latitude=plane.to_geodetic(loc.x, -loc.y)[0], longitude=plane.to_geodetic(loc.x, -loc.y)[1]))
+    monkeypatch.setitem(sys.modules, "carla", SimpleNamespace(Location=lambda x, y, z: SimpleNamespace(x=x, y=y, z=z)))
+    route = mm.mission_route(carla_map, turning_site(turn_deg))
+    commands = [p.command for p in route.points]
+    assert [c for c in commands if c is not Command.LANEFOLLOW] == [command]
+    assert route.provenance["junctions"][0]["command"] == command.value
+    assert mm.junction_command(bent_site(), 90.0, 110.0) is Command.STRAIGHT
