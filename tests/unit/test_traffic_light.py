@@ -37,7 +37,11 @@ def test_unsure_nones_at_the_stop_line_do_not_release_a_red():
     assert [f.update(r("red", t, 0.7), t) for t in (0.0, 0.2)] == ["none", "red"]
     assert [f.update(r("none", t, 0.47), t) for t in (0.4, 0.6, 0.8, 1.0)] == ["red"] * 4
     assert [f.update(r("green", t, 0.55), t) for t in (1.2, 1.4, 1.6)] == ["red"] * 3
-    assert [f.update(r("none", t, 0.9), t) for t in (1.8, 2.0, 2.2)] == ["red", "red", "none"]
+    # Confident nones after a red: the light no longer read, not a green (showcase_n2,
+    # rain: light_v1 read none at 0.91-0.97 standing at the line on red). They release
+    # only once they have run none_release_s; greens at once.
+    nones = [f.update(r("none", t, 0.9), t) for t in (1.8, 2.0, 2.2, 4.0, 6.6, 6.8)]
+    assert nones == ["red"] * 5 + ["none"] and LightConfig().none_release_s == 5.0
     f.reset()
     assert [f.update(r("red", t, 0.7), t) for t in (0.0, 0.2)] == ["none", "red"]
     assert [f.update(r("green", t, 0.8), t) for t in (0.4, 0.6, 0.8)] == ["red", "red", "green"]
@@ -53,14 +57,14 @@ def test_a_light_the_car_has_lost_sight_of_holds_it_until_fresh_readings_release
     assert f.update(green, 0.0) == "green"
     assert f.update(green, 0.5) == "green" and f.update(green, 0.9) == "green"  # stale, not yet lost
     assert f.update(green, 1.1) == "unknown"
-    assert stop_for("unknown", 10.0, 2.0) == pytest.approx(7.0) and stop_for("unknown", 1.0, 4.0) is None  # held like a red
+    assert stop_for("unknown", 10.0, 2.0) == pytest.approx(5.0) and stop_for("unknown", 1.0, 4.0) is None  # held like a red
     assert [f.update(LightReading("green", 0.9, t), t) for t in (2.0, 2.2, 2.4)] == ["unknown", "unknown", "green"]
     blind = LightFilter(LightConfig())
     assert blind.update(None, 5.0) == "none"
 
 
 def test_a_red_holds_at_the_junction_entry_and_a_late_yellow_is_driven_through():
-    assert stop_for("red", 20.0, 2.0) == pytest.approx(17.0)  # by default 3 m short of the sat-nav's entry
+    assert stop_for("red", 20.0, 2.0) == pytest.approx(15.0)  # by default 5 m short of the sat-nav's entry (route noise up to 3.9 m)
     assert stop_for("red", 20.0, 2.0, back_m=0.5) == pytest.approx(19.5)  # a seen stop line: 0.5 m short of it
     c = LightConfig(stop_back_m=1.0)
     assert stop_for("red", 20.0, 2.0, c) == pytest.approx(19.0)  # the stop line, 1 m short of the entry
