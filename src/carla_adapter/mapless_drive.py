@@ -917,7 +917,9 @@ def mission_waypoints(carla, carla_map, site, z_m):
 def red_light_check(script, classifier):
     """The ``red_light`` check (G4 M07, 2 Nov), or None when no light was in play: the
     route junctions with lights, the governing light's state as the car's front entered
-    each, and the car's readings on the approach. An entry on red FAILs when the run tested
+    each, each encounter (where the light went red, the car decided red, it stood, how far
+    short of the true stop line) and the car's readings on the approach. An entry on red,
+    the front past the stop line while red, or moving off on red FAILs when the run tested
     lights (``--lights scripted`` or a light classifier on the car) and is a REPORT
     otherwise (the car was not asked to see lights). A scripted run PASSes once every lit
     junction was entered on green after a stop at its red; a junction not reached leaves
@@ -929,8 +931,8 @@ def red_light_check(script, classifier):
     entries = r["junctions"]
     if not entries:
         status, note = REPORT, "no junction with lights on the route"
-    elif r["red_entries"]:
-        status, note = (FAIL if tested else REPORT), f"{r['red_entries']} junction(s) entered on red"
+    elif r["red_entries"] or r["red_line"]:
+        status, note = (FAIL if tested else REPORT), f"{r['red_entries']} junction(s) entered on red; the front past the stop line on red (or moved off on red) at {r['red_line']}"
     elif any(e["state_at_entry"] is None for e in entries):
         status, note = INCOMPLETE, "a junction with lights not reached"
     elif script.mode == "scripted":
@@ -1510,7 +1512,9 @@ class MaplessDrive:
                     front_s = truth["s_m"] + self.body.front_m
                     reading = step.diagnostics.get("light_reading")
                     fresh = reading[0] if reading is not None and reading[2] == 0 else None
-                    light_truth = self.light_script.observe(self.ego, front_s, front_s if light_front_s is None else light_front_s, sf.sim_time_s, fresh)
+                    light_truth = self.light_script.observe(
+                        self.ego, front_s, front_s if light_front_s is None else light_front_s, sf.sim_time_s, fresh, step.diagnostics.get("light"), truth["speed_mps"]
+                    )
                     self.light_script.step(carla, front_s, truth["speed_mps"], sf.sim_time_s, DT_S)
                     light_front_s = front_s
                 if self.actor is not None:

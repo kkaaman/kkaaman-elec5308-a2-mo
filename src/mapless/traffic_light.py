@@ -9,7 +9,11 @@ colour; the governing light's truth is never an input.
 ``LightFilter`` turns per-frame readings into a decision the driver can act on: a stop
 needs two red-or-yellow readings running at or above ``stop_confidence``; going again
 needs ``go_frames`` green (or ``none``, the light passed) readings running; anything else
-keeps the last decision. A reading older than ``max_age_s`` counts as none seen.
+keeps the last decision. A reading older than ``max_age_s`` counts as none seen; once
+readings have come and then none fresh for ``unknown_after_s`` (the camera or the
+classifier lost), the decision is ``unknown``, held for like a red until ``go_frames``
+fresh green or none readings say otherwise: a car that cannot see the light does not
+drive into the junction on an old green.
 
 The driver's use (``MaplessDriver``): a red or yellow decision with a route junction
 entry ahead within ``LightConfig.stop_within_m`` holds the car at the entry, less
@@ -25,17 +29,22 @@ from dataclasses import dataclass
 
 import numpy as np
 
-LIGHT_STATES = ("none", "red", "yellow", "green")
+LIGHT_STATES = ("none", "red", "yellow", "green")  # what the classifier reads
+HOLDING = ("red", "yellow", "unknown")  # the filter's decisions that hold the car short of the line
 
 
 @dataclass(frozen=True)
 class LightConfig:
     stop_within_m: float = 30.0  # a red ahead holds the car only with a junction entry this near
-    stop_back_m: float = 1.0  # the hold this far short of the entry (the stop line)
+    stop_back_m: float = 3.0  # without a seen stop line: the front this far short of the sat-nav's junction entry
+    line_margin_m: float = 0.5  # with one (``stop_line``): the front this far short of its near edge
+    line_entry_tolerance_m: float = 8.0  # a seen line is the junction's only this near its sat-nav entry (route noise: up to 3.9 m, r19s)
+    camera: str = "front"
     stop_confidence: float = 0.6
     stop_frames: int = 2
     go_frames: int = 3
     max_age_s: float = 0.6
+    unknown_after_s: float = 1.0
     yellow_decel_mps2: float = 2.0  # a yellow is stopped for only if this braking suffices
     red_decel_mps2: float = 4.0  # a red seen too late for this braking is driven through, not stopped in the box
 
@@ -69,6 +78,8 @@ class LightFilter:
         c = self.config
         if reading is None or now_s - reading.time_s > c.max_age_s:
             self._stop_run = self._go_run = 0
+            if self.last is not None and (reading is None or now_s - reading.time_s > c.unknown_after_s):
+                self.decision = "unknown"
             return self.decision
         if reading is self.last:
             return self.decision
@@ -79,9 +90,9 @@ class LightFilter:
         self._go_run = self._go_run + 1 if going else 0
         if self._stop_run >= c.stop_frames:
             self.decision = reading.state
-        elif self.decision in ("red", "yellow") and self._go_run >= c.go_frames:
+        elif self.decision in HOLDING and self._go_run >= c.go_frames:
             self.decision = reading.state
-        elif self.decision not in ("red", "yellow") and going:
+        elif self.decision not in HOLDING and going:
             self.decision = reading.state
         return self.decision
 
@@ -89,13 +100,14 @@ class LightFilter:
         self.decision, self._stop_run, self._go_run, self.last = "none", 0, 0, None
 
 
-def stop_for(decision, entry_m, speed_mps, config=None):
-    """Where to hold (m ahead of the car) for this light ``decision`` and the route
-    junction entry ``entry_m`` ahead, or None to drive on."""
+def stop_for(decision, entry_m, speed_mps, config=None, back_m=None):
+    """Where to hold (m ahead of the car) for this light ``decision`` and the place
+    ``entry_m`` ahead to stop short of (the route junction entry, or the seen stop line),
+    ``back_m`` short of it (default ``stop_back_m``), or None to drive on."""
     c = config or LightConfig()
-    if decision not in ("red", "yellow") or entry_m is None or not (0.0 <= entry_m <= c.stop_within_m):
+    if decision not in HOLDING or entry_m is None or not (0.0 <= entry_m <= c.stop_within_m):
         return None
-    hold = max(0.0, entry_m - c.stop_back_m)
+    hold = max(0.0, entry_m - (c.stop_back_m if back_m is None else back_m))
     decel = c.yellow_decel_mps2 if decision == "yellow" else c.red_decel_mps2
     if speed_mps * speed_mps > 2.0 * decel * hold:
         return None  # too close to stop (comfortably on a yellow, at all on a red): through

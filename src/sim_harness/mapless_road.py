@@ -508,14 +508,22 @@ class MaplessRoadWorld:
         return frame
 
     # -- motion --------------------------------------------------------------------------
-    def apply(self, command):
+    def apply(self, command, reverse=False):
+        """One step under ``command``; ``reverse`` selects the reverse gear (parking: the
+        throttle drives the car backwards, the brake and drag slow it to a standstill; the
+        speed is then negative)."""
         if not isinstance(command, ControlCommand):
             raise TypeError("command must be a ControlCommand")
         st, car, dt = self.state, self.car, self.dt_s
         target = max(-car.max_steer_rad, min(car.max_steer_rad, command.steering_angle_rad))
         st.steer += (target - st.steer) * min(1.0, dt / car.steer_tau_s)
-        accel = command.throttle * car.throttle_accel_mps2 - command.brake * car.brake_decel_mps2 - car.drag_mps2 * (st.speed > 0)
-        speed = max(0.0, st.speed + accel * dt)
+        if not reverse:
+            accel = command.throttle * car.throttle_accel_mps2 - command.brake * car.brake_decel_mps2 - car.drag_mps2 * (st.speed > 0)
+            speed = max(0.0, st.speed + accel * dt)
+        else:
+            speed = min(0.0, st.speed) - command.throttle * car.throttle_accel_mps2 * dt
+            if speed < 0.0:
+                speed = min(0.0, speed + (command.brake * car.brake_decel_mps2 + car.drag_mps2) * dt)
         mean = 0.5 * (st.speed + speed)
         st.yaw_rate = mean * math.tan(st.steer) / car.wheelbase_m
         heading = st.yaw + 0.5 * st.yaw_rate * dt

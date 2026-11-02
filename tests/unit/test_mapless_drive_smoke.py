@@ -192,6 +192,9 @@ class FakeLight:
     def freeze(self, frozen):
         self.frozen = frozen
 
+    def get_state(self):
+        return self.state
+
 
 class ActorList(list):
     def __init__(self, items, lights=()):
@@ -808,6 +811,7 @@ def test_a_scripted_red_the_car_cannot_see_is_run_and_fails_the_red_light_check(
     light = by_name["red_light"]
     assert light["status"] == "FAIL" and light["red_entries"] == 1 and light["mode"] == "scripted"
     assert light["junctions"][0]["state_at_entry"] == "Red" and not light["junctions"][0]["stopped_on_red"]
+    assert light["red_line"] == 1 and light["junctions"][0]["past_line_on_red_m"] > 0.0 and light["junctions"][0]["decided_red_at_front_s_m"] is None
     assert WORLD[0].light.frozen and WORLD[0].light.states[:2] == ["Green", "Red"]
     rows = [json.loads(r) for r in (out / "drive_log.jsonl").read_text(encoding="utf-8").splitlines()]
     assert {r.get("light_truth") for r in rows} >= {"Red"}
@@ -854,7 +858,8 @@ def test_the_stack_reads_the_scripted_red_stops_at_the_line_and_goes_on_green(mo
     light = by_name["red_light"]
     assert light["status"] == "PASS" and light["exercised"] and light["classifier"], json.dumps(light, indent=2)
     entry = light["junctions"][0]
-    assert entry["state_at_entry"] == "Green" and entry["stood_s"] >= 4.0
+    assert entry["state_at_entry"] == "Green" and entry["stood_s"] >= 4.0 and light["red_line"] == 0 and not entry["moved_on_red"]
+    assert entry["red_at_front_s_m"] < entry["decided_red_at_front_s_m"] < entry["stood_front_s_m"] < 30.0 and entry["past_line_on_red_m"] == 0.0
     assert entry["readings"].get("red->red", 0) > 0 and not entry["readings"].get("red->green")
     assert report["stack"]["light_classifier"] == str(checkpoint) and report["end"] == "finished"
     assert 3.0 <= np.median(np.diff(seen)) / DT <= 5.0  # every 4th tick
