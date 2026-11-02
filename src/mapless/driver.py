@@ -53,8 +53,9 @@ from mapless.obstacles import ObstacleConfig, observe_path
 from mapless.planner import LanePlanner, PlannerConfig
 from mapless.satnav import Command, RouteProgress, SatNavRoute
 from mapless.sensor_suite import SensorSuite
+from mapless.stop_line import StopLineTracker
 from mapless.terrain import TerrainConfig, TerrainGrid, VehicleBody, classify_sweep
-from mapless.traffic_light import LightConfig, LightFilter, stop_for
+from mapless.traffic_light import HOLDING, LightConfig, LightFilter, stop_for
 from navigation_control.local import LocalControlConfig, LocalStatus, LocalTrajectoryController
 from navigation_control.types import ControlCommand, VehicleState
 
@@ -233,6 +234,7 @@ class MaplessDriver:
         # car short of the next route junction's entry (``traffic_light.stop_for``).
         self.light_reading = None
         self.light_filter = LightFilter(config.light)
+        self.stop_line = StopLineTracker()  # the painted line, looked for while a red or yellow is in force
         self.last_motion = self.last_classified = self.last_plan = self.last_corridor = None
         self._profile_path = None  # (time, odometry polyline) of the last path planned along, for the far points' ground (terrain)
         self._turn_done = None  # route index of the junction entry whose turn is complete
@@ -860,12 +862,31 @@ class MaplessDriver:
             entry_m = float(d["crossing_entry_m"])
         elif d.get("junction_entry_m") is not None:
             entry_m = float(d["junction_entry_m"])
-        light_hold = None if entry_m is None else stop_for(decision, entry_m - c.body.front_m, motion.speed_mps, c.light)
+        # Where to stop: the painted stop line when the front camera has seen it (locked,
+        # within line_entry_tolerance_m of the sat-nav's junction entry), its near edge
+        # line_margin_m ahead of the front; else the entry less stop_back_m.
+        line_m = None
+        if decision in HOLDING and entry_m is not None:
+            image = next((im for im in frame.cameras if im.name == c.light.camera and frame.status_of(im.name).state is SensorState.OK), None)
+            if image is not None and self.stop_line.locked is None:
+                self.stop_line.update(image.rgb, image.calibration, motion.odometry, t)
+            line_m = self.stop_line.distance_m(motion.odometry)
+            if line_m is not None and abs(line_m - entry_m) > c.light.line_entry_tolerance_m:
+                line_m = None
+        elif entry_m is None or decision in ("green", "none"):
+            self.stop_line.reset()
+        if line_m is not None:
+            light_hold = stop_for(decision, line_m - c.body.front_m, motion.speed_mps, c.light, back_m=c.light.line_margin_m)
+        else:
+            light_hold = None if entry_m is None else stop_for(decision, entry_m - c.body.front_m, motion.speed_mps, c.light)
         if light_hold is not None:
             hold_at = light_hold if hold_at is None else min(hold_at, light_hold)
         if self.light_reading is not None or decision != "none":
             r = self.light_reading
-            d.update(light=decision, light_reading=None if r is None else [r.state, round(r.confidence, 2), round(t - r.time_s, 2)], light_hold_m=None if light_hold is None else round(light_hold, 2))
+            d.update(
+                light=decision, light_reading=None if r is None else [r.state, round(r.confidence, 2), round(t - r.time_s, 2)],
+                light_hold_m=None if light_hold is None else round(light_hold, 2), stop_line_m=None if line_m is None else round(line_m, 2),
+            )
         lap("junction")
         if not corridor.ok:
             return self._fault(f"no corridor: {corridor.reason}", d, motion, t, dt)

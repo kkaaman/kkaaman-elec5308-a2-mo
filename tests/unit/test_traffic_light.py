@@ -20,13 +20,32 @@ def test_the_filter_needs_two_reds_to_stop_and_three_greens_to_go():
     assert f.update(r("red", 0.6, c=0.4), 0.6) == "green"
     stale = r("red", 0.7)
     assert f.update(stale, 0.7) == "green" and f.update(stale, 0.75) == "green"  # the same reading counts once
-    assert f.update(r("red", 0.8), 2.0) == "green"  # too old to count
+    assert f.update(r("red", 0.8), 1.5) == "green"  # too old to count (0.7 s), not yet lost
+    assert f.update(r("red", 0.8), 2.0) == "unknown"  # 1.2 s without a fresh reading: lost
     with pytest.raises(ValueError):
         LightReading("purple", 1.0, 0.0)
 
 
+def test_a_light_the_car_has_lost_sight_of_holds_it_until_fresh_readings_release_it():
+    """Eighteenth review (4.2/4.3): readings that stop coming (the camera or classifier
+    lost) are not an old green to drive on: after unknown_after_s the decision is
+    unknown, held for like a red; three fresh greens release it. A filter that never had
+    a reading (no classifier) never goes unknown."""
+    f = LightFilter(LightConfig())
+    green = LightReading("green", 0.9, 0.0)
+    assert f.update(green, 0.0) == "green"
+    assert f.update(green, 0.5) == "green" and f.update(green, 0.9) == "green"  # stale, not yet lost
+    assert f.update(green, 1.1) == "unknown"
+    assert stop_for("unknown", 10.0, 2.0) == pytest.approx(7.0) and stop_for("unknown", 1.0, 4.0) is None  # held like a red
+    assert [f.update(LightReading("green", 0.9, t), t) for t in (2.0, 2.2, 2.4)] == ["unknown", "unknown", "green"]
+    blind = LightFilter(LightConfig())
+    assert blind.update(None, 5.0) == "none"
+
+
 def test_a_red_holds_at_the_junction_entry_and_a_late_yellow_is_driven_through():
-    c = LightConfig()
+    assert stop_for("red", 20.0, 2.0) == pytest.approx(17.0)  # by default 3 m short of the sat-nav's entry
+    assert stop_for("red", 20.0, 2.0, back_m=0.5) == pytest.approx(19.5)  # a seen stop line: 0.5 m short of it
+    c = LightConfig(stop_back_m=1.0)
     assert stop_for("red", 20.0, 2.0, c) == pytest.approx(19.0)  # the stop line, 1 m short of the entry
     assert stop_for("red", 45.0, 2.0, c) is None  # no junction near: not this light's business
     assert stop_for("red", None, 2.0, c) is None

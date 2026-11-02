@@ -323,7 +323,7 @@ def test_a_red_light_holds_the_car_short_of_the_junction_and_green_lets_it_cross
     front = BODY.front_m
     stops = [tr for tr, s in log if tr.speed_mps < 0.05 and tr.s_m > 30.0 and s.diagnostics.get("light") == "red"]
     assert green_at is not None and stops, "the car never stopped for the red"
-    assert entry - 4.0 <= green_at + front <= entry + 0.2  # its front at the stop line, not in the box
+    assert entry - 6.0 <= green_at + front <= entry - 3.0  # no camera here: the front 3 m short of the sat-nav entry, less the planner's standing margin
     assert _crossed(log)
     holds = [s.diagnostics.get("light_hold_m") for tr, s in log if tr.s_m > entry]
     assert all(h is None for h in holds)  # never held for the light inside the junction
