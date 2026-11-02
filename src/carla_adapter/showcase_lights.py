@@ -16,8 +16,11 @@ Each tick the car's light (``vehicle.get_traffic_light_state``) is logged; it re
 outside a light's trigger volume, which ends a few metres before the stop line (showcase
 trial, 2 Nov: Red from rear-axle s 145.4 to 151.1 at 468, then Green with the light still
 red), so each junction is judged by its governing light's own state
-(``TrafficLight.get_state``) against its true stop line (``get_stop_waypoints``, projected
-onto the route): the car's front past the line while the light is red is a failure
+(``TrafficLight.get_state``) against the stop line at the junction's entry: the painted
+line at 468 is at the junction boundary (s 156.4-156.6 from the camera; the chain's entry
+156.2), and CARLA's ``get_stop_waypoints`` gave s 149.4, the middle of the trigger volume
+with nothing painted there (showcase_t2, 2 Nov), so that is recorded, not judged. The
+car's front past the line while the light is red is a failure
 (``red_line``), as is an entry on red; an entry on yellow is a report. Each encounter
 records where the light went red, where the car first decided red, where it stood, and
 whether it moved off only after green. Positions are the car's
@@ -44,7 +47,7 @@ class JunctionLights:
     entered_state: str | None = None
     stopped_on_red: bool = False
     readings: dict = field(default_factory=dict)  # "truth->read" -> fresh readings on the approach
-    stop_line_s_m: float | None = None  # the true stop line along the route (evaluator)
+    carla_stop_s_m: float | None = None  # CARLA's stop waypoint along the route (recorded: the trigger volume's middle)
     red_at_front_s_m: float | None = None  # the car's front when the light turned red
     decided_red_at_front_s_m: float | None = None  # ... when the car first decided red
     stood_front_s_m: float | None = None  # ... standing on red (the furthest)
@@ -83,7 +86,7 @@ class LightScript:
             wp = carla_map.get_waypoint(carla.Location(x=x, y=-y, z=0.0), project_to_road=True)
             governing = list(finder(wp, 30.0)) if wp is not None else []
             if governing:
-                self.junctions.append(JunctionLights(entry_s, junction_id, governing, stop_line_s_m=stop_line_s(governing, site, entry_s)))
+                self.junctions.append(JunctionLights(entry_s, junction_id, governing, carla_stop_s_m=stop_line_s(governing, site, entry_s)))
 
     def step(self, carla, s_m, speed_mps, time_s, dt_s):
         """Advance the script with the car's truth (route s, speed)."""
@@ -129,7 +132,7 @@ class LightScript:
             standing = speed_mps is not None and speed_mps < 0.05
             if red and standing:
                 j.stood_front_s_m = round(s_m, 2) if j.stood_front_s_m is None else max(j.stood_front_s_m, round(s_m, 2))
-            line = j.stop_line_s_m if j.stop_line_s_m is not None else j.entry_s_m
+            line = j.entry_s_m  # the painted line, at the junction's boundary
             # Moving off on red counts from a stop at the light (within stop_zone_m of the
             # line), not from the start of the run with the light already red ahead.
             if red and j._standing and not standing:
@@ -143,9 +146,9 @@ class LightScript:
         """The ``red_light`` check's values: entries per junction, failures, exercise."""
         entries = [
             dict(
-                junction_id=j.junction_id, entry_s_m=round(j.entry_s_m, 1), stop_line_s_m=j.stop_line_s_m, state_at_entry=j.entered_state, stopped_on_red=j.stopped_on_red,
+                junction_id=j.junction_id, entry_s_m=round(j.entry_s_m, 1), stop_line_s_m=round(j.entry_s_m, 1), carla_stop_waypoint_s_m=j.carla_stop_s_m, state_at_entry=j.entered_state, stopped_on_red=j.stopped_on_red,
                 stood_s=round(j.stood_s, 2), red_at_front_s_m=j.red_at_front_s_m, decided_red_at_front_s_m=j.decided_red_at_front_s_m, stood_front_s_m=j.stood_front_s_m,
-                stood_short_of_line_m=None if j.stood_front_s_m is None or j.stop_line_s_m is None else round(j.stop_line_s_m - j.stood_front_s_m, 2),
+                stood_short_of_line_m=None if j.stood_front_s_m is None else round(j.entry_s_m - j.stood_front_s_m, 2),
                 past_line_on_red_m=j.past_line_on_red_m if j.red_at_front_s_m is not None else None, moved_on_red=j.moved_on_red, readings=dict(sorted(j.readings.items())),
             )
             for j in self.junctions

@@ -866,14 +866,16 @@ class MaplessDriver:
         # within line_entry_tolerance_m of the sat-nav's junction entry), its near edge
         # line_margin_m ahead of the front; else the entry less stop_back_m.
         line_m = None
-        if decision in HOLDING and entry_m is not None:
+        reading_lights = self.light_filter.last is not None  # a classifier on the car
+        near = entry_m is not None and entry_m - c.body.front_m <= c.light.approach_within_m
+        if (decision in HOLDING or (reading_lights and near)) and entry_m is not None:
             image = next((im for im in frame.cameras if im.name == c.light.camera and frame.status_of(im.name).state is SensorState.OK), None)
             if image is not None and self.stop_line.locked is None:
                 self.stop_line.update(image.rgb, image.calibration, motion.odometry, t)
             line_m = self.stop_line.distance_m(motion.odometry)
             if line_m is not None and abs(line_m - entry_m) > c.light.line_entry_tolerance_m:
                 line_m = None
-        elif entry_m is None or decision in ("green", "none"):
+        elif entry_m is None:
             self.stop_line.reset()
         if line_m is not None:
             light_hold = stop_for(decision, line_m - c.body.front_m, motion.speed_mps, c.light, back_m=c.light.line_margin_m)
@@ -887,6 +889,7 @@ class MaplessDriver:
                 light=decision, light_reading=None if r is None else [r.state, round(r.confidence, 2), round(t - r.time_s, 2)],
                 light_hold_m=None if light_hold is None else round(light_hold, 2), stop_line_m=None if line_m is None else round(line_m, 2),
             )
+        approach_cap = c.light.approach_mps if reading_lights and near and entry_m - c.body.front_m >= 0.0 else None
         lap("junction")
         if not corridor.ok:
             return self._fault(f"no corridor: {corridor.reason}", d, motion, t, dt)
@@ -896,7 +899,10 @@ class MaplessDriver:
         goal_body = None
         if guidance.index == len(self.progress.xy) - 1 and guidance.goal_distance_m < corridor.valid_length_m + 5:
             goal_body = motion.odometry.to_body(motion.route_to_odometry(np.array([self.progress.xy[-1]])))[0]
-        plan = self.planner.plan(corridor, observation, goal_body, t, hold_at_m=hold_at, speed_cap_mps=self.speed_cap_mps, cruise_mps=self.cruise_mps)
+        cap = self.speed_cap_mps if approach_cap is None else (approach_cap if self.speed_cap_mps is None else min(self.speed_cap_mps, approach_cap))
+        if approach_cap is not None:
+            d.update(light_approach_cap_mps=approach_cap)
+        plan = self.planner.plan(corridor, observation, goal_body, t, hold_at_m=hold_at, speed_cap_mps=cap, cruise_mps=self.cruise_mps)
         lap("plan")
         self.last_plan, self.last_corridor = plan, corridor  # the path planned along this tick (a turn's, in a turn)
         self._profile_path = (t, corridor.centre_odometry) if corridor.ok else None

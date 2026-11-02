@@ -999,7 +999,9 @@ def red_light_check(script, classifier):
     """The ``red_light`` check (G4 M07, 2 Nov), or None when no light was in play: the
     route junctions with lights, the governing light's state as the car's front entered
     each, each encounter (where the light went red, the car decided red, it stood, how far
-    short of the true stop line) and the car's readings on the approach. An entry on red,
+    short of the stop line at the junction's entry) and the car's readings on the approach.
+    A junction not reached is INCOMPLETE only when lights were tested (S4 holds for good
+    short of 468: a REPORT there, not a G2 verdict). An entry on red,
     the front past the stop line while red, or moving off on red FAILs when the run tested
     lights (``--lights scripted`` or a light classifier on the car) and is a REPORT
     otherwise (the car was not asked to see lights). A scripted run PASSes once every lit
@@ -1015,7 +1017,7 @@ def red_light_check(script, classifier):
     elif r["red_entries"] or r["red_line"]:
         status, note = (FAIL if tested else REPORT), f"{r['red_entries']} junction(s) entered on red; the front past the stop line on red (or moved off on red) at {r['red_line']}"
     elif any(e["state_at_entry"] is None for e in entries):
-        status, note = INCOMPLETE, "a junction with lights not reached"
+        status, note = (INCOMPLETE if tested else REPORT), "a junction with lights not reached"
     elif script.mode == "scripted":
         status, note = (PASS, "stopped at every red, entered on green") if r["exercised"] else (REPORT, "no red entry, but not every red was stood at")
     else:
@@ -1583,7 +1585,7 @@ class MaplessDrive:
             if args.stack:
                 stack_config = StackConfig(
                     admission=Admission.preset(args.admission), segmenter=args.segmenter, detector=args.detector, semantic_mode=getattr(args, "semantic", "thread"),
-                    light_classifier=getattr(args, "light_classifier", None),
+                    light_classifier=getattr(args, "light_classifier", None), light_band_scale=getattr(args, "light_scale", None),
                 )
                 driver = MaplessStack(self.suite, self.route, config, stack_config, DT_S)
                 self.report["stack"] = dict(
@@ -1591,7 +1593,7 @@ class MaplessDrive:
                     segmenter=args.segmenter or "constant",
                     segmenter_sha256=_file_sha256(args.segmenter) if args.segmenter not in (None, "constant") else None,
                     detector=args.detector or "none",
-                    light_classifier=stack_config.light_classifier,
+                    light_classifier=stack_config.light_classifier, light_band_scale=stack_config.light_band_scale,
                     light_classifier_sha256=_file_sha256(stack_config.light_classifier) if stack_config.light_classifier else None,
                     stack_config_sha256=hashlib.sha256(json.dumps(dataclasses.asdict(stack_config), sort_keys=True, default=str).encode()).hexdigest(),
                     segmenter_load=getattr(driver.segmenter, "load_mode", None),
@@ -2088,6 +2090,10 @@ def main(argv=None, stack=False):
         help="traffic lights: CARLA's own cycle (default), all frozen green, or scripted: red as the car nears each route junction with lights, green once it has stood at the line (showcase_lights)",
     )
     parser.add_argument("--light-classifier", default=None, help="stack: traffic-light classifier checkpoint (train_traffic_light.py); the car then stops for red lights")
+    parser.add_argument(
+        "--light-scale", type=float, default=None,
+        help="stack: read the light band at this scale of the camera's pixels (default: the trained size, 0.61); Town10HD's far-side lights need ~2.2 (light_v1, 2 Nov)",
+    )
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=2000)
     args = parser.parse_args(argv)

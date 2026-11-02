@@ -93,6 +93,11 @@ def test_training_on_a_tiny_capture_labels_from_truth_and_refuses_test_towns(tmp
 
     reading = LightClassifier(out, device="cpu").classify(np.zeros((72, 128, 3), dtype=np.uint8), 1.0)
     assert reading.state in LIGHT_STATES and 0.0 <= reading.confidence <= 1.0
+    big = LightClassifier(out, device="cpu", band_scale=2.2)  # any size reads: a far light enlarged
+    assert big.classify(np.zeros((72, 128, 3), dtype=np.uint8), 1.0).state in LIGHT_STATES
+    from mapless.traffic_light import preprocess
+
+    assert preprocess(np.zeros((720, 1280, 3), dtype=np.uint8), cv2, 2.2).shape == (3, 792, 1971)
     import pickle
 
     sample = pickle.loads(pickle.dumps(tl.LightImages(items[:2], True)))  # Windows spawns DataLoader workers: the dataset must pickle

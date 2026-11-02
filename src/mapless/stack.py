@@ -367,6 +367,7 @@ class StackConfig:
     # reading goes to the driver, whose filter decides and whose hold stops the car short
     # of the route junction's entry (``mapless.traffic_light``).
     light_classifier: str | None = None
+    light_band_scale: float | None = None  # None: the trained input size; else the band times this (a far light enlarged)
     light_camera: str = "front"
     light_every: int = 4
     light_phase: int = 3
@@ -422,7 +423,7 @@ class MaplessStack:
         if light_classifier is None and c.light_classifier is not None:
             from mapless.traffic_light import LightClassifier  # noqa: PLC0415 (torch only when asked for)
 
-            light_classifier = LightClassifier(c.light_classifier)
+            light_classifier = LightClassifier(c.light_classifier, band_scale=c.light_band_scale)
         self.light_classifier = light_classifier  # anything with classify(rgb, time_s) -> LightReading
         self.suite = suite
         self.segmenter = segmenter if isinstance(segmenter, RoadSegmenter) else load_segmenter(c.segmenter, full_resolution=c.segment_full_resolution)
