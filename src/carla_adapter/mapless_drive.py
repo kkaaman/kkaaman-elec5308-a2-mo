@@ -1318,7 +1318,7 @@ class MaplessDrive:
         sweeps = args.output / "sweeps"
         sweeps.mkdir()
         record_frames = args.record_frames == "all" or (args.record_frames == "turns" and self.turn_site is not None)
-        recorder = FrameRecorder(args.output / "frames", self.suite, rig.calibration_id, rig.episode_id, rig.extrinsics) if record_frames else None
+        recorder = FrameRecorder(args.output / "frames", self.suite, rig.calibration_id, rig.episode_id, rig.extrinsics, cameras_every=args.record_cameras) if record_frames else None
         if self.turn_site is not None:
             ts = self.turn_site
             (args.output / "turn_truth.json").write_text(
@@ -1803,6 +1803,13 @@ def main(argv=None, stack=False):
         choices=("none", "turns", "all"),
         default="turns",
         help="Record the sensor frames (LiDAR as int16 cm, GNSS, IMU, speed, status) under <output>/frames for an offline replay: ~90 KB a tick",
+    )
+    parser.add_argument(
+        "--record-cameras",
+        type=int,
+        default=0,
+        metavar="N",
+        help="with --record-frames: also every camera's image as JPEG every N ticks, on the ticks the stack segments when N is its segment_every (2): ~160 KB a recorded tick (0: none)",
     )
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=2000)

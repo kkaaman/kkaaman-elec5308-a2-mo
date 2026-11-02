@@ -16,6 +16,14 @@ What is written under ``<run>/frames``:
   returns as float32 (range, azimuth, elevation, range rate; ~300 a tick, 5 KB) under
   ``radar_<name>``. Schema 1 recordings (before 29 Oct) hold no radar: the PC 1 run in
   which the oncoming car was first tracked 26 m away could not be replayed with it.
+- With ``cameras_every`` N (``--record-cameras N``, 2 Nov): every OK camera's image on the
+  ticks the stack segments when N is its ``segment_every`` (the stack counts its ticks
+  from 1, so the ticks ``tick + 1`` a multiple of N), as ``c<tick>_<camera>.jpg``
+  (quality 92: ~160 KB a tick for the v2 rig's four), with each camera's calibration in
+  ``cameras.json`` and the names stored in the tick's row. The replay then gives the
+  semantic layer the images the live one had (G5: the road edge the segmenter reads
+  against the LiDAR kerb, on the same sweeps). JPEG is lossy: a replayed segmentation is
+  close to the live one, not identical.
 
 The replay is open loop: the car follows the logged motion whatever the replayed driver
 commands, so it answers questions about perception and estimation, not control.
@@ -29,6 +37,7 @@ from pathlib import Path
 import numpy as np
 
 from mapless.frame import (
+    CameraImage,
     GnssFix,
     ImuSample,
     LidarSweep,
@@ -38,9 +47,19 @@ from mapless.frame import (
     SensorStatus,
 )
 
+JPEG_QUALITY = 92
+
+
+def _calibration_dict(calibration):
+    return dict(fx_px=calibration.fx_px, fy_px=calibration.fy_px, cx_px=calibration.cx_px, cy_px=calibration.cy_px, camera_to_ego=[list(r) for r in calibration.camera_to_ego])
+
 
 class FrameRecorder:
-    def __init__(self, directory, suite, calibration_id, episode_id, extrinsics):
+    def __init__(self, directory, suite, calibration_id, episode_id, extrinsics, cameras_every=0):
+        if cameras_every < 0:
+            raise ValueError("cameras_every must be 0 (no images) or a positive stride")
+        self.cameras_every = int(cameras_every)
+        self._calibrations = {}
         self.directory = Path(directory)
         self.directory.mkdir(parents=True, exist_ok=True)
         self.lidar = suite.lidars[0].name
@@ -80,6 +99,8 @@ class FrameRecorder:
             lidar=any(s.name == self.lidar for s in frame.lidars),
             radars=[r.name for r in frame.radars],
         )
+        if self.cameras_every and (tick + 1) % self.cameras_every == 0:
+            row["cameras"] = self._record_cameras(tick, frame)
         self._rows.write(json.dumps(row) + "\n")
         self._rows.flush()  # the recording exists to debug runs that die
         arrays = {f"radar_{r.name}": np.asarray(r.returns, dtype=np.float32) for r in frame.radars}
@@ -89,6 +110,23 @@ class FrameRecorder:
         if arrays:
             np.savez_compressed(self.directory / f"t{tick:05d}.npz", **arrays)
         self.ticks += 1
+
+    def _record_cameras(self, tick, frame):
+        import cv2  # noqa: PLC0415 - only when images are recorded
+
+        stored = []
+        for image in frame.cameras:
+            if frame.status_of(image.name).state is not SensorState.OK:
+                continue
+            ok, data = cv2.imencode(".jpg", np.ascontiguousarray(image.rgb[:, :, ::-1]), [cv2.IMWRITE_JPEG_QUALITY, JPEG_QUALITY])
+            if not ok:
+                continue
+            (self.directory / f"c{tick:05d}_{image.name}.jpg").write_bytes(data.tobytes())
+            if image.name not in self._calibrations:
+                self._calibrations[image.name] = _calibration_dict(image.calibration)
+                (self.directory / "cameras.json").write_text(json.dumps(self._calibrations, indent=2), encoding="utf-8")
+            stored.append(image.name)
+        return stored
 
     def close(self):
         self._rows.close()
@@ -106,6 +144,12 @@ def iter_frames(directory):
     meta = json.loads((directory / "meta.json").read_text(encoding="utf-8"))
     extrinsics = np.asarray(meta["lidar_to_ego"], dtype=float)
     radar_to_ego = meta.get("radar_to_ego", {})  # absent in schema 1: no radar was stored
+    cameras_file = directory / "cameras.json"
+    calibrations = {}
+    if cameras_file.exists():
+        from autonomy.interfaces import CameraCalibration  # noqa: PLC0415
+
+        calibrations = {n: CameraCalibration(c["fx_px"], c["fy_px"], c["cx_px"], c["cy_px"], tuple(tuple(r) for r in c["camera_to_ego"])) for n, c in json.loads(cameras_file.read_text(encoding="utf-8")).items()}
     with open(directory / "frames.jsonl", encoding="utf-8") as rows:
         for line in rows:
             row = json.loads(line)
@@ -116,12 +160,15 @@ def iter_frames(directory):
                 xyz = arrays["xyz_cm"].astype(np.float32) / 100.0
                 lidars = (LidarSweep(meta["lidar"], np.column_stack((xyz, np.zeros(len(xyz), dtype=np.float32))), extrinsics),)
             radars = tuple(RadarReturns(n, arrays[f"radar_{n}"], radar_to_ego[n]) for n in stored)
-            # Cameras are not stored, nor radars before schema 2, so their statuses are
-            # dropped (a frame may carry OK status only for data it holds).
+            cameras = tuple(_read_camera(directory, row["tick"], n, calibrations[n]) for n in row.get("cameras", ()) if n in calibrations)
+            held = {im.name for im in cameras}
+            # Cameras are stored only with --record-cameras and on its ticks, radars only
+            # from schema 2, so the statuses of the others are dropped (a frame may carry
+            # OK status only for data it holds).
             status_rows = [
                 s
                 for s in row["status"]
-                if s["kind"] != "camera" and not (s["kind"] == "lidar" and s["name"] != meta["lidar"]) and not (s["kind"] == "radar" and s["name"] not in radar_to_ego)
+                if not (s["kind"] == "camera" and s["name"] not in held) and not (s["kind"] == "lidar" and s["name"] != meta["lidar"]) and not (s["kind"] == "radar" and s["name"] not in radar_to_ego)
             ]
             status = tuple(SensorStatus(s["name"], s["kind"], SensorState(s["state"]), s["capture_time_s"], s.get("detail", "")) for s in status_rows)
             frame = SensorFrame(
@@ -129,7 +176,7 @@ def iter_frames(directory):
                 frame_id=int(row["frame_id"]),
                 sim_time_s=float(row["sim_time_s"]),
                 received_monotonic_s=float(row["received_monotonic_s"]),
-                cameras=(),
+                cameras=cameras,
                 lidars=lidars,
                 radars=radars,
                 gnss=None if row["gnss"] is None else GnssFix(*row["gnss"]),
@@ -139,3 +186,10 @@ def iter_frames(directory):
                 calibration_id=meta["calibration_id"],
             )
             yield int(row["tick"]), frame
+
+
+def _read_camera(directory, tick, name, calibration):
+    import cv2  # noqa: PLC0415 - only for recordings with images
+
+    bgr = cv2.imdecode(np.frombuffer((directory / f"c{tick:05d}_{name}.jpg").read_bytes(), dtype=np.uint8), cv2.IMREAD_COLOR)
+    return CameraImage(name, np.ascontiguousarray(bgr[:, :, ::-1]), calibration)
