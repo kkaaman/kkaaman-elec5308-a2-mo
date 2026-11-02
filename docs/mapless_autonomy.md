@@ -3924,6 +3924,30 @@ p50 37 → 31 ms, p95 50-51 → 41-44, over the 50 ms target 5-9 % → 0.3-1.6 %
 five within the budget (r19s: none). The driving is the same tick for tick — the same tick
 counts and not one command different from r19s in any of the five runs.
 
+**PC 1, and three speed-ups that change nothing (2 Nov).** r20's first run on PC 1
+(`5cf78f7`) passed every behaviour gate with detection flat at 5.4-5.7 ms (no contention
+left), but the machine is ~20 % slower than PC 3: step p50 37 ms, p95 51.4, 7.3 % of steps
+over 50 ms (the gate allows 5 %). Profiled on the r18 S1_5310 frames, three costs had
+nothing to do with what they compute:
+- the road points sent to the reach bound before the exact projection: the box around the
+  line was grown by `beyond_line_m` (6 m) on every side, sideways too, so the whole road
+  and both pavements (12,200 points a sweep) went to it. Only two regions can hold ground
+  that counts — within the tube's widest reach of the line (half + 1 m; `tube_bounds`
+  widens it by 1 m at most) and the 6 m straight past its end — so the points are cut to
+  those two boxes first: 5,600 points, the bound 2.15 → 0.98 ms;
+- the radar's single-linkage union-find indexed numpy scalars in a Python loop over
+  ~1,300 close pairs a sweep; the same unions in the same order on a plain list, 2.14 →
+  1.34 ms;
+- the radar-twin merge recomputed each LiDAR track's face (line of sight, half-extents)
+  for every radar track it was tested against, ~180 pairs a tick; computed once per LiDAR
+  track per pass, 1.87 → 1.36 ms.
+
+Together ~2.9 ms a tick in this container. Checked by replaying two recordings through the
+stack before and after, one canonical record per tick (the command, the mode, every
+diagnostic but the timings, the tracks, the predictions; floats in hex): r18 S1_5310's
+2,202 ticks and r19s S0_5308's 2,411 identical to the bit, as two runs of the unchanged
+code are.
+
 ### Live on PC 3 (2 Nov, `3adf639`): r19s, the G2 batch — 30 of 30
 
 Every behaviour gate passed in all six scenarios, five seeds each: the first complete G2

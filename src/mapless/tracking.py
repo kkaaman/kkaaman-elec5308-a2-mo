@@ -988,6 +988,7 @@ class Tracker:
                 r.twin_of, r.twin_ticks = None, 0
             return
         sensor = np.array([pose.x_m, pose.y_m]) if pose is not None else None
+        faces = {}  # each LiDAR track's face for this pass (``_behind_face_xy``): their positions and footprints do not change in it
         merges = 0
         # Why a radar-only track next to a LiDAR one was not folded in, for the log (fourth
         # review: duplicate tracks on one car survive the merge; which gate keeps them?).
@@ -1005,7 +1006,7 @@ class Tracker:
                     length, width, yaw = cand.footprint
                     along = abs(rel[0] * math.cos(yaw) + rel[1] * math.sin(yaw)) - length / 2
                     across = abs(-rel[0] * math.sin(yaw) + rel[1] * math.cos(yaw)) - width / 2
-                    if (along > c.merge_margin_m or across > c.merge_margin_m) and not self._behind_face(r, cand, sensor):
+                    if (along > c.merge_margin_m or across > c.merge_margin_m) and not self._behind_face(r, cand, sensor, faces):
                         why = f"outside its footprint by {max(along, across) - c.merge_margin_m:.1f} m"
                     elif not self._speeds_agree(r, cand, sensor):
                         why = "radial speeds disagree"
@@ -1083,28 +1084,46 @@ class Tracker:
         across = abs(-rel[0] * math.sin(yaw) + rel[1] * math.cos(yaw)) - width / 2
         return (along <= c.merge_margin_m and across <= c.merge_margin_m) or self._behind_face_xy(xy, lidar_track, sensor)
 
-    def _behind_face(self, radar_track, lidar_track, sensor):
-        return self._behind_face_xy(radar_track.x[:2], lidar_track, sensor)
+    def _behind_face(self, radar_track, lidar_track, sensor, faces=None):
+        return self._behind_face_xy(radar_track.x[:2], lidar_track, sensor, faces)
 
-    def _behind_face_xy(self, xy, lidar_track, sensor):
-        """Whether the odometry point ``xy`` lies behind ``lidar_track``'s face as the sensor sees it:
-        the LiDAR track's extent along the line of sight is a face (under
-        ``merge_face_depth_m``), and the point is no more than ``merge_depth_m`` beyond it
-        along that line and within its half-extent across it plus ``merge_margin_m``."""
+    def _face(self, lidar_track, sensor):
+        """``lidar_track``'s face as the sensor sees it, for ``_behind_face_xy``: (the unit
+        line of sight, the half-extents along and across it), or None when the sensor is on
+        it or the extent along the line of sight is no face (``merge_face_depth_m``)."""
         c = self.config
-        if sensor is None:
-            return False
         los = lidar_track.x[:2] - sensor
         dist = float(np.hypot(*los))
         if dist < 1e-6:
-            return False
+            return None
         u = los / dist
         length, width, yaw = lidar_track.footprint
         rel = yaw - math.atan2(u[1], u[0])
         deep = 0.5 * (length * abs(math.cos(rel)) + width * abs(math.sin(rel)))  # half-extent along the line of sight
         wide = 0.5 * (length * abs(math.sin(rel)) + width * abs(math.cos(rel)))  # ... and across it
         if 2.0 * deep > c.merge_face_depth_m:
+            return None
+        return u, deep, wide
+
+    def _behind_face_xy(self, xy, lidar_track, sensor, faces=None):
+        """Whether the odometry point ``xy`` lies behind ``lidar_track``'s face as the sensor sees it:
+        the LiDAR track's extent along the line of sight is a face (under
+        ``merge_face_depth_m``), and the point is no more than ``merge_depth_m`` beyond it
+        along that line and within its half-extent across it plus ``merge_margin_m``.
+        ``faces``: a dict the caller keeps for one merge pass, holding each LiDAR track's
+        face once (the same arithmetic; ~180 radar-LiDAR pairs a tick recomputed it, 2 Nov)."""
+        c = self.config
+        if sensor is None:
             return False
+        if faces is None:
+            face = self._face(lidar_track, sensor)
+        else:
+            if lidar_track.track_id not in faces:
+                faces[lidar_track.track_id] = self._face(lidar_track, sensor)
+            face = faces[lidar_track.track_id]
+        if face is None:
+            return False
+        u, deep, wide = face
         off = np.asarray(xy, dtype=float) - lidar_track.x[:2]
         beyond = float(off @ u) - deep
         aside = abs(float(off @ np.array([-u[1], u[0]])))

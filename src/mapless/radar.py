@@ -132,7 +132,10 @@ def cluster_returns(compensated, sensor_xy, name, config=None):
     if n == 0:
         return []
     xy, rate = data[:, :2], data[:, 2]
-    parent = np.arange(n)
+    # Union-find on a plain list (the same unions in the same order, so the same roots and
+    # the same clusters in the same order): numpy scalar indexing made the loop over the
+    # ~1,300 close pairs of a sweep cost ~2 ms a tick (2 Nov, the real-time budget).
+    parent = list(range(n))
 
     def find(i):
         while parent[i] != i:
@@ -142,7 +145,8 @@ def cluster_returns(compensated, sensor_xy, name, config=None):
 
     d = np.hypot(xy[:, None, 0] - xy[None, :, 0], xy[:, None, 1] - xy[None, :, 1])
     close = (d <= c.cluster_m) & (np.abs(rate[:, None] - rate[None, :]) <= c.cluster_rate_mps)
-    for i, j in zip(*np.nonzero(np.triu(close, 1))):
+    rows, cols = np.nonzero(np.triu(close, 1))
+    for i, j in zip(rows.tolist(), cols.tolist()):
         parent[find(i)] = find(j)
     roots = np.array([find(i) for i in range(n)])
     out = []
