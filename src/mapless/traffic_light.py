@@ -1,6 +1,6 @@
 """Traffic-light state from the front camera (G4 M07 and G5's learned component, 2 Nov).
 
-A small classifier reads the front image and says whether a light governs the car's lane
+A small classifier reads the front image's upper middle band and says whether a light governs the car's lane
 here and, if so, its colour: ``none``, ``red``, ``yellow`` or ``green``. It is trained
 on the capture runs' labels (``at_traffic_light`` and the governing light's state, from
 the training towns only), so it learns which light is the car's own as well as its
@@ -99,13 +99,18 @@ def stop_for(decision, entry_m, speed_mps, config=None):
 
 
 # -- the classifier -------------------------------------------------------------------------
-INPUT_WH = (320, 192)  # the front image's top three fifths, resized
+INPUT_WH = (544, 192)  # the crop below at about 0.6 scale
+CROP_ROWS = (0.10, 0.60)  # of the image height
+CROP_COLS = (0.15, 0.85)  # of the width
 
 
 def crop(rgb):
-    """The part of the front image a governing light appears in: the top three fifths."""
-    h = rgb.shape[0]
-    return rgb[: int(round(h * 0.6))]
+    """The band of the front image a governing light appears in: rows 10-60 %, columns
+    15-85 %. At 1280 x 720 a far-side light at a Town10HD-sized junction is ~15 x 30 px
+    (live, junction 468): kept at ~0.6 scale it stays ~9 x 18 px, where a whole-image
+    input at 320 px wide made it 4 x 8."""
+    h, w = rgb.shape[:2]
+    return rgb[int(round(h * CROP_ROWS[0])) : int(round(h * CROP_ROWS[1])), int(round(w * CROP_COLS[0])) : int(round(w * CROP_COLS[1]))]
 
 
 def tiny_net(torch, classes=len(LIGHT_STATES)):

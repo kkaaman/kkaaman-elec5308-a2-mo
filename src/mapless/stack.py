@@ -739,7 +739,7 @@ class MaplessStack:
                 # ahead for 4.5 s (Town05 recorded frames). While the gap and the worst-case
                 # cap allow cruise it only watches the lead (fifth review, F5-01).
                 held = self.driver.speed_cap_mps if prev_cause == track.track_id else None
-                cap = self.following.target_speed(self.driver.cruise_mps, motion.speed_mps, gap, along, self.driver.dt_s, held_cap_mps=held, keep_gap=not (continuation or {}).get("uncertain", False), lead_id=track.track_id)
+                cap = self.following.target_speed(_cruise_of(self.driver), motion.speed_mps, gap, along, self.driver.dt_s, held_cap_mps=held, keep_gap=not (continuation or {}).get("uncertain", False), lead_id=track.track_id)
                 reason = "" if cap is None else ("lead at a standstill" if cap <= 0.0 else "following the lead")
                 self._lead["following"] = dict(self.following.last)
                 self._followed = dict(track_id=track.track_id, time_s=t, gap_m=gap, speed_mps=along, cap=cap)
@@ -775,7 +775,7 @@ class MaplessStack:
             # made every conflict look far away and the cap flickered tick to tick).
             samples = plan.trajectory.samples
             xy = np.array([[smp.x_m, smp.y_m] for smp in samples])
-            speed = max(motion.speed_mps, min(self.driver.cruise_mps, max(plan.curve_speed_mps, 0.5)))
+            speed = max(motion.speed_mps, min(_cruise_of(self.driver), max(plan.curve_speed_mps, 0.5)))
             seg = np.hypot(*np.diff(xy, axis=0).T)
             arcs = np.concatenate(([0.0], np.cumsum(seg)))
             # Time zero is the car itself, not the path's first sample (which lies behind it).
@@ -1108,6 +1108,13 @@ def incoherent_vehicle(track, config):
     Walker-sized tracks keep their motion: a walker's centroid is jumpier than a car's,
     and walls masquerading as walkers have their own rules (``plausible_crossers``)."""
     return track.motion_coherent is False and decided_class(track) != "pedestrian" and is_vehicle(track, config)
+
+
+def _cruise_of(driver):
+    """The driver's cruise speed this tick (``MaplessDriver.cruise_mps``: a target set per
+    tick, else the configured one); the configured one for a driver without the property."""
+    cruise = getattr(driver, "cruise_mps", None)
+    return driver.config.planner.cruise_mps if cruise is None else cruise
 
 
 def edge_unsupported(track, config):
