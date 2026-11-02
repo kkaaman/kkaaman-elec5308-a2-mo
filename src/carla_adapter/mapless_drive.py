@@ -69,6 +69,7 @@ import sys
 import time
 import uuid
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 
@@ -114,7 +115,7 @@ from mapless.sensor_suite import load_sensor_suite, parse_overrides
 from mapless.stack import Admission, MaplessStack, StackConfig
 from mapless.terrain import CellLabel, VehicleBody
 from navigation_control.local import LocalControlConfig
-from navigation_control.types import ControllerConfig, VehicleState
+from navigation_control.types import ControllerConfig
 
 DT_S = 0.05
 PARKED_CAR = "vehicle.audi.a2"
@@ -565,7 +566,9 @@ class ParkingAdapter(HoldingVehicleAdapter):
         yaw = math.radians(pose.rotation.yaw)
         speed = velocity.x * math.cos(yaw) + velocity.y * math.sin(yaw)
         off = self.geometry.rear_axle_offset_m
-        return VehicleState(pose.location.x - off * math.cos(yaw), -pose.location.y + off * math.sin(yaw), -yaw, speed)
+        # Not a VehicleState: its speed is non-negative by contract, and reversing is the
+        # point here (park_t1, PC 1: refused at the first roll-back, 2 Nov).
+        return SimpleNamespace(x_m=pose.location.x - off * math.cos(yaw), y_m=-pose.location.y + off * math.sin(yaw), yaw_rad=-yaw, speed_mps=speed)
 
     def apply(self, command):
         import carla
@@ -590,8 +593,6 @@ class ParkingDriver:
         self.parker = parker
 
     def step(self, frame):
-        from types import SimpleNamespace  # noqa: PLC0415
-
         command = self.parker.step(frame)
         phase = self.parker.state.phase
         mode = DriveMode.STARTUP if phase == "calibrate" else (DriveMode.FINISHED if self.parker.done else DriveMode.DRIVING)
