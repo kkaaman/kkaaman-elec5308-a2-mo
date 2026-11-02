@@ -64,7 +64,7 @@ def fake_carla_module():
         Rotation=Rotation,
         Transform=Transform,
         VehicleControl=VehicleControl,
-        WeatherParameters=SimpleNamespace(ClearNoon="ClearNoon"),
+        WeatherParameters=SimpleNamespace(ClearNoon="ClearNoon", ClearNight="ClearNight"),
         LaneType=LANE_TYPE,
         AttachmentType=SimpleNamespace(Rigid="Rigid"),
         TrafficLightState=SimpleNamespace(Red="Red", Yellow="Yellow", Green="Green"),
@@ -444,6 +444,14 @@ def test_a_chase_camera_records_the_follow_view_and_a_world_without_one_runs_on(
     assert chase["note"] is None and chase["frames"] > 20 and (out / "chase.mp4").stat().st_size > 1000
     (camera, transform), = cameras
     assert attributes["image_size_x"] == "1280" and transform.location.x == -8.0 and transform.location.z == 5.0 and camera.parent is not None
+
+
+def test_a_night_drive_switches_the_low_beams_on(monkeypatch, tmp_path):
+    """``--weather clear_night``: the harness switches the car's low beams on before it
+    drives (the fake world has no vehicle lights: the report says so, and the run is
+    the same)."""
+    out, report = run_drive(monkeypatch, tmp_path, "--scenario", "straight", "--goal-m", "30", "--snapshot-every", "0", "--weather", "clear_night")
+    assert report["weather"]["preset"] == "clear_night" and report["headlights"].startswith("not set") and report["end"] == "finished"
 
 
 def test_straight_drive_reaches_the_goal_and_passes(monkeypatch, tmp_path):
@@ -890,7 +898,21 @@ def test_weather_presets_copy_before_overriding_and_are_recorded():
     record = drive.weather_record("light_fog", fog)
     assert record["preset"] == "light_fog" and record["fog_density"] == 35.0 and record["cloudiness"] == 60.0
     assert drive.weather_record("clear_noon", "ClearNoon") == {"preset": "clear_noon"}  # the smoke tests' stand-in
-    assert set(drive.WEATHER_PRESETS) >= {"clear_noon", "moderate_rain", "light_fog"}
+    assert set(drive.WEATHER_PRESETS) >= {"clear_noon", "moderate_rain", "light_fog", "clear_sunset", "clear_sunrise", "clear_night"}
+    # Sunrise: the sunset's low sun moved to the other side of the sky, a copy again.
+    W.ClearSunset = W(cloudiness=15.0, sun_altitude_angle=15.0, sun_azimuth_angle=-1.0)
+    rise = drive.weather_parameters(fake, "clear_sunrise")
+    assert rise is not W.ClearSunset and rise.sun_azimuth_angle == 179.0 and rise.sun_altitude_angle == 8.0 and W.ClearSunset.sun_azimuth_angle == -1.0
+    # At night the harness turns the low beams on, as a driver would; a world without
+    # vehicle lights says so and the run goes on.
+    set_to = []
+
+    class States(int):
+        Position, LowBeam = 1, 2
+
+    lamp = SimpleNamespace(VehicleLightState=States)
+    assert drive.headlights_on(lamp, SimpleNamespace(set_light_state=set_to.append)) == "low beam" and set_to == [3]
+    assert drive.headlights_on(SimpleNamespace(), SimpleNamespace()).startswith("not set") and drive.NIGHT_PRESETS == ("clear_night",)
 
 
 def test_a_scripted_red_the_car_cannot_see_is_run_and_fails_the_red_light_check(monkeypatch, tmp_path):
