@@ -3973,6 +3973,52 @@ semantic worker's lock contention, detection at 8.3-8.5 ms in nearly every run; 
   would take it ~2 m sooner; not needed for this gate, measured first if a later batch
   shows the curve tight again.
 
+### The showcase pieces (2 Nov, `c4cbbb1` to `3e0a919`): lights in the loop, the stop line, the walker, parking
+
+The showcase is one run of the G2 route at 4 m/s with a crossing walker (`--mission-actor
+crossing_pedestrian --actor-param brake_at_m=70`), S3's roadside car and junction 468's
+light scripted red (`--lights scripted`), which the car must see for itself
+(`--light-classifier`). Parking is a separate run (`--scenario parallel_park`).
+
+- **Timing at 4 m/s.** The first 4 m/s runs (PC 1, PC 2) were 46-54 % over the 50 ms
+  budget because their commands added `--segmenter v2`, which no G2 batch used: the ticks
+  after each segmentation submit ran 18-20 ms slower. Without it, 4 m/s matches r20 at
+  2 m/s (p95 51-53 ms, 7-8 % of ticks over). The segmenter stays shadow only.
+- **The light in the loop.** The stack classifies the front image every 4 ticks, on a
+  tick the semantic worker is idle on. `LightFilter`: two confident reds or yellows stop,
+  three greens or nones release, 1 s without a fresh reading is `unknown`, held for like a
+  red. The hold is short of the painted stop line when the camera has locked it
+  (`mapless/stop_line.py`), else 3 m short of the sat-nav's junction entry; never once the
+  front is past the entry; a red too late for 4 m/s² is driven through. With a classifier
+  on the car, a route junction is approached at 3 m/s from 30 m.
+- **The stop line.** The sat-nav's entry point was 3.9 m early or late across the G2
+  seeds at 468 (route noise), so a hold from it alone could be past the line. The detector
+  samples the lane ahead through the camera's calibration (flat ground) and finds a bright
+  band across at least 75 % of it; the tracker locks once three detections agree within
+  0.4 m while the car moved 1.5 m. On the a1 recording it locks only at 468 (s
+  156.44-156.51), from 15 m; no false lock over the route.
+- **The classifier on Town10HD.** `light_v1` (Town01/03/04/05/06, Town02 validation):
+  per frame red recall 0.75, false reds 7.9 %, but red read green 0 of 172 and green read
+  red 1 of 210 (its errors are none/red, the 20 m label boundary). Live (`showcase_c1`) it
+  missed 468's red: the car's own lights are on the far side of the 43 m junction, a few
+  pixels at the trained 0.61 band scale. Read at 2.2x the camera's pixels (the network is
+  fully convolutional with a global max pool), it confirms red 17 m before the line on the
+  c1 approach with no confirmed false red on a green approach; `light_v2` (30 m labels) at
+  1.5x, 16 m and none. The scale is chosen on these two Town10HD approaches.
+- **The evaluator.** Each lit junction is judged by its governing light's own state:
+  the car's `get_traffic_light_state()` reads Green outside the trigger volume (Red only
+  from rear s 145.4 to 151.1, the light still red). The line is the junction entry, where
+  468's paint is; CARLA's `get_stop_waypoints` gave s 149.4 (the trigger volume's middle,
+  nothing painted), recorded only. `red_light` FAILs a red entry, the front past the line
+  on red, or moving off on red from a stop at the light; each encounter records where the
+  light went red, where the car decided red, where it stood.
+- **Parking.** `mapless/parking.py`: gyro bias at a standstill, the gap from the LiDAR's
+  right-side profile, two reversing arcs planned from the back of the gap with the swept
+  body checked against both cars, centred on the gaps the LiDAR sees, a clearance stop.
+  `ParkingAdapter` allows the reverse gear for this scenario only. Synthetic and fake
+  CARLA: an 8 m gap parks without contact, under 5 deg, centred; 6.5 m is passed by. The
+  roof LiDAR does not see low objects within ~0.5 m of the rear bumper.
+
 ## Running Phase 0 live
 
 Run with CARLA 0.9.16 and no other clients:
