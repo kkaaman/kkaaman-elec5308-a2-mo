@@ -203,14 +203,15 @@ def mission_route(carla_map, site, spacing_m=25.0, exit_in_m=5.0, name=None):
 def brake_taps(log, dt_s, start_s_m=5.0, goal_m=12.0):
     """Stops the drive did not need (REPORT): runs of ``stopping`` ticks between
     ``start_s_m`` and ``goal_m`` short of the chain's end that are not an obstacle stop or
-    hold or the goal — the speed cap's reason on the first tick, where, how long, how slow. r14 on
+    hold, a red light's stop (``light_stop``) or the goal — the speed cap's reason on the
+    first tick, where, how long, how slow. r14 on
     Town10HD: "predicted conflict on the path" at s 52.8 and 71.3 in run after run, a full
     brake to a standstill for 0.3 s each; scenery the tracker read as a moving road user."""
     end_s = max(r["truth"]["s_m"] for r in log) - goal_m
     taps, current = [], None
     for r in log:
         s_m = r["truth"]["s_m"]
-        tapping = r["mode"] == "stopping" and start_s_m < s_m < end_s and not r["reason"].startswith("holding") and r["reason"] not in ("goal", "obstacle")
+        tapping = r["mode"] == "stopping" and start_s_m < s_m < end_s and not r["reason"].startswith("holding") and r["reason"] not in ("goal", "obstacle") and not light_stop(r)
         if tapping:
             reason = str((r.get("driver") or {}).get("speed_cap_reason") or r["reason"] or "")
             if current is None:
@@ -229,6 +230,23 @@ def brake_taps(log, dt_s, start_s_m=5.0, goal_m=12.0):
         t["min_speed_mps"] = round(t["min_speed_mps"], 2)
         t["seconds"] = round(t.pop("ticks") * dt_s, 2)
     return dict(count=len(taps), standstills=sum(t["min_speed_mps"] < 0.1 for t in taps), taps=taps[:12])
+
+
+def light_stop(row):
+    """A stopping tick that is a red light's (G4 M07): the light's hold in force and the
+    one the plan stops for (the junction's hold point, no stopping speed cap: a predicted
+    conflict or a hold for scenery is not excused by a red at the same time), and the
+    governing light red or yellow by the evaluator's truth (a hold for a light that was
+    green is a false red, not excused). Nineteenth review, 3: a legitimate red stop must
+    not fail the roadside-car gate, nor a red label excuse every other restriction."""
+    d = row.get("driver") or {}
+    cap = d.get("speed_cap_mps")
+    return (
+        d.get("light_hold_m") is not None
+        and d.get("stop_reason") == "junction"
+        and (cap is None or cap > 0.5)
+        and str(row.get("light_truth") or "").lower() in ("red", "yellow")
+    )
 
 
 def score_mission(scenario, log, end, hold_ticks, removed_at_s, dt_s, goal_reach_m=3.0, hold_band_m=(1.5, 5.0), plan_band_m=(2.5, 6.0), hold_speed_max_mps=0.1, obstacle_s_m=None, roadside_window_m=(30.0, 20.0)):
@@ -258,8 +276,8 @@ def score_mission(scenario, log, end, hold_ticks, removed_at_s, dt_s, goal_reach
             s_car = obstacle_s_m if obstacle_s_m is not None else scenario.get("obstacle_s_m")
             window = (s_car - roadside_window_m[0], s_car + roadside_window_m[1]) if s_car is not None else None
             near = [r for r in log if window is not None and window[0] <= r["truth"]["s_m"] <= window[1]]
-            # A stop for a red light (G4 M07) is not a stop for the roadside car.
-            stopped = [r for r in near if r["mode"] == "stopping" and (r.get("driver") or {}).get("light_hold_m") is None]
+            # A stop for a red light (G4 M07) is not a stop for the roadside car; any other is.
+            stopped = [r for r in near if r["mode"] == "stopping" and not light_stop(r)]
             speeds = [r["truth"]["speed_mps"] for r in near]
             rows.append(("no_stop_for_roadside_car", None if window is None else not stopped, dict(stopping_ticks=len(stopped), min_speed_mps=round(min(speeds), 2) if speeds else None, window_s_m=[round(w, 1) for w in window] if window else None, obstacle_s_m=s_car)))
         rows.append(("brake_taps", None, brake_taps(log, dt_s)))

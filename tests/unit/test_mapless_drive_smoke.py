@@ -888,16 +888,19 @@ def test_a_scripted_walker_is_placed_on_the_mission_route_by_route_s(monkeypatch
 
 def test_parallel_parking_finds_the_gap_between_two_parked_cars_and_parks(monkeypatch, tmp_path):
     """The showcase's parking clip on the harness (2 Nov): two cars of the ego's model in
-    the same-direction lane to the right of the mission's chain, 9 m apart; the parker
+    the same-direction lane to the right of the mission's chain, 10 m apart; the parker
     finds the gap with the LiDAR, reverses into it and centres; the evaluator measures
-    the gaps to both cars, the offset from their line and the heading, box to box."""
+    the gaps to both cars, the offset from their line and the heading, box to box. The
+    car's wheels reach 30.3 deg where 35 are asked, as the Tesla's did in park_t5 (a 5.14 m
+    radius): the drive's ``--park-lock-gain`` plans on it, and the arcs end on the line
+    (park_t5, planned on 4.29 m: 0.50 m inside it, finished forwards)."""
     import functools
     import sys as _sys
 
     from sim_harness.mapless_road import CarModel
 
     this = _sys.modules[__name__]
-    monkeypatch.setattr(this, "MaplessRoadWorld", functools.partial(MaplessRoadWorld, car=CarModel(max_steer_rad=math.radians(40))))
+    monkeypatch.setattr(this, "MaplessRoadWorld", functools.partial(MaplessRoadWorld, car=CarModel(max_steer_rad=math.radians(30.3))))
     monkeypatch.setattr(drive, "ParkingAdapter", FakeAdapter)
 
     class RightLane(Waypoint):
@@ -916,8 +919,10 @@ def test_parallel_parking_finds_the_gap_between_two_parked_cars_and_parks(monkey
     by_name = {c["check"]: c for c in report["checks"]}
     park = by_name["parallel_park"]
     assert park["status"] == "PASS", json.dumps(park, indent=1)
-    assert park["front_gap_m"] >= 0.2 and park["rear_gap_m"] >= 0.2 and abs(park["lateral_from_line_m"]) <= 0.5 and abs(park["heading_deg"]) <= 5.0
-    assert report["end"] == "finished" and report["parking"]["gap_m"] == 9.0 and by_name["no_collision"]["status"] == "PASS"
+    assert park["front_gap_m"] >= 0.2 and park["rear_gap_m"] >= 0.2 and abs(park["lateral_from_line_m"]) <= 0.25 and abs(park["heading_deg"]) <= 2.0
+    parker = park["parker"]
+    assert parker["planned_radius_m"] == pytest.approx(5.26, abs=0.05) and parker["measured_radius_m"] == pytest.approx(5.2, abs=0.25)
+    assert report["end"] == "finished" and report["parking"]["gap_m"] == 10.0 and by_name["no_collision"]["status"] == "PASS"
     with pytest.raises(SystemExit):
         drive.main(["--scenario", "parallel_park", "--output", str(tmp_path / "s")], stack=True)  # the parker runs alone
 

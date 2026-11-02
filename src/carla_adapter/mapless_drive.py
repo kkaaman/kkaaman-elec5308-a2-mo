@@ -1402,7 +1402,7 @@ class MaplessDrive:
         self.lane_end_s = float(self.lane_arcs[-1]) - LANE_BACK_M
         self.site = dict(kerb_distance_m=site.kerb_distance_m, lane_width_m=site.lane_width_m, mission=site.name, length_m=round(site.length_m, 1), junctions=[])
         self.report["site"] = rounded(self.site | dict(map=carla_map.name))
-        self.report["parking"] = dict(rear_car_s_m=args.park_at_m, front_car_s_m=round(args.park_at_m + length + args.park_gap_m, 2), gap_m=args.park_gap_m, start_s_m=args.park_start_m, steer_deg=args.park_steer_deg)
+        self.report["parking"] = dict(rear_car_s_m=args.park_at_m, front_car_s_m=round(args.park_at_m + length + args.park_gap_m, 2), gap_m=args.park_gap_m, start_s_m=args.park_start_m, steer_deg=args.park_steer_deg, lock_gain=args.park_lock_gain)
 
     def setup_turn(self, carla_map):
         carla, args, command = self.carla, self.args, self.turn_command
@@ -1605,7 +1605,7 @@ class MaplessDrive:
                 f = stack_config.following
                 self.report["braking_assumptions"] = braking_assumptions(config.planner.decel_mps2, stack_config.conflict_decel_mps2, f.ego_brake_mps2, f.response_s)
             elif args.scenario == PARK_SCENARIO:
-                parker = ParallelParker(self.body, self.adapter.geometry.wheelbase_m, ParkingConfig(steer_rad=math.radians(args.park_steer_deg)), DT_S)
+                parker = ParallelParker(self.body, self.adapter.geometry.wheelbase_m, ParkingConfig(steer_rad=math.radians(args.park_steer_deg), lock_gain=args.park_lock_gain), DT_S)
                 driver = ParkingDriver(parker)
                 self.report["braking_assumptions"] = braking_assumptions(config.planner.decel_mps2)
             else:
@@ -1997,10 +1997,21 @@ def _config_dict(config):
 def main(argv=None, stack=False):
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--scenario", choices=LANE_SCENARIOS + (MISSION_SCENARIO, PARK_SCENARIO) + tuple(TURN_SCENARIOS) + tuple(ACTOR_SCENARIOS), required=True)
-    parser.add_argument("--park-gap-m", type=float, default=9.0, help="parallel_park: the gap between the two parked cars (bumper to bumper; 8 m is too short for the planned sweep's 0.4 m margin)")
+    parser.add_argument(
+        "--park-gap-m",
+        type=float,
+        default=10.0,
+        help="parallel_park: the gap between the two parked cars, bumper to bumper. The LiDAR sees a gap 0.5-1 m short; on the Tesla's 5.1 m arcs the plan needs 8.25 m seen for its 0.4 m sweep margin, so 9 m (seen 8.0-8.5) is at the edge, 10 m (seen 9.25-9.5) is not",
+    )
     parser.add_argument("--park-at-m", type=float, default=100.0, help="parallel_park: the rear parked car's centre along the mission's chain")
     parser.add_argument("--park-start-m", type=float, default=70.0, help="parallel_park: where the car starts along the chain")
     parser.add_argument("--park-steer-deg", type=float, default=35.0, help="parallel_park: the reversing arcs' steering angle")
+    parser.add_argument(
+        "--park-lock-gain",
+        type=float,
+        default=0.85,
+        help="parallel_park: the share of the asked wheel angle the car's turning achieves, for the plan (the Tesla, park_t5: a 5.14 m radius at 35 deg, 5.2-5.3 m by its own odometry); the first arc measures it again",
+    )
     parser.add_argument("--mission", type=Path, default=Path("configs/missions/a1_test01.json"), help="mission: the baseline route definition (lane chain) to drive")
     parser.add_argument("--acceptance", choices=tuple(f"S{i}" for i in range(6)), default="S0", help="mission: the baseline obstacle scenario to run on it (configs/scenarios)")
     parser.add_argument("--scenarios-dir", type=Path, default=Path("configs/scenarios"), help="mission: where the S0–S5 scenario files are")
