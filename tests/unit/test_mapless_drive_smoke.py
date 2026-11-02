@@ -603,6 +603,54 @@ def test_frame_recordings_keep_the_radars_and_read_old_ones_without(tmp_path):
     assert old.radars == () and {s.name for s in old.status} == {lidar} and len(old.lidars) == 1
 
 
+def test_camera_images_are_recorded_on_the_stacks_segmenting_ticks_and_replayed(tmp_path):
+    """G5 (2 Nov): with ``cameras_every`` 2 each OK camera's image is stored as JPEG on the
+    ticks the stack segments (its tick count, from 1, even), with its calibration, and the
+    replay gives them back as CameraImages with their status; other ticks carry no camera
+    and no camera status; a camera missing that tick is not there either. Without it nothing changes."""
+    from autonomy.interfaces import CameraCalibration  # noqa: PLC0415
+    from carla_adapter.frame_record import FrameRecorder, iter_frames  # noqa: PLC0415
+    from mapless.frame import CameraImage, LidarSweep, SensorFrame, SensorState, SensorStatus  # noqa: PLC0415
+    from mapless.sensor_suite import load_sensor_suite  # noqa: PLC0415
+
+    suite = load_sensor_suite(ROOT / "configs/sensor_suites/mapless_v2.json")
+    lidar = suite.lidars[0].name
+    cal = CameraCalibration(640.0, 640.0, 640.0, 360.0, ((0.0, 0.0, 1.0, 1.5), (-1.0, 0.0, 0.0, 0.0), (0.0, -1.0, 0.0, 2.0), (0.0, 0.0, 0.0, 1.0)))
+    yy, xx = np.mgrid[0:72, 0:128]
+    rgb = np.stack(((xx * 2) % 256, (yy * 3) % 256, np.full_like(xx, 90)), axis=2).astype(np.uint8)
+
+    def frame(tick, side_ok=True):
+        status = (
+            SensorStatus(lidar, "lidar", SensorState.OK, tick * 0.05),
+            SensorStatus("front", "camera", SensorState.OK, tick * 0.05),
+            SensorStatus("front_right", "camera", SensorState.OK, tick * 0.05) if side_ok else SensorStatus("front_right", "camera", SensorState.MISSING, None),
+        )
+        return SensorFrame(
+            episode_id="e", frame_id=tick, sim_time_s=tick * 0.05, received_monotonic_s=tick * 0.05,
+            cameras=(CameraImage("front", rgb, cal),) + ((CameraImage("front_right", rgb[:, ::-1].copy(), cal),) if side_ok else ()),
+            lidars=(LidarSweep(lidar, np.array([[5.0, 0.0, -2.0, 0.0]], dtype=np.float32), np.eye(4)),),
+            radars=(), gnss=None, imu=None, speed_mps=0.0, status=status, calibration_id="c",
+        )
+
+    with FrameRecorder(tmp_path / "frames", suite, "c", "e", {lidar: np.eye(4)}, cameras_every=2) as rec:
+        for tick in range(4):
+            rec.record(tick, frame(tick, side_ok=tick != 3))
+    back = dict(iter_frames(tmp_path / "frames"))
+    assert [len(back[t].cameras) for t in range(4)] == [0, 2, 0, 1]  # ticks 1 and 3: the stack's 2nd and 4th
+    assert {s.kind for s in back[0].status} == {"lidar"} and {s.name for s in back[3].status} == {lidar, "front"}
+    image = back[1].cameras[0]
+    assert image.name == "front" and image.rgb.shape == rgb.shape and np.abs(image.rgb.astype(int) - rgb.astype(int)).mean() < 3.0  # JPEG: close, not exact
+    assert np.allclose(np.asarray(image.calibration.camera_to_ego), np.asarray(cal.camera_to_ego)) and image.calibration.fx_px == 640.0
+    assert back[1].status_of("front_right").state is SensorState.OK
+    # Without images, as before: no camera, no camera status, no cameras.json.
+    with FrameRecorder(tmp_path / "plain", suite, "c", "e", {lidar: np.eye(4)}) as rec:
+        rec.record(1, frame(1))
+    ((_, plain),) = list(iter_frames(tmp_path / "plain"))
+    assert plain.cameras == () and {s.kind for s in plain.status} == {"lidar"} and not (tmp_path / "plain/cameras.json").exists()
+    with pytest.raises(ValueError):
+        FrameRecorder(tmp_path / "bad", suite, "c", "e", {lidar: np.eye(4)}, cameras_every=-1)
+
+
 def test_an_injected_sensor_outage_is_driven_through_and_recorded(monkeypatch, tmp_path):
     """Ninth review, T4: ``--drop-sensor NAME:START:END`` takes a sensor out of the frames
     for that window (status MISSING, "injected outage"), as recorded, and says so in the
