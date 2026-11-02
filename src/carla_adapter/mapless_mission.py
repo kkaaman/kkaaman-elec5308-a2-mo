@@ -152,16 +152,32 @@ def obstacle_placement(site, scenario):
     return float(s), float(scenario.get("lateral_m", 0.0) or 0.0), OBSTACLE_BLUEPRINTS[kind]
 
 
+def junction_command(site, entry_s, exit_s, exit_in_m=5.0, turn_min_deg=60.0):
+    """The sat-nav command at a junction of the chain: LEFT or RIGHT when the chain's
+    heading turns by ``turn_min_deg`` or more between the entry and ``exit_in_m`` into the
+    exit lane (left positive), else STRAIGHT. Town10HD 468 on ``a1_test01`` is a crossing
+    with a curving exit lane: well under the threshold, STRAIGHT as before (2 Nov)."""
+    h0 = site.at(entry_s)[2]
+    h1 = site.at(min(exit_s + exit_in_m, site.length_m))[2]
+    turn = math.degrees((h1 - h0 + math.pi) % (2 * math.pi) - math.pi)
+    if turn >= turn_min_deg:
+        return Command.LEFT
+    if turn <= -turn_min_deg:
+        return Command.RIGHT
+    return Command.STRAIGHT
+
+
 def mission_route(carla_map, site, spacing_m=25.0, exit_in_m=5.0, name=None):
-    """The sat-nav route for the chain: LANEFOLLOW points every ``spacing_m``, a STRAIGHT at
-    each junction's entry and LANEFOLLOW ``exit_in_m`` into its exit lane, and the goal at
-    the chain's end. GPS fixes come from the map's projection, as the harness's other
-    routes do."""
+    """The sat-nav route for the chain: LANEFOLLOW points every ``spacing_m``, the
+    junction's command at each junction's entry (``junction_command``: STRAIGHT, or LEFT /
+    RIGHT where the chain turns) and LANEFOLLOW ``exit_in_m`` into its exit lane, and the
+    goal at the chain's end. GPS fixes come from the map's projection, as the harness's
+    other routes do."""
     import carla  # noqa: PLC0415
 
     marks = []  # (s, command)
     for entry_s, exit_s, _ in site.junctions:
-        marks.append((entry_s, Command.STRAIGHT))
+        marks.append((entry_s, junction_command(site, entry_s, exit_s, exit_in_m)))
         marks.append((min(exit_s + exit_in_m, site.length_m - 1.0), Command.LANEFOLLOW))
     stations = []
     last = 0.0
@@ -181,7 +197,7 @@ def mission_route(carla_map, site, spacing_m=25.0, exit_in_m=5.0, name=None):
         x, y, _ = site.at(s)
         fix = carla_map.transform_to_geolocation(carla.Location(x=x, y=-y, z=0.0))
         points.append(RoutePoint(fix.latitude, fix.longitude, command))
-    return SatNavRoute(name or site.name, tuple(points), provenance=dict(source="baseline mission lane chain", spacing_m=spacing_m, junctions=[dict(entry_s_m=round(a, 1), exit_s_m=round(b, 1), junction_id=j) for a, b, j in site.junctions]))
+    return SatNavRoute(name or site.name, tuple(points), provenance=dict(source="baseline mission lane chain", spacing_m=spacing_m, junctions=[dict(entry_s_m=round(a, 1), exit_s_m=round(b, 1), junction_id=j, command=junction_command(site, a, b, exit_in_m).value) for a, b, j in site.junctions]))
 
 
 def brake_taps(log, dt_s, start_s_m=5.0, goal_m=12.0):
@@ -242,7 +258,8 @@ def score_mission(scenario, log, end, hold_ticks, removed_at_s, dt_s, goal_reach
             s_car = obstacle_s_m if obstacle_s_m is not None else scenario.get("obstacle_s_m")
             window = (s_car - roadside_window_m[0], s_car + roadside_window_m[1]) if s_car is not None else None
             near = [r for r in log if window is not None and window[0] <= r["truth"]["s_m"] <= window[1]]
-            stopped = [r for r in near if r["mode"] == "stopping"]
+            # A stop for a red light (G4 M07) is not a stop for the roadside car.
+            stopped = [r for r in near if r["mode"] == "stopping" and (r.get("driver") or {}).get("light_hold_m") is None]
             speeds = [r["truth"]["speed_mps"] for r in near]
             rows.append(("no_stop_for_roadside_car", None if window is None else not stopped, dict(stopping_ticks=len(stopped), min_speed_mps=round(min(speeds), 2) if speeds else None, window_s_m=[round(w, 1) for w in window] if window else None, obstacle_s_m=s_car)))
         rows.append(("brake_taps", None, brake_taps(log, dt_s)))
