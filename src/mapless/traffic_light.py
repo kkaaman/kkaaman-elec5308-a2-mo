@@ -11,8 +11,10 @@ needs two red-or-yellow readings running at or above ``stop_confidence``; going 
 needs ``go_frames`` green (or ``none``, the light passed) readings running at or above
 ``go_confidence`` (showcase_n1 on PC 3, 2 Nov: ``light_v2`` at the stop line read the red
 at 0.45-0.6 with nones at 0.44-0.55 between, and three of those nones released the car on
-red; ``light_v1`` at 2.2x read it at 0.98-1.0 and the green as none at 0.8-0.9); anything else
-keeps the last decision. A reading older than ``max_age_s`` counts as none seen; once
+red; ``light_v1`` at 2.2x read it at 0.98-1.0 and the green as none at 0.8-0.9). Held,
+greens release at once but nones only once they have run ``none_release_s``: a light the
+car can no longer read is not a green (showcase_n2, rain). Anything else keeps the last
+decision. A reading older than ``max_age_s`` counts as none seen; once
 readings have come and then none fresh for ``unknown_after_s`` (the camera or the
 classifier lost), the decision is ``unknown``, held for like a red until ``go_frames``
 fresh green or none readings say otherwise: a car that cannot see the light does not
@@ -39,7 +41,10 @@ HOLDING = ("red", "yellow", "unknown")  # the filter's decisions that hold the c
 @dataclass(frozen=True)
 class LightConfig:
     stop_within_m: float = 30.0  # a red ahead holds the car only with a junction entry this near
-    stop_back_m: float = 3.0  # without a seen stop line: the front this far short of the sat-nav's junction entry
+    # Without a seen stop line: the front this far short of the sat-nav's junction entry,
+    # which route noise puts up to 3.9 m from the paint (r19s seeds). 3 m left the front
+    # 0.01 m past 468's line in rain (showcase_n2 v1s3_5309_rain: no line locked on the wet road).
+    stop_back_m: float = 5.0
     line_margin_m: float = 0.5  # with one (``stop_line``): the front this far short of its near edge
     line_entry_tolerance_m: float = 8.0  # a seen line is the junction's only this near its sat-nav entry (route noise: up to 3.9 m, r19s)
     camera: str = "front"
@@ -47,6 +52,13 @@ class LightConfig:
     stop_frames: int = 2
     go_frames: int = 3
     go_confidence: float = 0.6  # a green or none this sure counts towards going again
+    # Held for a red, yellow or lost light: go_frames greens release it at once; a run of
+    # nones (or nones and greens) only once it has lasted this long. A light the car can no
+    # longer read is not a green: standing at 468's line in rain, light_v1 read none at
+    # 0.91-0.97 from 0.2 s after its last red, and three of them released the car on red
+    # (showcase_n2 v1s3_5309_rain). At a green light_v1 reads none too (showcase_n1): the
+    # car then moves off this much later.
+    none_release_s: float = 5.0
     max_age_s: float = 0.6
     # With a classifier on the car: a route junction ahead is approached at approach_mps
     # at most from approach_within_m of its entry (the front's distance), so a light read
@@ -81,12 +93,15 @@ class LightFilter:
         self.decision = "none"
         self._stop_run = 0
         self._go_run = 0
+        self._green_run = 0
+        self._go_since = None  # when the current run of going readings began
         self.last = None
 
     def update(self, reading, now_s):
         c = self.config
         if reading is None or now_s - reading.time_s > c.max_age_s:
-            self._stop_run = self._go_run = 0
+            self._stop_run = self._go_run = self._green_run = 0
+            self._go_since = None
             if self.last is not None and (reading is None or now_s - reading.time_s > c.unknown_after_s):
                 self.decision = "unknown"
             return self.decision
@@ -97,9 +112,13 @@ class LightFilter:
         going = reading.state in ("green", "none") and reading.confidence >= c.go_confidence
         self._stop_run = self._stop_run + 1 if stopping else 0
         self._go_run = self._go_run + 1 if going else 0
+        self._green_run = self._green_run + 1 if going and reading.state == "green" else 0
+        self._go_since = (reading.time_s if self._go_since is None else self._go_since) if going else None
         if self._stop_run >= c.stop_frames:
             self.decision = reading.state
-        elif self.decision in HOLDING and self._go_run >= c.go_frames:
+        elif self.decision in HOLDING and (
+            self._green_run >= c.go_frames or (self._go_run >= c.go_frames and reading.time_s - self._go_since >= c.none_release_s)
+        ):
             self.decision = reading.state
         elif self.decision not in HOLDING and going:
             self.decision = reading.state
@@ -107,6 +126,7 @@ class LightFilter:
 
     def reset(self):
         self.decision, self._stop_run, self._go_run, self.last = "none", 0, 0, None
+        self._green_run, self._go_since = 0, None
 
 
 def stop_for(decision, entry_m, speed_mps, config=None, back_m=None):

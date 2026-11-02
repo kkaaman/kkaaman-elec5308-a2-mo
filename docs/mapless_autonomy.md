@@ -4065,6 +4065,23 @@ light scripted red (`--lights scripted`), which the car must see for itself
   server. *Parking (`1efb1e3`):* 6 of 6 parked, no contact; 10 m × 5 seeds 0.07-0.18 m from
   the line, under 0.3 deg, gaps 2.7/2.4 m, radius measured 5.1-5.3 m; 9 m (seen 8.25) also
   parked, 0.14 m, gaps 2.2/1.9 m.
+- **The showcase speed (`showcase_n2`, PC 3, `1efb1e3`): 3 m/s.** light_v1 at 2.2x,
+  `--semantic off`: 5 of 5 seeds pass every behaviour gate at 3 m/s (stood 1.15-1.48 m
+  short of 468's line, footprint 1.41-1.59 of 1.75 m); 3 of 5 at 2 m/s (5308, 5311: a
+  predicted conflict with a scenery-like track at 4.4-5.8 m/s while the red was in force,
+  counted against S3 by design); 1 of 5 at 4 m/s (`showcase_n1`). Rain at 3 m/s: 5308
+  passes (also at 4 m/s); 5309 failed: no stop line locks on the wet road, the hold 3 m
+  short of a sat-nav entry ~4 m late left the front 0.01 m past the paint, and standing
+  there light_v1 read none at 0.91-0.97 from 0.2 s after its last red, three of which
+  released the car on red. Taken: without a seen line the front stops 5 m short of the
+  entry (`stop_back_m`; route noise up to 3.9 m), and held, nones release only once they
+  have run 5 s (`none_release_s`), greens at once — a light the car can no longer read
+  is not a green. light_v1 reads the green at the line as none too, so the car moves off
+  about 5 s after the green. All n2 runs 9-14 % over budget on `1efb1e3` (the reading
+  on the CPU). **`showcase_n3` (`9ce8948`, fresh server): 5 of 5 MEASURED_PASS, timing
+  included** — 0.5-1.5 % of steps over 50 ms, p95 44-45 ms, the reading 6.4 ms (was
+  17-20); stood 1.15-1.48 m short of the line. The frozen showcase configuration: 3 m/s,
+  light_v1 at 2.2x, `--semantic off`, a freshly started CARLA server.
 - **The semantic worker without a segmenter (nineteenth review, 2).** Leaving out
   `--segmenter` loads the constant segmenter; the default `--semantic thread` still
   paints and builds the road model on its worker (showcase_t2: 13 ms per job, three ticks
