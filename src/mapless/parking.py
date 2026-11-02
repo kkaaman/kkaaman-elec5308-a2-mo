@@ -42,7 +42,9 @@ class ParkingConfig:
     bin_m: float = 0.25
     band_m: tuple = (0.2, 3.5)  # obstacle points this far beyond the car's right side
     height_m: tuple = (0.3, 1.8)  # ... between these heights above the ground
-    min_run_m: float = 1.5  # an occupied run this long is a parked car
+    min_run_m: float = 1.5  # an occupied run this long is a parked car ...
+    max_run_m: float = 11.0  # ... up to two nose to tail; longer is a wall or a hedge
+    ahead_m: float = 2.0  # a gap counts only from this far ahead of the search's start
     pass_m: float = 1.0  # stop this much beyond the arc start
     clear_m: float = 0.35  # an obstacle point this close to the body ahead of its travel stops it
     centre_tol_m: float = 0.15
@@ -146,7 +148,10 @@ class ParallelParker:
         self._seen = (min(self._seen[0], lo), max(self._seen[1], hi))
 
     def find_slot(self):
-        """The first gap behind the car's front, between two parked cars, long enough."""
+        """The first gap ahead of where the search began (``ahead_m`` past the car's rear
+        axle there), between two runs the size of parked cars, long enough. A gap behind the
+        start is not one the car was sent to (park_t3, PC 1: Town10HD's own roadside objects
+        behind the start made one, and the car reversed towards it at once)."""
         c, b = self.config, self.body
         if not self._bins:
             return None
@@ -159,11 +164,11 @@ class ParallelParker:
                 start = k
             prev = k
         runs.append((start, prev))
-        cars = [(a, z) for a, z in runs if (z - a + 1) * c.bin_m >= c.min_run_m]
+        cars = [(a, z) for a, z in runs if c.min_run_m <= (z - a + 1) * c.bin_m <= c.max_run_m]
         need = (b.front_m - b.rear_m) + c.extra_m
         for (a0, z0), (a1, z1) in zip(cars, cars[1:]):
             rear_end, front_end = (z0 + 1) * c.bin_m, a1 * c.bin_m
-            if front_end - rear_end >= need:
+            if rear_end >= c.ahead_m and front_end - rear_end >= need:
                 faces = [self._bins[k] for k in list(range(a0, z0 + 1)) + list(range(a1, z1 + 1)) if k in self._bins]
                 return Slot(rear_end, front_end, float(np.median(faces)))
         return None
@@ -244,10 +249,14 @@ class ParallelParker:
             if abs(st.speed) > 0.05:
                 return ParkCommand(steer, 0.0, 1.0, self._reverse)
             self._reverse = reverse
+        # A gentle loop with a coasting band: a 0.25 throttle floor and braking on any
+        # excess made the live car surge and stop in reverse (park_t3: 0.0-0.74 m/s).
         error = abs(target_mps) - abs(st.speed)
         if error >= 0:
-            return ParkCommand(steer, float(min(0.6, 0.25 + c.speed_kp * error)), 0.0, reverse)
-        return ParkCommand(steer, 0.0, float(min(1.0, -c.speed_kp * error)), reverse)
+            return ParkCommand(steer, float(min(0.45, 0.12 + c.speed_kp * error)), 0.0, reverse)
+        if error > -0.15:
+            return ParkCommand(steer, 0.0, 0.0, reverse)  # coast
+        return ParkCommand(steer, 0.0, float(min(0.5, 0.5 * (-error - 0.15) + 0.05)), reverse)
 
     def _stop(self, steer=0.0):
         return ParkCommand(steer, 0.0, 1.0, self._reverse)
