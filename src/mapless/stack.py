@@ -2,6 +2,8 @@
 
 Per tick, in order:
 
+0. **Light** — with a light classifier (``light_classifier``), every ``light_every``
+   ticks the front image's light state goes to the driver (G4 M07, G5).
 1. **Drive** — ``MaplessDriver.step`` (health, ego motion, terrain grid, kerb corridor,
    obstacle clearance, junction turns, planner, controller). It is the G1 car and keeps
    its own safety rules; the stack only reads its inputs and may lower its speed.
@@ -356,10 +358,22 @@ class StackConfig:
     # of them steers or sets a speed, so that a stale result never corrects a current
     # road boundary for belonging to the same odometry epoch.
     semantic_max_wall_age_s: float | None = None
+    # Traffic lights (G4 M07, G5, 2 Nov): the state classifier's checkpoint (None: no
+    # light perception), run on the light_camera image every light_every ticks (5 Hz at
+    # 0.05 s), inline before the driver's step, on ticks that submit no segmentation and
+    # build no road model at the defaults (light_phase 2 of the stack's tick count). The
+    # reading goes to the driver, whose filter decides and whose hold stops the car short
+    # of the route junction's entry (``mapless.traffic_light``).
+    light_classifier: str | None = None
+    light_camera: str = "front"
+    light_every: int = 4
+    light_phase: int = 2
 
     def __post_init__(self):
         if self.semantic_mode not in ("inline", "thread", "off"):
             raise ValueError("StackConfig.semantic_mode: inline, thread or off")
+        if self.light_every < 1:
+            raise ValueError("StackConfig.light_every: 1 or more")
         if self.segment_every < 1 or self.road_model_every < 1:
             raise ValueError("StackConfig: segment_every and road_model_every of 1 or more")
         if self.semantic_max_wall_age_s is not None and not self.semantic_max_wall_age_s > 0:
@@ -400,9 +414,14 @@ class StackStep:
 
 
 class MaplessStack:
-    def __init__(self, suite, route, driver_config, config=None, dt_s=0.05, segmenter=None, detector=None):
+    def __init__(self, suite, route, driver_config, config=None, dt_s=0.05, segmenter=None, detector=None, light_classifier=None):
         self.config = c = config or StackConfig()
         self.driver = MaplessDriver(suite, route, driver_config, dt_s)
+        if light_classifier is None and c.light_classifier is not None:
+            from mapless.traffic_light import LightClassifier  # noqa: PLC0415 (torch only when asked for)
+
+            light_classifier = LightClassifier(c.light_classifier)
+        self.light_classifier = light_classifier  # anything with classify(rgb, time_s) -> LightReading
         self.suite = suite
         self.segmenter = segmenter if isinstance(segmenter, RoadSegmenter) else load_segmenter(c.segmenter, full_resolution=c.segment_full_resolution)
         if detector is None:
@@ -475,6 +494,12 @@ class MaplessStack:
         timing = {}
         # The cap the driver plans this tick's command under is last tick's result.
         cap_applied = self.driver.speed_cap_mps
+        if self.light_classifier is not None and c.admission.cameras and self._tick % c.light_every == c.light_phase % c.light_every:
+            begun = time.perf_counter()
+            image = next((im for im in frame.cameras if im.name == c.light_camera and frame.status_of(im.name).state is SensorState.OK), None)
+            if image is not None:
+                self.driver.light_reading = self.light_classifier.classify(image.rgb, frame.sim_time_s)
+            timing["light"] = (time.perf_counter() - begun) * 1000
         begun = time.perf_counter()
         step = self.driver.step(frame)
         timing["drive"] = (time.perf_counter() - begun) * 1000

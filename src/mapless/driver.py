@@ -54,6 +54,7 @@ from mapless.planner import LanePlanner, PlannerConfig
 from mapless.satnav import Command, RouteProgress, SatNavRoute
 from mapless.sensor_suite import SensorSuite
 from mapless.terrain import TerrainConfig, TerrainGrid, VehicleBody, classify_sweep
+from mapless.traffic_light import LightConfig, LightFilter, stop_for
 from navigation_control.local import LocalControlConfig, LocalStatus, LocalTrajectoryController
 from navigation_control.types import ControlCommand, VehicleState
 
@@ -79,6 +80,7 @@ class DriverConfig:
     planner: PlannerConfig = field(default_factory=PlannerConfig)
     junction: JunctionConfig = field(default_factory=JunctionConfig)
     crossing: CrossingConfig = field(default_factory=CrossingConfig)  # STRAIGHT through a junction (``crossing``)
+    light: LightConfig = field(default_factory=LightConfig)  # traffic lights read from the front camera (``traffic_light``)
     turn_start_m: float = 25.0  # a commanded turn is looked for when the route's entry point is this close
     turn_route_tolerance_m: float = 8.0  # the entry point must be within this of the car's path
     lidar_max_age_s: float = 0.15
@@ -226,6 +228,11 @@ class MaplessDriver:
         # advisor), clamped to (0, planner.cruise_max_mps]; None: planner.cruise_mps. Every
         # restriction still binds under it (curvature, sight, the stack's caps, holds).
         self.cruise_target_mps = None
+        # The latest traffic-light reading (``traffic_light.LightReading``) set from outside
+        # (the stack's classifier), and its debounced decision: a red or yellow holds the
+        # car short of the next route junction's entry (``traffic_light.stop_for``).
+        self.light_reading = None
+        self.light_filter = LightFilter(config.light)
         self.last_motion = self.last_classified = self.last_plan = self.last_corridor = None
         self._profile_path = None  # (time, odometry polyline) of the last path planned along, for the far points' ground (terrain)
         self._turn_done = None  # route index of the junction entry whose turn is complete
@@ -844,6 +851,21 @@ class MaplessDriver:
                     turn_gate_view_s=round(gate.checked_m / c.junction.oncoming_mps, 1),  # how long the view covers at oncoming_mps
                     turn_gate_cells=gate.cells,
                 )
+        # -- traffic light (G4 M07): hold short of the next route junction on red ----------
+        decision = self.light_filter.update(self.light_reading, t)
+        entry_m = None
+        if self.turn.committed or self._zone_entered:
+            entry_m = None  # turning across: never stop in the junction for a light
+        elif d.get("crossing_entry_m") is not None:
+            entry_m = float(d["crossing_entry_m"])
+        elif d.get("junction_entry_m") is not None:
+            entry_m = float(d["junction_entry_m"])
+        light_hold = None if entry_m is None else stop_for(decision, entry_m - c.body.front_m, motion.speed_mps, c.light)
+        if light_hold is not None:
+            hold_at = light_hold if hold_at is None else min(hold_at, light_hold)
+        if self.light_reading is not None or decision != "none":
+            r = self.light_reading
+            d.update(light=decision, light_reading=None if r is None else [r.state, round(r.confidence, 2), round(t - r.time_s, 2)], light_hold_m=None if light_hold is None else round(light_hold, 2))
         lap("junction")
         if not corridor.ok:
             return self._fault(f"no corridor: {corridor.reason}", d, motion, t, dt)

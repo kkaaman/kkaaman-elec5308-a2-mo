@@ -14,7 +14,10 @@ is the simulator side. Modes (``--lights``):
 
 Each tick the car's governing light (``vehicle.get_traffic_light_state``, evaluator
 truth) is logged; at each junction entry the state is recorded, and an entry on red is a
-failure (``red_light`` check), an entry on yellow a report.
+failure (``red_light`` check), an entry on yellow a report. Positions are the car's
+front along the route (``s_m`` arguments). With a light classifier on the car, each fresh
+reading within ``read_within_m`` of a lit junction's entry is counted against the truth
+(``readings``: "truth->read" counts), the classifier's live score.
 """
 
 from __future__ import annotations
@@ -34,6 +37,7 @@ class JunctionLights:
     stood_s: float = 0.0
     entered_state: str | None = None
     stopped_on_red: bool = False
+    readings: dict = field(default_factory=dict)  # "truth->read" -> fresh readings on the approach
 
 
 @dataclass
@@ -43,6 +47,7 @@ class LightScript:
     stop_zone_m: float = 12.0
     hold_s: float = 4.0
     max_red_s: float = 20.0
+    read_within_m: float = 30.0
     junctions: list = field(default_factory=list)
     log: list = field(default_factory=list)
 
@@ -57,12 +62,13 @@ class LightScript:
             for light in world.get_actors().filter("traffic.traffic_light"):
                 light.set_state(carla.TrafficLightState.Green)
                 light.freeze(True)
-        if site is None:
+        finder = getattr(world, "get_traffic_lights_from_waypoint", None)
+        if site is None or finder is None:
             return
         for entry_s, _exit_s, junction_id in site.junctions:
             x, y, _ = site.at(max(0.0, entry_s - 6.0))
             wp = carla_map.get_waypoint(carla.Location(x=x, y=-y, z=0.0), project_to_road=True)
-            governing = list(world.get_traffic_lights_from_waypoint(wp, 30.0)) if wp is not None else []
+            governing = list(finder(wp, 30.0)) if wp is not None else []
             if governing:
                 self.junctions.append(JunctionLights(entry_s, junction_id, governing))
 
@@ -85,17 +91,26 @@ class LightScript:
                         light.set_state(carla.TrafficLightState.Green)
                     j.phase = "green"
 
-    def observe(self, vehicle, s_m, previous_s_m, time_s):
-        """Log the governing light and record its state at each junction entry crossed."""
+    def observe(self, vehicle, s_m, previous_s_m, time_s, reading=None):
+        """Log the governing light, record its state at each junction entry crossed, and
+        count a fresh ``reading`` (the car's light state, or None) on an approach. Returns
+        the state."""
         state = str(vehicle.get_traffic_light_state()).split(".")[-1]
-        self.log.append((round(time_s, 2), round(s_m, 2), state))
+        self.log.append((round(time_s, 2), round(s_m, 2), state, reading))
         for j in self.junctions:
             if j.entered_state is None and previous_s_m < j.entry_s_m <= s_m:
                 j.entered_state = state
+            if reading is not None and 0.0 < j.entry_s_m - s_m <= self.read_within_m:
+                key = f"{state.lower()}->{reading}"
+                j.readings[key] = j.readings.get(key, 0) + 1
+        return state
 
     def report(self):
         """The ``red_light`` check's values: entries per junction, failures, exercise."""
-        entries = [dict(junction_id=j.junction_id, entry_s_m=round(j.entry_s_m, 1), state_at_entry=j.entered_state, stopped_on_red=j.stopped_on_red, stood_s=round(j.stood_s, 2)) for j in self.junctions]
+        entries = [
+            dict(junction_id=j.junction_id, entry_s_m=round(j.entry_s_m, 1), state_at_entry=j.entered_state, stopped_on_red=j.stopped_on_red, stood_s=round(j.stood_s, 2), readings=dict(sorted(j.readings.items())))
+            for j in self.junctions
+        ]
         red_entries = [e for e in entries if e["state_at_entry"] == "Red"]
         exercised = bool(entries) and all(e["stopped_on_red"] for e in entries)
         return dict(mode=self.mode, junctions=entries, red_entries=len(red_entries), exercised=exercised)

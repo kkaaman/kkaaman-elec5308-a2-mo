@@ -13,8 +13,10 @@ keeps the last decision. A reading older than ``max_age_s`` counts as none seen.
 
 The driver's use (``MaplessDriver``): a red or yellow decision with a route junction
 entry ahead within ``LightConfig.stop_within_m`` holds the car at the entry, less
-``stop_back_m``; a yellow it could not stop for comfortably (``yellow_decel_mps2``) is
-driven through, as a driver would.
+``stop_back_m``, measured from the car's front; a yellow it could not stop for
+comfortably (``yellow_decel_mps2``), or a red seen too late to stop for at all
+(``red_decel_mps2``), is driven through, as a driver would, rather than stopping in the
+junction. Once the front is past the entry, no light holds it.
 """
 
 from __future__ import annotations
@@ -35,6 +37,7 @@ class LightConfig:
     go_frames: int = 3
     max_age_s: float = 0.6
     yellow_decel_mps2: float = 2.0  # a yellow is stopped for only if this braking suffices
+    red_decel_mps2: float = 4.0  # a red seen too late for this braking is driven through, not stopped in the box
 
     def __post_init__(self):
         if self.stop_frames < 1 or self.go_frames < 1:
@@ -93,8 +96,9 @@ def stop_for(decision, entry_m, speed_mps, config=None):
     if decision not in ("red", "yellow") or entry_m is None or not (0.0 <= entry_m <= c.stop_within_m):
         return None
     hold = max(0.0, entry_m - c.stop_back_m)
-    if decision == "yellow" and speed_mps * speed_mps > 2.0 * c.yellow_decel_mps2 * hold:
-        return None  # too close to stop comfortably: through on the yellow
+    decel = c.yellow_decel_mps2 if decision == "yellow" else c.red_decel_mps2
+    if speed_mps * speed_mps > 2.0 * decel * hold:
+        return None  # too close to stop (comfortably on a yellow, at all on a red): through
     return hold
 
 

@@ -290,3 +290,40 @@ def test_reanchoring_moves_the_line_no_faster_than_the_slew_limit():
     assert x.reanchor(Pose2D(36.4, 0.0, 0.0), -1.0)  # 10 m on: the step cap, 0.1, the other way (half the difference is 0.5)
     assert x.line[1] == pytest.approx(-0.0175, abs=1e-9)
     assert not x.reanchor(Pose2D(40.0, 0.0, 0.0), c.reanchor_max_m + 0.1)  # some other kerb
+
+
+def test_a_red_light_holds_the_car_short_of_the_junction_and_green_lets_it_cross():
+    """G4 M07 (2 Nov): a red reading (the stack's classifier, here given) holds the car
+    short of the route junction's entry; it waits there; three green readings and it
+    crosses on the latched line and finishes. A reading the filter has not confirmed
+    (one red) never stops it, and nothing stops it inside the junction."""
+    from mapless.traffic_light import LightReading
+
+    world, width = crossroads()
+    route = straight_route(world, width)
+    config = DriverConfig(body=BODY, control=control(), corridor=CorridorConfig(keep_right_m=1.75), junction=JunctionConfig(), planner=PlannerConfig(cruise_mps=2.0))
+    driver = MaplessDriver(SUITE, route, config, DT)
+    entry = S_JUNCTION - width / 2
+    log, stood, green_at = [], 0.0, None
+    for i in range(int(90 / DT)):
+        t = i * DT
+        if i % 4 == 0:  # the classifier's rate: 5 Hz
+            state = "red" if green_at is None else "green"
+            driver.light_reading = LightReading(state, 0.95, t)
+        step = driver.step(world.frame())
+        truth = world.truth()
+        log.append((truth, step))
+        world.apply(step.command)
+        if green_at is None and truth.speed_mps < 0.05 and truth.s_m > 30.0:
+            stood += DT
+            if stood >= 3.0:
+                green_at = truth.s_m
+        if step.mode is DriveMode.FINISHED and world.state.speed == 0:
+            break
+    front = BODY.front_m
+    stops = [tr for tr, s in log if tr.speed_mps < 0.05 and tr.s_m > 30.0 and s.diagnostics.get("light") == "red"]
+    assert green_at is not None and stops, "the car never stopped for the red"
+    assert entry - 4.0 <= green_at + front <= entry + 0.2  # its front at the stop line, not in the box
+    assert _crossed(log)
+    holds = [s.diagnostics.get("light_hold_m") for tr, s in log if tr.s_m > entry]
+    assert all(h is None for h in holds)  # never held for the light inside the junction
