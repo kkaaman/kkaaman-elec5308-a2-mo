@@ -4046,6 +4046,25 @@ light scripted red (`--lights scripted`), which the car must see for itself
   A stop for scenery, an obstacle or a false red beside the car still fails it, and a
   red's stop is no longer a brake tap. On a1_test01 the light's stop (s ~152) is outside
   the car's window (90-140 m) anyway.
+- **Overnight on PC 3 (`showcase_n1`, `r21_s5`, `park_n1`; `c5cbeb8`/`1efb1e3`).**
+  *The showcase at 4 m/s:* 1 of 5 seeds passes every gate (light_v1, 5308). Per seed,
+  whatever the light settings: 5310/5311 a predicted conflict with scenery 9 m to the left
+  at s 119 (a 0.15 s brake tap in S3's window); 5309/5310 wide on the exit curve (corner
+  1.82 / 3.84 m); 5312 the kerb lost while slowing 4 -> 3 m/s for the light approach, a
+  carried line drifting 0.95 m, the corridor expired. At 2 m/s (r21) none of these.
+  *The lights:* `light_v1` at 2.2x read 468's red at 0.98-1.0 throughout the stand and
+  stopped legally on all four seeds that reached it; `light_v2` at 1.5x read it at
+  0.45-0.6 with nones at 0.44-0.55, three of which released the car on red (5308, 5311),
+  read the cross street's green as the car's, and never saw the red in rain. Taken: a
+  green or none counts towards going only at `go_confidence` 0.6 (replayed on the logs:
+  v1's releases unchanged); v1 at 2.2x is the classifier. Its reading cost 15-18 ms (v2 at
+  1.5x 6-8), the runs 6-10 % over budget: the enlarged band is now scaled on the GPU
+  (`LightClassifier._input`; same classes on 272 recorded frames, CPU 15.8 -> 6.8 ms).
+  *Timing:* S5 × 5 after a CARLA restart, `--semantic thread` and `off` alternating: all
+  within budget (0.1-0.6 % over, p95 38-40 ms); r21's slow S5 block was the long-running
+  server. *Parking (`1efb1e3`):* 6 of 6 parked, no contact; 10 m × 5 seeds 0.07-0.18 m from
+  the line, under 0.3 deg, gaps 2.7/2.4 m, radius measured 5.1-5.3 m; 9 m (seen 8.25) also
+  parked, 0.14 m, gaps 2.2/1.9 m.
 - **The semantic worker without a segmenter (nineteenth review, 2).** Leaving out
   `--segmenter` loads the constant segmenter; the default `--semantic thread` still
   paints and builds the road model on its worker (showcase_t2: 13 ms per job, three ticks

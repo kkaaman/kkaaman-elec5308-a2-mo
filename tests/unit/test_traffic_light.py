@@ -26,6 +26,23 @@ def test_the_filter_needs_two_reds_to_stop_and_three_greens_to_go():
         LightReading("purple", 1.0, 0.0)
 
 
+def test_unsure_nones_at_the_stop_line_do_not_release_a_red():
+    """showcase_n1 (PC 3, 2 Nov): stood at 468's line, ``light_v2`` read the red at
+    0.45-0.6 with nones at 0.44-0.55 between; three nones in a row released the car on red
+    (seeds 5308, 5311). A green or none counts towards going only at ``go_confidence``:
+    the unsure nones keep the red; confident ones (``light_v1`` read the change at
+    0.8-0.9) or confident greens release it."""
+    f = LightFilter(LightConfig())
+    r = lambda s, t, c: LightReading(s, c, t)  # noqa: E731
+    assert [f.update(r("red", t, 0.7), t) for t in (0.0, 0.2)] == ["none", "red"]
+    assert [f.update(r("none", t, 0.47), t) for t in (0.4, 0.6, 0.8, 1.0)] == ["red"] * 4
+    assert [f.update(r("green", t, 0.55), t) for t in (1.2, 1.4, 1.6)] == ["red"] * 3
+    assert [f.update(r("none", t, 0.9), t) for t in (1.8, 2.0, 2.2)] == ["red", "red", "none"]
+    f.reset()
+    assert [f.update(r("red", t, 0.7), t) for t in (0.0, 0.2)] == ["none", "red"]
+    assert [f.update(r("green", t, 0.8), t) for t in (0.4, 0.6, 0.8)] == ["red", "red", "green"]
+
+
 def test_a_light_the_car_has_lost_sight_of_holds_it_until_fresh_readings_release_it():
     """Eighteenth review (4.2/4.3): readings that stop coming (the camera or classifier
     lost) are not an old green to drive on: after unknown_after_s the decision is
@@ -98,6 +115,13 @@ def test_training_on_a_tiny_capture_labels_from_truth_and_refuses_test_towns(tmp
     from mapless.traffic_light import preprocess
 
     assert preprocess(np.zeros((720, 1280, 3), dtype=np.uint8), cv2, 2.2).shape == (3, 792, 1971)
+    # Enlarged, the band is scaled on the device: the same input as ``preprocess`` builds
+    # on the CPU, to the interpolation's rounding (showcase_n1: 15-18 ms a reading there).
+    rng = np.random.default_rng(5308)
+    frame = cv2.resize(rng.integers(0, 256, (90, 160, 3), dtype=np.uint8), (1280, 720), interpolation=cv2.INTER_LINEAR)
+    on_device = big._input(frame)[0].numpy()
+    on_cpu = preprocess(frame, cv2, 2.2)
+    assert on_device.shape == on_cpu.shape and np.abs(on_device - on_cpu).mean() < 0.01 and np.abs(on_device - on_cpu).max() < 0.05
     import pickle
 
     sample = pickle.loads(pickle.dumps(tl.LightImages(items[:2], True)))  # Windows spawns DataLoader workers: the dataset must pickle
