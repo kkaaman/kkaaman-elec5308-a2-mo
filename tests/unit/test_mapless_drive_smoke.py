@@ -395,7 +395,7 @@ def test_a_chase_camera_records_the_follow_view_and_a_world_without_one_runs_on(
     chase.mp4 (the --follow view without a screen recorder); not one of the car's
     sensors. A world that will not give it (here the fake's blueprints take no
     attributes) runs on without it and says why."""
-    cv2 = pytest.importorskip("cv2")
+    pytest.importorskip("cv2")
     out, report = run_drive(monkeypatch, tmp_path / "a", "--scenario", "straight", "--goal-m", "30", "--snapshot-every", "0", "--chase-video")
     assert report["chase_view"]["frames"] == 0 and report["chase_view"]["note"].startswith("chase camera off") and report["end"] == "finished"
 
