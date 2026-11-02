@@ -4088,7 +4088,9 @@ light scripted red (`--lights scripted`), which the car must see for itself
   the corridor, the obstacle; the light classifier's band outlined in the decision's
   colour. A window (`--view`) and/or `car_view.mp4` at the simulation's 20 Hz
   (`--view-video`), drawn after the step from the car's diagnostics only. `--follow` is
-  the chase view in the CARLA window. *Speed experiment (`speed12_s0`, PC 3, `89957ad`):*
+  the chase view in the CARLA window; `--chase-video` records it to `chase.mp4` from a
+  camera 8 m behind and 5 m above the car (not one of the car's sensors; a server that
+  will not give it leaves the run as it was, with a note). *Speed experiment (`speed12_s0`, PC 3, `89957ad`):*
   S0 asked for 12 m/s ran at the sight bound throughout, 3.9-6.9 m/s (max 6.94, 25 km/h),
   MEASURED_PASS, footprint 1.50 m, 0.2 % over budget: the car goes no faster than it can
   stop within the road it has seen (26-44 m).
