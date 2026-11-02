@@ -49,6 +49,7 @@ class ParkingConfig:
     heading_kp: float = 1.5
     speed_kp: float = 0.6
     calibrate_s: float = 1.0  # standing at the start: the gyro's bias is its mean yaw rate
+    standstill_mps: float = 0.08  # wheel speeds below this are a standstill (the encoder's noise is 0.05 m/s)
     rear_margin_m: float = 0.6  # the arcs end with the rear this far from the rear car
     sweep_margin_m: float = 0.3  # the planned path's body keeps this clear of both cars
 
@@ -109,7 +110,8 @@ class ParallelParker:
     # -- odometry ----------------------------------------------------------------------
     def _integrate(self, frame):
         st = self.state
-        speed = abs(float(frame.speed_mps or 0.0)) * (-1.0 if self._reverse else 1.0)
+        speed = abs(float(frame.speed_mps or 0.0))
+        speed = 0.0 if speed < self.config.standstill_mps else speed * (-1.0 if self._reverse else 1.0)  # the encoder's noise at a standstill is not motion
         rate = 0.0 if frame.imu is None else float(frame.imu.yaw_rate_rps) - self._bias
         heading = st.yaw + 0.5 * rate * self.dt
         st.x += speed * self.dt * math.cos(heading)
@@ -274,7 +276,9 @@ class ParallelParker:
             self._profile(world, body_xy)
             slot = self.find_slot()
             plan = None if slot is None else self._plan(slot)
-            if plan is not None and (st.phase == "search" or slot.rear_end_m == st.slot.rear_end_m):
+            # The same gap, seen better (its ends move as more of each car comes into view).
+            same = st.slot is not None and slot is not None and abs(slot.rear_end_m - st.slot.rear_end_m) <= 3.0 and abs(slot.front_end_m - st.slot.front_end_m) <= 3.0
+            if plan is not None and (st.phase == "search" or same):
                 st.slot = slot
                 st.theta, st.arc_start_x, st.target_x, st.target_y, st.centre_x = plan
                 if st.phase == "search":
