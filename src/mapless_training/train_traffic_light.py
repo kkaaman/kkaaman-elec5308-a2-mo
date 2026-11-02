@@ -111,6 +111,32 @@ def scores(confusion):
     )
 
 
+class LightImages:
+    """The samples as a map-style dataset for ``torch.utils.data.DataLoader``. At module
+    level so that it pickles: Windows starts DataLoader workers by spawning, and a class
+    defined inside ``main`` could not be sent to them (PC 1, 2 Nov)."""
+
+    def __init__(self, rows, augment):
+        self.rows, self.augment = rows, augment
+
+    def __len__(self):
+        return len(self.rows)
+
+    def __getitem__(self, i):
+        import cv2  # noqa: PLC0415
+        import torch  # noqa: PLC0415
+
+        path, label, _ = self.rows[i]
+        bgr = cv2.imread(str(path), cv2.IMREAD_COLOR)
+        x = preprocess(bgr[:, :, ::-1], cv2)
+        if self.augment:
+            g = np.random.default_rng()
+            x = np.clip(x * g.uniform(0.7, 1.3) + g.uniform(-0.08, 0.08), 0.0, 1.0)  # exposure
+            dx, dy = int(g.integers(-12, 13)), int(g.integers(-8, 9))  # a small shift
+            x = np.roll(x, (dy, dx), axis=(1, 2))
+        return torch.from_numpy(np.ascontiguousarray(x, dtype=np.float32)), label
+
+
 def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     p.add_argument("--run", type=Path, action="append", required=True, help="capture run folder (repeatable)")
@@ -126,7 +152,6 @@ def main(argv=None):
     p.add_argument("--approach-m", type=float, default=20.0, help="label the approach this far before a light's trigger zone with its state")
     p.add_argument("--approach-s", type=float, default=3.0, help="... and no longer before it than this")
     args = p.parse_args(argv)
-    import cv2  # noqa: PLC0415
     import torch  # noqa: PLC0415
 
     torch.manual_seed(args.seed)
@@ -134,23 +159,7 @@ def main(argv=None):
     items, counts = index(args.run, approach_m=args.approach_m, approach_s=args.approach_s)
     print(json.dumps(dict(runs=counts), indent=1), file=sys.stderr)
 
-    class Data(torch.utils.data.Dataset):
-        def __init__(self, rows, augment):
-            self.rows, self.augment = rows, augment
-
-        def __len__(self):
-            return len(self.rows)
-
-        def __getitem__(self, i):
-            path, label, _ = self.rows[i]
-            bgr = cv2.imread(str(path), cv2.IMREAD_COLOR)
-            x = preprocess(bgr[:, :, ::-1], cv2)
-            if self.augment:
-                g = np.random.default_rng()
-                x = np.clip(x * g.uniform(0.7, 1.3) + g.uniform(-0.08, 0.08), 0.0, 1.0)  # exposure
-                dx, dy = int(g.integers(-12, 13)), int(g.integers(-8, 9))  # a small shift
-                x = np.roll(x, (dy, dx), axis=(1, 2))
-            return torch.from_numpy(np.ascontiguousarray(x, dtype=np.float32)), label
+    Data = LightImages
 
     def evaluate(model, rows):
         loader = torch.utils.data.DataLoader(Data(rows, False), batch_size=args.batch, num_workers=args.workers)
