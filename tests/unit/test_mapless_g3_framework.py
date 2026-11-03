@@ -564,6 +564,17 @@ def test_crossing_walker_ahead_is_yielded_to_at_walking_pace():
     tagged = ObjectTrack(4, 0.0, [18.0, -3.0, 0.0, 1.2], np.diag([0.05] * 4), {"pedestrian": 0.9, "unknown": 0.1}, TrackStatus.CONFIRMED, 20, 0, support=("lidar",), footprint=None, travelled_m=1.5)
     assert crossing_yield_cap([tagged], [predict(tagged, c.prediction)], path, 0.0, BODY, 1.0, c) == pytest.approx(c.yield_mps)
     assert crossing_yield_cap([still], [predict(still, c.prediction)], path, 0.0, BODY, 1.0, c) is None
+    # Ramped (3 Nov, ``yield_ramp_decel_mps2``): far off, the cap leaves room to slow at that
+    # deceleration to walking pace yield_slow_m short; near, walking pace and the stop as before.
+    from dataclasses import replace
+
+    ramped = replace(c, yield_ramp_decel_mps2=2.0)
+    room = arc - c.yield_margin_m
+    far = crossing_yield_cap([walker], [pred], path, 0.0, BODY, 3.0, ramped)
+    assert far == pytest.approx(min(math.sqrt(c.yield_mps**2 + 4.0 * max(0.0, room - ramped.yield_slow_m)), math.sqrt(6.0 * room)))
+    assert far > c.yield_mps
+    assert crossing_yield_cap([walker], [pred], path, room - 3.0, BODY, 3.0, ramped) == pytest.approx(c.yield_mps)
+    assert crossing_yield_cap([walker], [pred], path, room, BODY, 3.0, ramped) == pytest.approx(0.0)
 
 
 def test_moving_needs_sustained_recent_motion_not_a_one_off_centroid_shift():

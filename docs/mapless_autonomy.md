@@ -4137,6 +4137,16 @@ light scripted red (`--lights scripted`), which the car must see for itself
   12 m); with `--brake-mps2` above 1, planned stops (holds, lights, the goal) come in two
   stages (`PlannerConfig.comfort_decel_mps2` 2, `approach_mps` 3, `final_decel_mps2` 1:
   down to 3 m/s, then the last 4.5 m to rest), the sight bound still at `decel_mps2`.
+  fast2 (PC 2, `331d014`, the showcase at `--speed 13.9 --brake-mps2 3 --accel-mps2 1.5`):
+  **5 of 5 pass every behaviour gate, top 34-35 km/h**, 2.2-6.7 % of steps over 50 ms.
+  Two things looked abrupt: the walker's yield (walking pace at once: 6.3 to 0.1 m/s in
+  0.3 s from 7 m/s) and the move-off at green (5.5 s: light_v1 reads a green as nothing,
+  and nothing releases a hold only after `none_release_s`, 5 s). `--yield-decel-mps2`
+  (`StackConfig.yield_ramp_decel_mps2`) slows to walking pace at that deceleration,
+  reaching it `yield_slow_m` (6 m) short, the stop short of the walker still binding.
+  `--light-release-s` sets `none_release_s`: in 12 clear runs the classifier never read
+  anything but red while the car stood at a red, but in rain (and low sun) it reads a red
+  as nothing too, so 5 s stays the default and the shorter release is for clear weather.
 - **Driving-test extras (3 Nov, all off by default: the frozen showcase is unchanged).**
   *Junction zones (`--zone-mps`, `DriverConfig.zone_mps`):* no faster than this from
   `zone_before_m` (45 m) before each route junction's entry point to `zone_after_m`

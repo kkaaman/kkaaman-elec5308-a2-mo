@@ -116,6 +116,7 @@ from mapless.satnav import Command, RoutePoint, SatNavRoute
 from mapless.sensor_suite import load_sensor_suite, parse_overrides
 from mapless.stack import Admission, MaplessStack, StackConfig
 from mapless.terrain import CellLabel, VehicleBody
+from mapless.traffic_light import LightConfig
 from navigation_control.local import LocalControlConfig
 from navigation_control.types import ControllerConfig
 
@@ -792,7 +793,7 @@ def _fmt(value):
     return "-" if value is None else (f"{value:.2f}" if isinstance(value, (int, float)) else str(value))
 
 
-def driver_config(body, wheelbase_m, steering_limit_rad, speed_mps, keep_right_m, zone_mps=None, overtake=False, brake_mps2=None, lookahead_s=0.0, accel_mps2=None):
+def driver_config(body, wheelbase_m, steering_limit_rad, speed_mps, keep_right_m, zone_mps=None, overtake=False, brake_mps2=None, lookahead_s=0.0, accel_mps2=None, light_release_s=None):
     """The driver configuration the harness runs with (shared with the offline replay);
     ``zone_mps``: the junction zones' speed (``DriverConfig.zone_mps``), None for none;
     ``overtake``: pass a vehicle stopped in the lane (``DriverConfig.overtake``);
@@ -803,7 +804,9 @@ def driver_config(body, wheelbase_m, steering_limit_rad, speed_mps, keep_right_m
     ``lookahead_s``: the steering point at least this many seconds of travel ahead;
     ``accel_mps2``: the speed target rises at most this fast (``DriverConfig.accel_mps2``).
     With ``brake_mps2`` above 1, planned stops come in two stages: at the lesser of it and
-    2 m/s² down to 3 m/s, then at 1 m/s² to rest (``PlannerConfig.final_decel_mps2``)."""
+    2 m/s² down to 3 m/s, then at 1 m/s² to rest (``PlannerConfig.final_decel_mps2``);
+    ``light_release_s``: a light held for that the classifier no longer reads (nones while
+    standing) is released after this long (``LightConfig.none_release_s``, 5 s by default)."""
     brake = 1.0 if brake_mps2 is None else float(brake_mps2)
     controller = ControllerConfig(
         wheelbase_m=wheelbase_m,
@@ -823,6 +826,7 @@ def driver_config(body, wheelbase_m, steering_limit_rad, speed_mps, keep_right_m
             comfort_decel_mps2=min(brake, 2.0) if brake > 1.0 else None, final_decel_mps2=1.0 if brake > 1.0 else None,
         ),
         accel_mps2=accel_mps2,
+        light=LightConfig() if light_release_s is None else LightConfig(none_release_s=float(light_release_s)),
         zone_mps=zone_mps,
         overtake=OvertakeConfig() if overtake else None,
     )
@@ -1628,7 +1632,7 @@ class MaplessDrive:
         light_front_s = None
         self.body = vehicle_body(self.ego, self.offset)
         config = driver_config(self.body, self.adapter.geometry.wheelbase_m, self.adapter.geometry.controller_steering_limit_rad, args.speed, args.keep_right, zone_mps=getattr(args, "zone_mps", None), overtake=getattr(args, "overtake", False),
-            brake_mps2=getattr(args, "brake_mps2", None), lookahead_s=getattr(args, "lookahead_s", 0.0), accel_mps2=getattr(args, "accel_mps2", None),
+            brake_mps2=getattr(args, "brake_mps2", None), lookahead_s=getattr(args, "lookahead_s", 0.0), accel_mps2=getattr(args, "accel_mps2", None), light_release_s=getattr(args, "light_release_s", None),
         )
         self.report["driver_config"] = rounded(_config_dict(config))
         rig = SensorRig(
@@ -1701,6 +1705,7 @@ class MaplessDrive:
                 stack_config = StackConfig(
                     admission=Admission.preset(args.admission), segmenter=args.segmenter, detector=args.detector, semantic_mode=getattr(args, "semantic", "thread"),
                     light_classifier=getattr(args, "light_classifier", None), light_band_scale=getattr(args, "light_scale", None),
+                    yield_ramp_decel_mps2=getattr(args, "yield_decel_mps2", None),
                 )
                 driver = MaplessStack(self.suite, self.route, config, stack_config, DT_S)
                 self.report["stack"] = dict(
@@ -2176,6 +2181,8 @@ def main(argv=None, stack=False):
     parser.add_argument("--no-noise", action="store_true", help="Run the suite without its sensor noise")
     parser.add_argument("--speed", type=float, default=2.0, help="Cruise speed (m/s)")
     parser.add_argument("--brake-mps2", type=float, default=None, help="plan every stop and the sight bound at this deceleration (default 1.0): the car never drives faster than it can stop at it within the road it has seen; 3.0 allows ~11-12 m/s on 25-30 m of seen road")
+    parser.add_argument("--yield-decel-mps2", type=float, default=None, help="stack: slow to walking pace for a road user crossing ahead at this deceleration, reaching it 6 m short (default: walking pace at once)")
+    parser.add_argument("--light-release-s", type=float, default=None, help="a held light the classifier reads as nothing for this long while standing releases the car (default 5; light_v1 reads a green as nothing, and in rain a red too: keep 5 there)")
     parser.add_argument("--accel-mps2", type=float, default=None, help="the speed target rises at most this fast (default: no limit); ~1.5 for a steady pull away")
     parser.add_argument("--lookahead-s", type=float, default=0.0, help="the steering point at least this many seconds of travel ahead (default 0: a fixed 4 m); ~0.8 for runs above 6 m/s")
     parser.add_argument("--stopped-car", type=float, action="append", default=[], metavar="S", help="mission: a car stopped in the lane at route s S as well, hazard lights on, never removed (for --overtake); repeatable")

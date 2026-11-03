@@ -134,6 +134,12 @@ class StackConfig:
     # LiDAR footprint no larger than vulnerable_max_m.
     yield_mps: float = 0.8
     yield_margin_m: float = 2.0
+    # Walking pace reached gradually (3 Nov): from where the road user is first yielded to,
+    # at yield_ramp_decel_mps2, down to yield_mps by yield_slow_m short of where it is
+    # predicted (the stop short of it still binds). None: walking pace at once, as before.
+    # At 7 m/s the at-once cap took the car from 6.3 to 0.1 m/s in 0.3 s (fast2, PC 2).
+    yield_ramp_decel_mps2: float | None = None
+    yield_slow_m: float = 6.0
     vulnerable_max_m: float = 2.0
     # A pedestrian standing at the roadside, its near edge more than roadside_clear_m beyond
     # the car's tube: passed at roadside_mps at most, not stopped for. Its walking-pace
@@ -2196,7 +2202,10 @@ def crossing_yield(tracks, candidates, path_xy, s_now, body, decel_mps2, config,
     if arc is None:
         return None, None
     room = max(0.0, arc - s_now - config.yield_margin_m)
-    return min(config.yield_mps, math.sqrt(2.0 * decel_mps2 * room)), track_id
+    pace = config.yield_mps
+    if config.yield_ramp_decel_mps2 is not None:
+        pace = math.sqrt(config.yield_mps**2 + 2.0 * config.yield_ramp_decel_mps2 * max(0.0, room - config.yield_slow_m))
+    return min(pace, math.sqrt(2.0 * decel_mps2 * room)), track_id
 
 
 def _across_path(track, path):
