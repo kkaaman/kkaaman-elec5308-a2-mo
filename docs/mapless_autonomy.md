@@ -4143,8 +4143,13 @@ light scripted red (`--lights scripted`), which the car must see for itself
   7 m past its near face with the original lane seen clear 8 m ahead of the front. Every
   check binds on the shifted path. With `--overtake`, S4 is scored as held, then passed,
   the goal reached (`held_before_passing`, `overtake`); a hold ends the run only after
-  30 s. Synthetic (`test_overtake.py`): the pass and return with no contact, holding
-  without the flag, a car on the far side blocking the way past, the stack's veto.
+  30 s. `--stopped-car S` (repeatable) adds a car stopped in the lane at route s S, hazard
+  lights on, to any mission scenario (the showcase's S3 too); `stopped_cars_passed` gates
+  that each was passed. The pass's ticks (and 2 s after) are judged apart from the lane
+  gates (`overtake_lane_change`, a REPORT): leaving the lane is the point. Synthetic
+  (`test_overtake.py`): the pass and return with no contact, holding without the flag, a
+  car on the far side blocking the way past, the stack's veto; the fake-CARLA harness:
+  S4 passed and S0 with a stopped car passed, lane gates passing.
 
 ## Running Phase 0 live
 

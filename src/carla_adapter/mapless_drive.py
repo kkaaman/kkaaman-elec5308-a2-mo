@@ -76,6 +76,7 @@ import numpy as np
 from carla_adapter.frame_record import FrameRecorder
 from carla_adapter.mapless_capture import source_commit
 from carla_adapter.mapless_mission import (
+    OBSTACLE_BLUEPRINTS,
     load_scenario,
     mission_route,
     obstacle_placement,
@@ -195,6 +196,29 @@ def headlights_on(carla, vehicle):
         return "low beam"
     except Exception as error:  # an older server, a fake world
         return f"not set: {error}"[:120]
+
+
+def overtake_ticks(log, settle_ticks=40):
+    """Indices of the log's ticks within a pass of a stopped car (the driver's overtake state
+    not idle), and ``settle_ticks`` after each."""
+    marked, after = set(), -1
+    for i, r in enumerate(log):
+        if (((r.get("driver") or {}).get("overtake")) or {}).get("state", "idle") != "idle":
+            marked.add(i)
+            after = i + settle_ticks
+        elif i <= after:
+            marked.add(i)
+    return marked
+
+
+def hazard_lights(carla, vehicle):
+    """A stopped car's hazard lights (both blinkers). True if set."""
+    try:
+        states = carla.VehicleLightState
+        vehicle.set_light_state(states(states.LeftBlinker | states.RightBlinker))
+        return True
+    except Exception:
+        return False
 
 
 def set_vehicle_lights(carla, vehicle, indicator, night):
@@ -1377,6 +1401,7 @@ class MaplessDrive:
                 raise RuntimeError(f"Could not place the {args.acceptance} obstacle at s={s:.1f} m, lateral {lateral:g} m")
             self.parked.set_simulate_physics(False)
             self.report["obstacle"] = dict(scenario=args.acceptance, blueprint=blueprint, s_m=round(s, 2), lateral_m=lateral, remove_after_hold_s=self.scenario.get("remove_after_hold_s"))
+        self.report["stopped_cars"] = self._place_stopped_cars(carla, carla_map, site, ground, getattr(args, "stopped_car", None) or [])
         args.goal_m = site.length_m
         self.route = perturb_route(mission_route(carla_map, site), args.route_noise, args.seed)
         self.route.save(args.output / "route.json")
@@ -1495,6 +1520,26 @@ class MaplessDrive:
             {k: v for k, v in site.items() if k not in ("approach", "junction", "exit")}
             | dict(map=carla_map.name, start_xy_m=approach[LANE_BACK_M].tolist(), junction_bounds_m=[b - LANE_BACK_M for b in self.turn_site.segment_bounds()])
         )
+
+    def _place_stopped_cars(self, carla, carla_map, site, ground, stations):
+        """``--stopped-car S`` (3 Nov): a car stopped in the lane at each route s, hazard
+        lights on, never removed (for ``--overtake``). Evaluator side: the car sees them only
+        through its sensors. Their record for the report."""
+        placed = []
+        for s_m in stations:
+            if not 0.0 < s_m < site.length_m - 15.0:
+                raise ValueError(f"--stopped-car {s_m:g}: not on the mission's chain short of its last 15 m ({site.length_m:.1f} m)")
+            x, y, yaw = site.at(s_m, 0.0)
+            wp = carla_map.get_waypoint(carla.Location(x=x, y=-y, z=ground.transform.location.z), project_to_road=True, lane_type=carla.LaneType.Any)
+            bp = self.library.find(OBSTACLE_BLUEPRINTS["car"])
+            if bp.has_attribute("is_invincible"):
+                bp.set_attribute("is_invincible", "false")
+            car = self.owner.try_spawn(bp, carla.Transform(carla.Location(x=x, y=-y, z=wp.transform.location.z + 0.1), carla.Rotation(yaw=-math.degrees(yaw))))
+            if car is None:
+                raise RuntimeError(f"Could not place the stopped car at s={s_m:.1f} m")
+            car.set_simulate_physics(False)
+            placed.append(dict(s_m=round(float(s_m), 2), blueprint=OBSTACLE_BLUEPRINTS["car"], hazard_lights=hazard_lights(carla, car)))
+        return placed
 
     def _follow_with_spectator(self):
         """Park the server's spectator camera behind the ego (a view only; no effect on the run)."""
@@ -1891,7 +1936,14 @@ class MaplessDrive:
             if gate is not None:
                 checks.append(check("oncoming_gate_view", REPORT, **gate))
         else:
-            settled = [r for r in startup if r["truth"]["s_m"] > s0 + 15.0 and r["truth"]["speed_mps"] > 0.3]
+            # Passing a stopped car (``--overtake``) leaves the lane on purpose: those ticks, and
+            # 2 s after (the car settling back on its line), are judged apart.
+            passing = overtake_ticks(log)
+            if passing:
+                lane_off = np.abs([log[i]["truth"]["lane_offset_m"] for i in sorted(passing)])
+                checks.append(check("overtake_lane_change", REPORT, max_offset_m=float(lane_off.max()), ticks=len(passing), max_corner_offset_m=max(log[i]["truth"]["corner_offset_max_m"] for i in passing), note="left the lane to pass a stopped car; the lane gates judge the rest"))
+            kept = {id(r) for i, r in enumerate(log) if i not in passing}
+            settled = [r for r in startup if r["truth"]["s_m"] > s0 + 15.0 and r["truth"]["speed_mps"] > 0.3 and id(r) in kept]
             # Through a junction the car dead-reckons on its latched line (no kerb to follow:
             # crossing.py), and the truth lane there is the map's connecting lane; the lane
             # gate below is kerb following's. Those ticks are judged apart (r13: 0.4-0.8 m
@@ -1918,9 +1970,10 @@ class MaplessDrive:
             # The whole run, calibration and start included: no corner of the body outside the
             # lane (each corner projected onto the lane centreline itself, so bends are exact).
             half_lane = self.site["lane_width_m"] / 2
-            worst_corner = max(r["truth"]["corner_offset_max_m"] for r in log)
+            footprint = [r for i, r in enumerate(log) if i not in passing]
+            worst_corner = max(r["truth"]["corner_offset_max_m"] for r in footprint)
             checks.append(
-                check("lane_footprint", PASS if worst_corner <= half_lane else FAIL, max_corner_offset_m=worst_corner, half_lane_m=half_lane, ticks=len(log))
+                check("lane_footprint", PASS if worst_corner <= half_lane else FAIL, max_corner_offset_m=worst_corner, half_lane_m=half_lane, ticks=len(footprint))
             )
         if self.actor is not None:
             moving = score_moving(log, actor_truths, self.body)
@@ -1980,6 +2033,11 @@ class MaplessDrive:
             # The baseline scenario's own gates on the mapless run (G2's gate; mapless_mission.py).
             for name, passed, values in score_mission(self.scenario, log, self.report["end"], hold_ticks, getattr(self, "removed_at_s", None), DT_S, obstacle_s_m=(self.report.get("obstacle") or {}).get("s_m"), overtake=self.report.get("overtake")):
                 checks.append(check(name, REPORT if name == "brake_taps" else (INCOMPLETE if passed is None else (PASS if passed else FAIL)), **values))
+            stopped = self.report.get("stopped_cars") or []
+            if stopped:
+                # Each stopped car passed (``--overtake``), contact being the collision gate's.
+                passes = (self.report.get("overtake") or {}).get("passes", 0)
+                checks.append(check("stopped_cars_passed", PASS if passes >= len(stopped) else FAIL, passes=passes, stopped_cars=len(stopped), note=(self.report.get("overtake") or {}).get("note", "overtaking off")))
             crossings = [r["driver"].get("crossing") for r in log if r["driver"].get("crossing")]
             handed = sum(1 for note in crossings if note == "handed back to the kerb corridor")
             checks.append(check("junction_crossing", REPORT, crossing_ticks=len(crossings), handed_back=handed, junctions=self.site.get("junctions")))
@@ -2102,6 +2160,7 @@ def main(argv=None, stack=False):
     parser.add_argument("--set", action="append", default=[], metavar="SENSOR.FIELD=VALUE")
     parser.add_argument("--no-noise", action="store_true", help="Run the suite without its sensor noise")
     parser.add_argument("--speed", type=float, default=2.0, help="Cruise speed (m/s)")
+    parser.add_argument("--stopped-car", type=float, action="append", default=[], metavar="S", help="mission: a car stopped in the lane at route s S as well, hazard lights on, never removed (for --overtake); repeatable")
     parser.add_argument("--overtake", action="store_true", help="Pass a vehicle stopped in the lane: after waiting behind it, with the way past seen clear and no route junction near, shift left past it (indicators on) and back")
     parser.add_argument("--zone-mps", type=float, default=None, help="Junction zones: no faster than this from 45 m before each route junction's entry to 10 m past its exit (sat-nav); --speed elsewhere")
     parser.add_argument(
