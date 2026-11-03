@@ -145,6 +145,15 @@ def test_the_scenario_gates_are_scored_as_the_plan_says():
     log, _ = _rows(stops=31.5, removed_after=None, n=100)
     rows = {name: (ok, v) for name, ok, v in mm.score_mission(s1, log, "time limit", 0, None, 0.05)}
     assert rows["resume"][0] is None and rows["obstacle_stop"][0] is False
+    # S4 with overtaking on (3 Nov): held first, then passed, the goal reached.
+    log, _ = _rows(stops=31.5, removed_after=6.0, n=600)
+    for r in log[700 // 2 : 760 // 2]:
+        r["driver"] = dict(overtake=dict(state="out"), indicator="left")
+    log[-1]["truth"]["goal_distance_m"] = 0.5
+    rows = {name: (ok, v) for name, ok, v in mm.score_mission(s4, log, "finished", 0, None, 0.05, overtake=dict(passes=1, note="passed"))}
+    assert rows["held_before_passing"][0] and rows["overtake"][0] and rows["overtake"][1]["indicators"] == ["left"] and "held" not in rows
+    rows = {name: (ok, v) for name, ok, v in mm.score_mission(s4, log, "time limit", 0, None, 0.05, overtake=dict(passes=0, note="waiting: traffic on the far side"))}
+    assert rows["overtake"][0] is False
     # S4: the hold is the end.
     log, _ = _rows(stops=31.5, n=600)
     rows = {name: (ok, v) for name, ok, v in mm.score_mission(s4, log, "held at the obstacle", 60, None, 0.05)}

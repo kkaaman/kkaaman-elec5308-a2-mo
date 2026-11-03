@@ -1065,3 +1065,13 @@ def test_the_parking_adapter_reports_a_reverse_speed_and_sends_the_reverse_gear(
     assert state.speed_mps == pytest.approx(-0.6) and state.x_m == pytest.approx(10.0 - OFFSET)
     control = adapter.apply(ParkCommand(math.radians(-35.0), 0.3, 0.0, True))
     assert sent and control.reverse is True and control.steer == pytest.approx(0.5) and control.throttle == 0.3
+
+
+def test_the_overtake_flag_reaches_the_driver_config():
+    """``--overtake`` (3 Nov): the driver configuration carries the pass, and the planner's
+    obstacle hold gap with it; without it, neither."""
+    from mapless.terrain import VehicleBody
+
+    on = drive.driver_config(VehicleBody(), 2.9, math.radians(70), 3.0, 1.75, overtake=True)
+    off = drive.driver_config(VehicleBody(), 2.9, math.radians(70), 3.0, 1.75)
+    assert on.overtake is not None and on.overtake.hold_gap_m > on.planner.stop_gap_m and off.overtake is None

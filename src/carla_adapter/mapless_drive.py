@@ -108,6 +108,7 @@ from mapless.corridor import CorridorConfig
 from mapless.driver import DriveMode, DriverConfig, MaplessDriver
 from mapless.frame import SensorState, SensorStatus
 from mapless.obstacles import project_onto_polyline
+from mapless.overtake import OvertakeConfig
 from mapless.parking import ParallelParker, ParkingConfig
 from mapless.planner import PlannerConfig
 from mapless.satnav import Command, RoutePoint, SatNavRoute
@@ -767,9 +768,10 @@ def _fmt(value):
     return "-" if value is None else (f"{value:.2f}" if isinstance(value, (int, float)) else str(value))
 
 
-def driver_config(body, wheelbase_m, steering_limit_rad, speed_mps, keep_right_m, zone_mps=None):
+def driver_config(body, wheelbase_m, steering_limit_rad, speed_mps, keep_right_m, zone_mps=None, overtake=False):
     """The driver configuration the harness runs with (shared with the offline replay);
-    ``zone_mps``: the junction zones' speed (``DriverConfig.zone_mps``), None for none."""
+    ``zone_mps``: the junction zones' speed (``DriverConfig.zone_mps``), None for none;
+    ``overtake``: pass a vehicle stopped in the lane (``DriverConfig.overtake``)."""
     controller = ControllerConfig(
         wheelbase_m=wheelbase_m,
         max_steering_angle_rad=steering_limit_rad,
@@ -785,6 +787,7 @@ def driver_config(body, wheelbase_m, steering_limit_rad, speed_mps, keep_right_m
         corridor=CorridorConfig(keep_right_m=keep_right_m),
         planner=PlannerConfig(cruise_mps=speed_mps),
         zone_mps=zone_mps,
+        overtake=OvertakeConfig() if overtake else None,
     )
 
 
@@ -1566,7 +1569,7 @@ class MaplessDrive:
         lights_on = bool(self.light_script.junctions) or self.light_script.mode != "unchanged" or bool(getattr(args, "light_classifier", None))
         light_front_s = None
         self.body = vehicle_body(self.ego, self.offset)
-        config = driver_config(self.body, self.adapter.geometry.wheelbase_m, self.adapter.geometry.controller_steering_limit_rad, args.speed, args.keep_right, zone_mps=getattr(args, "zone_mps", None))
+        config = driver_config(self.body, self.adapter.geometry.wheelbase_m, self.adapter.geometry.controller_steering_limit_rad, args.speed, args.keep_right, zone_mps=getattr(args, "zone_mps", None), overtake=getattr(args, "overtake", False))
         self.report["driver_config"] = rounded(_config_dict(config))
         rig = SensorRig(
             self.owner,
@@ -1819,7 +1822,9 @@ class MaplessDrive:
                     break
                 # A scripted actor decides whether a hold is an endpoint for its scenario
                 # (the crossing walker must be waited out, not held against; review).
-                if endable and hold_ticks * DT_S >= args.hold_s:
+                # Overtaking on, a hold is where a pass begins (after its wait): not an end
+                # before half a minute of it.
+                if endable and hold_ticks * DT_S >= (max(args.hold_s, 30.0) if getattr(args, "overtake", False) else args.hold_s):
                     end = "held at the obstacle"
                     break
             self.adapter.stop()
@@ -1833,6 +1838,9 @@ class MaplessDrive:
             recorder.close()
             self.report["frames_recorded"] = recorder.ticks
         self.report["indicators"] = {side: round(n * DT_S, 2) for side, n in sorted(indicator_ticks.items())}  # seconds signalled, by side
+        passing = getattr(driver.driver if args.stack else driver, "overtake", None)
+        if passing is not None:
+            self.report["overtake"] = passing.record()  # passes made, and the last state and note
         if viewer is not None:
             viewer.close()
             self.report["car_view"] = viewer.record()
@@ -1970,7 +1978,7 @@ class MaplessDrive:
             checks.append(check("completion", INCOMPLETE if passed is None else (PASS if passed else FAIL), **completion))
         elif args.scenario == MISSION_SCENARIO:
             # The baseline scenario's own gates on the mapless run (G2's gate; mapless_mission.py).
-            for name, passed, values in score_mission(self.scenario, log, self.report["end"], hold_ticks, getattr(self, "removed_at_s", None), DT_S, obstacle_s_m=(self.report.get("obstacle") or {}).get("s_m")):
+            for name, passed, values in score_mission(self.scenario, log, self.report["end"], hold_ticks, getattr(self, "removed_at_s", None), DT_S, obstacle_s_m=(self.report.get("obstacle") or {}).get("s_m"), overtake=self.report.get("overtake")):
                 checks.append(check(name, REPORT if name == "brake_taps" else (INCOMPLETE if passed is None else (PASS if passed else FAIL)), **values))
             crossings = [r["driver"].get("crossing") for r in log if r["driver"].get("crossing")]
             handed = sum(1 for note in crossings if note == "handed back to the kerb corridor")
@@ -2094,6 +2102,7 @@ def main(argv=None, stack=False):
     parser.add_argument("--set", action="append", default=[], metavar="SENSOR.FIELD=VALUE")
     parser.add_argument("--no-noise", action="store_true", help="Run the suite without its sensor noise")
     parser.add_argument("--speed", type=float, default=2.0, help="Cruise speed (m/s)")
+    parser.add_argument("--overtake", action="store_true", help="Pass a vehicle stopped in the lane: after waiting behind it, with the way past seen clear and no route junction near, shift left past it (indicators on) and back")
     parser.add_argument("--zone-mps", type=float, default=None, help="Junction zones: no faster than this from 45 m before each route junction's entry to 10 m past its exit (sat-nav); --speed elsewhere")
     parser.add_argument(
         "--keep-right",
