@@ -113,8 +113,9 @@ def test_red_junctions_scripts_red_only_at_the_listed_junctions():
     script.junctions.append(JunctionLights(100.0, 468, [Light()]))
     script.junctions.append(JunctionLights(250.0, 719, [Light()]))
     script.step(CARLA, 80.0, 3.0, 0.0, 0.05)
-    script.step(CARLA, 230.0, 3.0, 1.0, 0.05)
-    assert script.junctions[0].lights[0].state == "Red" and script.junctions[1].lights[0].state == "Green"
+    assert script.junctions[0].lights[0].state == "Red"
+    script.step(CARLA, 230.0, 3.0, 1.0, 0.05)  # 468 passed (green again), 719 20 m ahead
+    assert script.junctions[1].lights[0].state == "Green" and script.junctions[1].phase == "waiting"
     every = LightScript("scripted")
     every.junctions.append(JunctionLights(250.0, 719, [Light()]))
     every.step(CARLA, 230.0, 3.0, 0.0, 0.05)
