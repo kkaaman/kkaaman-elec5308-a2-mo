@@ -4142,7 +4142,16 @@ light scripted red (`--lights scripted`), which the car must see for itself
   the car's way), else the left, the oncoming lane of a two-lane road. Live S4_5308
   (Town10HD, `7ba365b`, PC 1): MEASURED_PASS, held 4 s at 7.5 m, passed 2.6 m out, no
   contact, 2.7 % of steps over 50 ms; but on the left, into the oncoming lanes, with the
-  lane centre measured 7.8 m from the right kerb: the side rule above followed. The planner's hold on it is dropped (the shifted path is seen
+  lane centre measured 7.8 m from the right kerb: the side rule above followed. PC 2's
+  5309-5312 on the same commit: every pass clean, but 5310/5311 left junction 468
+  2.4-2.5 m left of the lane (lane keeping, footprint, 5310 short of the goal): the
+  crossing's latched line takes its direction from the car's own 40 m track, and the
+  pass's S-curve was in it. The track now skips a pass (`StraightCrossing.observe(...,
+  record)`). And a 0.3 m track on the stopped car's corner, "motion uncertain", was
+  predicted onto the path and stopped the car mid-pass for 0.3 s (5309/5310): while a
+  pass is under way the stack leaves tracks on the passed car's box (grown 1 m) out of
+  its conflicts unless they move (`Overtake.passing`). On the right (`62fe7fc`, 5308):
+  passed 2.85 m out, back within 0.1 m, through 468 at 0.08 m. The planner's hold on it is dropped (the shifted path is seen
   clear of it); the corridor's road support is looked for on the shifted path (beside
   the vehicle the lane's line runs through it). Back (indicator right) over 12 m once
   7 m past its near face with the original lane seen clear 8 m ahead of the front. Every

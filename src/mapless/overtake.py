@@ -139,6 +139,7 @@ class Overtake:
         self._seen = None  # the obstacle last seen while held, and the odometry it was seen from
         self._clear = {}  # by side: the way past seen with nothing on it since, and clear this far at best since
         self.side = None  # the side being passed on
+        self.passing_box = None  # what is being passed: its footprint (4 x 2, odometry), assumed_length_m long
 
     def _advance(self, odometry):
         if self._last_odo is not None:
@@ -199,7 +200,7 @@ class Overtake:
                 self.state = "past"
         if self.state == "back" and self.travelled_m >= self.back_from_m + c.ramp_m:
             self.state, self.passes = "idle", self.passes + 1
-            self.offset_m, self.back_from_m, self.since_s, self._last_odo = 0.0, None, None, None
+            self.offset_m, self.back_from_m, self.since_s, self._last_odo, self.passing_box = 0.0, None, None, None, None
             self.note = "passed"
             return corridor, None, None
         shifted = dataclasses.replace(corridor, centre_body=shift_line(corridor.centre_body, self.offsets(corridor.centre_body)))
@@ -262,11 +263,27 @@ class Overtake:
                 notes.append(f"{side}: seen clear to {best:.1f} m of {needed:.1f} for {t - since:.1f} s")
                 continue
             self.offset_m, self.side, self.obstacle_s_m = offset, side, obstacle.distance_m
+            near, far = obstacle.distance_m, obstacle.distance_m + c.assumed_length_m
+            self.passing_box = corridor.pose.to_world(np.array([[near, span[0]], [far, span[0]], [far, span[1]], [near, span[1]]]))
             self.state, self.started, self._clear = "out", True, {}
             self._last_odo = (odometry.x_m, odometry.y_m)
             self.note = f"passing: {abs(offset):.2f} m to the {side}"
             return
         self.note = "waiting: " + "; ".join(notes)
+
+    def passing(self, xy, pad_m=1.0):
+        """Whether odometry point ``xy`` lies on what is being passed (its box grown by
+        ``pad_m``): a fragment of it the tracker sees as a separate, uncertain object is not
+        traffic (live S4_5309/5310: a 0.3 m track on the stopped car's corner, "motion
+        uncertain", predicted onto the path, stopped the car mid-pass for 0.3 s)."""
+        if self.state == "idle" or self.passing_box is None:
+            return False
+        box = self.passing_box
+        u, v = box[1] - box[0], box[3] - box[0]
+        lu, lv = float(np.hypot(*u)), float(np.hypot(*v))
+        d = np.asarray(xy, dtype=float) - box[0]
+        a, b = float(d @ u) / max(lu, 1e-9), float(d @ v) / max(lv, 1e-9)
+        return -pad_m <= a <= lu + pad_m and -pad_m <= b <= lv + pad_m
 
     def _reach_m(self, body):
         """How far ahead (body x) the line is continued while passing: past the end of the

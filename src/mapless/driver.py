@@ -518,7 +518,10 @@ class MaplessDriver:
         if motion.route_sigma_m > c.route_max_sigma_m:
             return self._fault(f"route position uncertain ({motion.route_sigma_m:.1f} m)", d, motion, t, dt)
         # -- straight through a junction (crossing.py) ------------------------------------
-        self.crossing.observe(motion.odometry, not motion.stationary, None if frame.imu is None else yaw_from_compass(frame.imu.compass_rad))
+        self.crossing.observe(
+            motion.odometry, not motion.stationary, None if frame.imu is None else yaw_from_compass(frame.imu.compass_rad),
+            record=self.overtake is None or self.overtake.state == "idle",  # a pass is not the lane's direction
+        )
         crossing = self._crossing_context(guidance, motion)
         if crossing is None and self.crossing.active:
             # The route has moved past the exit point while the car still crosses on the

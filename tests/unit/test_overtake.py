@@ -28,7 +28,7 @@ def control():
     return LocalControlConfig(ControllerConfig(wheelbase_m=3.00465, max_steering_angle_rad=math.radians(20), lookahead_m=4.0, kp=0.45, ki=0.15, stopping_deceleration_mps2=1.0, hold_brake=0.5))
 
 
-def run(parked, overtake=True, goal=130.0, seconds=90.0, width=7.5, seed=5308, veto=False, lane_centre=1.75):
+def run(parked, overtake=True, goal=130.0, seconds=90.0, width=7.5, seed=5308, veto=False, lane_centre=1.75, probe=None):
     scene = RoadScene(KerbLine([Straight(170)]), road_width_m=width, lane_centre_m=lane_centre, parked=parked)
     world = MaplessRoadWorld(scene, SUITE, start_s_m=15.0, seed=seed)
     config = DriverConfig(
@@ -41,6 +41,8 @@ def run(parked, overtake=True, goal=130.0, seconds=90.0, width=7.5, seed=5308, v
     for _ in range(int(seconds / DT)):
         step = driver.step(world.frame())
         log.append((world.truth(), step))
+        if probe is not None:
+            probe(world.truth(), driver)
         world.apply(step.command)
         if step.mode is DriveMode.FINISHED and world.state.speed == 0:
             break
@@ -55,7 +57,16 @@ def test_ramp_and_shift_are_smooth_and_leftwards():
 
 
 def test_the_car_passes_a_stopped_car_in_its_lane_and_comes_back():
-    log, driver = run((ParkedCar(60.0, 1.75),))
+    spread = {}
+
+    def probe(truth, driver):
+        # The crossing's track (the lane's direction for a junction ahead) over the pass:
+        # what was driven along the lane before and after it, not the S-curve.
+        if truth.s_m >= 90.0 and "y" not in spread:
+            ys = [p[1] for p in driver.crossing._track]
+            spread.update(y=float(np.ptp(ys)), n=len(ys))
+
+    log, driver = run((ParkedCar(60.0, 1.75),), probe=probe)
     truth, last = log[-1]
     assert last.mode is DriveMode.FINISHED and abs(truth.s_m - 130.0) < 3.0, driver.overtake.record()
     assert not any(t.collision for t, _ in log)
@@ -64,6 +75,7 @@ def test_the_car_passes_a_stopped_car_in_its_lane_and_comes_back():
     assert beside and min(beside) > 2.3 and max(t.lane_offset_m for t, _ in log) < 3.6  # in the other lane beside it, no further
     after = [abs(t.lane_offset_m) for t, _ in log if t.s_m >= 100.0]
     assert after and max(after) < 0.35  # back in its lane
+    assert spread["n"] > 20 and spread["y"] < 0.6, spread  # live S4_5310: the pass in the track tilted 468's latched line
     signals = [(t.s_m, s.diagnostics.get("indicator")) for t, s in log]
     assert any(sig == "left" for s, sig in signals if s < 60.0) and any(sig == "right" for s, sig in signals if s > 60.0)
     held = [t for t, s in log if t.speed_mps < 0.05 and 30.0 < t.s_m < 60.0]
@@ -131,3 +143,15 @@ def test_the_stack_names_the_sides_with_moving_traffic(monkeypatch):
     ]
     assert stack.overtake_traffic(tracks, Pose2D(0.0, 0.0, 0.0), None) == {"left", "right"}
     assert stack.overtake_traffic(tracks[1:3], Pose2D(0.0, 0.0, 0.0), None) == set()
+
+
+def test_what_is_being_passed_is_known_by_its_box():
+    """``Overtake.passing``: the passed obstacle's footprint (odometry), grown by a pad; only
+    while a pass is under way. The stack leaves uncertain tracks on it out of its conflicts."""
+    from mapless.overtake import Overtake
+
+    o = Overtake()
+    o.passing_box = np.array([[10.0, -1.0], [15.5, -1.0], [15.5, 1.0], [10.0, 1.0]])
+    assert not o.passing((11.0, 0.0))  # idle: nothing is being passed
+    o.state = "out"
+    assert o.passing((11.0, 0.0)) and o.passing((9.2, -1.8)) and not o.passing((8.5, 0.0)) and not o.passing((12.0, 2.5))
