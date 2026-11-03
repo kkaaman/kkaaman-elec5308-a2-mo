@@ -4147,6 +4147,20 @@ light scripted red (`--lights scripted`), which the car must see for itself
   `--light-release-s` sets `none_release_s`: in 12 clear runs the classifier never read
   anything but red while the car stood at a red, but in rain (and low sun) it reads a red
   as nothing too, so 5 s stays the default and the shorter release is for clear weather.
+- **Twenty-first review (3 Nov, on `a248a09`; `claude/reviews/review21_external_a248a09.md`).**
+  Oncoming-lane passes opt-in (`--overtake-oncoming`); `comfort` REPORT (measured
+  acceleration, deceleration, jerk, each stretch braked past 3 m/s²); `light_releases`
+  REPORT (each light hold ended by greens or by the none timer, and the governing
+  light's state then); `--red-junctions` (scripted red only where the classifier is
+  proven); `--strict-evidence` (`CorridorConfig.strict_evidence`: the corridor's evidence
+  count and anchoring rechecked after the robust fit's outliers, the line aged by the kept
+  points); captures record each sample's lights ahead and `--strict-labels` trains on the
+  light's state at each image's own time. All off or reporting only until revalidated.
+  *Town loop:* `town10_loop` (688 m, two turns, junction pairs 9-11 m apart) stopped at
+  664 on a bent approach (the crossing now latches the last 8 m's heading when the track
+  bends); `town10_lap` (638 m, straight through 468, 719, 23) left the lane in 23, whose
+  approach bends into the junction; `town10_lap2` (406 m, to the bend before 23):
+  MEASURED_PASS at up to 35 km/h on its first run.
 - **Driving-test extras (3 Nov, all off by default: the frozen showcase is unchanged).**
   *Junction zones (`--zone-mps`, `DriverConfig.zone_mps`):* no faster than this from
   `zone_before_m` (45 m) before each route junction's entry point to `zone_after_m`
