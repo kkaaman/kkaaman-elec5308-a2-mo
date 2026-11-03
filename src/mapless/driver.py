@@ -95,6 +95,11 @@ class DriverConfig:
     # Passing a vehicle stopped in the lane (``overtake``): None, the car holds behind it
     # as before.
     overtake: OvertakeConfig | None = None
+    # The speed target rises at most this fast (m/s²), leading the car's speed by at most
+    # accel_lead_s of it: a steady pull away rather than the speed loop's full pedal (3 Nov:
+    # 2.4 to 10 m/s in 12 m on the fast showcase run). None: no limit, as before.
+    accel_mps2: float | None = None
+    accel_lead_s: float = 0.5
     indicate_before_m: float = 30.0  # the turn's indicator on from this far before the route's entry point, until the turn is handed back
     turn_start_m: float = 25.0  # a commanded turn is looked for when the route's entry point is this close
     turn_route_tolerance_m: float = 8.0  # the entry point must be within this of the car's path
@@ -132,6 +137,8 @@ class DriverConfig:
             raise TypeError("DriverConfig needs a VehicleBody and a LocalControlConfig")
         if self.planner.decel_mps2 > self.control.controller.stopping_deceleration_mps2 + 1e-9:
             raise ValueError("The planner may not brake harder than the controller's stopping deceleration")
+        if self.accel_mps2 is not None and not (math.isfinite(self.accel_mps2) and self.accel_mps2 > 0 and self.accel_lead_s > 0):
+            raise ValueError("accel_mps2 and accel_lead_s must be positive")
 
 
 @dataclass(frozen=True)
@@ -254,6 +261,7 @@ class MaplessDriver:
         self.overtake = None if config.overtake is None else Overtake(config.overtake)
         self.overtake_veto = False  # set by the stack: the sides with moving traffic (a set), or True for both
         self._plan_reason = ""
+        self._accel_limit = None  # the rising speed target (``accel_mps2``)
         self.stop_line = StopLineTracker()  # the painted line, looked for while a red or yellow is in force
         self.last_motion = self.last_classified = self.last_plan = self.last_corridor = None
         self._profile_path = None  # (time, odometry polyline) of the last path planned along, for the far points' ground (terrain)
@@ -1010,6 +1018,13 @@ class MaplessDriver:
             # obstacles, holds and caps. That one is driven no faster than the refused plan
             # allows where the car is (third review, R7).
             limit = refused_speed_limit(plan.trajectory, state, self.controller.config.speed_lookahead_m)
+        if c.accel_mps2 is not None:
+            # Rising at accel_mps2 from where it was, never more than accel_lead_s of it
+            # above the car's speed: when the car is held back, the target comes down with it.
+            prev = motion.speed_mps if self._accel_limit is None else self._accel_limit
+            self._accel_limit = min(prev + c.accel_mps2 * dt, motion.speed_mps + c.accel_mps2 * c.accel_lead_s)
+            limit = min(limit, self._accel_limit)
+            d.update(accel_limit_mps=round(self._accel_limit, 2))
         result = self.controller.update(state, t, dt, speed_limit_mps=limit)
         lap("control")
         d.update(

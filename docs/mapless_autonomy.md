@@ -4129,7 +4129,14 @@ light scripted red (`--lights scripted`), which the car must see for itself
   parked car, no contact; 4 m/s²: 10.2 m/s. `--lookahead-s 0.8` moves the steering point
   out with speed (`LocalControlConfig.lookahead_time_s`; 0: the fixed 4 m). With
   `--zone-mps` the car now slows into a junction zone at the planner's deceleration
-  instead of at its edge.
+  instead of at its edge. Live (`fast/S3_5308_view`, `19a89a8`, PC 1): top 10.1 m/s
+  (36 km/h); every gate but S3's roadside car (a 0.2 s tap at s 122, the recurring track
+  ~15 m right of s ~132 seen in 4 of the day's runs). *Smoother speed changes:*
+  `--accel-mps2` (`DriverConfig.accel_mps2`): the speed target rises at most this fast,
+  leading the car's speed by at most `accel_lead_s` of it (that run went 2.4 to 10 m/s in
+  12 m); with `--brake-mps2` above 1, planned stops (holds, lights, the goal) come in two
+  stages (`PlannerConfig.comfort_decel_mps2` 2, `approach_mps` 3, `final_decel_mps2` 1:
+  down to 3 m/s, then the last 4.5 m to rest), the sight bound still at `decel_mps2`.
 - **Driving-test extras (3 Nov, all off by default: the frozen showcase is unchanged).**
   *Junction zones (`--zone-mps`, `DriverConfig.zone_mps`):* no faster than this from
   `zone_before_m` (45 m) before each route junction's entry point to `zone_after_m`
