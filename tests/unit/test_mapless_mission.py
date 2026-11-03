@@ -397,3 +397,20 @@ def test_the_town10_loop_is_a_legal_lane_chain_and_the_search_finds_it():
     assert any(c["segment_ids"] == loop["segment_ids"] for c in found)
     info, why = describe(topology, next(c for c in found if c["segment_ids"] == loop["segment_ids"]), loop)
     assert not why and 680.0 < info["length_m"] < 700.0 and [j["junction_id"] for j in info["junctions"]] == [664, 532, 23, 189, 895, 468]
+
+
+def test_the_town10_lap_starts_as_the_showcase_does_and_goes_straight_on_through_three_junctions():
+    """``configs/missions/town10_lap.json`` (3 Nov): a1_test01's start, its 468 and S3's s 120,
+    then on round the town's curving roads, straight through 719 and 23, every junction at
+    least 30 m after the last (the loop's 9-11 m pairs and turns left out)."""
+    from planning.lane_graph import LaneTopology
+    from planning.mission import mission_from_definition
+
+    topology = LaneTopology.load(ROOT / "tests" / "fixtures" / "Town10HD.lane_graph.json")
+    lap = json.loads((ROOT / "configs" / "missions" / "town10_lap.json").read_text(encoding="utf-8"))
+    a1 = json.loads((ROOT / "configs" / "missions" / "a1_test01.json").read_text(encoding="utf-8"))
+    mission = mission_from_definition(topology, lap)
+    assert lap["segment_ids"][: len(a1["segment_ids"])] == a1["segment_ids"] and lap["start_xy_m"] == a1["start_xy_m"]
+    assert tuple(mission.manoeuvres) == ("straight", "straight", "straight") and lap["obstacle_s_m"] == 120.0
+    length = float(np.hypot(*np.diff(np.asarray(mission.points_xyz_m)[:, :2], axis=0).T).sum())
+    assert 600.0 < length < 680.0
