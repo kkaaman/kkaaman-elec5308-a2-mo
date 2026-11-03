@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "name": "town10_lap",
+  "segment_ids": [
+    "1:0:1",
+    "8:0:1",
+    "4:0:-1",
+    "515:0:-1",
+    "5:0:-1",
+    "736:0:-1",
+    "6:0:-1",
+    "89:0:-1",
+    "7:0:-1",
+    "17:0:1",
+    "10:0:1",
+    "0:0:1",
+    "3:0:1"
+  ],
+  "manoeuvres": [
+    "straight",
+    "straight",
+    "straight"
+  ],
+  "start_xy_m": [
+    102.2401351928711,
+    -91.77693176269531
+  ],
+  "end_xy_m": [
+    102.930031,
+    9.38052
+  ],
+  "description": "A lap of Town10HD's curving roads from a1_test01's start, 638 m, straight on through every junction (no turns, every junction at least 30 m after the last): 468 at s 156-199, 719 at s 303-350, 23 at s 432-472; past a1_test01's goal on road 5, round to road 3.",
+  "source": "scripts/find_loop_routes.py search (evaluator-side lane topology), --min-leg-m 30",
+  "notes": "Legs (route s, total bend): 0-156 (91 deg); 199-303 (77 deg); 350-432 (90 deg); 472-638 (91 deg). The car keeps lane 1/-1 throughout.",
+  "obstacle_s_m": 120.0
+}
