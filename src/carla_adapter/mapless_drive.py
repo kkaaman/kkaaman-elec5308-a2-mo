@@ -826,7 +826,7 @@ def _fmt(value):
     return "-" if value is None else (f"{value:.2f}" if isinstance(value, (int, float)) else str(value))
 
 
-def driver_config(body, wheelbase_m, steering_limit_rad, speed_mps, keep_right_m, zone_mps=None, overtake=False, overtake_oncoming=False, brake_mps2=None, lookahead_s=0.0, accel_mps2=None, light_release_s=None):
+def driver_config(body, wheelbase_m, steering_limit_rad, speed_mps, keep_right_m, zone_mps=None, overtake=False, overtake_oncoming=False, brake_mps2=None, lookahead_s=0.0, accel_mps2=None, light_release_s=None, strict_evidence=False):
     """The driver configuration the harness runs with (shared with the offline replay);
     ``zone_mps``: the junction zones' speed (``DriverConfig.zone_mps``), None for none;
     ``overtake``: pass a vehicle stopped in the lane (``DriverConfig.overtake``);
@@ -854,7 +854,7 @@ def driver_config(body, wheelbase_m, steering_limit_rad, speed_mps, keep_right_m
     return DriverConfig(
         body=body,
         control=LocalControlConfig(controller, lookahead_time_s=float(lookahead_s)),
-        corridor=CorridorConfig(keep_right_m=keep_right_m),
+        corridor=CorridorConfig(keep_right_m=keep_right_m, strict_evidence=bool(strict_evidence)),
         planner=PlannerConfig(
             cruise_mps=speed_mps, decel_mps2=brake,
             comfort_decel_mps2=min(brake, 2.0) if brake > 1.0 else None, final_decel_mps2=1.0 if brake > 1.0 else None,
@@ -1668,7 +1668,7 @@ class MaplessDrive:
         light_front_s = None
         self.body = vehicle_body(self.ego, self.offset)
         config = driver_config(self.body, self.adapter.geometry.wheelbase_m, self.adapter.geometry.controller_steering_limit_rad, args.speed, args.keep_right, zone_mps=getattr(args, "zone_mps", None), overtake=getattr(args, "overtake", False), overtake_oncoming=getattr(args, "overtake_oncoming", False),
-            brake_mps2=getattr(args, "brake_mps2", None), lookahead_s=getattr(args, "lookahead_s", 0.0), accel_mps2=getattr(args, "accel_mps2", None), light_release_s=getattr(args, "light_release_s", None),
+            brake_mps2=getattr(args, "brake_mps2", None), lookahead_s=getattr(args, "lookahead_s", 0.0), accel_mps2=getattr(args, "accel_mps2", None), light_release_s=getattr(args, "light_release_s", None), strict_evidence=getattr(args, "strict_evidence", False),
         )
         self.report["driver_config"] = rounded(_config_dict(config))
         rig = SensorRig(
@@ -2226,6 +2226,7 @@ def main(argv=None, stack=False):
     parser.add_argument("--brake-mps2", type=float, default=None, help="plan every stop and the sight bound at this deceleration (default 1.0): the car never drives faster than it can stop at it within the road it has seen; 3.0 allows ~11-12 m/s on 25-30 m of seen road")
     parser.add_argument("--yield-decel-mps2", type=float, default=None, help="stack: slow to walking pace for a road user crossing ahead at this deceleration, reaching it 6 m short (default: walking pace at once)")
     parser.add_argument("--light-release-s", type=float, default=None, help="a held light the classifier reads as nothing for this long while standing releases the car (default 5; light_v1 reads a green as nothing, and in rain a red too: keep 5 there)")
+    parser.add_argument("--strict-evidence", action="store_true", help="corridor: recheck the evidence count and near anchoring after the robust fit's outliers, and age the line by the kept points (twenty-first review 5.3/5.4; off: the frozen behaviour)")
     parser.add_argument("--accel-mps2", type=float, default=None, help="the speed target rises at most this fast (default: no limit); ~1.5 for a steady pull away")
     parser.add_argument("--lookahead-s", type=float, default=0.0, help="the steering point at least this many seconds of travel ahead (default 0: a fixed 4 m); ~0.8 for runs above 6 m/s")
     parser.add_argument("--stopped-car", type=float, action="append", default=[], metavar="S", help="mission: a car stopped in the lane at route s S as well, hazard lights on, never removed (for --overtake); repeatable")

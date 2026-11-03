@@ -472,3 +472,64 @@ def test_r11_far_points_are_referenced_along_the_path():
     assert np.array_equal(classify_sweep(scene, BODY, config, path_xy=straight).cls, plain.cls)
     off = classify_sweep(scene, BODY, TerrainConfig(path_profile=False), path_xy=_turn_path())
     assert np.array_equal(off.cls, plain.cls)
+
+
+def _grid_along_a_straight(ticks=60):
+    world = MaplessRoadWorld(RoadScene(KerbLine([Straight(200)])), SUITE, noise=False)
+    grid, estimator = TerrainGrid(), CorridorEstimator(CorridorConfig(keep_right_m=1.75))
+    pose = None
+    for _ in range(ticks):
+        f = world.frame()
+        pose = Pose2D(world.state.x - 10.0, world.state.y - 1.75, world.state.yaw)
+        grid.add(classify_sweep(f.lidar("roof").xyz, BODY, TerrainConfig()), pose, world.time_s)
+        estimator.update(grid, pose, world.time_s)
+        world.state.x += 0.1
+        world.time_s += 0.05
+    return grid, estimator, pose, world.time_s - 0.05
+
+
+def _rejecting_fit(far_m, real):
+    """``real`` (``corridor._fit``) keeping only the evidence nearer than ``far_m`` (body x)."""
+
+    def fit(x, y, w, degree, outlier_m, raw_count):
+        coefficients, keep = real(x, y, w, degree, outlier_m, raw_count)
+        keep = keep.copy()
+        keep[:raw_count] &= np.asarray(x[:raw_count]) < far_m
+        return coefficients, keep
+
+    return fit
+
+
+def test_strict_evidence_rechecks_the_count_after_outliers_and_ages_the_line_by_what_was_kept(monkeypatch):
+    """Twenty-first review (5.3, 5.4), behind ``strict_evidence``: a refit whose outliers left
+    fewer than min_evidence points carries the line; the line's evidence age is that of the
+    points the fit kept, not of a rejected one seen now."""
+    import mapless.corridor as corridor_module
+
+    grid, estimator, pose, t = _grid_along_a_straight()
+    real_fit = corridor_module._fit
+    # Count: keep only what lies within 2 m of the rear axle (a few stations): too few.
+    monkeypatch.setattr(corridor_module, "_fit", _rejecting_fit(2.0, real_fit))
+    loose = CorridorEstimator(CorridorConfig(keep_right_m=1.75))
+    loose.previous = estimator.previous
+    loose.update(grid, pose, t + 0.05)
+    strict = CorridorEstimator(CorridorConfig(keep_right_m=1.75, strict_evidence=True))
+    strict.previous = estimator.previous
+    strict.update(grid, pose, t + 0.05)
+    assert loose.last_refit["refit"] and not strict.last_refit["refit"] and strict.last_refit["why"] == "too few points after outliers"
+    # Age: the near kerb last seen 2 s ago, the far kerb now; the fit keeps only the near.
+    monkeypatch.setattr(corridor_module, "_fit", _rejecting_fit(15.0, real_fit))
+    real_seen = grid.seen_at
+
+    def seen_at(points_world, cls):
+        out = np.asarray(real_seen(points_world, cls), dtype=float).copy()
+        x = pose.to_body(np.asarray(points_world, dtype=float).reshape(-1, 2))[:, 0]
+        out[np.isfinite(out) & (x < 15.0)] = t - 2.0
+        out[np.isfinite(out) & (x >= 15.0)] = t
+        return out
+
+    monkeypatch.setattr(grid, "seen_at", seen_at)
+    fresh_loose = CorridorEstimator(CorridorConfig(keep_right_m=1.75)).update(grid, pose, t)
+    fresh_strict = CorridorEstimator(CorridorConfig(keep_right_m=1.75, strict_evidence=True)).update(grid, pose, t)
+    assert fresh_loose.evidence_age_s == pytest.approx(0.0)
+    assert fresh_strict.evidence_age_s == pytest.approx(2.0)

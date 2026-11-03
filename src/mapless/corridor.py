@@ -93,6 +93,12 @@ class CorridorConfig:
     standing_refit_tol_m: float = 0.25  # standing still, a refit further than this from the carried line is not taken
     bend_min_rms_m: float = 0.1  # short evidence is fitted with a quadratic when a line leaves this much and a quadratic halves it
     min_evidence: int = 5
+    # Twenty-first review (5.3, 5.4): the evidence a refit is taken on is what the robust fit
+    # kept, so min_evidence and the near anchoring are checked again after its outliers go,
+    # and the line's evidence age is that of the kept points (a rejected outlier seen now
+    # made two-second-old geometry read fresh). False: as before (the frozen r22/showcase
+    # runs); True once revalidated live.
+    strict_evidence: bool = False
     # A refit from fewer than refit_free_evidence lane-centre points must have
     # refit_anchor_points of them within refit_anchor_m of the car, else last tick's line
     # is carried (r16 S1_5311, Town10HD 468's exit curve: the near kerb dropped out for a
@@ -994,6 +1000,7 @@ class CorridorEstimator:
         elif len(x_all) < 2 or valid < c.min_valid_m:
             reason = f"corridor reaches only {valid:.1f} m"
         coefficients = (0.0, 0.0)
+        accepted = None  # the stations whose evidence the fit kept
         if not reason:
             # The degree follows how far the evidence itself reaches, not the prior (a cubic
             # fitted to 12 m of kerb plus last tick's line bent 2.5 m by 35 m on the
@@ -1016,6 +1023,14 @@ class CorridorEstimator:
                 degree = min(_earned_degree(ex[kept], glimpse[kept]), len(x_all) - 1)
                 coefficients, keep = _fit(x_all, y_all, w_all, degree, c.outlier_m, len(ex))
                 kept = keep[: len(ex)]
+            if c.strict_evidence and self.previous is not None and prior_end >= c.min_valid_m:
+                near_kept = int(np.sum(ex[kept] <= c.refit_anchor_m))
+                span_kept = float(np.ptp(ex[kept])) if kept.sum() >= 2 else 0.0
+                anchored_kept = not anchor or near_kept >= c.refit_anchor_points or (int(kept.sum()) >= c.refit_free_evidence and span_kept >= c.refit_free_span_m)
+                if int(kept.sum()) < c.min_evidence or not anchored_kept:
+                    self.last_refit["why"] = "too few points after outliers" if int(kept.sum()) < c.min_evidence else "no evidence near the car after outliers"
+                    return self._carry_forward(*carry_args)
+            accepted = np.flatnonzero(has)[kept]
             evidence = evidence[kept]
             if kept.any():
                 # The line reaches as far as the kept evidence plus the extrapolation, or last
@@ -1053,7 +1068,8 @@ class CorridorEstimator:
             if valid < c.min_valid_m:
                 reason = f"road ahead observed only to {valid:.1f} m"
         # Fresh when enough edges were used, and then as old as the newest kerb hit among them.
-        seen = self._edge_seen_s[has][np.isfinite(self._edge_seen_s[has])]
+        used = accepted if c.strict_evidence and accepted is not None else np.flatnonzero(has)
+        seen = self._edge_seen_s[used][np.isfinite(self._edge_seen_s[used])]
         evidence_time = float(seen.max()) if len(ex) >= c.min_evidence and len(seen) else -math.inf
         if self.previous is not None:
             evidence_time = max(evidence_time, self.previous.evidence_time_s)
