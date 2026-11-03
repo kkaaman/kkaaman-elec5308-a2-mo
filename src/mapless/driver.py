@@ -82,6 +82,15 @@ class DriverConfig:
     junction: JunctionConfig = field(default_factory=JunctionConfig)
     crossing: CrossingConfig = field(default_factory=CrossingConfig)  # STRAIGHT through a junction (``crossing``)
     light: LightConfig = field(default_factory=LightConfig)  # traffic lights read from the front camera (``traffic_light``)
+    # Junction zones (3 Nov): with zone_mps set, the car drives no faster than it from
+    # zone_before_m before each of the route's junction entry points (sat-nav) to
+    # zone_after_m past its exit point; elsewhere at the planner's cruise. Every 4 m/s
+    # failure on a1_test01 (showcase_n1) was inside 468's zone: a scenery conflict at s
+    # 119, the kerb lost while slowing for the light, the exit curve run wide; at 3 m/s
+    # through it, 25 of 25 seeds kept their lane.
+    zone_mps: float | None = None
+    zone_before_m: float = 45.0
+    zone_after_m: float = 10.0
     turn_start_m: float = 25.0  # a commanded turn is looked for when the route's entry point is this close
     turn_route_tolerance_m: float = 8.0  # the entry point must be within this of the car's path
     lidar_max_age_s: float = 0.15
@@ -899,7 +908,11 @@ class MaplessDriver:
         goal_body = None
         if guidance.index == len(self.progress.xy) - 1 and guidance.goal_distance_m < corridor.valid_length_m + 5:
             goal_body = motion.odometry.to_body(motion.route_to_odometry(np.array([self.progress.xy[-1]])))[0]
-        cap = self.speed_cap_mps if approach_cap is None else (approach_cap if self.speed_cap_mps is None else min(self.speed_cap_mps, approach_cap))
+        zone_cap = c.zone_mps if c.zone_mps is not None and self._in_junction_zone(motion) else None
+        if zone_cap is not None:
+            d.update(zone_cap_mps=zone_cap)
+        caps = [v for v in (self.speed_cap_mps, approach_cap, zone_cap) if v is not None]
+        cap = min(caps) if caps else None
         if approach_cap is not None:
             d.update(light_approach_cap_mps=approach_cap)
         plan = self.planner.plan(corridor, observation, goal_body, t, hold_at_m=hold_at, speed_cap_mps=cap, cruise_mps=self.cruise_mps)
@@ -991,6 +1004,23 @@ class MaplessDriver:
         here = self._gate_frame.to_body(pose.to_world(np.array([[0.0, 0.0], [1.0, 0.0]])))
         y = body_corners(here, self.config.body)[0, :, 1]
         return bool(y.max() > lo and y.min() < hi)
+
+    def _in_junction_zone(self, motion):
+        """Whether the car is within zone_before_m of a route junction's entry point or
+        through it to zone_after_m past its exit point (the next route point), measured
+        along the car's heading from its rear axle (``zone_mps``)."""
+        c = self.config
+        points, route_points = self.progress.xy, self.progress.route.points
+        lo, hi = max(0, self.progress.index - 3), min(len(points) - 1, self.progress.index + 4)
+        entries = [i for i in range(lo, hi) if route_points[i].command.is_junction]
+        if not entries:
+            return False
+        try:
+            body = motion.odometry.to_body(motion.route_to_odometry(np.array([points[i] for i in entries] + [points[i + 1] for i in entries])))
+        except Exception:  # no route pose yet (start-up)
+            return False
+        n = len(entries)
+        return any(body[k, 0] <= c.zone_before_m and body[n + k, 0] >= -c.zone_after_m for k in range(n))
 
     def _crossing_context(self, guidance, motion, entry_i=None):
         """(entry point, exit point, the point after the exit or None, entry route index),

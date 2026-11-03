@@ -751,8 +751,9 @@ def _fmt(value):
     return "-" if value is None else (f"{value:.2f}" if isinstance(value, (int, float)) else str(value))
 
 
-def driver_config(body, wheelbase_m, steering_limit_rad, speed_mps, keep_right_m):
-    """The driver configuration the harness runs with (shared with the offline replay)."""
+def driver_config(body, wheelbase_m, steering_limit_rad, speed_mps, keep_right_m, zone_mps=None):
+    """The driver configuration the harness runs with (shared with the offline replay);
+    ``zone_mps``: the junction zones' speed (``DriverConfig.zone_mps``), None for none."""
     controller = ControllerConfig(
         wheelbase_m=wheelbase_m,
         max_steering_angle_rad=steering_limit_rad,
@@ -767,6 +768,7 @@ def driver_config(body, wheelbase_m, steering_limit_rad, speed_mps, keep_right_m
         control=LocalControlConfig(controller),
         corridor=CorridorConfig(keep_right_m=keep_right_m),
         planner=PlannerConfig(cruise_mps=speed_mps),
+        zone_mps=zone_mps,
     )
 
 
@@ -1548,7 +1550,7 @@ class MaplessDrive:
         lights_on = bool(self.light_script.junctions) or self.light_script.mode != "unchanged" or bool(getattr(args, "light_classifier", None))
         light_front_s = None
         self.body = vehicle_body(self.ego, self.offset)
-        config = driver_config(self.body, self.adapter.geometry.wheelbase_m, self.adapter.geometry.controller_steering_limit_rad, args.speed, args.keep_right)
+        config = driver_config(self.body, self.adapter.geometry.wheelbase_m, self.adapter.geometry.controller_steering_limit_rad, args.speed, args.keep_right, zone_mps=getattr(args, "zone_mps", None))
         self.report["driver_config"] = rounded(_config_dict(config))
         rig = SensorRig(
             self.owner,
@@ -2067,6 +2069,7 @@ def main(argv=None, stack=False):
     parser.add_argument("--set", action="append", default=[], metavar="SENSOR.FIELD=VALUE")
     parser.add_argument("--no-noise", action="store_true", help="Run the suite without its sensor noise")
     parser.add_argument("--speed", type=float, default=2.0, help="Cruise speed (m/s)")
+    parser.add_argument("--zone-mps", type=float, default=None, help="Junction zones: no faster than this from 45 m before each route junction's entry to 10 m past its exit (sat-nav); --speed elsewhere")
     parser.add_argument(
         "--keep-right",
         type=float,

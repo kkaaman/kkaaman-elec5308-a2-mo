@@ -327,3 +327,31 @@ def test_a_red_light_holds_the_car_short_of_the_junction_and_green_lets_it_cross
     assert _crossed(log)
     holds = [s.diagnostics.get("light_hold_m") for tr, s in log if tr.s_m > entry]
     assert all(h is None for h in holds)  # never held for the light inside the junction
+
+
+def test_a_junction_zone_slows_the_car_from_its_approach_to_past_its_exit_and_nowhere_else():
+    """Junction zones (3 Nov): with zone_mps the car drives at most that from zone_before_m
+    before a route junction's entry point to zone_after_m past its exit point, and at its
+    cruise elsewhere; it still crosses and finishes (showcase_n1: every 4 m/s failure
+    was inside 468's zone)."""
+    world, width = crossroads()
+    route = straight_route(world, width)
+    config = DriverConfig(body=BODY, control=control(), corridor=CorridorConfig(keep_right_m=1.75), junction=JunctionConfig(), planner=PlannerConfig(cruise_mps=4.0), zone_mps=2.0, zone_before_m=25.0, zone_after_m=10.0)
+    driver = MaplessDriver(SUITE, route, config, DT)
+    log = []
+    for _ in range(int(90 / DT)):
+        step = driver.step(world.frame())
+        log.append((world.truth(), step))
+        world.apply(step.command)
+        if step.mode is DriveMode.FINISHED and world.state.speed == 0:
+            break
+    assert _crossed(log)
+    entry, exit_ = S_JUNCTION - width / 2, S_JUNCTION + width / 2
+    inside = [tr.speed_mps for tr, s in log if entry - 15.0 <= tr.s_m <= exit_ + 8.0]
+    capped = [s.diagnostics.get("zone_cap_mps") for tr, s in log if entry - 20.0 <= tr.s_m <= exit_ + 8.0]
+    assert max(inside) <= 2.25 and all(c == 2.0 for c in capped)
+    before = [tr.speed_mps for tr, s in log if 25.0 <= tr.s_m <= entry - 30.0]
+    after = [tr.speed_mps for tr, s in log if exit_ + 20.0 <= tr.s_m <= 125.0]
+    assert max(before) > 3.5 and max(after) > 3.5  # cruise outside the zone
+    assert all(s.diagnostics.get("zone_cap_mps") is None for tr, s in log if tr.s_m <= entry - 30.0 or exit_ + 15.0 <= tr.s_m)
+
