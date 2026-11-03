@@ -319,3 +319,40 @@ def test_the_turn_is_signalled_before_the_junction_and_through_it(side, name):
     handed = next(k for k, (_, s) in enumerate(log) if s.diagnostics.get("turn") == "handed back to the kerb corridor")
     assert all(sig is None for sig in signals[handed + 5 :])  # off on the exit lane
 
+
+
+def test_a_turns_zone_speed_applies_at_a_turn_while_straight_zones_keep_theirs():
+    """``zone_turn_mps`` (3 Nov): with --zone-mps 6 a right turn was approached at 6.5 m/s,
+    no arc cleared the corner, and the car stopped at the mouth and re-planned mid-arc.
+    With the turn's zone at 3 m/s it turns without stopping; a STRAIGHT junction keeps
+    ``zone_mps``."""
+    from mapless.planner import PlannerConfig
+
+    world, _ = junction_world(-1)
+    goal = goal_after_turn(world)
+    config = DriverConfig(
+        body=BODY, control=control(), corridor=CorridorConfig(keep_right_m=1.75), junction=JunctionConfig(),
+        planner=PlannerConfig(cruise_mps=8.0), zone_mps=6.0, zone_turn_mps=3.0,
+    )
+    driver = MaplessDriver(SUITE, world.route(goal), config, DT)
+    assert driver._zone_mps_for(Command.RIGHT) == 3.0 and driver._zone_mps_for(Command.LEFT) == 3.0 and driver._zone_mps_for(Command.STRAIGHT) == 6.0
+    log = []
+    for _ in range(int(70 / DT)):
+        step = driver.step(world.frame())
+        log.append((world.truth(), step))
+        world.apply(step.command)
+        if step.mode is DriveMode.FINISHED and world.state.speed == 0:
+            break
+    truth, last = log[-1]
+    assert last.mode is DriveMode.FINISHED and abs(truth.s_m - goal) < 3.0 and not any(t.collision for t, _ in log)
+    assert {s.diagnostics.get("zone_cap_mps") for _, s in log} - {None} == {3.0}
+    moving = [t.speed_mps for t, _ in log if 25.0 < t.s_m < goal - 10.0]
+    assert moving and min(moving) > 1.5  # no stop at the mouth
+    assert max(t.speed_mps for t, s in log if s.mode is DriveMode.TURNING) < 3.5
+
+
+def test_without_a_zone_for_turns_every_zone_is_zone_mps():
+    world, _ = junction_world(-1)
+    config = DriverConfig(body=BODY, control=control(), corridor=CorridorConfig(keep_right_m=1.75), zone_mps=4.0)
+    driver = MaplessDriver(SUITE, world.route(goal_after_turn(world)), config, DT)
+    assert all(driver._zone_mps_for(cmd) == 4.0 for cmd in (Command.LEFT, Command.RIGHT, Command.STRAIGHT))
