@@ -792,7 +792,7 @@ def _fmt(value):
     return "-" if value is None else (f"{value:.2f}" if isinstance(value, (int, float)) else str(value))
 
 
-def driver_config(body, wheelbase_m, steering_limit_rad, speed_mps, keep_right_m, zone_mps=None, overtake=False, brake_mps2=None, lookahead_s=0.0):
+def driver_config(body, wheelbase_m, steering_limit_rad, speed_mps, keep_right_m, zone_mps=None, overtake=False, brake_mps2=None, lookahead_s=0.0, accel_mps2=None):
     """The driver configuration the harness runs with (shared with the offline replay);
     ``zone_mps``: the junction zones' speed (``DriverConfig.zone_mps``), None for none;
     ``overtake``: pass a vehicle stopped in the lane (``DriverConfig.overtake``);
@@ -800,7 +800,10 @@ def driver_config(body, wheelbase_m, steering_limit_rad, speed_mps, keep_right_m
     planner's ramp and the controller's horizon cap), None for 1.0 as before: the car never
     drives faster than it can stop at it within the road it has seen clear, so it sets the
     top speed (1.0: ~7 m/s on 25-30 m of seen road; 3.0: ~11-12 m/s);
-    ``lookahead_s``: the steering point at least this many seconds of travel ahead."""
+    ``lookahead_s``: the steering point at least this many seconds of travel ahead;
+    ``accel_mps2``: the speed target rises at most this fast (``DriverConfig.accel_mps2``).
+    With ``brake_mps2`` above 1, planned stops come in two stages: at the lesser of it and
+    2 m/s² down to 3 m/s, then at 1 m/s² to rest (``PlannerConfig.final_decel_mps2``)."""
     brake = 1.0 if brake_mps2 is None else float(brake_mps2)
     controller = ControllerConfig(
         wheelbase_m=wheelbase_m,
@@ -815,7 +818,11 @@ def driver_config(body, wheelbase_m, steering_limit_rad, speed_mps, keep_right_m
         body=body,
         control=LocalControlConfig(controller, lookahead_time_s=float(lookahead_s)),
         corridor=CorridorConfig(keep_right_m=keep_right_m),
-        planner=PlannerConfig(cruise_mps=speed_mps, decel_mps2=brake),
+        planner=PlannerConfig(
+            cruise_mps=speed_mps, decel_mps2=brake,
+            comfort_decel_mps2=min(brake, 2.0) if brake > 1.0 else None, final_decel_mps2=1.0 if brake > 1.0 else None,
+        ),
+        accel_mps2=accel_mps2,
         zone_mps=zone_mps,
         overtake=OvertakeConfig() if overtake else None,
     )
@@ -1621,7 +1628,7 @@ class MaplessDrive:
         light_front_s = None
         self.body = vehicle_body(self.ego, self.offset)
         config = driver_config(self.body, self.adapter.geometry.wheelbase_m, self.adapter.geometry.controller_steering_limit_rad, args.speed, args.keep_right, zone_mps=getattr(args, "zone_mps", None), overtake=getattr(args, "overtake", False),
-            brake_mps2=getattr(args, "brake_mps2", None), lookahead_s=getattr(args, "lookahead_s", 0.0),
+            brake_mps2=getattr(args, "brake_mps2", None), lookahead_s=getattr(args, "lookahead_s", 0.0), accel_mps2=getattr(args, "accel_mps2", None),
         )
         self.report["driver_config"] = rounded(_config_dict(config))
         rig = SensorRig(
@@ -2169,6 +2176,7 @@ def main(argv=None, stack=False):
     parser.add_argument("--no-noise", action="store_true", help="Run the suite without its sensor noise")
     parser.add_argument("--speed", type=float, default=2.0, help="Cruise speed (m/s)")
     parser.add_argument("--brake-mps2", type=float, default=None, help="plan every stop and the sight bound at this deceleration (default 1.0): the car never drives faster than it can stop at it within the road it has seen; 3.0 allows ~11-12 m/s on 25-30 m of seen road")
+    parser.add_argument("--accel-mps2", type=float, default=None, help="the speed target rises at most this fast (default: no limit); ~1.5 for a steady pull away")
     parser.add_argument("--lookahead-s", type=float, default=0.0, help="the steering point at least this many seconds of travel ahead (default 0: a fixed 4 m); ~0.8 for runs above 6 m/s")
     parser.add_argument("--stopped-car", type=float, action="append", default=[], metavar="S", help="mission: a car stopped in the lane at route s S as well, hazard lights on, never removed (for --overtake); repeatable")
     parser.add_argument("--overtake", action="store_true", help="Pass a vehicle stopped in the lane: after waiting behind it, with the way past seen clear and no route junction near, shift left past it (indicators on) and back")

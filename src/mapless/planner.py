@@ -68,6 +68,14 @@ class PlannerConfig:
     lateral_accel_mps2: float = 1.5
     decel_mps2: float = 1.0
     stop_gap_m: float = 2.5
+    # Planned stops (an obstacle's hold, a junction's, the goal) in two stages when
+    # ``final_decel_mps2`` is set: at ``comfort_decel_mps2`` (None: decel_mps2) down to
+    # ``approach_mps``, then at final_decel_mps2 to rest (3 Nov: from speed, slowing to 3 m/s,
+    # then gently to 0). The sight bound keeps decel_mps2; a stop that comes late is braked
+    # for as hard as it needs. None: one ramp at decel_mps2, as before.
+    comfort_decel_mps2: float | None = None
+    final_decel_mps2: float | None = None
+    approach_mps: float = 3.0
     # An obstacle's hold stops the front this far short of it (None: stop_gap_m). Set by
     # the driver when it may pass a stopped vehicle (``overtake``): room to steer out.
     hold_gap_m: float | None = None
@@ -114,6 +122,12 @@ class PlannerConfig:
                 raise ValueError(f"{name} must be non-negative")
         if self.hold_gap_m is not None and (not math.isfinite(self.hold_gap_m) or self.hold_gap_m < 0):
             raise ValueError("hold_gap_m must be non-negative or None")
+        for name in ("comfort_decel_mps2", "final_decel_mps2"):
+            value = getattr(self, name)
+            if value is not None and (not math.isfinite(value) or value <= 0 or value > self.decel_mps2):
+                raise ValueError(f"{name} must be positive and no more than decel_mps2, or None")
+        if not math.isfinite(self.approach_mps) or self.approach_mps <= 0:
+            raise ValueError("approach_mps must be positive")
 
 
 @dataclass(frozen=True)
@@ -132,6 +146,19 @@ class Plan:
     holds: tuple = ()
     # The observability bound on this plan's speed (``sight_speed``), inf when not applied.
     sight_speed_mps: float = math.inf
+
+
+def stopping_speed(distance_m, config):
+    """The speed from which a planned stop ``distance_m`` ahead is made (array or scalar):
+    sqrt(2 a d) at decel_mps2, or in two stages (``final_decel_mps2``): the last
+    approach_mps^2 / (2 final) metres at final_decel_mps2, before them at comfort_decel_mps2."""
+    d = np.maximum(0.0, np.asarray(distance_m, dtype=float))
+    c = config
+    if c.final_decel_mps2 is None:
+        return np.sqrt(2.0 * c.decel_mps2 * d)
+    comfort = c.decel_mps2 if c.comfort_decel_mps2 is None else c.comfort_decel_mps2
+    near = c.approach_mps**2 / (2.0 * c.final_decel_mps2)
+    return np.where(d <= near, np.sqrt(2.0 * c.final_decel_mps2 * d), np.sqrt(c.approach_mps**2 + 2.0 * comfort * np.maximum(0.0, d - near)))
 
 
 def sight_speed(distance_m, decel_mps2, response_s, margin_m):
@@ -454,7 +481,7 @@ class LanePlanner:
         curve = np.sqrt(c.lateral_accel_mps2 / np.maximum(k, 1e-6))
         cruise = c.cruise_mps if cruise_mps is None else float(cruise_mps)
         speed = np.minimum(cruise if speed_cap_mps is None else min(cruise, max(0.0, speed_cap_mps)), curve)
-        speed = np.minimum(speed, np.sqrt(2.0 * c.decel_mps2 * np.maximum(0.0, stop_s - arcs)))
+        speed = np.minimum(speed, stopping_speed(stop_s - arcs, c))
         sight = math.inf
         if c.sight_governed and observation is not None:
             # From where the car is: the plan is made again every tick as the view grows.
