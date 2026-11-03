@@ -25,6 +25,9 @@ import numpy as np
 
 ACTIONS_MPS = (2.0, 3.0, 4.0)
 DECISION_TICKS = 4  # 5 Hz at the 20 Hz control step
+# The observation's meaning, not just its names: 2 since sight_speed None (no limit) reads
+# 1.0, not 0 (3 Nov). Exported policies carry it; a resumed run refuses any other.
+FEATURE_VERSION = 2
 FEATURE_NAMES = (
     "speed", "corridor_ok", "valid", "road_support", "evidence", "dy_5", "dy_15",
     "curv_near", "curv_far", "lane_offset", "sight_speed", "cap", "obstacle", "crossing",
@@ -222,7 +225,10 @@ class CruiseEnv:
                 terminated = True
                 info["failure"] = "collision" if truth.collision else "lane"
                 break
-            if step.diagnostics.get("route_finished") or step.mode.value == "finished" or truth.s_m >= self.spec.goal_m - 1.0:
+            # Finished = stopped at the goal: the driver's own goal stop, or at the goal at
+            # walking pace at most. Passing the goal point still moving is not a finish
+            # (review of the RL plan: final speeds of 2.3 m/s were scored as goals).
+            if step.mode.value == "finished" or (truth.s_m >= self.spec.goal_m - 1.0 and truth.speed_mps <= 0.3):
                 reward += rc.goal_bonus
                 terminated = True
                 info["finished"] = True
@@ -232,6 +238,10 @@ class CruiseEnv:
                 terminated = True
                 info["failure"] = "fault: " + step.reason[:60]
                 break
+        # Whether the request is what limits the car (the planned target is the request, not
+        # a lower curvature, sight, cap or goal limit): the policy's authority this decision.
+        target = step.diagnostics.get("target_speed_mps")
+        info["binding"] = target is not None and target >= ACTIONS_MPS[action] - 0.1
         progress = truth.s_m - self.last_s
         self.last_s = truth.s_m
         reward += rc.progress_per_m * progress
@@ -239,7 +249,7 @@ class CruiseEnv:
         self.decisions += 1
         if not terminated and self.decisions >= self.max_decisions:
             truncated = True
-        info.update(time_s=round(self.time_s, 2), max_offset_m=round(self.max_offset, 3), s_m=round(truth.s_m, 1))
+        info.update(time_s=round(self.time_s, 2), max_offset_m=round(self.max_offset, 3), s_m=round(truth.s_m, 1), speed_mps=round(truth.speed_mps, 2))
         return self._observe(), float(reward), terminated, truncated, info
 
     def close(self):
@@ -275,6 +285,7 @@ class CruisePolicy:
         if self.features != FEATURE_NAMES or self.actions != ACTIONS_MPS:
             raise ValueError("cruise policy built for other features or actions")
         self.provenance = str(data["provenance"]) if "provenance" in data.files else ""
+        self.feature_version = int(data["feature_version"]) if "feature_version" in data.files else 1
 
     def q_values(self, obs):
         x = np.asarray(obs, dtype=np.float32)
@@ -297,7 +308,14 @@ def export_policy(model, path, provenance=""):
     for i, layer in enumerate(linears):
         arrays[f"w{i}"] = layer.weight.detach().cpu().numpy().astype(np.float32)
         arrays[f"b{i}"] = layer.bias.detach().cpu().numpy().astype(np.float32)
-    np.savez(path, layers=len(linears), features=np.array(FEATURE_NAMES), actions=np.array(ACTIONS_MPS), provenance=np.array(provenance), **arrays)
+    # Written whole or not at all: an export cut short is never taken for a finished seed.
+    import os  # noqa: PLC0415
+    from pathlib import Path  # noqa: PLC0415
+
+    path = Path(path)
+    partial = path.with_name(path.stem + ".partial.npz")
+    np.savez(partial, layers=len(linears), features=np.array(FEATURE_NAMES), actions=np.array(ACTIONS_MPS), provenance=np.array(provenance), feature_version=np.array(FEATURE_VERSION), **arrays)
+    os.replace(partial, path)
 
 
 def rule_action(obs):

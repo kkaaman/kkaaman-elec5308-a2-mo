@@ -29,6 +29,7 @@ import numpy as np
 
 from mapless_training.rl_cruise import (
     ACTIONS_MPS,
+    FEATURE_VERSION,
     CruiseEnv,
     CruisePolicy,
     export_policy,
@@ -57,13 +58,16 @@ def train_one(seed, steps, envs, out_dir, max_decisions=600, learning_starts=200
         gamma=0.98, train_freq=4, gradient_steps=1, target_update_interval=2000, exploration_fraction=0.3,
         exploration_final_eps=0.05, policy_kwargs=dict(net_arch=[64, 64]), seed=seed, verbose=0, device="cpu",
     )
+    # The network before any learning: evaluated beside the trained one (did training change
+    # what it does, not just the training return).
+    export_policy(model, out_dir / f"cruise_{seed}_init.npz", provenance=json.dumps(dict(seed=seed, steps=0, feature_version=FEATURE_VERSION)))
     begun = time.time()
     model.learn(total_timesteps=steps)
     venv.close()
     model_path = out_dir / f"dqn_{seed}.zip"
     model.save(model_path)
     policy_path = out_dir / f"cruise_{seed}.npz"
-    export_policy(model, policy_path, provenance=json.dumps(dict(seed=seed, steps=steps, envs=envs, wall_s=round(time.time() - begun, 1))))
+    export_policy(model, policy_path, provenance=json.dumps(dict(seed=seed, steps=steps, envs=envs, max_decisions=max_decisions, learning_starts=learning_starts, feature_version=FEATURE_VERSION, wall_s=round(time.time() - begun, 1))))
     print(f"seed {seed}: {steps} steps in {time.time() - begun:.0f} s -> {policy_path}", file=sys.stderr, flush=True)
     return model_path, policy_path
 
@@ -83,11 +87,12 @@ def _episode(job):
         act = rule_action if name == "rule" else CruisePolicy(path).act
     obs, _ = env.reset(seed=episode_seed)
     env_goal = env.spec.goal_m
-    total, info, actions = 0.0, {}, []
+    total, info, actions, binding = 0.0, {}, [], []
     while True:
         action = int(act(obs))
         actions.append(action)
         obs, reward, terminated, truncated, info = env.step(action)
+        binding.append(bool(info.get("binding")))
         total += reward
         if terminated or truncated:
             break
@@ -97,6 +102,9 @@ def _episode(job):
         goal_m=round(float(env_goal), 1), progress=round(min(1.0, float(info.get("s_m") or 0.0) / max(float(env_goal), 1e-6)), 3),
         time_s=info.get("time_s"), max_offset_m=info.get("max_offset_m"), s_m=info.get("s_m"), return_=round(total, 3),
         share_4mps=round(float(np.mean([a == 2 for a in actions])), 3) if actions else None,
+        final_speed_mps=info.get("speed_mps"),
+        binding_share=round(float(np.mean(binding)), 3) if binding else None,
+        share_4mps_not_binding=round(float(np.mean([a == 2 for a, b in zip(actions, binding) if not b])), 3) if not all(binding) else None,
     )
 
 
@@ -121,16 +129,34 @@ def evaluate(policies, episodes, eval_seed, max_decisions, workers):
             max_offset_m=round(float(max(r["max_offset_m"] for r in mine)), 3) if mine else None,
             mean_return=round(float(np.mean([r["return_"] for r in mine])), 3) if mine else None,
             share_4mps=round(float(np.mean([r["share_4mps"] for r in mine if r["share_4mps"] is not None])), 3) if mine else None,
+            binding_share=round(float(np.mean([r["binding_share"] for r in mine if r["binding_share"] is not None])), 3) if mine else None,
+            max_final_speed_mps_finished=round(float(max(r["final_speed_mps"] or 0.0 for r in done)), 2) if done else None,
         )
-    # Paired: each policy against fixed_4 on the roads both finished (the mean over finished
-    # roads alone favours a policy that finishes only the short ones).
-    ref = {r["episode_seed"]: r for r in rows if r["policy"] == "fixed_4" and r["finished"]}
-    for name in summary:
-        both = [(r, ref[r["episode_seed"]]) for r in rows if r["policy"] == name and r["finished"] and r["episode_seed"] in ref]
-        summary[name]["paired_vs_fixed_4"] = dict(
-            roads=len(both), mean_time_diff_s=round(float(np.mean([a["time_s"] - b["time_s"] for a, b in both])), 2) if both else None,
-        )
+    # Paired: each policy against fixed_4 and the rule on the roads both finished (the mean
+    # over finished roads alone favours a policy that finishes only the short ones).
+    for base in ("fixed_4", "rule"):
+        ref = {r["episode_seed"]: r for r in rows if r["policy"] == base and r["finished"]}
+        for name in summary:
+            both = [(r, ref[r["episode_seed"]]) for r in rows if r["policy"] == name and r["finished"] and r["episode_seed"] in ref]
+            summary[name][f"paired_vs_{base}"] = dict(
+                roads=len(both), mean_time_diff_s=round(float(np.mean([a["time_s"] - b["time_s"] for a, b in both])), 2) if both else None,
+            )
     return summary, rows
+
+
+def _reusable(policy_path, args):
+    """A finished seed's export, checked before ``--resume`` skips training it: it loads,
+    its features and actions are these, its feature version is this one, and it was
+    trained with these settings. Anything else is refused, not silently reused."""
+    try:
+        policy = CruisePolicy(policy_path)
+        made = json.loads(policy.provenance or "{}")
+    except Exception as error:  # noqa: BLE001
+        raise SystemExit(f"{policy_path}: cannot be reused ({error}); use a new --output")
+    want = dict(feature_version=FEATURE_VERSION, steps=args.steps, envs=args.envs, max_decisions=args.max_decisions, learning_starts=args.learning_starts)
+    if policy.feature_version != FEATURE_VERSION or any(made.get(k) != v for k, v in want.items()):
+        raise SystemExit(f"{policy_path}: trained with other settings or features ({made}); use a new --output")
+    return True
 
 
 def manifest(args):
@@ -194,7 +220,7 @@ def main(argv=None):
     p.add_argument("--seeds", type=int, nargs="+", default=[5308, 5309, 5310])
     p.add_argument("--steps", type=int, default=200_000, help="environment steps (decisions) per seed")
     p.add_argument("--envs", type=int, default=8, help="parallel environments per seed (processes)")
-    p.add_argument("--max-decisions", type=int, default=600)
+    p.add_argument("--max-decisions", type=int, default=1500, help="training episodes' horizon (default 300 s, as the evaluation's: at 120 s fixed 2 m/s could not finish 42 %% of training roads)")
     p.add_argument("--learning-starts", type=int, default=2000)
     p.add_argument("--eval-episodes", type=int, default=20)
     p.add_argument("--eval-seed", type=int, default=900_000, help="first held-out road (no training seed comes near)")
@@ -212,9 +238,10 @@ def main(argv=None):
     policies = []
     for seed in args.seeds:
         policy_path = out / f"cruise_{seed}.npz"
-        if not args.evaluate_only and not (args.resume and policy_path.exists()):
+        if not args.evaluate_only and not (args.resume and policy_path.exists() and _reusable(policy_path, args)):
             _, policy_path = train_one(seed, args.steps, args.envs, out, args.max_decisions, args.learning_starts)
         policies.append((f"dqn_{seed}", policy_path))
+    policies += [(f"init_{seed}", out / f"cruise_{seed}_init.npz") for seed in args.seeds if (out / f"cruise_{seed}_init.npz").exists()]
     plot_curves(out, args.seeds, out / "learning_curves.png")
     policies += [("rule", None)] + [(f"fixed_{v:g}", None) for v in ACTIONS_MPS]
     summary, rows = evaluate(policies, args.eval_episodes, args.eval_seed, args.eval_max_decisions, args.workers)
