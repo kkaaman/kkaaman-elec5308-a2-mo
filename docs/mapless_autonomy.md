@@ -4132,12 +4132,13 @@ light scripted red (`--lights scripted`), which the car must see for itself
   `hold_gap_m` (6.5 m, not `stop_gap_m`'s 2.5) short of an obstacle, room to steer out.
   Held at a standstill for `wait_s` (3 s), the obstacle's extent measured from the
   sweep's OBSTACLE points (at least 1.2 m across: a vehicle), no route junction within
-  the manoeuvre, no moving track on the far side (the stack's `overtake_traffic`
-  veto), and the shifted path — the line continued straight past its end, since the kerb
+  the manoeuvre, no moving track on that side (the stack's `overtake_traffic` veto,
+  by side), and the shifted path — the line continued straight past its end, since the kerb
   beyond the vehicle is hidden — seen with nothing on it for `confirm_s` (1 s) and clear
   to its far side plus 3 m: the path shifts left by its left edge + half the body +
   0.8 m (at most 4 m), a half-cosine fully out by its near face (8-12 m), indicator
-  left, 2 m/s at most. The planner's hold on it is dropped (the shifted path is seen
+  left, 2 m/s at most. The left first; mirrored on the right when the left is not clear
+  and the right is (a lane there: a kerb under the body is an obstacle). The planner's hold on it is dropped (the shifted path is seen
   clear of it); the corridor's road support is looked for on the shifted path (beside
   the vehicle the lane's line runs through it). Back (indicator right) over 12 m once
   7 m past its near face with the original lane seen clear 8 m ahead of the front. Every

@@ -252,7 +252,7 @@ class MaplessDriver:
         self.light_reading = None
         self.light_filter = LightFilter(config.light)
         self.overtake = None if config.overtake is None else Overtake(config.overtake)
-        self.overtake_veto = False  # set by the stack: moving traffic on the far side
+        self.overtake_veto = False  # set by the stack: the sides with moving traffic (a set), or True for both
         self._plan_reason = ""
         self.stop_line = StopLineTracker()  # the painted line, looked for while a red or yellow is in force
         self.last_motion = self.last_classified = self.last_plan = self.last_corridor = None
