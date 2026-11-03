@@ -4137,8 +4137,12 @@ light scripted red (`--lights scripted`), which the car must see for itself
   beyond the vehicle is hidden — seen with nothing on it for `confirm_s` (1 s) and clear
   to its far side plus 3 m: the path shifts left by its left edge + half the body +
   0.8 m (at most 4 m), a half-cosine fully out by its near face (8-12 m), indicator
-  left, 2 m/s at most. The left first; mirrored on the right when the left is not clear
-  and the right is (a lane there: a kerb under the body is an obstacle). The planner's hold on it is dropped (the shifted path is seen
+  left, 2 m/s at most. *The side:* the right (mirrored) when the corridor's lane centre is
+  far enough from the right kerb for a lane between (traffic keeps right: that lane runs
+  the car's way), else the left, the oncoming lane of a two-lane road. Live S4_5308
+  (Town10HD, `7ba365b`, PC 1): MEASURED_PASS, held 4 s at 7.5 m, passed 2.6 m out, no
+  contact, 2.7 % of steps over 50 ms; but on the left, into the oncoming lanes, with the
+  lane centre measured 7.8 m from the right kerb: the side rule above followed. The planner's hold on it is dropped (the shifted path is seen
   clear of it); the corridor's road support is looked for on the shifted path (beside
   the vehicle the lane's line runs through it). Back (indicator right) over 12 m once
   7 m past its near face with the original lane seen clear 8 m ahead of the front. Every

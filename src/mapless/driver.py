@@ -930,7 +930,7 @@ class MaplessDriver:
             reason_before = self._plan_reason  # last tick's (last_plan is cleared each step)
             driven, signal, overtake_cap = self.overtake.step(
                 t, motion.odometry, motion.stationary, corridor, observation, reason_before, classified, observe, c.body,
-                veto=self.overtake_veto, junction_ahead_m=self._junction_ahead_m(motion),
+                veto=self.overtake_veto, junction_ahead_m=self._junction_ahead_m(motion), keep_right_m=self.corridor.keep_right_m,
             )
             if self.overtake.started:
                 self.planner.reset()  # its hold on what is being passed: the shifted path is seen clear of it
