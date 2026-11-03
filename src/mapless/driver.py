@@ -101,6 +101,15 @@ class DriverConfig:
     accel_mps2: float | None = None
     accel_lead_s: float = 0.5
     goal_early: bool = False  # plan the goal's stop as soon as it is within the corridor's reach
+    # A crossing handed back to the kerb corridor short of the junction's exit: a line the
+    # kerb corridor is carrying (no kerb to refit on) that ends within handback_continue_m
+    # is continued straight, in the latched lane line's direction (the approach lane's), to this
+    # far past the exit point (plus the corridor's min_valid_m, so the car itself can get
+    # there). 0: as before. PC 2 lap2 S3_5312 (45cf585): handed back 34 m short of 719's
+    # exit, then 0-3 kerb points a tick (parked cars along the exit's kerb): the handed
+    # line was carried until it ran out 17 m short of the exit and the car faulted.
+    handback_carry_m: float = 0.0
+    handback_continue_m: float = 15.0
     indicate_before_m: float = 30.0  # the turn's indicator on from this far before the route's entry point, until the turn is handed back
     turn_start_m: float = 25.0  # a commanded turn is looked for when the route's entry point is this close
     turn_route_tolerance_m: float = 8.0  # the entry point must be within this of the car's path
@@ -267,6 +276,7 @@ class MaplessDriver:
         self.last_motion = self.last_classified = self.last_plan = self.last_corridor = None
         self._profile_path = None  # (time, odometry polyline) of the last path planned along, for the far points' ground (terrain)
         self._turn_done = None  # route index of the junction entry whose turn is complete
+        self._handback_exit = None  # (``handback_carry_m``) (exit point, crossing line heading) of a crossing handed back short of its exit, odometry
         self._mouth_odo = None  # the junction mouth, odometry frame, nearest seen since the approach began
         self._lane_heading_odo = None  # the entry lane's direction, odometry frame, latched as the approach begins
         self._turn_corridor = None  # the last turn path steered along (the stop line if the latched path fails mid-arc)
@@ -429,6 +439,15 @@ class MaplessDriver:
             self._still_since = None
             if self._still_odo is not None and float(np.hypot(*(here - self._still_odo))) > c.still_credit_m:
                 self._still_credit, self._still_odo = 0.0, None
+        if self._handback_exit is not None:
+            # Handed back short of a junction's exit (``handback_carry_m``): a carried line is
+            # continued straight across the rest of the box, as the crossing's own line was.
+            exit_xy, heading = self._handback_exit
+            exit_x = float(motion.odometry.to_body(exit_xy[None])[0][0])
+            if exit_x < -c.handback_carry_m:
+                self._handback_exit = None
+            elif self.corridor.continue_straight(motion.odometry, exit_x + c.handback_carry_m + c.corridor.min_valid_m, heading_rad=heading, within_m=c.handback_continue_m):
+                d.update(corridor_continued_to_m=round(exit_x + c.handback_carry_m + c.corridor.min_valid_m, 1))
         corridor = self.corridor.update(self.grid, motion.odometry, t)
         if (
             corridor.ok
@@ -635,6 +654,9 @@ class MaplessDriver:
                                 if taken.ok and step_here <= step_bound and abs(_wrap(taken.heading_at(0.0) - heading_here)) <= c.crossing.handback_heading_rad:
                                     corridor, handed = taken, True
                                     self._turn_done = entry_i
+                                    if c.handback_carry_m > 0.0 and float(exit_b[0]) > 0.0:
+                                        line_heading = self.crossing.line[2] if self.crossing.line is not None else motion.odometry.yaw_rad + heading_here
+                                        self._handback_exit = (motion.odometry.to_world(np.asarray(exit_b, dtype=float)[None])[0], line_heading)
                                     self.crossing.reset()
                                     d.update(crossing="handed back to the kerb corridor")
                         bound = c.crossing.reanchor_max_m if past_exit_near is not None and past_exit_near < 0.0 else c.crossing.reanchor_exit_max_m
