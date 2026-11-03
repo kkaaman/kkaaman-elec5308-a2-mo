@@ -120,3 +120,16 @@ def test_red_junctions_scripts_red_only_at_the_listed_junctions():
     every.junctions.append(JunctionLights(250.0, 719, [Light()]))
     every.step(CARLA, 230.0, 3.0, 0.0, 0.05)
     assert every.junctions[0].lights[0].state == "Red"
+
+
+def test_with_red_junctions_only_those_need_a_stop_for_the_light_check_to_pass():
+    """lap2_5308 (3 Nov): red only at 468, 719 green: stopped at 468's red, entered both on
+    green, so the check passes (it read REPORT: "not every red was stood at")."""
+    script = LightScript("scripted", red_junctions=(468,))
+    script.junctions.append(JunctionLights(100.0, 468, [Light()]))
+    script.junctions.append(JunctionLights(200.0, 719, [Light()]))
+    profile = [(s, 3.0) for s in range(60, 98)] + [(98.0, 0.0)] * 100 + [(s, 3.0) for s in range(98, 230)]
+    drive(script, profile, decide_red_at=80.0)
+    r = script.report()
+    assert r["red_entries"] == 0 and r["exercised"]
+    assert red_light_check(script, classifier=True)["status"] == "PASS"

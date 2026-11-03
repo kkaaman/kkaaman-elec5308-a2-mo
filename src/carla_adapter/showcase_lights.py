@@ -176,7 +176,10 @@ class LightScript:
         ]
         red_entries = [e for e in entries if e["state_at_entry"] == "Red"]
         line_crossings = [e for e in entries if (e["past_line_on_red_m"] or 0.0) > 0.0 or e["moved_on_red"]]
-        exercised = bool(entries) and all(e["stopped_on_red"] for e in entries)
+        # With red_junctions, only those were asked to go red: the rest are judged for a red
+        # entry (above) but need no stop to be exercised.
+        scripted = [e for e in entries if self.red_junctions is None or e["junction_id"] in self.red_junctions]
+        exercised = bool(scripted) and all(e["stopped_on_red"] for e in scripted)
         return dict(mode=self.mode, junctions=entries, red_entries=len(red_entries), red_line=len(line_crossings), exercised=exercised)
 
 
