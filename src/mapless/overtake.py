@@ -11,8 +11,8 @@ moving tracks on the far side), the car may pass it:
    edge, the body's half width and ``margin_m``, at most ``max_offset_m``; the shifted
    path must be seen clear (``observe_path`` on it) past the obstacle's far side.
    The side: the right when the corridor's lane centre is far enough from the right kerb
-   for a lane between (traffic keeps right: that lane runs the car's way), else the left
-   (the oncoming lane of a two-lane road).
+   for a lane between (traffic keeps right: that lane runs the car's way); the left (the
+   oncoming lane of a two-lane road) only with ``allow_oncoming``, else the car waits.
 2. **Out.** The shift ramps in (a half-cosine) from where the car stands, over ``ramp_m``
    or less (fully out by the obstacle's near face, ``min_ramp_m`` at least), indicator
    left, at ``speed_mps`` at most.
@@ -59,6 +59,10 @@ class OvertakeConfig:
     # right kerb (traffic keeps right: a lane there runs the car's way), else the left (the
     # oncoming lane of a two-lane road); or a tuple of sides in order of preference.
     sides: object = "auto"
+    # "auto" never takes the oncoming lane unless this is set: a clear LiDAR view when the
+    # pass begins does not show that lane stays clear for the 10-15 s the pass takes
+    # (twenty-first review, 7). Without a lane on the right the car waits behind.
+    allow_oncoming: bool = False
     min_shift_m: float = 0.0  # the shift at least this (0: the obstacle's edge, half the body and the margin)
     kerb_min_m: float = 1.6  # a pass on the right keeps the path this far from the right kerb (a lane there)
 
@@ -236,7 +240,13 @@ class Overtake:
         # (S4_5308, Town10HD, 7ba365b): the lane centre 7.8 m from the kerb, the left the
         # oncoming lane, and the pass went there.
         right_lane = keep_right_m is not None and keep_right_m + shifts["right"] >= c.kerb_min_m
-        sides = (("right",) if right_lane else ("left",)) if c.sides == "auto" else tuple(c.sides)
+        if c.sides == "auto":
+            sides = ("right",) if right_lane else (("left",) if c.allow_oncoming else ())
+            if not sides:
+                self.note = "waiting: no same-direction lane to pass in (oncoming-lane passes are off)"
+                return
+        else:
+            sides = tuple(c.sides)
         notes = []
         for side in sides:
             # Each side in turn, with its own clear count.

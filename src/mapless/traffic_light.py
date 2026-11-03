@@ -100,6 +100,10 @@ class LightFilter:
         self._go_since = None  # when the current run of going readings began
         self._stand_since = None  # when the car came to a standstill (``standing``)
         self.last = None
+        # How the last hold ended: "green" (go_frames greens seen) or "none timer" (nones for
+        # none_release_s while standing: a green light_v1 reads as nothing, and so a red it
+        # cannot see; twenty-first review, 4.1). Reported, so every release is accountable.
+        self.released_by = None
 
     def update(self, reading, now_s, standing=False):
         """The decision after this ``reading`` (or None) at ``now_s``; ``standing``: the car
@@ -134,6 +138,7 @@ class LightFilter:
                 and reading.time_s - max(self._go_since, self._stand_since) >= c.none_release_s
             )
         ):
+            self.released_by = "green" if self._green_run >= c.go_frames else "none timer"
             self.decision = reading.state
         elif self.decision not in HOLDING and going:
             self.decision = reading.state

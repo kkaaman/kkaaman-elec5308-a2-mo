@@ -212,6 +212,39 @@ def overtake_ticks(log, settle_ticks=40):
     return marked
 
 
+def comfort_report(log, dt_s, window_s=0.5, firm_mps2=3.0, hard_mps2=5.0):
+    """What the car actually did (twenty-first review, 6.2: a requested speed falling to walking
+    pace is not evidence of the deceleration): from the truth speed, the acceleration over
+    ``window_s`` windows, its peaks, the jerk (the change of that acceleration per second), and
+    each stretch braked harder than ``firm_mps2`` (route s, peak, how long), those past
+    ``hard_mps2`` marked hard (an emergency stop: a walker stepping out)."""
+    v = np.asarray([r["truth"]["speed_mps"] for r in log], dtype=float)
+    s = np.asarray([r["truth"]["s_m"] for r in log], dtype=float)
+    n = max(1, int(round(window_s / dt_s)))
+    if len(v) <= 2 * n:
+        return dict(ticks=len(v))
+    acc = (v[n:] - v[:-n]) / (n * dt_s)
+    jerk = (acc[n:] - acc[:-n]) / (n * dt_s)
+    events, k = [], 0
+    while k < len(acc):
+        if -acc[k] > firm_mps2:
+            j = k
+            while j < len(acc) and -acc[j] > firm_mps2:
+                j += 1
+            peak = float(-acc[k:j].min())
+            events.append(dict(s_m=round(float(s[k]), 1), peak_decel_mps2=round(peak, 2), seconds=round((j - k) * dt_s, 2), hard=peak > hard_mps2, from_mps=round(float(v[k]), 2)))
+            k = j
+        else:
+            k += 1
+    return dict(
+        window_s=window_s,
+        max_accel_mps2=round(float(acc.max()), 2), max_decel_mps2=round(float(-acc.min()), 2),
+        p95_decel_mps2=round(float(np.percentile(np.maximum(0.0, -acc), 95)), 2),
+        max_jerk_mps3=round(float(np.abs(jerk).max()), 2) if len(jerk) else None,
+        firm_braking=events[:12], firm_braking_count=len(events), hard_braking_count=sum(e["hard"] for e in events),
+    )
+
+
 def hazard_lights(carla, vehicle):
     """A stopped car's hazard lights (both blinkers). True if set."""
     try:
@@ -793,7 +826,7 @@ def _fmt(value):
     return "-" if value is None else (f"{value:.2f}" if isinstance(value, (int, float)) else str(value))
 
 
-def driver_config(body, wheelbase_m, steering_limit_rad, speed_mps, keep_right_m, zone_mps=None, overtake=False, brake_mps2=None, lookahead_s=0.0, accel_mps2=None, light_release_s=None):
+def driver_config(body, wheelbase_m, steering_limit_rad, speed_mps, keep_right_m, zone_mps=None, overtake=False, overtake_oncoming=False, brake_mps2=None, lookahead_s=0.0, accel_mps2=None, light_release_s=None):
     """The driver configuration the harness runs with (shared with the offline replay);
     ``zone_mps``: the junction zones' speed (``DriverConfig.zone_mps``), None for none;
     ``overtake``: pass a vehicle stopped in the lane (``DriverConfig.overtake``);
@@ -804,7 +837,8 @@ def driver_config(body, wheelbase_m, steering_limit_rad, speed_mps, keep_right_m
     ``lookahead_s``: the steering point at least this many seconds of travel ahead;
     ``accel_mps2``: the speed target rises at most this fast (``DriverConfig.accel_mps2``).
     With ``brake_mps2`` above 1, planned stops come in two stages: at the lesser of it and
-    2 m/s² down to 3 m/s, then at 1 m/s² to rest (``PlannerConfig.final_decel_mps2``);
+    2 m/s² down to 3 m/s, then at 1 m/s² to rest (``PlannerConfig.final_decel_mps2``), and
+    the goal is planned for as soon as it is within reach (``DriverConfig.goal_early``);
     ``light_release_s``: a light held for that the classifier no longer reads (nones while
     standing) is released after this long (``LightConfig.none_release_s``, 5 s by default)."""
     brake = 1.0 if brake_mps2 is None else float(brake_mps2)
@@ -826,9 +860,10 @@ def driver_config(body, wheelbase_m, steering_limit_rad, speed_mps, keep_right_m
             comfort_decel_mps2=min(brake, 2.0) if brake > 1.0 else None, final_decel_mps2=1.0 if brake > 1.0 else None,
         ),
         accel_mps2=accel_mps2,
+        goal_early=brake > 1.0,
         light=LightConfig() if light_release_s is None else LightConfig(none_release_s=float(light_release_s)),
         zone_mps=zone_mps,
-        overtake=OvertakeConfig() if overtake else None,
+        overtake=OvertakeConfig(allow_oncoming=bool(overtake_oncoming)) if overtake else None,
     )
 
 
@@ -1632,7 +1667,7 @@ class MaplessDrive:
         lights_on = bool(self.light_script.junctions) or self.light_script.mode != "unchanged" or bool(getattr(args, "light_classifier", None))
         light_front_s = None
         self.body = vehicle_body(self.ego, self.offset)
-        config = driver_config(self.body, self.adapter.geometry.wheelbase_m, self.adapter.geometry.controller_steering_limit_rad, args.speed, args.keep_right, zone_mps=getattr(args, "zone_mps", None), overtake=getattr(args, "overtake", False),
+        config = driver_config(self.body, self.adapter.geometry.wheelbase_m, self.adapter.geometry.controller_steering_limit_rad, args.speed, args.keep_right, zone_mps=getattr(args, "zone_mps", None), overtake=getattr(args, "overtake", False), overtake_oncoming=getattr(args, "overtake_oncoming", False),
             brake_mps2=getattr(args, "brake_mps2", None), lookahead_s=getattr(args, "lookahead_s", 0.0), accel_mps2=getattr(args, "accel_mps2", None), light_release_s=getattr(args, "light_release_s", None),
         )
         self.report["driver_config"] = rounded(_config_dict(config))
@@ -1943,6 +1978,12 @@ class MaplessDrive:
             checks.append(check("parallel_park", PASS if result.get("passed") and not self.report["collisions"] else FAIL, **{k: v for k, v in result.items() if k != "passed"}))
             return
         light_check = red_light_check(getattr(self, "light_script", None), bool(getattr(args, "light_classifier", None)))
+        releases = [dict(s_m=round(r["truth"]["s_m"], 1), by=r["driver"].get("light_released_by"), light=r.get("light_governing")) for r in log if r["driver"].get("light_released_by")]
+        if releases:
+            # Each light hold's end: a green the car saw, or its none timer, with the governing
+            # light's own state then (evaluator truth): a none-timer release on red is the
+            # failure the twenty-first review (4.1) describes.
+            checks.append(check("light_releases", REPORT, releases=releases[:12], by_green=sum(r["by"] == "green" for r in releases), by_timer=sum(r["by"] == "none timer" for r in releases), on_red=sum(r["light"] in ("Red", "Yellow") for r in releases)))
         if light_check is not None:
             checks.append(light_check)
         s0 = first["truth"]["s_m"]
@@ -2079,6 +2120,7 @@ class MaplessDrive:
             checks.append(check("observability", REPORT, obstacle=args.obstacle_blueprint, **seen))
         top = max(r["truth"]["speed_mps"] for r in log)
         checks.append(check("speed", PASS if top <= args.speed + 0.5 else FAIL, max_mps=top))
+        checks.append(check("comfort", REPORT, **comfort_report(log, DT_S)))
         driving = [m for m in modes if m not in (DriveMode.STARTUP, DriveMode.CALIBRATING)]
         faults = [r["reason"] for r in startup if r["mode"] == DriveMode.FAULT.value]
         share = len(faults) / max(1, len(driving))
@@ -2187,6 +2229,7 @@ def main(argv=None, stack=False):
     parser.add_argument("--accel-mps2", type=float, default=None, help="the speed target rises at most this fast (default: no limit); ~1.5 for a steady pull away")
     parser.add_argument("--lookahead-s", type=float, default=0.0, help="the steering point at least this many seconds of travel ahead (default 0: a fixed 4 m); ~0.8 for runs above 6 m/s")
     parser.add_argument("--stopped-car", type=float, action="append", default=[], metavar="S", help="mission: a car stopped in the lane at route s S as well, hazard lights on, never removed (for --overtake); repeatable")
+    parser.add_argument("--overtake-oncoming", action="store_true", help="with --overtake: may pass in the oncoming lane when no same-direction lane is to the right (off: a clear view at the start does not prove the lane stays clear for the whole pass)")
     parser.add_argument("--overtake", action="store_true", help="Pass a vehicle stopped in the lane: after waiting behind it, with the way past seen clear and no route junction near, shift left past it (indicators on) and back")
     parser.add_argument("--zone-mps", type=float, default=None, help="Junction zones: no faster than this from 45 m before each route junction's entry to 10 m past its exit (sat-nav); --speed elsewhere")
     parser.add_argument(

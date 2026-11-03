@@ -1081,13 +1081,14 @@ def test_mission_s4_with_overtaking_holds_then_passes_and_a_stopped_car_can_be_a
     """``--overtake`` (3 Nov): S4's car is held behind, then passed, the goal reached; the
     pass's lane change is reported apart from the lane gates. ``--stopped-car S`` adds a
     stopped car to any mission scenario, and each must be passed."""
-    _, report = run_mission(monkeypatch, tmp_path, "S4", "--overtake", obstacle_s_m=40.0)
+    # The fake road has no lane to the right: the pass takes the other lane (allowed).
+    _, report = run_mission(monkeypatch, tmp_path, "S4", "--overtake", "--overtake-oncoming", obstacle_s_m=40.0)
     by_name = {c["check"]: c for c in report["checks"]}
     assert report["end"] == "finished" and report["overtake"]["passes"] == 1
     assert by_name["held_before_passing"]["status"] == "PASS" and by_name["overtake"]["status"] == "PASS" and "held" not in by_name
     assert by_name["overtake_lane_change"]["status"] == "REPORT" and by_name["overtake_lane_change"]["max_offset_m"] > 2.0
     assert by_name["lane_keeping"]["status"] == "PASS" and by_name["lane_footprint"]["status"] == "PASS" and by_name["no_collision"]["status"] == "PASS"
-    _, report = run_mission(monkeypatch, tmp_path / "s0", "S0", "--overtake", "--stopped-car", "40")
+    _, report = run_mission(monkeypatch, tmp_path / "s0", "S0", "--overtake", "--overtake-oncoming", "--stopped-car", "40")
     by_name = {c["check"]: c for c in report["checks"]}
     assert report["stopped_cars"][0]["s_m"] == 40.0 and by_name["stopped_cars_passed"]["status"] == "PASS" and by_name["goal"]["status"] == "PASS"
 

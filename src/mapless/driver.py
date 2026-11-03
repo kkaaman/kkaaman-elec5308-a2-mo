@@ -100,6 +100,7 @@ class DriverConfig:
     # 2.4 to 10 m/s in 12 m on the fast showcase run). None: no limit, as before.
     accel_mps2: float | None = None
     accel_lead_s: float = 0.5
+    goal_early: bool = False  # plan the goal's stop as soon as it is within the corridor's reach
     indicate_before_m: float = 30.0  # the turn's indicator on from this far before the route's entry point, until the turn is handed back
     turn_start_m: float = 25.0  # a commanded turn is looked for when the route's entry point is this close
     turn_route_tolerance_m: float = 8.0  # the entry point must be within this of the car's path
@@ -891,7 +892,10 @@ class MaplessDriver:
             signal = Command(d["junction_command"])
         d.update(indicator=signal.value.lower() if signal in (Command.LEFT, Command.RIGHT) else None)
         # -- traffic light (G4 M07): hold short of the next route junction on red ----------
+        held = self.light_filter.decision
         decision = self.light_filter.update(self.light_reading, t, standing=motion.stationary)
+        if held in ("red", "yellow", "unknown") and decision not in ("red", "yellow", "unknown"):
+            d.update(light_released_by=self.light_filter.released_by)  # the tick a hold ended, and how
         entry_m = None
         if self.turn.committed or self._zone_entered:
             entry_m = None  # turning across: never stop in the junction for a light
@@ -954,7 +958,11 @@ class MaplessDriver:
         lap("obstacles")
         obstacle = None if observation is None else observation.obstacle
         goal_body = None
-        if guidance.index == len(self.progress.xy) - 1 and guidance.goal_distance_m < corridor.valid_length_m + 5:
+        # The goal is planned for once it is the route's next point, or (``goal_early``) as soon
+        # as it lies within the corridor's reach along the route: at 7 m/s it came into the
+        # plan 8 m out and was braked for at 8.9 m/s² (PC 1 lap2_5308).
+        last_leg = guidance.index == len(self.progress.xy) - 1 or c.goal_early
+        if last_leg and guidance.goal_distance_m < corridor.valid_length_m + 5:
             goal_body = motion.odometry.to_body(motion.route_to_odometry(np.array([self.progress.xy[-1]])))[0]
         zone_cap = c.zone_mps if c.zone_mps is not None and self._in_junction_zone(motion) else None
         if c.zone_mps is not None and zone_cap is None:
@@ -962,7 +970,8 @@ class MaplessDriver:
             # deceleration, not at its edge (from 10 m/s at 3 m/s², 15 m before it).
             ahead = self._junction_ahead_m(motion)
             if ahead is not None and ahead > c.zone_before_m:
-                into = math.sqrt(c.zone_mps**2 + 2.0 * c.planner.decel_mps2 * (ahead - c.zone_before_m))
+                slow = c.planner.decel_mps2 if c.planner.comfort_decel_mps2 is None else c.planner.comfort_decel_mps2
+                into = math.sqrt(c.zone_mps**2 + 2.0 * slow * (ahead - c.zone_before_m))
                 zone_cap = into if into < motion.speed_mps else None  # only once it binds
         if zone_cap is not None:
             d.update(zone_cap_mps=zone_cap)
