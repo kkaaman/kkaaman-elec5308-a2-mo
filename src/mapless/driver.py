@@ -91,6 +91,7 @@ class DriverConfig:
     zone_mps: float | None = None
     zone_before_m: float = 45.0
     zone_after_m: float = 10.0
+    indicate_before_m: float = 30.0  # the turn's indicator on from this far before the route's entry point, until the turn is handed back
     turn_start_m: float = 25.0  # a commanded turn is looked for when the route's entry point is this close
     turn_route_tolerance_m: float = 8.0  # the entry point must be within this of the car's path
     lidar_max_age_s: float = 0.15
@@ -862,6 +863,12 @@ class MaplessDriver:
                     turn_gate_view_s=round(gate.checked_m / c.junction.oncoming_mps, 1),  # how long the view covers at oncoming_mps
                     turn_gate_cells=gate.cells,
                 )
+        # -- indicators (3 Nov): the turn's side from indicate_before_m before the route's
+        # entry point, through the turn until it is handed back to kerb following --------
+        signal = self._turn_command if (self._turning or self.turn.committed) else None
+        if signal is None and d.get("junction_command") in (Command.LEFT.value, Command.RIGHT.value) and d.get("junction_entry_m") is not None and d["junction_entry_m"] <= c.indicate_before_m:
+            signal = Command(d["junction_command"])
+        d.update(indicator=signal.value.lower() if signal in (Command.LEFT, Command.RIGHT) else None)
         # -- traffic light (G4 M07): hold short of the next route junction on red ----------
         decision = self.light_filter.update(self.light_reading, t, standing=motion.stationary)
         entry_m = None

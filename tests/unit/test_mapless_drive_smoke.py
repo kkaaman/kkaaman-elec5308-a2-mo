@@ -913,6 +913,12 @@ def test_weather_presets_copy_before_overriding_and_are_recorded():
     lamp = SimpleNamespace(VehicleLightState=States)
     assert drive.headlights_on(lamp, SimpleNamespace(set_light_state=set_to.append)) == "low beam" and set_to == [3]
     assert drive.headlights_on(SimpleNamespace(), SimpleNamespace()).startswith("not set") and drive.NIGHT_PRESETS == ("clear_night",)
+    # The driver's indicator as the blinker, with the low beams kept on at night.
+    States.LeftBlinker, States.RightBlinker = 4, 8
+    set_to.clear()
+    car = SimpleNamespace(set_light_state=set_to.append)
+    assert drive.set_vehicle_lights(lamp, car, "left", False) and drive.set_vehicle_lights(lamp, car, "right", True) and drive.set_vehicle_lights(lamp, car, None, True)
+    assert set_to == [4, 11, 3] and drive.set_vehicle_lights(SimpleNamespace(), car, "left", False) is False
 
 
 def test_a_scripted_red_the_car_cannot_see_is_run_and_fails_the_red_light_check(monkeypatch, tmp_path):

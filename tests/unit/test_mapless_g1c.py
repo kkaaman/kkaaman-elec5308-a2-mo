@@ -300,3 +300,22 @@ def test_a_parked_car_flush_with_the_exit_kerb_is_not_the_kerb():
     assert grid.raised_evidence(xy, max_age_s=5.0)[0] == 3.0
     grid.tall[i, j] = 2.0  # a car body seen above the sill
     assert grid.raised_evidence(xy, max_age_s=5.0)[0] == 0.0
+
+
+@pytest.mark.parametrize("side, name", [pytest.param(-1, "right", id="right"), pytest.param(1, "left", id="left")])
+def test_the_turn_is_signalled_before_the_junction_and_through_it(side, name):
+    """Indicators (3 Nov): the turn's side from indicate_before_m before the route's entry
+    point, on through the turn, off once it is handed back to kerb following; never the
+    other side."""
+    world, _ = junction_world(side)
+    log = drive(world, world.route(goal_after_turn(world)))
+    signals = [s.diagnostics.get("indicator") for _, s in log]
+    assert set(signals) <= {None, name}
+    turning = [s.diagnostics.get("indicator") for _, s in log if s.mode is DriveMode.TURNING]
+    assert turning and all(sig == name for sig in turning)
+    first = next(k for k, sig in enumerate(signals) if sig == name)
+    first_turn = next(k for k, (_, s) in enumerate(log) if s.mode is DriveMode.TURNING)
+    assert first < first_turn  # on before the turn begins
+    handed = next(k for k, (_, s) in enumerate(log) if s.diagnostics.get("turn") == "handed back to the kerb corridor")
+    assert all(sig is None for sig in signals[handed + 5 :])  # off on the exit lane
+

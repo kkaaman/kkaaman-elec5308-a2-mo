@@ -196,6 +196,22 @@ def headlights_on(carla, vehicle):
         return f"not set: {error}"[:120]
 
 
+def set_vehicle_lights(carla, vehicle, indicator, night):
+    """The car's lamps for this tick: the driver's ``indicator`` (left, right or None) as
+    the blinker, with the low beams at night. True if set."""
+    try:
+        states = carla.VehicleLightState
+        bits = (states.Position | states.LowBeam) if night else 0
+        if indicator == "left":
+            bits |= states.LeftBlinker
+        elif indicator == "right":
+            bits |= states.RightBlinker
+        vehicle.set_light_state(states(bits))
+        return True
+    except Exception:  # an older server, a fake world: the signal is still logged
+        return False
+
+
 def weather_record(preset, weather):
     """The preset and every weather field it set, for the run report."""
     fields = {k: round(float(v), 2) for k in WEATHER_FIELDS if isinstance(v := getattr(weather, k, None), (int, float))}
@@ -1648,6 +1664,8 @@ class MaplessDrive:
                 self.report["braking_assumptions"] = braking_assumptions(config.planner.decel_mps2)
             start_time = None
             outages = parse_outages(args.drop_sensor)  # injected sensor outages (ninth review, T4)
+            night = getattr(args, "weather", "clear_noon") in NIGHT_PRESETS
+            last_indicator, indicator_ticks = None, {}  # the blinker the driver asks for (turns, overtakes)
             actor_truths = []
             actor_sets = []  # every scripted actor's truth (F8-05), when there are several
             latencies = []  # the per-tick wall-clock marks (sensor_to_actuator_report)
@@ -1671,6 +1689,12 @@ class MaplessDrive:
                 step = driver.step(sf)
                 ended = time.perf_counter()
                 step_times.append(ended - begun)
+                indicator = step.diagnostics.get("indicator")
+                if indicator is not None:
+                    indicator_ticks[indicator] = indicator_ticks.get(indicator, 0) + 1
+                if indicator != last_indicator:
+                    set_vehicle_lights(carla, self.ego, indicator, night)
+                    last_indicator = indicator
                 try:
                     self.adapter.apply(step.command)
                     applied = time.perf_counter()
@@ -1808,6 +1832,7 @@ class MaplessDrive:
         if recorder is not None:
             recorder.close()
             self.report["frames_recorded"] = recorder.ticks
+        self.report["indicators"] = {side: round(n * DT_S, 2) for side, n in sorted(indicator_ticks.items())}  # seconds signalled, by side
         if viewer is not None:
             viewer.close()
             self.report["car_view"] = viewer.record()
