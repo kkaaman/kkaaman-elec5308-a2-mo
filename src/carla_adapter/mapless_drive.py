@@ -1709,7 +1709,9 @@ class MaplessDrive:
                 if self.actor is not None and len(actor_sets[-1]) > 1:
                     row["actors"] = actor_sets[-1]  # all of them, by role (evaluator truth, log only)
                 if light_truth is not None:
-                    row["light_truth"] = light_truth  # the car's governing light (evaluator truth, log only)
+                    row["light_truth"] = light_truth  # the car's own light state (Green outside a trigger volume; evaluator truth, log only)
+                    if self.light_script.governing is not None:
+                        row["light_governing"] = self.light_script.governing  # the next lit junction's light (evaluator truth, log only)
                 out.write(json.dumps(rounded(row)) + "\n")
                 log.append(row)
                 if viewer is not None:

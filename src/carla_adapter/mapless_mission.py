@@ -237,7 +237,9 @@ def light_stop(row):
     one the plan stops for (the junction's hold point, no stopping speed cap: a predicted
     conflict or a hold for scenery is not excused by a red at the same time), and the
     governing light red or yellow by the evaluator's truth (a hold for a light that was
-    green is a false red, not excused). Nineteenth review, 3: a legitimate red stop must
+    green is a false red, not excused): ``light_governing``, the next lit junction's own
+    light; ``light_truth``, the car's, reads Green outside the trigger volume (final/heldout
+    clear_5321: a red's slowing at s 130.5 counted against S3), so it is only the fallback. Nineteenth review, 3: a legitimate red stop must
     not fail the roadside-car gate, nor a red label excuse every other restriction."""
     d = row.get("driver") or {}
     cap = d.get("speed_cap_mps")
@@ -245,7 +247,7 @@ def light_stop(row):
         d.get("light_hold_m") is not None
         and d.get("stop_reason") == "junction"
         and (cap is None or cap > 0.5)
-        and str(row.get("light_truth") or "").lower() in ("red", "yellow")
+        and str(row.get("light_governing") or row.get("light_truth") or "").lower() in ("red", "yellow")
     )
 
 

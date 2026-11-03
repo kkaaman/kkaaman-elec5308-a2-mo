@@ -53,6 +53,7 @@ class JunctionLights:
     stood_front_s_m: float | None = None  # ... where it first stood on red at the light
     past_line_on_red_m: float = 0.0  # the furthest the front went past the line while red
     moved_on_red: bool = False  # moved off from standing while still red
+    still_since_s: float | None = None  # when the car's current standstill on red began
 
 
 @dataclass
@@ -64,6 +65,9 @@ class LightScript:
     max_red_s: float = 20.0
     read_within_m: float = 30.0
     moved_m: float = 0.5  # beyond where it stood on red: moved off on red
+    stand_s: float = 0.5  # this long under still_mps is a stand (a dip to rest while drawing up to the line is not)
+    still_mps: float = 0.1  # ... creep and rocking below it count as standing still (showcase_c2: 0.05-0.06 m/s)
+    governing: str | None = None  # the next lit junction's light this tick (evaluator truth, logged)
     junctions: list = field(default_factory=list)
     log: list = field(default_factory=list)
 
@@ -114,10 +118,13 @@ class LightScript:
         tick). Returns the car's light state."""
         state = _state(vehicle.get_traffic_light_state())
         self.log.append((round(time_s, 2), round(s_m, 2), state, reading))
+        self.governing = None
         for j in self.junctions:
             light = _state(j.lights[0].get_state())
             if j.entered_state is not None:
                 continue  # entered on an earlier tick: the encounter is over
+            if self.governing is None:
+                self.governing = light  # the light the car is driving towards
             if previous_s_m < j.entry_s_m <= s_m:
                 j.entered_state = light
             ahead = j.entry_s_m - s_m
@@ -129,14 +136,20 @@ class LightScript:
                 j.red_at_front_s_m = round(s_m, 2)
             if decision == "red" and j.red_at_front_s_m is not None and j.decided_red_at_front_s_m is None:
                 j.decided_red_at_front_s_m = round(s_m, 2)
-            standing = speed_mps is not None and speed_mps < 0.05
+            still = speed_mps is not None and speed_mps < self.still_mps
             line = j.entry_s_m  # the painted line, at the junction's boundary
             # Moving off on red: half a metre beyond where the car first stood at the light
             # (within stop_zone_m of the line), not from the start of the run with the light
             # already red ahead, and not a few cm of creep or rocking (showcase_c2: 0.05-0.06
-            # m/s for 3 s at a standstill, s unchanged).
-            if red and standing and line - s_m <= self.stop_zone_m and j.stood_front_s_m is None:
-                j.stood_front_s_m = round(s_m, 2)
+            # m/s for 3 s at a standstill, s unchanged). A stand is stand_s at rest: drawing
+            # up to the line the car touched rest for a tick, rolled 1 m on to its hold point
+            # and stood there, never past the paint (final/heldout clear_5317).
+            if red and still and line - s_m <= self.stop_zone_m:
+                j.still_since_s = time_s if j.still_since_s is None else j.still_since_s
+                if j.stood_front_s_m is None and time_s - j.still_since_s >= self.stand_s - 1e-9:
+                    j.stood_front_s_m = round(s_m, 2)
+            elif not still:
+                j.still_since_s = None
             if red and j.stood_front_s_m is not None and s_m > j.stood_front_s_m + self.moved_m:
                 j.moved_on_red = True
             if red:

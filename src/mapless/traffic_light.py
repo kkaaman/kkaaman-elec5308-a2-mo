@@ -57,7 +57,10 @@ class LightConfig:
     # longer read is not a green: standing at 468's line in rain, light_v1 read none at
     # 0.91-0.97 from 0.2 s after its last red, and three of them released the car on red
     # (showcase_n2 v1s3_5309_rain). At a green light_v1 reads none too (showcase_n1): the
-    # car then moves off this much later.
+    # car then moves off this much later. The time counts while the car stands
+    # (``update(..., standing=True)``): with a low sun ahead (clear_sunrise, final/light)
+    # light_v1 read none through the last 30 m of the approach, and a timer started there
+    # released the car 1.5-3 s into its stand, on red.
     none_release_s: float = 5.0
     max_age_s: float = 0.6
     # With a classifier on the car: a route junction ahead is approached at approach_mps
@@ -95,10 +98,17 @@ class LightFilter:
         self._go_run = 0
         self._green_run = 0
         self._go_since = None  # when the current run of going readings began
+        self._stand_since = None  # when the car came to a standstill (``standing``)
         self.last = None
 
-    def update(self, reading, now_s):
+    def update(self, reading, now_s, standing=False):
+        """The decision after this ``reading`` (or None) at ``now_s``; ``standing``: the car
+        is at a standstill (nones release a hold only after none_release_s of it)."""
         c = self.config
+        if not standing:
+            self._stand_since = None
+        elif self._stand_since is None:
+            self._stand_since = now_s
         if reading is None or now_s - reading.time_s > c.max_age_s:
             self._stop_run = self._go_run = self._green_run = 0
             self._go_since = None
@@ -117,7 +127,12 @@ class LightFilter:
         if self._stop_run >= c.stop_frames:
             self.decision = reading.state
         elif self.decision in HOLDING and (
-            self._green_run >= c.go_frames or (self._go_run >= c.go_frames and reading.time_s - self._go_since >= c.none_release_s)
+            self._green_run >= c.go_frames
+            or (
+                self._go_run >= c.go_frames
+                and self._stand_since is not None
+                and reading.time_s - max(self._go_since, self._stand_since) >= c.none_release_s
+            )
         ):
             self.decision = reading.state
         elif self.decision not in HOLDING and going:
@@ -126,7 +141,7 @@ class LightFilter:
 
     def reset(self):
         self.decision, self._stop_run, self._go_run, self.last = "none", 0, 0, None
-        self._green_run, self._go_since = 0, None
+        self._green_run, self._go_since, self._stand_since = 0, None, None
 
 
 def stop_for(decision, entry_m, speed_mps, config=None, back_m=None):

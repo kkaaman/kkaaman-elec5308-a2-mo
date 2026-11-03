@@ -854,7 +854,7 @@ class MaplessDriver:
                     turn_gate_cells=gate.cells,
                 )
         # -- traffic light (G4 M07): hold short of the next route junction on red ----------
-        decision = self.light_filter.update(self.light_reading, t)
+        decision = self.light_filter.update(self.light_reading, t, standing=motion.stationary)
         entry_m = None
         if self.turn.committed or self._zone_entered:
             entry_m = None  # turning across: never stop in the junction for a light
