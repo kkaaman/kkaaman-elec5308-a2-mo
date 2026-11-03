@@ -34,7 +34,7 @@ def hud_lines(diagnostics, mode, reason, time_s):
     target = d.get("target_speed_mps")
     lines = [
         f"t {time_s:5.1f} s   {_fmt(None if speed is None else speed * 3.6, ' km/h')}  (target {_fmt(None if target is None else target * 3.6, ' km/h')})",
-        f"{mode}  {reason[:48]}".rstrip(),
+        f"{mode}  {reason[:48]}".rstrip() + (f"   [indicator {d['indicator']}]" if d.get("indicator") else "") + (f"   [zone {d['zone_cap_mps'] * 3.6:.1f} km/h]" if d.get("zone_cap_mps") else ""),
     ]
     reading = d.get("light_reading")
     decision = d.get("light")
