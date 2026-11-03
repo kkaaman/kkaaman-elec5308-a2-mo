@@ -349,7 +349,9 @@ class MaplessRoadWorld:
         and ``goal_s_m`` is measured along the turn path.
         """
         if self.path is None:
-            stations = list(np.arange(self.start_s_m, goal_s_m, spacing_m)) + [goal_s_m]
+            # A spacing station within 1 m of the goal is dropped: a goal 0.3 m past one made
+            # two points closer than SatNavRoute's 0.5 m, and the RL run's worker died on it.
+            stations = [s for s in np.arange(self.start_s_m, goal_s_m, spacing_m) if s == self.start_s_m or goal_s_m - s >= 1.0] + [goal_s_m]
             points = []
             for s in stations:
                 x, y, h = self.scene.kerb.pose_at(s)

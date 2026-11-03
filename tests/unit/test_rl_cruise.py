@@ -63,3 +63,35 @@ def test_no_sight_limit_is_encoded_as_unrestricted_not_as_a_zero_limit():
         return rl_cruise.features({"sight_speed_mps": value}, None, "driving", 0)[i]
 
     assert encoded(None) == 1.0 and encoded(0.0) == 0.0 and encoded(2.0) == pytest.approx(0.4) and encoded(5.0) == 1.0 and encoded(9.0) == 1.0
+
+
+def test_a_goal_just_past_a_route_station_still_makes_a_route():
+    """The overnight RL run (3 Nov) died when a random road's goal fell 0.3 m past a 50 m
+    route station: two sat-nav points under SatNavRoute's 0.5 m apart. The station is
+    dropped; the goal stays."""
+    from pathlib import Path
+
+    from mapless.sensor_suite import load_sensor_suite
+    from sim_harness.mapless_road import KerbLine, MaplessRoadWorld, RoadScene, Straight
+
+    suite = load_sensor_suite(Path(__file__).resolve().parents[2] / "configs" / "sensor_suites" / "mapless_v2.json")
+    world = MaplessRoadWorld(RoadScene(KerbLine([Straight(200.0)])), suite, start_s_m=10.0)
+    for goal in (60.3, 110.0, 110.9, 111.0, 160.49):
+        route = world.route(goal)
+        xy = np.array([world.plane.to_local(p.latitude_deg, p.longitude_deg) for p in route.points])
+        assert np.all(np.hypot(*np.diff(xy, axis=0).T) >= 0.5), goal
+
+
+def test_an_error_in_one_drive_ends_that_episode_not_the_run(monkeypatch):
+    """A software error inside a drive truncates that episode, named in ``info["error"]``;
+    the training run goes on."""
+    pytest.importorskip("gymnasium")
+    env = rl_cruise.CruiseEnv(seed=3, max_decisions=10)
+    env.reset(seed=3)
+
+    def broken(frame):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(env.driver, "step", broken)
+    obs, reward, terminated, truncated, info = env.step(2)
+    assert truncated and not terminated and info["error"].startswith("RuntimeError") and obs.shape == (len(rl_cruise.FEATURE_NAMES),)
