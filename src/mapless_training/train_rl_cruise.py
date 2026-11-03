@@ -103,6 +103,7 @@ def _episode(job):
         time_s=info.get("time_s"), max_offset_m=info.get("max_offset_m"), s_m=info.get("s_m"), return_=round(total, 3),
         share_4mps=round(float(np.mean([a == 2 for a in actions])), 3) if actions else None,
         final_speed_mps=info.get("speed_mps"),
+        error=info.get("error"),
         binding_share=round(float(np.mean(binding)), 3) if binding else None,
         share_4mps_not_binding=round(float(np.mean([a == 2 for a, b in zip(actions, binding) if not b])), 3) if not all(binding) else None,
     )
@@ -122,7 +123,8 @@ def evaluate(policies, episodes, eval_seed, max_decisions, workers):
         done = [r for r in mine if r["finished"]]
         summary[name] = dict(
             episodes=len(mine), finished=len(done), failures=sum(1 for r in mine if r["failure"]),
-            timeouts=sum(1 for r in mine if r["truncated"] and not r["finished"] and not r["failure"]),
+            timeouts=sum(1 for r in mine if r["truncated"] and not r["finished"] and not r["failure"] and not r["error"]),
+            errors=sum(1 for r in mine if r["error"]),
             completion_rate=round(len(done) / len(mine), 3) if mine else None,
             mean_progress=round(float(np.mean([r["progress"] for r in mine])), 3) if mine else None,
             mean_time_s_finished=round(float(np.mean([r["time_s"] for r in done])), 2) if done else None,

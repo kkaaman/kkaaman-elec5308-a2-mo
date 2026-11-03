@@ -185,11 +185,20 @@ class CruiseEnv:
 
         if seed is not None:
             self.rng = np.random.default_rng(seed)
-        spec = (options or {}).get("spec") or random_episode(self.rng, int(self.rng.integers(1 << 30)))
+        given = (options or {}).get("spec")
+        for attempt in range(10):
+            spec = given or random_episode(self.rng, int(self.rng.integers(1 << 30)))
+            try:
+                scene = RoadScene(KerbLine(list(spec.pieces)), road_width_m=spec.road_width_m, lane_centre_m=spec.lane_centre_m, parked=spec.parked)
+                self.world = MaplessRoadWorld(scene, self.suite, start_s_m=10.0, seed=spec.seed)
+                self.driver = MaplessDriver(self.suite, self.world.route(spec.goal_m), make_driver_config(spec.lane_centre_m), 0.05)
+                break
+            except ValueError:
+                # A random road the harness cannot build is drawn again (a worker that
+                # raised here ended the whole overnight run); a given one is the caller's.
+                if given is not None or attempt == 9:
+                    raise
         self.spec = spec
-        scene = RoadScene(KerbLine(list(spec.pieces)), road_width_m=spec.road_width_m, lane_centre_m=spec.lane_centre_m, parked=spec.parked)
-        self.world = MaplessRoadWorld(scene, self.suite, start_s_m=10.0, seed=spec.seed)
-        self.driver = MaplessDriver(self.suite, self.world.route(spec.goal_m), make_driver_config(spec.lane_centre_m), 0.05)
         self.previous = 0
         self.decisions = 0
         self.last_s = self.world.truth().s_m
@@ -211,6 +220,36 @@ class CruiseEnv:
         self.driver.cruise_target_mps = ACTIONS_MPS[action]
         terminated = truncated = False
         info = {}
+        try:
+            reward, terminated, info, truth = self._ticks(action, reward, info)
+        except Exception as error:  # noqa: BLE001
+            # A software error in one drive ends that episode (truncated, not a failure the
+            # policy is blamed for) instead of the run: it is counted in the evaluation.
+            info.update(error=f"{type(error).__name__}: {str(error)[:80]}", time_s=round(self.time_s, 2), max_offset_m=round(self.max_offset, 3), s_m=round(self.last_s, 1))
+            self.previous = action
+            self.decisions += 1
+            return self._observe_safe(), float(reward), False, True, info
+        progress = truth.s_m - self.last_s
+        self.last_s = truth.s_m
+        reward += rc.progress_per_m * progress
+        self.previous = action
+        self.decisions += 1
+        if not terminated and self.decisions >= self.max_decisions:
+            truncated = True
+        info.update(time_s=round(self.time_s, 2), max_offset_m=round(self.max_offset, 3), s_m=round(truth.s_m, 1), speed_mps=round(truth.speed_mps, 2))
+        return self._observe(), float(reward), terminated, truncated, info
+
+    def _observe_safe(self):
+        try:
+            return self._observe()
+        except Exception:  # noqa: BLE001
+            return np.zeros(len(FEATURE_NAMES), dtype=np.float32)
+
+    def _ticks(self, action, reward, info):
+        """The decision's control ticks: (reward, terminated, info, last truth)."""
+        rc = self.reward_config
+        terminated = False
+        truth = None
         for _ in range(DECISION_TICKS):
             step = self.driver.step(self.world.frame())
             self.world.apply(step.command)
@@ -242,15 +281,7 @@ class CruiseEnv:
         # a lower curvature, sight, cap or goal limit): the policy's authority this decision.
         target = step.diagnostics.get("target_speed_mps")
         info["binding"] = target is not None and target >= ACTIONS_MPS[action] - 0.1
-        progress = truth.s_m - self.last_s
-        self.last_s = truth.s_m
-        reward += rc.progress_per_m * progress
-        self.previous = action
-        self.decisions += 1
-        if not terminated and self.decisions >= self.max_decisions:
-            truncated = True
-        info.update(time_s=round(self.time_s, 2), max_offset_m=round(self.max_offset, 3), s_m=round(truth.s_m, 1), speed_mps=round(truth.speed_mps, 2))
-        return self._observe(), float(reward), terminated, truncated, info
+        return reward, terminated, info, truth
 
     def close(self):
         self.world = self.driver = None
