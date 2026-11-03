@@ -80,7 +80,7 @@ def features(diagnostics, corridor, mode, previous_action, cruise_max_mps=4.0):
         _clip(near * 20.0),  # 1: a 20 m radius
         _clip(far * 20.0),
         _clip(d.get("lane_offset_m") or 0.0, -1.0, 1.0),
-        _clip((d.get("sight_speed_mps") or 0.0) / 5.0),
+        1.0 if d.get("sight_speed_mps") is None else _clip(d["sight_speed_mps"] / 5.0),  # None: no sight limit (inf), not a 0 m/s one
         1.0 if cap is None else _clip(cap / cruise_max_mps),
         1.0 if obstacle is None else _clip(obstacle / 30.0),
         1.0 if d.get("crossing") else 0.0,
