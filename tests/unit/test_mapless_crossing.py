@@ -353,5 +353,9 @@ def test_a_junction_zone_slows_the_car_from_its_approach_to_past_its_exit_and_no
     before = [tr.speed_mps for tr, s in log if 25.0 <= tr.s_m <= entry - 30.0]
     after = [tr.speed_mps for tr, s in log if exit_ + 20.0 <= tr.s_m <= 125.0]
     assert max(before) > 3.5 and max(after) > 3.5  # cruise outside the zone
-    assert all(s.diagnostics.get("zone_cap_mps") is None for tr, s in log if tr.s_m <= entry - 30.0 or exit_ + 15.0 <= tr.s_m)
+    # Before the zone, a ramp into it at the planner's deceleration once it binds (from 4 m/s
+    # at 1 m/s²: 6 m before the zone's start).
+    assert all(s.diagnostics.get("zone_cap_mps") is None for tr, s in log if tr.s_m <= entry - 35.0 or exit_ + 15.0 <= tr.s_m)
+    ramp = [s.diagnostics.get("zone_cap_mps") for tr, s in log if entry - 33.0 <= tr.s_m <= entry - 26.0 and s.diagnostics.get("zone_cap_mps")]
+    assert ramp and all(2.0 <= c <= 4.3 for c in ramp) and ramp[-1] < ramp[0]
 

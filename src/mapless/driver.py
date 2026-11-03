@@ -949,6 +949,13 @@ class MaplessDriver:
         if guidance.index == len(self.progress.xy) - 1 and guidance.goal_distance_m < corridor.valid_length_m + 5:
             goal_body = motion.odometry.to_body(motion.route_to_odometry(np.array([self.progress.xy[-1]])))[0]
         zone_cap = c.zone_mps if c.zone_mps is not None and self._in_junction_zone(motion) else None
+        if c.zone_mps is not None and zone_cap is None:
+            # Approaching a zone faster than its speed: slow into it at the planner's
+            # deceleration, not at its edge (from 10 m/s at 3 m/s², 15 m before it).
+            ahead = self._junction_ahead_m(motion)
+            if ahead is not None and ahead > c.zone_before_m:
+                into = math.sqrt(c.zone_mps**2 + 2.0 * c.planner.decel_mps2 * (ahead - c.zone_before_m))
+                zone_cap = into if into < motion.speed_mps else None  # only once it binds
         if zone_cap is not None:
             d.update(zone_cap_mps=zone_cap)
         caps = [v for v in (self.speed_cap_mps, approach_cap, zone_cap, overtake_cap) if v is not None]
