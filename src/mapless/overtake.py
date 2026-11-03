@@ -10,6 +10,8 @@ moving tracks on the far side), the car may pass it:
    ``hold_gap_m`` short of an obstacle (not ``stop_gap_m``): room to steer out. The path is shifted left by that
    edge, the body's half width and ``margin_m``, at most ``max_offset_m``; the shifted
    path must be seen clear (``observe_path`` on it) past the obstacle's far side.
+   The left first; the right (mirrored) when the left is not clear (a lane there, not
+   the kerb: the obstacle check sees a kerb under the body), each side with its own count.
 2. **Out.** The shift ramps in (a half-cosine) from where the car stands, over ``ramp_m``
    or less (fully out by the obstacle's near face, ``min_ramp_m`` at least), indicator
    left, at ``speed_mps`` at most.
@@ -52,6 +54,7 @@ class OvertakeConfig:
     confirm_s: float = 1.0  # ... and nothing on it in any sweep for this long (one sweep can miss a car)
     edge_window_m: float = 2.5  # OBSTACLE points this far beyond its near face give its edges
     hold_gap_m: float = 6.5  # the planner holds the front this far short of an obstacle: room to steer out
+    sides: tuple = ("left", "right")  # the sides a pass may go, in order of preference
 
 
 def ramp(s, start, length):
@@ -107,6 +110,9 @@ def extent(sweep, near_m, lateral_m, config, reach_m=4.0):
     return float(ys[lo]), float(ys[hi])
 
 
+SIDES = ("left", "right")
+
+
 class Overtake:
     """The manoeuvre's state across ticks: ``idle`` -> ``waiting`` -> ``out`` -> ``past``
     -> ``back`` -> ``idle``."""
@@ -125,8 +131,8 @@ class Overtake:
         self.note = ""
         self.started = False  # this tick began a pass (the driver drops the planner's hold on it)
         self._seen = None  # the obstacle last seen while held, and the odometry it was seen from
-        self._clear_since = None  # the way past seen with nothing on it since ...
-        self._clear_best = 0.0  # ... and seen clear this far at best since
+        self._clear = {}  # by side: the way past seen with nothing on it since, and clear this far at best since
+        self.side = None  # the side being passed on
 
     def _advance(self, odometry):
         if self._last_odo is not None:
@@ -167,7 +173,8 @@ class Overtake:
                 if t - self.since_s >= c.wait_s and moved < 0.5 and held.distance_m <= c.max_hold_distance_m:
                     self._plan(t, odometry, corridor, held, sweep, observe, body, veto, junction_ahead_m)
             elif not holding:
-                self.since_s = self._clear_since = None
+                self.since_s = None
+                self._clear = {}
                 self.note = ""
                 if obstacle is None:
                     self._seen = None
@@ -190,13 +197,12 @@ class Overtake:
             return corridor, None, None
         shifted = dataclasses.replace(corridor, centre_body=shift_line(corridor.centre_body, self.offsets(corridor.centre_body)))
         shifted = dataclasses.replace(shifted, centre_odometry=corridor.pose.to_world(shifted.centre_body))
-        return shifted, ("right" if self.state == "back" else "left"), c.speed_mps
+        back = "right" if self.side == "left" else "left"
+        return shifted, (back if self.state == "back" else self.side), c.speed_mps
 
     def _plan(self, t, odometry, corridor, obstacle, sweep, observe, body, veto, junction_ahead_m):
         c = self.config
-        if veto:
-            self.note = "waiting: traffic on the far side"
-            return
+        vetoed = set(veto) if isinstance(veto, (set, frozenset, tuple, list)) else (set(SIDES) if veto else set())
         if sweep is None or not corridor.ok:
             self.note = "waiting: no sweep or corridor"
             return
@@ -207,35 +213,45 @@ class Overtake:
         if span[1] - span[0] < c.min_width_m:
             self.note = f"waiting: {span[1] - span[0]:.1f} m across, not a vehicle"
             return
-        offset = span[1] + body.half_width_m + c.margin_m
-        if offset > c.max_offset_m:
-            self.note = f"refused: {offset:.1f} m to the side needed"
-            return
         end_m = obstacle.distance_m + c.assumed_length_m + c.ramp_m + c.clear_beyond_m
         if junction_ahead_m is not None and junction_ahead_m < end_m:
             self.note = "refused: a junction within the manoeuvre"
             return
-        self.offset_m, self.travelled_m, self._last_odo, self.back_from_m = offset, 0.0, None, None
-        self.ramp_out_m = float(np.clip(obstacle.distance_m - 0.5, c.min_ramp_m, c.ramp_m))
         needed = obstacle.distance_m + c.assumed_length_m + c.clear_beyond_m
         line = extend(corridor, needed + 2.0).centre_body
-        candidate = dataclasses.replace(corridor, centre_body=shift_line(line, self.offsets(line)))
-        seen = observe(candidate)
-        if seen is None or seen.obstacle is not None:
-            self.offset_m, self._clear_since = 0.0, None
-            self.note = "waiting: no sweep" if seen is None else f"waiting: something {seen.obstacle.distance_m:.1f} m along the way past"
-            return
-        if self._clear_since is None:
-            self._clear_since, self._clear_best = t, 0.0
-        self._clear_best = max(self._clear_best, seen.clear_to_m)
-        if t - self._clear_since < c.confirm_s or self._clear_best < needed:
+        ramp_out = float(np.clip(obstacle.distance_m - 0.5, c.min_ramp_m, c.ramp_m))
+        notes = []
+        for side in c.sides:
+            # Each side in turn (the left first: it is where a pass goes; the right where the
+            # left is not clear and there is a lane there). Its own clear count for each.
+            if side in vetoed:
+                self._clear.pop(side, None)
+                notes.append(f"{side}: traffic on that side")
+                continue
+            offset = span[1] + body.half_width_m + c.margin_m if side == "left" else span[0] - body.half_width_m - c.margin_m
+            if abs(offset) > c.max_offset_m:
+                notes.append(f"{side}: {abs(offset):.1f} m to the side needed")
+                continue
+            self.offset_m, self.ramp_out_m, self.travelled_m, self._last_odo, self.back_from_m = offset, ramp_out, 0.0, None, None
+            candidate = dataclasses.replace(corridor, centre_body=shift_line(line, self.offsets(line)))
             self.offset_m = 0.0
-            self.note = f"waiting: the way past seen clear to {self._clear_best:.1f} m of {needed:.1f} for {t - self._clear_since:.1f} s"
+            seen = observe(candidate)
+            if seen is None or seen.obstacle is not None:
+                self._clear.pop(side, None)
+                notes.append(f"{side}: no sweep" if seen is None else f"{side}: something {seen.obstacle.distance_m:.1f} m along the way past")
+                continue
+            since, best = self._clear.get(side, (t, 0.0))
+            best = max(best, seen.clear_to_m)
+            self._clear[side] = (since, best)
+            if t - since < c.confirm_s or best < needed:
+                notes.append(f"{side}: seen clear to {best:.1f} m of {needed:.1f} for {t - since:.1f} s")
+                continue
+            self.offset_m, self.side, self.obstacle_s_m = offset, side, obstacle.distance_m
+            self.state, self.started, self._clear = "out", True, {}
+            self._last_odo = (odometry.x_m, odometry.y_m)
+            self.note = f"passing: {abs(offset):.2f} m to the {side}"
             return
-        self.obstacle_s_m = obstacle.distance_m
-        self.state, self.started, self._clear_since = "out", True, None
-        self._last_odo = (odometry.x_m, odometry.y_m)
-        self.note = f"passing: {offset:.2f} m to the left"
+        self.note = "waiting: " + "; ".join(notes)
 
     def _reach_m(self, body):
         """How far ahead (body x) the line is continued while passing: past the end of the
@@ -245,4 +261,4 @@ class Overtake:
         return max(body.front_m + c.return_clear_m, ahead) + 2.0
 
     def record(self):
-        return dict(state=self.state, offset_m=round(self.offset_m, 2), travelled_m=round(self.travelled_m, 1), back_from_m=None if self.back_from_m is None else round(self.back_from_m, 1), note=self.note, passes=self.passes)
+        return dict(state=self.state, side=self.side, offset_m=round(self.offset_m, 2), travelled_m=round(self.travelled_m, 1), back_from_m=None if self.back_from_m is None else round(self.back_from_m, 1), note=self.note, passes=self.passes)

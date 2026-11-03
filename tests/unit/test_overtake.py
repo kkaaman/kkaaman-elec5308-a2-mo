@@ -28,11 +28,11 @@ def control():
     return LocalControlConfig(ControllerConfig(wheelbase_m=3.00465, max_steering_angle_rad=math.radians(20), lookahead_m=4.0, kp=0.45, ki=0.15, stopping_deceleration_mps2=1.0, hold_brake=0.5))
 
 
-def run(parked, overtake=True, goal=130.0, seconds=90.0, width=7.5, seed=5308, veto=False):
-    scene = RoadScene(KerbLine([Straight(170)]), road_width_m=width, lane_centre_m=1.75, parked=parked)
+def run(parked, overtake=True, goal=130.0, seconds=90.0, width=7.5, seed=5308, veto=False, lane_centre=1.75):
+    scene = RoadScene(KerbLine([Straight(170)]), road_width_m=width, lane_centre_m=lane_centre, parked=parked)
     world = MaplessRoadWorld(scene, SUITE, start_s_m=15.0, seed=seed)
     config = DriverConfig(
-        body=BODY, control=control(), corridor=CorridorConfig(keep_right_m=1.75), planner=PlannerConfig(cruise_mps=3.0),
+        body=BODY, control=control(), corridor=CorridorConfig(keep_right_m=lane_centre), planner=PlannerConfig(cruise_mps=3.0),
         overtake=OvertakeConfig() if overtake else None,
     )
     driver = MaplessDriver(SUITE, world.route(goal), config, DT)
@@ -88,7 +88,7 @@ def test_a_car_parked_on_the_far_side_beside_it_blocks_the_way_past():
 
 def test_traffic_on_the_far_side_vetoes_the_pass():
     log, driver = run((ParkedCar(60.0, 1.75),), seconds=30.0, veto=True)
-    assert driver.overtake.passes == 0 and driver.overtake.state == "idle" and driver.overtake.note == "waiting: traffic on the far side"
+    assert driver.overtake.passes == 0 and driver.overtake.state == "idle" and driver.overtake.note == "waiting: left: traffic on that side; right: traffic on that side"
     assert max(t.s_m for t, _ in log) < 60.0 - 2.1 - BODY.front_m and not any(t.collision for t, _ in log)
 
 
@@ -96,3 +96,37 @@ def test_the_hold_gap_applies_only_with_overtaking_on():
     with_it = MaplessDriver(SUITE, MaplessRoadWorld(RoadScene(KerbLine([Straight(60)]), road_width_m=7.5, lane_centre_m=1.75), SUITE).route(40.0), DriverConfig(body=BODY, control=control(), overtake=OvertakeConfig()), DT)
     without = MaplessDriver(SUITE, MaplessRoadWorld(RoadScene(KerbLine([Straight(60)]), road_width_m=7.5, lane_centre_m=1.75), SUITE).route(40.0), DriverConfig(body=BODY, control=control()), DT)
     assert with_it.planner.config.hold_gap_m == OvertakeConfig().hold_gap_m and without.planner.config.hold_gap_m is None
+
+
+def test_with_the_left_blocked_and_a_lane_on_the_right_the_car_passes_on_the_right():
+    """Three lanes, the car in the middle one: a car stopped ahead of it, another in the lane
+    to its left beside that one. The left way past is not clear; the right lane is: the car
+    passes on the right, indicating right, then left as it comes back."""
+    log, driver = run((ParkedCar(60.0, 5.25), ParkedCar(62.0, 8.75)), width=10.5, lane_centre=5.25)
+    truth, last = log[-1]
+    assert last.mode is DriveMode.FINISHED and abs(truth.s_m - 130.0) < 3.0, driver.overtake.record()
+    assert not any(t.collision for t, _ in log) and driver.overtake.passes == 1 and driver.overtake.side == "right"
+    beside = [t.lane_offset_m for t, _ in log if 57.5 <= t.s_m <= 63.0]
+    assert beside and max(beside) < -2.3 and min(t.lane_offset_m for t, _ in log) > -3.6
+    signals = [(t.s_m, s.diagnostics.get("indicator")) for t, s in log]
+    assert any(sig == "right" for s, sig in signals if s < 60.0) and any(sig == "left" for s, sig in signals if s > 60.0)
+    assert max(abs(t.lane_offset_m) for t, _ in log if t.s_m >= 100.0) < 0.35
+
+
+def test_the_stack_names_the_sides_with_moving_traffic(monkeypatch):
+    """The stack's veto (``overtake_traffic``): moving tracks beside the way past, by side;
+    static ones and those beyond reach do not count."""
+    from types import SimpleNamespace
+
+    import mapless.stack as stack
+    from mapless.ego_motion import Pose2D
+
+    monkeypatch.setattr(stack, "motion_state", lambda track, config: track.state)
+    tracks = [
+        SimpleNamespace(position=np.array([20.0, 3.0]), state="moving"),
+        SimpleNamespace(position=np.array([10.0, -3.5]), state="static"),
+        SimpleNamespace(position=np.array([80.0, -3.0]), state="moving"),
+        SimpleNamespace(position=np.array([-5.0, -3.0]), state="moving"),
+    ]
+    assert stack.overtake_traffic(tracks, Pose2D(0.0, 0.0, 0.0), None) == {"left", "right"}
+    assert stack.overtake_traffic(tracks[1:3], Pose2D(0.0, 0.0, 0.0), None) == set()

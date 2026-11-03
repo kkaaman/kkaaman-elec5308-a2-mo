@@ -416,17 +416,19 @@ class StackStep:
     decision: DecisionRecord
 
 
-def overtake_traffic(tracks, pose, prediction_config, ahead_m=50.0, behind_m=15.0, left_m=(0.8, 6.5)):
-    """Whether moving traffic is in the way past a stopped vehicle: a track that moves
-    (``motion_state``), to the car's left (body y within ``left_m``) from ``behind_m`` behind
-    it to ``ahead_m`` ahead. While it is, the driver does not begin a pass (``overtake``)."""
+def overtake_traffic(tracks, pose, prediction_config, ahead_m=50.0, behind_m=15.0, beside_m=(0.8, 6.5)):
+    """The sides with moving traffic in the way past a stopped vehicle: a track that moves
+    (``motion_state``), to the car's left or right (body |y| within ``beside_m``), from
+    ``behind_m`` behind it to ``ahead_m`` ahead. The driver does not begin a pass on such a
+    side (``overtake``)."""
+    sides = set()
     for track in tracks:
         if motion_state(track, prediction_config) != "moving":
             continue
         x, y = pose.to_body(track.position[None])[0]
-        if -behind_m <= x <= ahead_m and left_m[0] <= y <= left_m[1]:
-            return True
-    return False
+        if -behind_m <= x <= ahead_m and beside_m[0] <= abs(y) <= beside_m[1]:
+            sides.add("left" if y > 0 else "right")
+    return sides
 
 
 class MaplessStack:
