@@ -1104,3 +1104,4 @@ def test_the_braking_and_lookahead_flags_reach_the_driver_config():
     assert base.planner.decel_mps2 == 1.0 and base.control.controller.stopping_deceleration_mps2 == 1.0 and base.control.lookahead_time_s == 0.0
     assert drive.driver_config(VehicleBody(), 2.9, math.radians(70), 3.0, 1.75, light_release_s=1.5).light.none_release_s == 1.5
     assert base.light.none_release_s == 5.0 and base.accel_mps2 is None and base.planner.final_decel_mps2 is None
+    assert not base.corridor.strict_evidence and drive.driver_config(VehicleBody(), 2.9, math.radians(70), 3.0, 1.75, strict_evidence=True).corridor.strict_evidence
