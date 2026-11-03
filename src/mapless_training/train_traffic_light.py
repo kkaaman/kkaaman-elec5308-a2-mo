@@ -40,12 +40,28 @@ def _xy(row):
     return None if "x_m" not in ego else (float(ego["x_m"]), float(ego["y_m"]))
 
 
-def approach_labels(rows, approach_m=20.0, approach_s=3.0):
+def _ahead_state(row, light_id):
+    """The state of light ``light_id`` at this sample's own time, from the capture's
+    ``lights_ahead`` (3 Nov captures on), or None."""
+    for light in (row.get("truth") or {}).get("lights_ahead") or ():
+        if light.get("id") == light_id:
+            return CARLA_STATES.get(str(light.get("state")), "none")
+    return None
+
+
+def approach_labels(rows, approach_m=20.0, approach_s=3.0, strict=False):
     """Each sample's label, the approach included: the samples up to ``approach_m``
     travelled and ``approach_s`` before the car reaches a light's trigger zone (where
-    ``at_traffic_light`` turns on, near the stop line) take the state it finds there,
-    so the classifier learns to read the light while there is still room to stop. A gap
-    in time or a jump in position (a new episode) ends the look-back."""
+    ``at_traffic_light`` turns on, near the stop line) are labelled with that light's state
+    so the classifier learns to read it while there is still room to stop. A gap in time or
+    a jump in position (a new episode) ends the look-back.
+
+    Each approach sample takes the light's state at its own time where the capture
+    recorded it (``lights_ahead``, the trigger's ``traffic_light_id``). Older captures have
+    only the state found at the trigger; carried back, a light that changed during the
+    look-back labels a green image red (twenty-first review, 4.2). ``strict`` drops those
+    samples (label None) instead of carrying the later state back; not strict keeps the
+    behaviour light_v1 was trained with."""
     labels = [label_of(r.get("truth")) for r in rows]
     at = [bool((r.get("truth") or {}).get("at_traffic_light")) for r in rows]
     for i in range(1, len(rows)):
@@ -63,12 +79,14 @@ def approach_labels(rows, approach_m=20.0, approach_s=3.0):
             travelled += step
             if travelled > approach_m:
                 break
-            labels[j] = labels[i]
+            light_id = (rows[i].get("truth") or {}).get("traffic_light_id")
+            own = None if light_id is None else _ahead_state(rows[j], light_id)
+            labels[j] = own if own is not None else (None if strict else labels[i])
             j -= 1
     return labels
 
 
-def index(runs, camera="front", approach_m=20.0, approach_s=3.0):
+def index(runs, camera="front", approach_m=20.0, approach_s=3.0, strict=False):
     """[(image path, label index, town)] and per-run counts; refuses test towns."""
     items, counts = [], {}
     for run in map(Path, runs):
@@ -79,12 +97,12 @@ def index(runs, camera="front", approach_m=20.0, approach_s=3.0):
         per = {s: 0 for s in LIGHT_STATES}
         with open(run / "samples.jsonl", encoding="utf-8") as lines:
             rows = [json.loads(line) for line in lines if line.strip()]
-        labels = approach_labels(rows, approach_m, approach_s)
-        approached = sum(1 for r, label in zip(rows, labels) if label != "none" and not (r.get("truth") or {}).get("at_traffic_light"))
+        labels = approach_labels(rows, approach_m, approach_s, strict=strict)
+        approached = sum(1 for r, label in zip(rows, labels) if label not in ("none", None) and not (r.get("truth") or {}).get("at_traffic_light"))
         for row, label in zip(rows, labels):
             rgb = (row.get("files") or {}).get("rgb", {}).get(camera)
-            if rgb is None:
-                continue
+            if rgb is None or label is None:
+                continue  # no image, or (strict) an approach state the capture cannot tell
             per[label] += 1
             items.append((run / rgb, LIGHT_STATES.index(label), town))
         counts[str(run)] = dict(town=town, approach_labelled=approached, **per)
@@ -167,12 +185,13 @@ def main(argv=None):
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--approach-m", type=float, default=20.0, help="label the approach this far before a light's trigger zone with its state")
     p.add_argument("--approach-s", type=float, default=3.0, help="... and no longer before it than this")
+    p.add_argument("--strict-labels", action="store_true", help="approach samples take the light's state at their own time (captures from 3 Nov record it); where it is not recorded they are left out, not given the state found later at the trigger")
     args = p.parse_args(argv)
     import torch  # noqa: PLC0415
 
     torch.manual_seed(args.seed)
     device = args.device or ("cuda" if torch.cuda.is_available() else "cpu")
-    items, counts = index(args.run, approach_m=args.approach_m, approach_s=args.approach_s)
+    items, counts = index(args.run, approach_m=args.approach_m, approach_s=args.approach_s, strict=args.strict_labels)
     print(json.dumps(dict(runs=counts), indent=1), file=sys.stderr)
 
     Data = LightImages
