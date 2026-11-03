@@ -78,6 +78,13 @@ class CrossingConfig:
     look_ahead_m: float = 40.0
     step_m: float = 1.0
     start_m: float = -2.0
+    # The track's chord is the lane's direction only on a straight approach. Where it and the
+    # last recent_m of the track disagree by more than curved_track_rad, the approach bends
+    # and the recent direction is latched (3 Nov, town10_loop on PC 1: 664 just past a 90 deg
+    # bend, the 40 m chord 10 deg off, the line 2 m off the lane 11 m on, and the car
+    # stopped for the kerb's posts on it).
+    curved_track_rad: float = 0.05
+    recent_m: float = 8.0
     max_route_offset_m: float = 6.0  # the entry point must lie this near the lane line, laterally (3 sigma of a 2 m route noise; a 3.8 m point read as 4.4 m from the car's own position error, and the crossing never engaged)
     # The exit lane need not continue the entry lane's line (Town10HD junction 468: 43 m
     # long, its exit lane a curve of 50 degrees over 30 m, r13). The path is the line to
@@ -173,7 +180,7 @@ class StraightCrossing:
         while len(self._track) > 2 and math.dist(self._track[0][:2], here) > self.config.history_m:
             self._track.pop(0)
 
-    def _track_heading(self):
+    def _track_heading(self, within_m=None):
         """Direction of the car's track over the last history_m, in the odometry frame as it
         stands now, or None when too short.
 
@@ -184,10 +191,16 @@ class StraightCrossing:
         failure). Each step of the track is turned by the smoothed odometry-minus-compass
         yaw gap's change since it was driven, which straightens it (the smoothing's lag is
         the same at both ends and cancels)."""
-        if len(self._track) < 4 or math.dist(self._track[0][:2], self._track[-1][:2]) < self.config.history_min_m:
+        track = self._track
+        if within_m is not None:
+            # Only the last within_m of it (the direction the car drives now).
+            track = [p for p in track if math.dist(p[:2], track[-1][:2]) <= within_m] if track else []
+            if len(track) < 4 or math.dist(track[0][:2], track[-1][:2]) < 0.6 * within_m:
+                return None
+        elif len(track) < 4 or math.dist(track[0][:2], track[-1][:2]) < self.config.history_min_m:
             return None
-        xy = np.asarray([p[:2] for p in self._track], dtype=float)
-        gaps = [p[2] for p in self._track]
+        xy = np.asarray([p[:2] for p in track], dtype=float)
+        gaps = [p[2] for p in track]
         if self.config.heading_hold and all(g is not None for g in gaps):
             steps = np.diff(xy, axis=0)
             turn = np.array([_wrap_angle(gaps[-1] - g) for g in gaps[:-1]])
@@ -214,11 +227,13 @@ class StraightCrossing:
         if not c.freeze_m <= ahead <= c.latch_from_m or abs(float(entry_body[1])) > c.max_route_offset_m:
             return
         track = self._track_heading()
-        heading = pose.yaw_rad + corridor.heading_near() if track is None else track
+        recent = None if track is None else self._track_heading(within_m=c.recent_m)
+        curved = recent is not None and abs(_wrap_angle(track - recent)) > c.curved_track_rad
+        heading = pose.yaw_rad + corridor.heading_near() if track is None else (recent if curved else track)
         centre = pose.to_world(np.array([[0.0, corridor.lateral_offset_at(0.0)]]))[0]
         self.line = (float(centre[0]), float(centre[1]), float(heading))
         self._yaw_gap_ref, self._hold_applied = self._yaw_gap, 0.0
-        self.note = "lane line latched" + (" (kerb heading)" if track is None else "")
+        self.note = "lane line latched" + (" (kerb heading)" if track is None else " (the last metres' heading: the approach bends)" if curved else "")
 
     def should_enter(self, entry_body):
         return self.line is not None and not self.active and float(entry_body[0]) <= self.config.enter_m

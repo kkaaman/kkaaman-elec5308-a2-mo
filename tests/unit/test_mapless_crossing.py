@@ -219,6 +219,25 @@ def test_the_line_is_the_cars_own_track_and_the_corridor_along_it_is_straight():
         CrossingConfig(freeze_m=40.0)
 
 
+def test_an_approach_that_bends_latches_the_last_metres_heading_not_the_chord():
+    """town10_loop (3 Nov): 664 just past a 90 deg bend; the 40 m track's chord was 10 deg off
+    the lane at the latch. A track that bends is latched along its last recent_m."""
+    c = CrossingConfig()
+    x = StraightCrossing(c)
+    pts = [(k * 0.25, 0.0) for k in range(60)]  # 15 m along +x ...
+    r, cx, cy = 30.0, 15.0, 30.0  # ... then 30 deg of a 30 m left arc ...
+    pts += [(cx + r * math.sin(a), cy - r * math.cos(a)) for a in np.linspace(0.0, math.radians(30), 64)[1:]]
+    end = pts[-1]
+    pts += [(end[0] + k * 0.25 * math.cos(math.radians(30)), end[1] + k * 0.25 * math.sin(math.radians(30))) for k in range(1, 41)]  # ... then 10 m straight
+    for px, py in pts:
+        x.observe(Pose2D(px, py, 0.0), moving=True)
+    assert abs(x._track_heading() - math.radians(30)) > 0.08  # the chord is off
+    corridor = type("C", (), dict(ok=True, heading_near=lambda self: 0.0, lateral_offset_at=lambda self, _x: 0.0))()
+    pose = Pose2D(pts[-1][0], pts[-1][1], math.radians(30))
+    x.latch(corridor, pose, entry_body=np.array([20.0, 0.0]))
+    assert x.line[2] == pytest.approx(math.radians(30), abs=0.01) and "bends" in x.note
+
+
 def test_the_heading_hold_turns_the_line_by_the_odometrys_drift_from_the_compass():
     """The odometry frame turns with the gyro's bias residual; the compass does not. With the
     odometry's yaw climbing 0.001 rad a tick against a steady compass, the line latched at
