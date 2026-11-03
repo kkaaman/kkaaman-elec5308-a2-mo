@@ -1626,7 +1626,8 @@ class MaplessDrive:
         # found for the judging (evaluator side; the car reads lights only from its camera).
         if getattr(args, "weather", "clear_noon") in NIGHT_PRESETS:
             self.report["headlights"] = headlights_on(carla, self.ego)
-        self.light_script = LightScript(getattr(args, "lights", "unchanged"))
+        reds = getattr(args, "red_junctions", None)
+        self.light_script = LightScript(getattr(args, "lights", "unchanged"), red_junctions=None if not reds else tuple(int(v) for v in reds.split(",")))
         self.light_script.setup(carla, self.world, self.world.get_map(), getattr(self, "mission_site", None))
         lights_on = bool(self.light_script.junctions) or self.light_script.mode != "unchanged" or bool(getattr(args, "light_classifier", None))
         light_front_s = None
@@ -2270,6 +2271,7 @@ def main(argv=None, stack=False):
         default="unchanged",
         help="traffic lights: CARLA's own cycle (default), all frozen green, or scripted: red as the car nears each route junction with lights, green once it has stood at the line (showcase_lights)",
     )
+    parser.add_argument("--red-junctions", default=None, help="scripted lights: red only at these junction ids, comma-separated (default: every lit route junction); the rest stay green")
     parser.add_argument("--light-classifier", default=None, help="stack: traffic-light classifier checkpoint (train_traffic_light.py); the car then stops for red lights")
     parser.add_argument(
         "--light-scale", type=float, default=None,

@@ -104,3 +104,18 @@ def test_the_light_the_car_drives_towards_is_logged_as_governing():
         seen.append(script.governing)
     assert seen == ["Green", "Green", "Red"]  # red from 35 m before the entry (set by the script's step, after the tick's observe)
 
+
+
+def test_red_junctions_scripts_red_only_at_the_listed_junctions():
+    """``--red-junctions 468`` (3 Nov): the town lap's 719 stays green; 468 goes red as the car
+    nears it, as before."""
+    script = LightScript("scripted", red_junctions=(468,))
+    script.junctions.append(JunctionLights(100.0, 468, [Light()]))
+    script.junctions.append(JunctionLights(250.0, 719, [Light()]))
+    script.step(CARLA, 80.0, 3.0, 0.0, 0.05)
+    script.step(CARLA, 230.0, 3.0, 1.0, 0.05)
+    assert script.junctions[0].lights[0].state == "Red" and script.junctions[1].lights[0].state == "Green"
+    every = LightScript("scripted")
+    every.junctions.append(JunctionLights(250.0, 719, [Light()]))
+    every.step(CARLA, 230.0, 3.0, 0.0, 0.05)
+    assert every.junctions[0].lights[0].state == "Red"
