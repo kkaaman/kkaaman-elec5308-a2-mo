@@ -82,6 +82,7 @@ def _episode(job):
         env = CruiseEnv(seed=episode_seed, max_decisions=max_decisions)
         act = rule_action if name == "rule" else CruisePolicy(path).act
     obs, _ = env.reset(seed=episode_seed)
+    env_goal = env.spec.goal_m
     total, info, actions = 0.0, {}, []
     while True:
         action = int(act(obs))
@@ -93,6 +94,7 @@ def _episode(job):
     env.close()
     return dict(
         policy=name, episode_seed=episode_seed, finished=bool(info.get("finished")), failure=info.get("failure"), truncated=bool(truncated),
+        goal_m=round(float(env_goal), 1), progress=round(min(1.0, float(info.get("s_m") or 0.0) / max(float(env_goal), 1e-6)), 3),
         time_s=info.get("time_s"), max_offset_m=info.get("max_offset_m"), s_m=info.get("s_m"), return_=round(total, 3),
         share_4mps=round(float(np.mean([a == 2 for a in actions])), 3) if actions else None,
     )
@@ -112,12 +114,49 @@ def evaluate(policies, episodes, eval_seed, max_decisions, workers):
         done = [r for r in mine if r["finished"]]
         summary[name] = dict(
             episodes=len(mine), finished=len(done), failures=sum(1 for r in mine if r["failure"]),
+            timeouts=sum(1 for r in mine if r["truncated"] and not r["finished"] and not r["failure"]),
+            completion_rate=round(len(done) / len(mine), 3) if mine else None,
+            mean_progress=round(float(np.mean([r["progress"] for r in mine])), 3) if mine else None,
             mean_time_s_finished=round(float(np.mean([r["time_s"] for r in done])), 2) if done else None,
             max_offset_m=round(float(max(r["max_offset_m"] for r in mine)), 3) if mine else None,
             mean_return=round(float(np.mean([r["return_"] for r in mine])), 3) if mine else None,
             share_4mps=round(float(np.mean([r["share_4mps"] for r in mine if r["share_4mps"] is not None])), 3) if mine else None,
         )
+    # Paired: each policy against fixed_4 on the roads both finished (the mean over finished
+    # roads alone favours a policy that finishes only the short ones).
+    ref = {r["episode_seed"]: r for r in rows if r["policy"] == "fixed_4" and r["finished"]}
+    for name in summary:
+        both = [(r, ref[r["episode_seed"]]) for r in rows if r["policy"] == name and r["finished"] and r["episode_seed"] in ref]
+        summary[name]["paired_vs_fixed_4"] = dict(
+            roads=len(both), mean_time_diff_s=round(float(np.mean([a["time_s"] - b["time_s"] for a, b in both])), 2) if both else None,
+        )
     return summary, rows
+
+
+def manifest(args):
+    """What produced this run: the source commit, package versions, every setting, the reward."""
+    import dataclasses  # noqa: PLC0415
+    import platform  # noqa: PLC0415
+    import subprocess  # noqa: PLC0415
+
+    from mapless_training.rl_cruise import RewardConfig  # noqa: PLC0415
+
+    def version(name):
+        try:
+            return __import__(name).__version__
+        except Exception:  # noqa: BLE001
+            return None
+
+    try:
+        sha = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True, check=False, cwd=Path(__file__).resolve().parent).stdout.strip() or None
+    except Exception:  # noqa: BLE001
+        sha = None
+    return dict(
+        source_commit=sha, python=platform.python_version(), platform=platform.platform(),
+        packages={n: version(n) for n in ("numpy", "torch", "gymnasium", "stable_baselines3")},
+        args={k: (str(v) if isinstance(v, Path) else v) for k, v in vars(args).items()},
+        reward=dataclasses.asdict(RewardConfig()), actions_mps=list(ACTIONS_MPS),
+    )
 
 
 def plot_curves(out_dir, seeds, path, window=20):
@@ -161,25 +200,28 @@ def main(argv=None):
     p.add_argument("--eval-seed", type=int, default=900_000, help="first held-out road (no training seed comes near)")
     p.add_argument("--workers", type=int, default=8, help="evaluation processes")
     p.add_argument("--evaluate-only", action="store_true", help="skip training: evaluate the cruise_<seed>.npz already in --output")
+    p.add_argument("--resume", action="store_true", help="--output may exist: seeds whose cruise_<seed>.npz is there are not trained again")
+    p.add_argument("--eval-max-decisions", type=int, default=1500, help="the evaluation's horizon (default 300 s: the longest held-out road, 407 m, needs ~204 s at 2 m/s; 600 = training's 120 s timed every fixed-2 run out on half the roads)")
     args = p.parse_args(argv)
     out = args.output
     if not args.evaluate_only:
-        if out.exists():
-            p.error("Output folder exists; choose a new one")
-        out.mkdir(parents=True)
+        if out.exists() and not args.resume:
+            p.error("Output folder exists; choose a new one (or --resume)")
+        out.mkdir(parents=True, exist_ok=True)
+        (out / f"manifest_{int(time.time())}.json").write_text(json.dumps(manifest(args), indent=1), encoding="utf-8")
     policies = []
     for seed in args.seeds:
-        if args.evaluate_only:
-            policy_path = out / f"cruise_{seed}.npz"
-        else:
+        policy_path = out / f"cruise_{seed}.npz"
+        if not args.evaluate_only and not (args.resume and policy_path.exists()):
             _, policy_path = train_one(seed, args.steps, args.envs, out, args.max_decisions, args.learning_starts)
         policies.append((f"dqn_{seed}", policy_path))
     plot_curves(out, args.seeds, out / "learning_curves.png")
     policies += [("rule", None)] + [(f"fixed_{v:g}", None) for v in ACTIONS_MPS]
-    summary, rows = evaluate(policies, args.eval_episodes, args.eval_seed, args.max_decisions, args.workers)
+    summary, rows = evaluate(policies, args.eval_episodes, args.eval_seed, args.eval_max_decisions, args.workers)
     report = dict(
         purpose="G5 RL experiment: the cruise advisor against the rule and fixed speeds on held-out synthetic roads; never in the drive",
-        seeds=args.seeds, steps_per_seed=args.steps, envs=args.envs, eval_episodes=args.eval_episodes, eval_seed=args.eval_seed,
+        seeds=args.seeds, steps_per_seed=args.steps, envs=args.envs, eval_episodes=args.eval_episodes, eval_seed=args.eval_seed, eval_max_decisions=args.eval_max_decisions,
+        manifest=manifest(args),
         summary=summary, episodes=rows,
     )
     (out / "evaluation.json").write_text(json.dumps(report, indent=1), encoding="utf-8")
