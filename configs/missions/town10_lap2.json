@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "name": "town10_lap2",
+  "segment_ids": [
+    "1:0:1",
+    "8:0:1",
+    "4:0:-1",
+    "515:0:-1",
+    "5:0:-1",
+    "736:0:-1",
+    "6:0:-1"
+  ],
+  "manoeuvres": [
+    "straight",
+    "straight"
+  ],
+  "start_xy_m": [
+    102.2401351928711,
+    -91.77693176269531
+  ],
+  "end_xy_m": [
+    -91.927,
+    54.136
+  ],
+  "obstacle_s_m": 120.0,
+  "description": "town10_lap cut short of junction 23 (406 m): a1_test01's start, its 468 and S3's roadside car at s 120, past a1_test01's goal on road 5, straight on through junction 719, ending on the bend before 23 (that bend runs into the junction: the straight crossing found no line to latch there, and on PC 1 lap/shake_5308 the car left the lane in it).",
+  "source": "configs/missions/town10_lap.json, cut short of junction 23"
+}

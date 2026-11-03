@@ -68,6 +68,11 @@ class LightScript:
     stand_s: float = 0.5  # this long under still_mps is a stand (a dip to rest while drawing up to the line is not)
     still_mps: float = 0.1  # ... creep and rocking below it count as standing still (showcase_c2: 0.05-0.06 m/s)
     governing: str | None = None  # the next lit junction's light this tick (evaluator truth, logged)
+    # Scripted mode: red only at these junction ids (None: every lit route junction); the
+    # others stay frozen green. light_v1 is proven at 468; at 719 and 23 it read nothing at
+    # 0.96 while the car stood at their red (PC 1 lap/shake_5308), so a red there is driven
+    # to the line and then released by the none timer, not by a green it saw.
+    red_junctions: tuple | None = None
     junctions: list = field(default_factory=list)
     log: list = field(default_factory=list)
 
@@ -97,6 +102,8 @@ class LightScript:
         if self.mode != "scripted":
             return
         for j in self.junctions:
+            if self.red_junctions is not None and j.junction_id not in self.red_junctions:
+                continue
             to_entry = j.entry_s_m - s_m
             if j.phase == "waiting" and 0.0 < to_entry <= self.red_at_m:
                 for light in j.lights:

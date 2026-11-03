@@ -414,3 +414,14 @@ def test_the_town10_lap_starts_as_the_showcase_does_and_goes_straight_on_through
     assert tuple(mission.manoeuvres) == ("straight", "straight", "straight") and lap["obstacle_s_m"] == 120.0
     length = float(np.hypot(*np.diff(np.asarray(mission.points_xyz_m)[:, :2], axis=0).T).sum())
     assert 600.0 < length < 680.0
+
+
+def test_the_short_lap_ends_on_the_bend_before_junction_23():
+    from planning.lane_graph import LaneTopology
+    from planning.mission import mission_from_definition
+
+    topology = LaneTopology.load(ROOT / "tests" / "fixtures" / "Town10HD.lane_graph.json")
+    lap2 = json.loads((ROOT / "configs" / "missions" / "town10_lap2.json").read_text(encoding="utf-8"))
+    mission = mission_from_definition(topology, lap2)
+    length = float(np.hypot(*np.diff(np.asarray(mission.points_xyz_m)[:, :2], axis=0).T).sum())
+    assert mission.segment_ids[-1] == "6:0:-1" and tuple(mission.manoeuvres) == ("straight", "straight") and 390.0 < length < 420.0
