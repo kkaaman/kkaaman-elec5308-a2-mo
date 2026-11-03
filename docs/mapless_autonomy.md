@@ -4120,6 +4120,16 @@ light scripted red (`--lights scripted`), which the car must see for itself
   paints and builds the road model on its worker (showcase_t2: 13 ms per job, three ticks
   in four). It governs nothing; `--semantic off` drops it. The overnight showcase runs on
   PC 3 compare the two.
+- **Faster cruising (3 Nov, `--brake-mps2`, `--lookahead-s`; off by default).** The car
+  never drives faster than it can stop within the road it has seen clear; every stop and
+  that sight bound were planned at 1 m/s² (the planner's `decel_mps2` and the controller's
+  horizon cap), which on 25-30 m of seen road is ~7 m/s whatever `--speed` asks
+  (`speed12_s0`: 6.94 m/s max). `--brake-mps2 3` plans them at 3 m/s² (firm, well inside
+  the car's ~8): synthetic, 9.2 m/s (33 km/h) top asking 13.9, held 2.8 m short of a
+  parked car, no contact; 4 m/s²: 10.2 m/s. `--lookahead-s 0.8` moves the steering point
+  out with speed (`LocalControlConfig.lookahead_time_s`; 0: the fixed 4 m). With
+  `--zone-mps` the car now slows into a junction zone at the planner's deceleration
+  instead of at its edge.
 - **Driving-test extras (3 Nov, all off by default: the frozen showcase is unchanged).**
   *Junction zones (`--zone-mps`, `DriverConfig.zone_mps`):* no faster than this from
   `zone_before_m` (45 m) before each route junction's entry point to `zone_after_m`

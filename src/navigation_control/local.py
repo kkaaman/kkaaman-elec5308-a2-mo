@@ -90,6 +90,10 @@ class LocalControlConfig:
     max_start_offset_m: float = 2.0
     stop_margin_m: float = 1.0
     speed_lookahead_m: float = 1.0
+    # The steering's lookahead grows with speed: at least the controller's ``lookahead_m``,
+    # and ``lookahead_time_s`` of travel at the current speed (0: fixed, as before). A fixed
+    # 4 m point is a high gain at 10 m/s: the car weaves.
+    lookahead_time_s: float = 0.0
     # Below ``coast_below_mps`` and short of a stop, brake efforts under ``brake_deadband``
     # are coasting, not braking (see tracking).
     brake_deadband: float = 0.3
@@ -102,6 +106,7 @@ class LocalControlConfig:
         positive("max_start_offset_m", self.max_start_offset_m)
         nonnegative("stop_margin_m", self.stop_margin_m)
         nonnegative("speed_lookahead_m", self.speed_lookahead_m)
+        nonnegative("lookahead_time_s", self.lookahead_time_s)
         nonnegative("brake_deadband", self.brake_deadband)
         nonnegative("coast_below_mps", self.coast_below_mps)
         nonnegative("coast_max_excess_mps", self.coast_max_excess_mps)
@@ -225,7 +230,8 @@ class LocalTrajectoryController:
         if trajectory.final_goal and not self._finished:
             self._finished = remaining <= c.goal_tolerance_m and state.speed_mps <= c.stopped_speed_mps
         target_speed = 0.0 if (expired or self._finished) else min(profile, cap, speed_limit_mps)
-        lookahead = path.point_at(min(path.length_m, progress + c.lookahead_m))
+        ahead = max(c.lookahead_m, self.config.lookahead_time_s * state.speed_mps)
+        lookahead = path.point_at(min(path.length_m, progress + ahead))
         angle = 0.0
         if state.speed_mps > c.stopped_speed_mps or target_speed > 0:
             try:

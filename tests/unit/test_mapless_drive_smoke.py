@@ -1090,3 +1090,14 @@ def test_mission_s4_with_overtaking_holds_then_passes_and_a_stopped_car_can_be_a
     _, report = run_mission(monkeypatch, tmp_path / "s0", "S0", "--overtake", "--stopped-car", "40")
     by_name = {c["check"]: c for c in report["checks"]}
     assert report["stopped_cars"][0]["s_m"] == 40.0 and by_name["stopped_cars_passed"]["status"] == "PASS" and by_name["goal"]["status"] == "PASS"
+
+
+def test_the_braking_and_lookahead_flags_reach_the_driver_config():
+    """``--brake-mps2`` / ``--lookahead-s`` (3 Nov): the planner's ramp and sight bound and the
+    controller's horizon cap at the one deceleration; unset, the frozen 1.0 and fixed point."""
+    from mapless.terrain import VehicleBody
+
+    fast = drive.driver_config(VehicleBody(), 2.9, math.radians(70), 13.9, 1.75, brake_mps2=3.0, lookahead_s=0.8)
+    base = drive.driver_config(VehicleBody(), 2.9, math.radians(70), 3.0, 1.75)
+    assert fast.planner.decel_mps2 == 3.0 and fast.control.controller.stopping_deceleration_mps2 == 3.0 and fast.control.lookahead_time_s == 0.8
+    assert base.planner.decel_mps2 == 1.0 and base.control.controller.stopping_deceleration_mps2 == 1.0 and base.control.lookahead_time_s == 0.0
