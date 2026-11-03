@@ -351,6 +351,19 @@ def test_a_red_light_stop_beside_the_roadside_car_is_not_a_stop_for_it_but_nothi
 
     ok, values = scored()
     assert ok and values["window_s_m"] == [90.0, 140.0] and values["stopping_ticks"] == 0
+    # The car's own light state reads Green outside the trigger volume; the junction's own
+    # light (``light_governing``) is the truth that counts (final/heldout clear_5321).
+    for r in stop:
+        r["light_governing"] = "Red"
+    ok, _ = scored(truth="Green")
+    assert ok
+    for r in stop:
+        r["light_governing"] = "Green"
+    ok, _ = scored(truth="Green")
+    assert ok is False
+    for r in stop:
+        del r["light_governing"]
+    scored()  # the red's stop again (light_truth Red), for the brake taps
     taps = {name: v for name, ok, v in mm.score_mission(s3, log, "finished", 0, None, 0.05, obstacle_s_m=120.0)}["brake_taps"]
     assert taps["count"] == 0  # the red's stop is not a brake tap either
     assert scored(truth="Yellow")[0]

@@ -4098,6 +4098,23 @@ light scripted red (`--lights scripted`), which the car must see for itself
   S0 asked for 12 m/s ran at the sight bound throughout, 3.9-6.9 m/s (max 6.94, 25 km/h),
   MEASURED_PASS, footprint 1.50 m, 0.2 % over budget: the car goes no faster than it can
   stop within the road it has seen (26-44 m).
+- **The final batch (`final/`, PC 3, `f76b9bc`/`11aefe4`).** The four clips pass
+  (showcase 5308, rain 5309, parking 5308, braking lead site 1 at 3 m/s); the showcase
+  clip 8.2 % over budget with the view window and video encoding on (the recording's
+  cost; `showcase_f1` is the timing evidence). **r22 G2 on one commit: 30 of 30, every
+  run within budget.** Unseen seeds 5313-5322 clear: 9 of 10 once the stand is defined
+  (below; 5321 fails S3 strictly: one stopping tick, 0.05 s at 3.0 m/s, a speed cap from
+  a provisional "young vehicle off the road"); rain 5313-5317: 5 of 5. Light conditions,
+  3 seeds each: night 3 of 3 (low beams; light_v1 never trained on night reads the lit
+  lamps); sunset 1 of 3 (13-14 red readings an approach, red decided at 148-153 m, too
+  late, driven through: the classifier's recall in that light); sunrise 0 of 3 (red read
+  from 126 m, then none in the glare; the 5 s none timer ran through the approach and
+  released the car 1.5-3 s into its stand). Taken: the none timer counts only while the
+  car stands (`LightFilter.update(..., standing)`, the driver's `motion.stationary`); the
+  evaluator's stand is 0.5 s under 0.1 m/s (`LightScript.stand_s`: 5317 touched rest
+  for a tick 3.2 m short, rolled 1 m to its hold point and stood, never past the paint);
+  the S3 red-light excuse reads the junction's own light (`light_governing`, logged; the
+  car's own `light_truth` reads Green outside the trigger volume).
 - **The semantic worker without a segmenter (nineteenth review, 2).** Leaving out
   `--segmenter` loads the constant segmenter; the default `--semantic thread` still
   paints and builds the road model on its worker (showcase_t2: 13 ms per job, three ticks

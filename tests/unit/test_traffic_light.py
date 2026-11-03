@@ -40,8 +40,16 @@ def test_unsure_nones_at_the_stop_line_do_not_release_a_red():
     # Confident nones after a red: the light no longer read, not a green (showcase_n2,
     # rain: light_v1 read none at 0.91-0.97 standing at the line on red). They release
     # only once they have run none_release_s; greens at once.
-    nones = [f.update(r("none", t, 0.9), t) for t in (1.8, 2.0, 2.2, 4.0, 6.6, 6.8)]
+    nones = [f.update(r("none", t, 0.9), t, standing=True) for t in (1.8, 2.0, 2.2, 4.0, 6.6, 6.8)]
     assert nones == ["red"] * 5 + ["none"] and LightConfig().none_release_s == 5.0
+    # ... and only while the car stands (final/light clear_sunrise: nones through the last
+    # 30 m of the approach, and a timer started there released the car 1.5-3 s into its
+    # stand, on red): 6 s of nones moving, then 4.9 s standing still hold; 5 s release.
+    f.reset()
+    assert [f.update(r("red", t, 0.9), t) for t in (0.0, 0.2)] == ["none", "red"]
+    approach = [f.update(r("none", t, 0.9), t, standing=False) for t in (0.4, 2.0, 4.0, 6.4)]
+    stand = [f.update(r("none", t, 0.9), t, standing=True) for t in (6.6, 9.0, 11.5, 11.6)]
+    assert approach == ["red"] * 4 and stand == ["red", "red", "red", "none"]
     f.reset()
     assert [f.update(r("red", t, 0.7), t) for t in (0.0, 0.2)] == ["none", "red"]
     assert [f.update(r("green", t, 0.8), t) for t in (0.4, 0.6, 0.8)] == ["red", "red", "green"]
