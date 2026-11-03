@@ -175,3 +175,28 @@ def test_the_approach_to_a_light_takes_the_state_found_at_its_stop_line():
     assert approach_labels(jump)[0] == "none"  # a teleport: another episode
     passing = [row(0.0, 0.0), row(0.5, 4.0, True, "Green"), row(1.0, 8.0)]
     assert approach_labels(passing) == ["green", "green", "none"]
+
+
+def test_how_a_hold_ended_is_recorded():
+    """Twenty-first review (4.1): a hold ended by greens and one ended by the none timer are
+    told apart (``released_by``), so a run reports every release that saw no green."""
+    from mapless.traffic_light import LightConfig, LightFilter, LightReading
+
+    f = LightFilter(LightConfig(none_release_s=1.0))
+    t = 0.0
+    for state in ("red", "red"):
+        f.update(LightReading(state, 0.99, t), t, standing=True)
+        t += 0.2
+    for _ in range(3):
+        f.update(LightReading("green", 0.9, t), t, standing=True)
+        t += 0.2
+    assert f.decision == "green" and f.released_by == "green"
+    g = LightFilter(LightConfig(none_release_s=1.0))
+    t = 0.0
+    for state in ("red", "red"):
+        g.update(LightReading(state, 0.99, t), t, standing=True)
+        t += 0.2
+    while g.decision == "red" and t < 5.0:
+        g.update(LightReading("none", 0.95, t), t, standing=True)
+        t += 0.2
+    assert g.decision == "none" and g.released_by == "none timer" and t > 1.0

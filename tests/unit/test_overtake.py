@@ -28,12 +28,12 @@ def control():
     return LocalControlConfig(ControllerConfig(wheelbase_m=3.00465, max_steering_angle_rad=math.radians(20), lookahead_m=4.0, kp=0.45, ki=0.15, stopping_deceleration_mps2=1.0, hold_brake=0.5))
 
 
-def run(parked, overtake=True, goal=130.0, seconds=90.0, width=7.5, seed=5308, veto=False, lane_centre=1.75, probe=None):
+def run(parked, overtake=True, goal=130.0, seconds=90.0, width=7.5, seed=5308, veto=False, lane_centre=1.75, probe=None, oncoming=True):
     scene = RoadScene(KerbLine([Straight(170)]), road_width_m=width, lane_centre_m=lane_centre, parked=parked)
     world = MaplessRoadWorld(scene, SUITE, start_s_m=15.0, seed=seed)
     config = DriverConfig(
         body=BODY, control=control(), corridor=CorridorConfig(keep_right_m=lane_centre), planner=PlannerConfig(cruise_mps=3.0),
-        overtake=OvertakeConfig() if overtake else None,
+        overtake=OvertakeConfig(allow_oncoming=oncoming) if overtake else None,
     )
     driver = MaplessDriver(SUITE, world.route(goal), config, DT)
     driver.overtake_veto = veto  # the stack's: moving traffic on the far side
@@ -155,3 +155,11 @@ def test_what_is_being_passed_is_known_by_its_box():
     assert not o.passing((11.0, 0.0))  # idle: nothing is being passed
     o.state = "out"
     assert o.passing((11.0, 0.0)) and o.passing((9.2, -1.8)) and not o.passing((8.5, 0.0)) and not o.passing((12.0, 2.5))
+
+
+def test_without_a_lane_on_the_right_the_car_waits_unless_oncoming_passes_are_allowed():
+    """Twenty-first review (7): the oncoming lane is off by default; on a two-lane road the car
+    holds behind the stopped car and says why."""
+    log, driver = run((ParkedCar(60.0, 1.75),), seconds=30.0, oncoming=False)
+    assert driver.overtake.passes == 0 and "oncoming-lane passes are off" in driver.overtake.note
+    assert max(t.s_m for t, _ in log) < 60.0 - 2.1 - BODY.front_m and not any(t.collision for t, _ in log)

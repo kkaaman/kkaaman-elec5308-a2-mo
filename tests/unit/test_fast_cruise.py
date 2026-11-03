@@ -22,14 +22,14 @@ from tests.unit.test_overtake import DT, SUITE
 BODY = VehicleBody()
 
 
-def drive(brake, lookahead_s, parked=(), cruise=13.9, seconds=60.0, accel=None, two_stage=False):
+def drive(brake, lookahead_s, parked=(), cruise=13.9, seconds=60.0, accel=None, two_stage=False, goal_early=False):
     control = LocalControlConfig(
         ControllerConfig(wheelbase_m=3.00465, max_steering_angle_rad=math.radians(20), lookahead_m=4.0, kp=0.45, ki=0.15, stopping_deceleration_mps2=brake, hold_brake=0.5),
         lookahead_time_s=lookahead_s,
     )
     world = MaplessRoadWorld(RoadScene(KerbLine([Straight(320)]), road_width_m=7.5, lane_centre_m=1.75, parked=parked), SUITE, start_s_m=15.0, seed=5308)
     planner = PlannerConfig(cruise_mps=cruise, decel_mps2=brake, comfort_decel_mps2=min(brake, 2.0) if two_stage else None, final_decel_mps2=1.0 if two_stage else None)
-    config = DriverConfig(body=BODY, control=control, corridor=CorridorConfig(keep_right_m=1.75), planner=planner, accel_mps2=accel)
+    config = DriverConfig(body=BODY, control=control, corridor=CorridorConfig(keep_right_m=1.75), planner=planner, accel_mps2=accel, goal_early=goal_early)
     driver = MaplessDriver(SUITE, world.route(290.0), config, DT)
     log = []
     for _ in range(int(seconds / DT)):
@@ -94,3 +94,15 @@ def test_the_two_stage_stopping_speed():
     assert abs(float(stopping_speed(4.5, two)) - 3.0) < 1e-9 and float(stopping_speed(0.0, two)) == 0.0
     assert abs(float(stopping_speed(4.5 + 10.0, two)) - 7.0) < 1e-9  # 3 m/s plus 10 m at 2 m/s²
     assert abs(float(stopping_speed(2.0, two)) - 2.0) < 1e-9  # the last metres at 1 m/s²
+
+
+def test_the_goal_is_stopped_for_gently_from_speed_when_planned_early():
+    """lap2_5308 (PC 1): the goal came into the plan 8 m out at 7 m/s and was braked for at
+    8.9 m/s². With ``goal_early`` it is planned within the corridor's reach: the last 40 m
+    braked at no more than ~3 m/s², finishing at the goal."""
+    log = drive(3.0, 0.8, accel=1.5, two_stage=True, goal_early=True)
+    truth, last = log[-1]
+    assert last.mode is DriveMode.FINISHED and abs(truth.s_m - 290.0) < 3.0
+    v = [t.speed_mps for t, _ in log if t.s_m > 240.0]
+    n = int(round(0.5 / DT))
+    assert max(v) > 7.0 and max((v[i] - v[i + n]) / 0.5 for i in range(len(v) - n)) < 3.5
