@@ -88,7 +88,7 @@ def test_a_car_parked_on_the_far_side_beside_it_blocks_the_way_past():
 
 def test_traffic_on_the_far_side_vetoes_the_pass():
     log, driver = run((ParkedCar(60.0, 1.75),), seconds=30.0, veto=True)
-    assert driver.overtake.passes == 0 and driver.overtake.state == "idle" and driver.overtake.note == "waiting: left: traffic on that side; right: traffic on that side"
+    assert driver.overtake.passes == 0 and driver.overtake.state == "idle" and driver.overtake.note == "waiting: left: traffic on that side"
     assert max(t.s_m for t, _ in log) < 60.0 - 2.1 - BODY.front_m and not any(t.collision for t, _ in log)
 
 
@@ -98,11 +98,12 @@ def test_the_hold_gap_applies_only_with_overtaking_on():
     assert with_it.planner.config.hold_gap_m == OvertakeConfig().hold_gap_m and without.planner.config.hold_gap_m is None
 
 
-def test_with_the_left_blocked_and_a_lane_on_the_right_the_car_passes_on_the_right():
-    """Three lanes, the car in the middle one: a car stopped ahead of it, another in the lane
-    to its left beside that one. The left way past is not clear; the right lane is: the car
-    passes on the right, indicating right, then left as it comes back."""
-    log, driver = run((ParkedCar(60.0, 5.25), ParkedCar(62.0, 8.75)), width=10.5, lane_centre=5.25)
+def test_with_a_lane_on_the_right_the_car_passes_on_the_right():
+    """Three lanes, the car in the middle one (5.25 m from the right kerb), a car stopped
+    ahead of it: a lane between it and the kerb runs its way (traffic keeps right), so it
+    passes there, not on the left (live S4_5308 on 7ba365b went into the oncoming lane),
+    indicating right, then left as it comes back."""
+    log, driver = run((ParkedCar(60.0, 5.25),), width=10.5, lane_centre=5.25)
     truth, last = log[-1]
     assert last.mode is DriveMode.FINISHED and abs(truth.s_m - 130.0) < 3.0, driver.overtake.record()
     assert not any(t.collision for t, _ in log) and driver.overtake.passes == 1 and driver.overtake.side == "right"

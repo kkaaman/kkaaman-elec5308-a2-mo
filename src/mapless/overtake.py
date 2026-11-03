@@ -10,8 +10,9 @@ moving tracks on the far side), the car may pass it:
    ``hold_gap_m`` short of an obstacle (not ``stop_gap_m``): room to steer out. The path is shifted left by that
    edge, the body's half width and ``margin_m``, at most ``max_offset_m``; the shifted
    path must be seen clear (``observe_path`` on it) past the obstacle's far side.
-   The left first; the right (mirrored) when the left is not clear (a lane there, not
-   the kerb: the obstacle check sees a kerb under the body), each side with its own count.
+   The side: the right when the corridor's lane centre is far enough from the right kerb
+   for a lane between (traffic keeps right: that lane runs the car's way), else the left
+   (the oncoming lane of a two-lane road).
 2. **Out.** The shift ramps in (a half-cosine) from where the car stands, over ``ramp_m``
    or less (fully out by the obstacle's near face, ``min_ramp_m`` at least), indicator
    left, at ``speed_mps`` at most.
@@ -54,7 +55,12 @@ class OvertakeConfig:
     confirm_s: float = 1.0  # ... and nothing on it in any sweep for this long (one sweep can miss a car)
     edge_window_m: float = 2.5  # OBSTACLE points this far beyond its near face give its edges
     hold_gap_m: float = 6.5  # the planner holds the front this far short of an obstacle: room to steer out
-    sides: tuple = ("left", "right")  # the sides a pass may go, in order of preference
+    # The side a pass goes: "auto" is the right when there is a lane between the car and the
+    # right kerb (traffic keeps right: a lane there runs the car's way), else the left (the
+    # oncoming lane of a two-lane road); or a tuple of sides in order of preference.
+    sides: object = "auto"
+    min_shift_m: float = 0.0  # the shift at least this (0: the obstacle's edge, half the body and the margin)
+    kerb_min_m: float = 1.6  # a pass on the right keeps the path this far from the right kerb (a lane there)
 
 
 def ramp(s, start, length):
@@ -153,9 +159,10 @@ class Overtake:
             return self.offset_m * out
         return self.offset_m * out * (1.0 - ramp(s, self.back_from_m, c.ramp_m))
 
-    def step(self, t, odometry, standing, corridor, observation, plan_reason, sweep, observe, body, veto=False, junction_ahead_m=None):
+    def step(self, t, odometry, standing, corridor, observation, plan_reason, sweep, observe, body, veto=False, junction_ahead_m=None, keep_right_m=None):
         """One tick. Returns (the corridor to drive, the indicator or None, the speed cap or
-        None). ``observe(corridor)``: the obstacle check on a candidate path."""
+        None). ``observe(corridor)``: the obstacle check on a candidate path;
+        ``keep_right_m``: the lane centre's distance from the right kerb (the corridor's)."""
         c = self.config
         self.started = False
         if self.state == "idle":
@@ -171,7 +178,7 @@ class Overtake:
                 moved = math.hypot(odometry.x_m - at[0], odometry.y_m - at[1])
                 self.since_s = t if self.since_s is None else self.since_s
                 if t - self.since_s >= c.wait_s and moved < 0.5 and held.distance_m <= c.max_hold_distance_m:
-                    self._plan(t, odometry, corridor, held, sweep, observe, body, veto, junction_ahead_m)
+                    self._plan(t, odometry, corridor, held, sweep, observe, body, veto, junction_ahead_m, keep_right_m)
             elif not holding:
                 self.since_s = None
                 self._clear = {}
@@ -200,7 +207,7 @@ class Overtake:
         back = "right" if self.side == "left" else "left"
         return shifted, (back if self.state == "back" else self.side), c.speed_mps
 
-    def _plan(self, t, odometry, corridor, obstacle, sweep, observe, body, veto, junction_ahead_m):
+    def _plan(self, t, odometry, corridor, obstacle, sweep, observe, body, veto, junction_ahead_m, keep_right_m=None):
         c = self.config
         vetoed = set(veto) if isinstance(veto, (set, frozenset, tuple, list)) else (set(SIDES) if veto else set())
         if sweep is None or not corridor.ok:
@@ -220,15 +227,23 @@ class Overtake:
         needed = obstacle.distance_m + c.assumed_length_m + c.clear_beyond_m
         line = extend(corridor, needed + 2.0).centre_body
         ramp_out = float(np.clip(obstacle.distance_m - 0.5, c.min_ramp_m, c.ramp_m))
+        shifts = dict(
+            left=max(span[1] + body.half_width_m + c.margin_m, c.min_shift_m),
+            right=min(span[0] - body.half_width_m - c.margin_m, -c.min_shift_m),
+        )
+        # A lane on the right: the shifted path still kerb_min_m from the right kerb. Live
+        # (S4_5308, Town10HD, 7ba365b): the lane centre 7.8 m from the kerb, the left the
+        # oncoming lane, and the pass went there.
+        right_lane = keep_right_m is not None and keep_right_m + shifts["right"] >= c.kerb_min_m
+        sides = (("right",) if right_lane else ("left",)) if c.sides == "auto" else tuple(c.sides)
         notes = []
-        for side in c.sides:
-            # Each side in turn (the left first: it is where a pass goes; the right where the
-            # left is not clear and there is a lane there). Its own clear count for each.
+        for side in sides:
+            # Each side in turn, with its own clear count.
             if side in vetoed:
                 self._clear.pop(side, None)
                 notes.append(f"{side}: traffic on that side")
                 continue
-            offset = span[1] + body.half_width_m + c.margin_m if side == "left" else span[0] - body.half_width_m - c.margin_m
+            offset = shifts[side]
             if abs(offset) > c.max_offset_m:
                 notes.append(f"{side}: {abs(offset):.1f} m to the side needed")
                 continue
