@@ -206,6 +206,17 @@ def truth_record(vehicle, carla_map, actors, rear_axle_offset_m, radius_m=80.0):
             )
         )
     light = vehicle.get_traffic_light_state()
+    # The lights ahead on this lane with their states now, and the one governing inside a
+    # trigger volume: the approach samples are labelled with the state at their own time,
+    # not the one found later at the trigger (twenty-first review, 4.2).
+    lights_ahead, light_id = [], None
+    try:
+        for ahead in vehicle.get_world().get_traffic_lights_from_waypoint(waypoint, 40.0):
+            lights_ahead.append(dict(id=ahead.id, state=str(ahead.get_state()).split(".")[-1]))
+        governing = vehicle.get_traffic_light() if vehicle.is_at_traffic_light() else None
+        light_id = None if governing is None else governing.id
+    except Exception:  # an older server or a fake world: the trigger state alone, as before
+        lights_ahead, light_id = [], None
     return dict(
         ego_rear_axle=dict(x_m=rear[0], y_m=rear[1], z_m=rear[2], yaw_rad=rear[3]),
         ego_velocity_mps=[v.x, -v.y, v.z],
@@ -213,6 +224,8 @@ def truth_record(vehicle, carla_map, actors, rear_axle_offset_m, radius_m=80.0):
         ego_control=dict(throttle=control.throttle, steer=-control.steer, brake=control.brake),
         at_traffic_light=bool(vehicle.is_at_traffic_light()),
         traffic_light_state=str(light).split(".")[-1],
+        traffic_light_id=light_id,
+        lights_ahead=lights_ahead,
         lane=dict(
             road_id=waypoint.road_id,
             section_id=waypoint.section_id,

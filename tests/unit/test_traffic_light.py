@@ -177,6 +177,27 @@ def test_the_approach_to_a_light_takes_the_state_found_at_its_stop_line():
     assert approach_labels(passing) == ["green", "green", "none"]
 
 
+def test_approach_samples_take_the_lights_state_at_their_own_time():
+    """Twenty-first review (4.2): green at 0.0-1.0 s, red at the trigger at 1.5 s. With the
+    state recorded per sample (``lights_ahead``) the approach keeps its greens; without it,
+    ``strict`` leaves those samples out rather than call them red; not strict carries the
+    trigger's red back (light_v1's labels)."""
+    from mapless_training.train_traffic_light import approach_labels
+
+    def row(t, x, at=False, state="Green", ahead=None, light_id=None):
+        truth = dict(at_traffic_light=at, traffic_light_state=state, ego_rear_axle=dict(x_m=x, y_m=0.0), traffic_light_id=light_id)
+        if ahead is not None:
+            truth["lights_ahead"] = [dict(id=7, state=ahead)]
+        return dict(sim_time_s=t, truth=truth)
+
+    recorded = [row(0.0, 0.0, ahead="Green"), row(0.5, 4.0, ahead="Green"), row(1.0, 8.0, ahead="Green"), row(1.5, 12.0, True, "Red", ahead="Red", light_id=7)]
+    assert approach_labels(recorded) == ["green", "green", "green", "red"]
+    assert approach_labels(recorded, strict=True) == ["green", "green", "green", "red"]
+    old = [row(0.0, 0.0), row(0.5, 4.0), row(1.0, 8.0), row(1.5, 12.0, True, "Red")]
+    assert approach_labels(old) == ["red", "red", "red", "red"]
+    assert approach_labels(old, strict=True) == [None, None, None, "red"]
+
+
 def test_how_a_hold_ended_is_recorded():
     """Twenty-first review (4.1): a hold ended by greens and one ended by the none timer are
     told apart (``released_by``), so a run reports every release that saw no green."""
