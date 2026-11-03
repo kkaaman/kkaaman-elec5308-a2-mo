@@ -39,6 +39,7 @@ G1c. Without kerbs (open country roads) this corridor has no evidence; that need
 camera lane estimate.
 """
 
+import dataclasses
 import math
 from dataclasses import dataclass
 
@@ -365,6 +366,31 @@ class CorridorEstimator:
             evidence_body=np.zeros((0, 2)),
             evidence_time_s=time_s,
         )
+
+    def continue_straight(self, pose, to_m, heading_rad=None, within_m=None, step_m=1.0):
+        """Continue the carried line straight past its end to body x ``to_m``; True if it was
+        lengthened. Only for a line being carried (the driver's ``handback_carry_m``: a
+        crossing handed back short of a junction's exit, where the box has no kerb to refit
+        on). ``heading_rad``: the continuation's direction (odometry frame), else the line's
+        last segment's; ``within_m``: only once the line ends nearer than this. The
+        road-support check still bounds how far it is valid, and the evidence age still
+        faults it; the next refit replaces it."""
+        if self.previous is None or self.last_refit is None or self.last_refit.get("refit", True):
+            return False
+        body = pose.to_body(self.previous.centre_odometry)
+        if len(body) < 2 or body[-1, 0] >= to_m or (within_m is not None and body[-1, 0] >= within_m):
+            return False
+        if heading_rad is None:
+            d = body[-1] - body[-2]
+            u = d / max(float(np.hypot(*d)), 1e-9)
+        else:
+            u = np.array([math.cos(heading_rad - pose.yaw_rad), math.sin(heading_rad - pose.yaw_rad)])
+        if u[0] < 0.5:  # pointing across or back: not a lane to continue
+            return False
+        n = int(math.ceil((to_m - body[-1, 0]) / (u[0] * step_m)))
+        longer = np.vstack((body, body[-1] + np.outer(np.arange(1, n + 1) * step_m, u)))
+        self.previous = dataclasses.replace(self.previous, pose=pose, centre_body=longer, centre_odometry=pose.to_world(longer), valid_length_m=float(longer[-1, 0]))
+        return True
 
     def _profiles(self, grid, pose, stations, ref, max_age_s=None):
         """Cell labels across the reference at each station, the lateral offsets, and the centre column."""

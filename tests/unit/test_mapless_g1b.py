@@ -533,3 +533,33 @@ def test_strict_evidence_rechecks_the_count_after_outliers_and_ages_the_line_by_
     fresh_strict = CorridorEstimator(CorridorConfig(keep_right_m=1.75, strict_evidence=True)).update(grid, pose, t)
     assert fresh_loose.evidence_age_s == pytest.approx(0.0)
     assert fresh_strict.evidence_age_s == pytest.approx(2.0)
+
+
+def test_continue_straight_lengthens_only_a_carried_line():
+    """``CorridorEstimator.continue_straight`` (the driver's ``handback_carry_m``): a line
+    being carried is continued straight along its end's direction; a line just refitted, or
+    one already reaching that far, is left as it is."""
+    estimator = CorridorEstimator(CorridorConfig(keep_right_m=1.75))
+    pose = Pose2D(5.0, -3.0, 0.3)
+    x = np.arange(-2.0, 21.0)
+    estimator.seed(np.column_stack((x, 0.02 * x)), pose, 0.0)
+    assert not estimator.continue_straight(pose, 40.0)  # no update yet: nothing is carried
+    estimator.last_refit = dict(refit=True, why="")
+    assert not estimator.continue_straight(pose, 40.0)
+    estimator.last_refit = dict(refit=False, why="too few points")
+    assert estimator.continue_straight(pose, 40.0)
+    body = pose.to_body(estimator.previous.centre_odometry)
+    assert body[-1, 0] >= 40.0 and np.allclose(body[:, 1], 0.02 * body[:, 0], atol=1e-6)  # straight on along the end's slope
+    assert np.all(np.diff(body[:, 0]) > 0) and estimator.previous.valid_length_m == pytest.approx(body[-1, 0])
+    assert not estimator.continue_straight(pose, 30.0)  # already reaches
+    # Given a heading (odometry), and only once the line ends within ``within_m``.
+    estimator.seed(np.column_stack((x, 0.1 * x)), pose, 0.0)
+    estimator.last_refit = dict(refit=False, why="too few points")
+    assert not estimator.continue_straight(pose, 40.0, heading_rad=pose.yaw_rad, within_m=15.0)  # ends 20 m ahead
+    assert estimator.continue_straight(pose, 40.0, heading_rad=pose.yaw_rad, within_m=25.0)
+    body = pose.to_body(estimator.previous.centre_odometry)
+    tail = body[body[:, 0] > 20.0]
+    assert len(tail) >= 19 and np.allclose(tail[:, 1], 2.0, atol=1e-6)  # on along the car's heading from the line's end
+    estimator.seed(np.column_stack((x, 0.0 * x)), pose, 0.0)
+    estimator.last_refit = dict(refit=False, why="too few points")
+    assert not estimator.continue_straight(pose, 40.0, heading_rad=pose.yaw_rad + math.radians(80))  # across the road: not continued

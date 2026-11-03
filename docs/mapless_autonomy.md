@@ -4160,7 +4160,17 @@ light scripted red (`--lights scripted`), which the car must see for itself
   664 on a bent approach (the crossing now latches the last 8 m's heading when the track
   bends); `town10_lap` (638 m, straight through 468, 719, 23) left the lane in 23, whose
   approach bends into the junction; `town10_lap2` (406 m, to the bend before 23):
-  MEASURED_PASS at up to 35 km/h on its first run.
+  MEASURED_PASS at up to 35 km/h on its first run, PC 1 3 of 3 (5308-5310, `a248a09`).
+  PC 2's 5312 (`45cf585`) faulted inside 719: the crossing handed the car to the kerb
+  corridor 34 m short of the exit (a pooled kerb fit 24 m ahead agreed), then single
+  sweeps found 0-3 kerb points a tick (parked cars along the exit's kerb, 9 m right), so
+  the handed line was carried until it ran out 17 m short of the exit.
+  `--handback-carry-m` (`DriverConfig.handback_carry_m`, off by default): after a
+  hand-back short of the exit, a carried line ending within `handback_continue_m` (15 m)
+  is continued straight along the latched lane line's heading to that far past the exit
+  (`CorridorEstimator.continue_straight`); road support and evidence age still bound it,
+  and the next refit replaces it. Synthetic: off and on identical where the kerb is found
+  again; with 30 m of kerbless road past a 46 m box the fault moves 10 m on, in lane.
 - **Driving-test extras (3 Nov, all off by default: the frozen showcase is unchanged).**
   *Junction zones (`--zone-mps`, `DriverConfig.zone_mps`):* no faster than this from
   `zone_before_m` (45 m) before each route junction's entry point to `zone_after_m`
