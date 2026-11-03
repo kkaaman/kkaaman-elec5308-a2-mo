@@ -628,6 +628,10 @@ class MaplessStack:
             # Static ones (bar pedestrians) are never conflict candidates (the corridor
             # check's): not predicted at all, a third of the predictions' time.
             movers = [tr for tr in predictable_tracks(live, self._lidar_free, c, in_lane, ego_xy=(pose.x_m, pose.y_m)) if motion_state(tr, c.prediction) != "static" or decided_class(tr) == "pedestrian"]
+            passing = self.driver.overtake
+            if passing is not None and passing.state != "idle":
+                # What is being passed is not traffic, its fragments included (``Overtake.passing``).
+                movers = [tr for tr in movers if motion_state(tr, c.prediction) == "moving" or not passing.passing(tr.position)]
             predictions = tuple(predict_all(movers, c.prediction))
             self._incoherent = sum(1 for tr in live if "lidar" in tr.support and incoherent_vehicle(tr, c))
             self._edge_held = sorted(tr.track_id for tr in live if "lidar" in tr.support and edge_unsupported(tr, c) and not incoherent_vehicle(tr, c) and not (in_lane is not None and in_lane(tr)))

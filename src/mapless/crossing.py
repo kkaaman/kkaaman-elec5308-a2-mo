@@ -154,13 +154,17 @@ class StraightCrossing:
         self._hold_applied = 0.0  # ... and how far the line has been turned to follow it since
 
 
-    def observe(self, pose, moving, compass_yaw_rad=None):
+    def observe(self, pose, moving, compass_yaw_rad=None, record=True):
         """Each tick: the car's own track, for the lane's direction, and the smoothed gap
-        between the odometry's yaw and the compass's, for the heading hold."""
+        between the odometry's yaw and the compass's, for the heading hold. ``record``
+        False: not along the lane (passing a stopped car, ``overtake``): the track keeps
+        what was driven along it before and after. Live S4_5310/5311 (7ba365b): the pass's
+        2.7 m S-curve in the 40 m track tilted the line latched for 468, and the car left
+        the box 2.4-2.5 m to the left of its lane."""
         if compass_yaw_rad is not None:
             gap = _wrap_angle(pose.yaw_rad - compass_yaw_rad)
             self._yaw_gap = gap if self._yaw_gap is None else _wrap_angle(self._yaw_gap + self.config.heading_hold_alpha * _wrap_angle(gap - self._yaw_gap))
-        if not moving:
+        if not moving or not record:
             return
         here = (pose.x_m, pose.y_m)
         if self._track and math.dist(self._track[-1][:2], here) < 0.25:
