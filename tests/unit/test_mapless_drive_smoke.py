@@ -1107,3 +1107,4 @@ def test_the_braking_and_lookahead_flags_reach_the_driver_config():
     assert not base.corridor.strict_evidence and drive.driver_config(VehicleBody(), 2.9, math.radians(70), 3.0, 1.75, strict_evidence=True).corridor.strict_evidence
     assert base.handback_carry_m == 0.0 and drive.driver_config(VehicleBody(), 2.9, math.radians(70), 3.0, 1.75, handback_carry_m=15).handback_carry_m == 15.0
     assert base.light.approach_mps == 3.0 and drive.driver_config(VehicleBody(), 2.9, math.radians(70), 3.0, 1.75, light_approach_mps=6).light.approach_mps == 6.0
+    assert base.zone_turn_mps is None and drive.driver_config(VehicleBody(), 2.9, math.radians(70), 3.0, 1.75, zone_mps=6, zone_turn_mps=3).zone_turn_mps == 3

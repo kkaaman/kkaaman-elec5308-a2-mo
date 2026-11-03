@@ -90,6 +90,11 @@ class DriverConfig:
     # 119, the kerb lost while slowing for the light, the exit curve run wide; at 3 m/s
     # through it, 25 of 25 seeds kept their lane.
     zone_mps: float | None = None
+    # The zone speed for a junction the route turns at (LEFT/RIGHT); None: zone_mps for
+    # every junction. At 6.5 m/s no turn arc clears a right turn's corner (radius v²/a):
+    # the synthetic right turn stopped at the mouth and re-planned mid-arc, no sooner done
+    # than at 3 m/s; straight crossings were driven at 6 cleanly.
+    zone_turn_mps: float | None = None
     zone_before_m: float = 45.0
     zone_after_m: float = 10.0
     # Passing a vehicle stopped in the lane (``overtake``): None, the car holds behind it
@@ -986,14 +991,16 @@ class MaplessDriver:
         last_leg = guidance.index == len(self.progress.xy) - 1 or c.goal_early
         if last_leg and guidance.goal_distance_m < corridor.valid_length_m + 5:
             goal_body = motion.odometry.to_body(motion.route_to_odometry(np.array([self.progress.xy[-1]])))[0]
-        zone_cap = c.zone_mps if c.zone_mps is not None and self._in_junction_zone(motion) else None
-        if c.zone_mps is not None and zone_cap is None:
+        zoned = c.zone_mps is not None or c.zone_turn_mps is not None
+        zone_cap = self._zone_speed(motion) if zoned else None
+        if zoned and zone_cap is None:
             # Approaching a zone faster than its speed: slow into it at the planner's
             # deceleration, not at its edge (from 10 m/s at 3 m/s², 15 m before it).
-            ahead = self._junction_ahead_m(motion)
-            if ahead is not None and ahead > c.zone_before_m:
+            ahead, command = self._next_junction(motion)
+            speed = None if command is None else self._zone_mps_for(command)
+            if ahead is not None and speed is not None and ahead > c.zone_before_m:
                 slow = c.planner.decel_mps2 if c.planner.comfort_decel_mps2 is None else c.planner.comfort_decel_mps2
-                into = math.sqrt(c.zone_mps**2 + 2.0 * slow * (ahead - c.zone_before_m))
+                into = math.sqrt(speed**2 + 2.0 * slow * (ahead - c.zone_before_m))
                 zone_cap = into if into < motion.speed_mps else None  # only once it binds
         if zone_cap is not None:
             d.update(zone_cap_mps=zone_cap)
@@ -1113,22 +1120,47 @@ class MaplessDriver:
         ahead = [float(x) for x in body[:, 0] if x > -5.0]
         return min(ahead) if ahead else None
 
-    def _in_junction_zone(self, motion):
-        """Whether the car is within zone_before_m of a route junction's entry point or
-        through it to zone_after_m past its exit point (the next route point), measured
-        along the car's heading from its rear axle (``zone_mps``)."""
+    def _zone_mps_for(self, command):
+        """The zone speed for a route junction with this command (``zone_turn_mps`` for a
+        turn when set, else ``zone_mps``; None for none)."""
+        c = self.config
+        if c.zone_turn_mps is not None and command in (Command.LEFT, Command.RIGHT):
+            return c.zone_turn_mps
+        return c.zone_mps
+
+    def _next_junction(self, motion):
+        """(How far ahead the next route junction's entry point is, its command), as
+        ``_junction_ahead_m``; (None, None) for none."""
+        points, route_points = self.progress.xy, self.progress.route.points
+        entries = [i for i in range(max(0, self.progress.index - 1), min(len(points), self.progress.index + 5)) if route_points[i].command.is_junction]
+        if not entries:
+            return None, None
+        try:
+            body = motion.odometry.to_body(motion.route_to_odometry(np.array([points[i] for i in entries])))
+        except Exception:
+            return None, None
+        ahead = [(float(x), route_points[i].command) for x, i in zip(body[:, 0], entries) if x > -5.0]
+        return min(ahead, key=lambda a: a[0]) if ahead else (None, None)
+
+    def _zone_speed(self, motion):
+        """The junction-zone speed where the car is: the lowest of the zones it is in (from
+        zone_before_m before a route junction's entry point through to zone_after_m past
+        its exit point, the next route point, along the car's heading from its rear axle),
+        or None outside them (``zone_mps``, ``zone_turn_mps``)."""
         c = self.config
         points, route_points = self.progress.xy, self.progress.route.points
         lo, hi = max(0, self.progress.index - 3), min(len(points) - 1, self.progress.index + 4)
         entries = [i for i in range(lo, hi) if route_points[i].command.is_junction]
         if not entries:
-            return False
+            return None
         try:
             body = motion.odometry.to_body(motion.route_to_odometry(np.array([points[i] for i in entries] + [points[i + 1] for i in entries])))
         except Exception:  # no route pose yet (start-up)
-            return False
+            return None
         n = len(entries)
-        return any(body[k, 0] <= c.zone_before_m and body[n + k, 0] >= -c.zone_after_m for k in range(n))
+        speeds = [self._zone_mps_for(route_points[entries[k]].command) for k in range(n) if body[k, 0] <= c.zone_before_m and body[n + k, 0] >= -c.zone_after_m]
+        speeds = [v for v in speeds if v is not None]
+        return min(speeds) if speeds else None
 
     def _crossing_context(self, guidance, motion, entry_i=None):
         """(entry point, exit point, the point after the exit or None, entry route index),
