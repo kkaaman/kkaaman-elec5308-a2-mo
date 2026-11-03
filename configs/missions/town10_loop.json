@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "name": "town10_loop",
+  "description": "Round Town10HD to a1_test01's goal area, 688 m, the car in one lane throughout: from road 4 just east of junction 468, back along a1_test01's roads (its 125 m straight, then its bend), straight through 664 and 532, the 176 m curving leg, left at 23, straight through 189 and 895, right at 468 onto road 5 to the goal.",
+  "source": "scripts/find_loop_routes.py (evaluator-side lane topology)",
+  "segment_ids": [
+    "4:0:1",
+    "8:0:-1",
+    "1:0:-1",
+    "675:0:-1",
+    "2:0:-1",
+    "566:0:-1",
+    "3:0:-1",
+    "0:0:-1",
+    "10:0:-1",
+    "17:0:-1",
+    "7:0:1",
+    "24:0:1",
+    "22:0:-1",
+    "16:0:1",
+    "15:0:1",
+    "466:0:1",
+    "14:0:1",
+    "933:0:1",
+    "13:0:1",
+    "469:0:1",
+    "5:0:-1"
+  ],
+  "manoeuvres": [
+    "straight",
+    "straight",
+    "left",
+    "straight",
+    "straight",
+    "right"
+  ],
+  "start_xy_m": [
+    -24.78,
+    -137.06
+  ],
+  "end_xy_m": [
+    -98.20722198486328,
+    -117.94779205322266
+  ],
+  "notes": "Junctions by route s (entry-exit): 664 straight 167-196; 532 straight 208-254; 23 left 431-466; 189 straight 508-552; 895 straight 561-592; 468 right 625-659. Legs: 0-167 (91 deg); 196-208 (0 deg); 254-431 (91 deg); 466-508 (1 deg); 552-561 (0 deg); 592-625 (0 deg); 659-688 (41 deg). Found by scripts/find_loop_routes.py on tests/fixtures' Town10HD export."
+}

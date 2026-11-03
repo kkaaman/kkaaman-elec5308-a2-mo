@@ -114,6 +114,7 @@ ignore = ["E501"]
 "scripts/run_mapless_drive.py" = ["TID251"]
 "scripts/run_mapless_stack.py" = ["TID251"]
 "scripts/find_showcase_routes.py" = ["TID251"]
+"scripts/find_loop_routes.py" = ["TID251"]
 "scripts/rescore_mission.py" = ["TID251"]  # re-scores the adapter's own mission reports
 "scripts/replay_mapless_frames.py" = ["TID251"]
 "tests/unit/test_mapless_g1c_harness.py" = ["TID251"]

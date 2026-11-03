@@ -379,3 +379,21 @@ def test_a_red_light_stop_beside_the_roadside_car_is_not_a_stop_for_it_but_nothi
     for wrong in (dict(hold=None, cap=0.0, cap_reason="predicted conflict on the path"), dict(truth="Green"), dict(reason="obstacle"), dict(cap=0.0, cap_reason="predicted conflict on the path")):
         ok, values = scored(**wrong)
         assert ok is False and values["stopping_ticks"] == len(stop), wrong
+
+
+def test_the_town10_loop_is_a_legal_lane_chain_and_the_search_finds_it():
+    """``configs/missions/town10_loop.json`` (3 Nov): 688 m round Town10HD to a1_test01's goal,
+    one lane throughout, six junctions (left at 23, right at 468), validated by the baseline's
+    own builder on the repo's Town10HD export; the loop search finds it from road 4."""
+    from carla_adapter.loop_routes import describe, search
+    from planning.lane_graph import LaneTopology
+    from planning.mission import mission_from_definition
+
+    topology = LaneTopology.load(ROOT / "tests" / "fixtures" / "Town10HD.lane_graph.json")
+    loop = json.loads((ROOT / "configs" / "missions" / "town10_loop.json").read_text(encoding="utf-8"))
+    mission = mission_from_definition(topology, loop)
+    assert mission.segment_ids[-1] == "5:0:-1" and tuple(mission.manoeuvres) == ("straight", "straight", "left", "straight", "straight", "right")
+    found, _ = search(topology, "4:0:1", "5:0:-1", max_m=2600.0, min_leg_m=8.0)
+    assert any(c["segment_ids"] == loop["segment_ids"] for c in found)
+    info, why = describe(topology, next(c for c in found if c["segment_ids"] == loop["segment_ids"]), loop)
+    assert not why and 680.0 < info["length_m"] < 700.0 and [j["junction_id"] for j in info["junctions"]] == [664, 532, 23, 189, 895, 468]
