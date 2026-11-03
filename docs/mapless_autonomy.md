@@ -4120,6 +4120,31 @@ light scripted red (`--lights scripted`), which the car must see for itself
   paints and builds the road model on its worker (showcase_t2: 13 ms per job, three ticks
   in four). It governs nothing; `--semantic off` drops it. The overnight showcase runs on
   PC 3 compare the two.
+- **Driving-test extras (3 Nov, all off by default: the frozen showcase is unchanged).**
+  *Junction zones (`--zone-mps`, `DriverConfig.zone_mps`):* no faster than this from
+  `zone_before_m` (45 m) before each route junction's entry point to `zone_after_m`
+  (10 m) past its exit, body x along the sat-nav points; `--speed` elsewhere, every other
+  bound still binding. *Indicators (always on):* `indicate_before_m` (30 m) before a
+  route turn's junction to its exit, left or right by the sat-nav command
+  (`diagnostics["indicator"]`); the harness sets CARLA's blinker bits
+  (`set_vehicle_lights`) and reports seconds signalled per side (`indicators`).
+  *Overtaking a stopped vehicle (`--overtake`, `mapless/overtake.py`):* the planner holds
+  `hold_gap_m` (6.5 m, not `stop_gap_m`'s 2.5) short of an obstacle, room to steer out.
+  Held at a standstill for `wait_s` (3 s), the obstacle's extent measured from the
+  sweep's OBSTACLE points (at least 1.2 m across: a vehicle), no route junction within
+  the manoeuvre, no moving track on the far side (the stack's `overtake_traffic`
+  veto), and the shifted path — the line continued straight past its end, since the kerb
+  beyond the vehicle is hidden — seen with nothing on it for `confirm_s` (1 s) and clear
+  to its far side plus 3 m: the path shifts left by its left edge + half the body +
+  0.8 m (at most 4 m), a half-cosine fully out by its near face (8-12 m), indicator
+  left, 2 m/s at most. The planner's hold on it is dropped (the shifted path is seen
+  clear of it); the corridor's road support is looked for on the shifted path (beside
+  the vehicle the lane's line runs through it). Back (indicator right) over 12 m once
+  7 m past its near face with the original lane seen clear 8 m ahead of the front. Every
+  check binds on the shifted path. With `--overtake`, S4 is scored as held, then passed,
+  the goal reached (`held_before_passing`, `overtake`); a hold ends the run only after
+  30 s. Synthetic (`test_overtake.py`): the pass and return with no contact, holding
+  without the flag, a car on the far side blocking the way past, the stack's veto.
 
 ## Running Phase 0 live
 

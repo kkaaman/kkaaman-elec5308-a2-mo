@@ -416,6 +416,19 @@ class StackStep:
     decision: DecisionRecord
 
 
+def overtake_traffic(tracks, pose, prediction_config, ahead_m=50.0, behind_m=15.0, left_m=(0.8, 6.5)):
+    """Whether moving traffic is in the way past a stopped vehicle: a track that moves
+    (``motion_state``), to the car's left (body y within ``left_m``) from ``behind_m`` behind
+    it to ``ahead_m`` ahead. While it is, the driver does not begin a pass (``overtake``)."""
+    for track in tracks:
+        if motion_state(track, prediction_config) != "moving":
+            continue
+        x, y = pose.to_body(track.position[None])[0]
+        if -behind_m <= x <= ahead_m and left_m[0] <= y <= left_m[1]:
+            return True
+    return False
+
+
 class MaplessStack:
     def __init__(self, suite, route, driver_config, config=None, dt_s=0.05, segmenter=None, detector=None, light_classifier=None):
         self.config = c = config or StackConfig()
@@ -623,6 +636,8 @@ class MaplessStack:
             # -- follow and conflicts --------------------------------------------------------
             begun = time.perf_counter()
             cap, cap_reason = self._speed_cap(motion, pose, live, predictions, t)
+            if self.driver.overtake is not None:
+                self.driver.overtake_veto = overtake_traffic(live, pose, c.prediction)
             self._oncoming_update(self.driver.last_gate, live, t)
             timing["plan"] = (time.perf_counter() - begun) * 1000
             if pending_job is not None:

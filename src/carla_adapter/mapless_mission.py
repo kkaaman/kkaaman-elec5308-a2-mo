@@ -251,14 +251,16 @@ def light_stop(row):
     )
 
 
-def score_mission(scenario, log, end, hold_ticks, removed_at_s, dt_s, goal_reach_m=3.0, hold_band_m=(1.5, 5.0), plan_band_m=(2.5, 6.0), hold_speed_max_mps=0.1, obstacle_s_m=None, roadside_window_m=(30.0, 20.0)):
+def score_mission(scenario, log, end, hold_ticks, removed_at_s, dt_s, goal_reach_m=3.0, hold_band_m=(1.5, 5.0), plan_band_m=(2.5, 6.0), hold_speed_max_mps=0.1, obstacle_s_m=None, roadside_window_m=(30.0, 20.0), overtake=None):
     """The gates of a baseline scenario on the mapless run, as (name, passed, values) rows.
     ``passed`` None: could not be judged (INCOMPLETE).
 
     - S0 and S3: the goal reached, and (S3) no stop for the roadside car.
     - S1, S2 and S5: a hold behind the obstacle within the band, at a standstill; the
       obstacle removed after the hold and the goal then reached (``resume``).
-    - S4: the hold, kept until the run ended (the obstacle is never removed).
+    - S4: the hold, kept until the run ended (the obstacle is never removed). With
+      overtaking on (``overtake``: the driver's record), S4 instead: held behind it at a
+      standstill first, then passed and the goal reached (contact is the collision gate's).
     The band is the harness's obstacle-stop band (G1b); the plan's 2.5–6 m is reported
     beside it. ``obstacle_s_m`` is where the obstacle stands along the chain (the run's
     record); S3's gate counts a stop within ``roadside_window_m`` (before, after) of it —
@@ -285,6 +287,13 @@ def score_mission(scenario, log, end, hold_ticks, removed_at_s, dt_s, goal_reach
         rows.append(("brake_taps", None, brake_taps(log, dt_s)))
         return rows
     gaps = [r["truth"]["gap_m"] for r in held_rows if r["truth"].get("gap_m") is not None]
+    if overtake is not None and not removed:
+        passing = [r.get("driver") or {} for r in log if ((r.get("driver") or {}).get("overtake") or {}).get("state", "idle") != "idle"]
+        signalled = sorted({d.get("indicator") for d in passing} - {None})
+        rows.append(("held_before_passing", bool(gaps), dict(held_s=round(len(held_rows) * dt_s, 2), gap_min_m=round(min(gaps), 2) if gaps else None, gap_max_m=round(max(gaps), 2) if gaps else None)))
+        rows.append(("overtake", overtake.get("passes", 0) >= 1 and end == "finished" and goal <= goal_reach_m, dict(passes=overtake.get("passes", 0), note=overtake.get("note"), end=end, goal_distance_m=goal, indicators=signalled)))
+        rows.append(("brake_taps", None, brake_taps(log, dt_s)))
+        return rows
     if not gaps:
         rows.append(("obstacle_stop", False, dict(end=end, note="never held behind the obstacle", held_s=hold_ticks * dt_s)))
     else:

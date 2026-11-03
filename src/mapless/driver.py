@@ -36,7 +36,7 @@ the route and the car's own body and controller geometry.
 
 import math
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from enum import Enum
 
 import numpy as np
@@ -50,6 +50,7 @@ from mapless.geometry import yaw_from_compass
 from mapless.health import HealthTracker
 from mapless.junction import JunctionConfig, JunctionTurn, kerb_opening, oncoming_gate
 from mapless.obstacles import ObstacleConfig, observe_path
+from mapless.overtake import Overtake, OvertakeConfig
 from mapless.planner import LanePlanner, PlannerConfig
 from mapless.satnav import Command, RouteProgress, SatNavRoute
 from mapless.sensor_suite import SensorSuite
@@ -91,6 +92,9 @@ class DriverConfig:
     zone_mps: float | None = None
     zone_before_m: float = 45.0
     zone_after_m: float = 10.0
+    # Passing a vehicle stopped in the lane (``overtake``): None, the car holds behind it
+    # as before.
+    overtake: OvertakeConfig | None = None
     indicate_before_m: float = 30.0  # the turn's indicator on from this far before the route's entry point, until the turn is handed back
     turn_start_m: float = 25.0  # a commanded turn is looked for when the route's entry point is this close
     turn_route_tolerance_m: float = 8.0  # the entry point must be within this of the car's path
@@ -230,7 +234,10 @@ class MaplessDriver:
         self.ego = EgoMotion(self.progress.plane, config.ego)
         self.grid = TerrainGrid(config.terrain)
         self.corridor = CorridorEstimator(config.corridor)
-        self.planner = LanePlanner(config.planner, config.body, tube_half_m=config.body.half_width_m + config.obstacles.margin_m)
+        planner_config = config.planner
+        if config.overtake is not None and planner_config.hold_gap_m is None:
+            planner_config = replace(planner_config, hold_gap_m=config.overtake.hold_gap_m)  # room to steer out
+        self.planner = LanePlanner(planner_config, config.body, tube_half_m=config.body.half_width_m + config.obstacles.margin_m)
         self.turn = JunctionTurn(config.junction, config.body, self.corridor)
         self._turning = False
         self.crossing = StraightCrossing(config.crossing)  # a junction crossed straight on
@@ -244,6 +251,9 @@ class MaplessDriver:
         # car short of the next route junction's entry (``traffic_light.stop_for``).
         self.light_reading = None
         self.light_filter = LightFilter(config.light)
+        self.overtake = None if config.overtake is None else Overtake(config.overtake)
+        self.overtake_veto = False  # set by the stack: moving traffic on the far side
+        self._plan_reason = ""
         self.stop_line = StopLineTracker()  # the painted line, looked for while a red or yellow is in force
         self.last_motion = self.last_classified = self.last_plan = self.last_corridor = None
         self._profile_path = None  # (time, odometry polyline) of the last path planned along, for the far points' ground (terrain)
@@ -910,6 +920,26 @@ class MaplessDriver:
         if not corridor.ok:
             return self._fault(f"no corridor: {corridor.reason}", d, motion, t, dt)
         observation = None if classified is None else observe_path(classified, corridor, c.body, c.obstacles)
+        overtake_cap = None
+        if self.overtake is not None:
+            # Passing a stopped vehicle (``overtake``): the path shifted to its left, the
+            # obstacle check and the plan on the shifted path.
+            def observe(candidate):
+                return None if classified is None else observe_path(classified, candidate, c.body, c.obstacles)
+
+            reason_before = self._plan_reason  # last tick's (last_plan is cleared each step)
+            driven, signal, overtake_cap = self.overtake.step(
+                t, motion.odometry, motion.stationary, corridor, observation, reason_before, classified, observe, c.body,
+                veto=self.overtake_veto, junction_ahead_m=self._junction_ahead_m(motion),
+            )
+            if self.overtake.started:
+                self.planner.reset()  # its hold on what is being passed: the shifted path is seen clear of it
+            self.corridor.support_offsets = None if self.overtake.state == "idle" else self.overtake.offsets
+            if driven is not corridor:
+                corridor, observation = driven, observe(driven)
+                d.update(indicator=signal)
+            if self.overtake.state != "idle" or self.overtake.note:
+                d.update(overtake=self.overtake.record())
         lap("obstacles")
         obstacle = None if observation is None else observation.obstacle
         goal_body = None
@@ -918,13 +948,14 @@ class MaplessDriver:
         zone_cap = c.zone_mps if c.zone_mps is not None and self._in_junction_zone(motion) else None
         if zone_cap is not None:
             d.update(zone_cap_mps=zone_cap)
-        caps = [v for v in (self.speed_cap_mps, approach_cap, zone_cap) if v is not None]
+        caps = [v for v in (self.speed_cap_mps, approach_cap, zone_cap, overtake_cap) if v is not None]
         cap = min(caps) if caps else None
         if approach_cap is not None:
             d.update(light_approach_cap_mps=approach_cap)
         plan = self.planner.plan(corridor, observation, goal_body, t, hold_at_m=hold_at, speed_cap_mps=cap, cruise_mps=self.cruise_mps)
         lap("plan")
         self.last_plan, self.last_corridor = plan, corridor  # the path planned along this tick (a turn's, in a turn)
+        self._plan_reason = plan.stop_reason
         self._profile_path = (t, corridor.centre_odometry) if corridor.ok else None
         self.turn_entry_m = float(junction[0][0]) if junction is not None and corridor is not self._turn_corridor else None
         d.update(
@@ -1011,6 +1042,20 @@ class MaplessDriver:
         here = self._gate_frame.to_body(pose.to_world(np.array([[0.0, 0.0], [1.0, 0.0]])))
         y = body_corners(here, self.config.body)[0, :, 1]
         return bool(y.max() > lo and y.min() < hi)
+
+    def _junction_ahead_m(self, motion):
+        """How far ahead (body x, rear axle) the next route junction's entry point is, or
+        None (none within the next few route points, or no route pose yet)."""
+        points, route_points = self.progress.xy, self.progress.route.points
+        entries = [i for i in range(max(0, self.progress.index - 1), min(len(points), self.progress.index + 5)) if route_points[i].command.is_junction]
+        if not entries:
+            return None
+        try:
+            body = motion.odometry.to_body(motion.route_to_odometry(np.array([points[i] for i in entries])))
+        except Exception:
+            return None
+        ahead = [float(x) for x in body[:, 0] if x > -5.0]
+        return min(ahead) if ahead else None
 
     def _in_junction_zone(self, motion):
         """Whether the car is within zone_before_m of a route junction's entry point or

@@ -68,6 +68,9 @@ class PlannerConfig:
     lateral_accel_mps2: float = 1.5
     decel_mps2: float = 1.0
     stop_gap_m: float = 2.5
+    # An obstacle's hold stops the front this far short of it (None: stop_gap_m). Set by
+    # the driver when it may pass a stopped vehicle (``overtake``): room to steer out.
+    hold_gap_m: float | None = None
     validity_s: float = 0.5
     resume_clear_s: float = 1.0
     # A held obstacle whose region cannot show ground (the LiDAR's near blind zone: its
@@ -109,6 +112,8 @@ class PlannerConfig:
         for name in ("stop_gap_m", "resume_clear_s"):
             if not math.isfinite(getattr(self, name)) or getattr(self, name) < 0:
                 raise ValueError(f"{name} must be non-negative")
+        if self.hold_gap_m is not None and (not math.isfinite(self.hold_gap_m) or self.hold_gap_m < 0):
+            raise ValueError("hold_gap_m must be non-negative or None")
 
 
 @dataclass(frozen=True)
@@ -423,7 +428,7 @@ class LanePlanner:
                 hold.clear_since_s = hold.clear_last_s = None
         binding = None
         for hold in self._holds:
-            held_stop = self._near(corridor, line, hold)[0] - self.body.front_m - c.stop_gap_m
+            held_stop = self._near(corridor, line, hold)[0] - self.body.front_m - (c.stop_gap_m if c.hold_gap_m is None else c.hold_gap_m)
             if binding is None or held_stop < binding[0]:
                 binding = (held_stop, hold)
         note = ""

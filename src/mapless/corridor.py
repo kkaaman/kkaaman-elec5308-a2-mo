@@ -311,6 +311,10 @@ class CorridorEstimator:
     def __init__(self, config=None):
         self.config = config or CorridorConfig()
         self.previous = None
+        # While passing a stopped vehicle (``overtake``): the shift of the driven path from
+        # this line (a function of the line's points), so the road is looked for where the car
+        # will drive. Beside the vehicle this line runs through it: no road seen on it.
+        self.support_offsets = None
         self.keep_right_m = self.config.keep_right_m
         self.keep_right_source = "configured" if self.keep_right_m is not None else "pending"
         self._fits = []
@@ -386,6 +390,10 @@ class CorridorEstimator:
         c = self.config
         if len(centre_body) < 2:
             return 0.0
+        if self.support_offsets is not None:
+            from mapless.overtake import shift_line
+
+            centre_body = shift_line(centre_body, self.support_offsets(centre_body))
         xs = np.arange(max(0.0, float(centre_body[0, 0])), float(centre_body[-1, 0]) + 1e-9, 0.5)
         if len(xs) == 0:
             return 0.0
