@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "name": "town10_turn",
+  "segment_ids": [
+    "1:0:1",
+    "8:0:1",
+    "4:0:-1",
+    "515:0:-1",
+    "5:0:-1",
+    "795:0:-1",
+    "18:0:-1",
+    "19:0:-1",
+    "255:0:-1",
+    "20:0:-1"
+  ],
+  "manoeuvres": [
+    "straight",
+    "right",
+    "straight"
+  ],
+  "start_xy_m": [
+    102.2401351928711,
+    -91.77693176269531
+  ],
+  "end_xy_m": [
+    12.631,
+    -24.719
+  ],
+  "obstacle_s_m": 120.0,
+  "description": "town10_lap2 with a turn (437 m): a1_test01's start, straight through 468 (S3's roadside car at s 120), road 5, right at 719, 22 m on, straight through 189 (a 38 m box), the goal 40 m past it. The only chain from a1_test01's start lane with a turn within four junctions that leaves 40 m or more for the goal.",
+  "notes": "Junctions by route s (entry-exit): 468 straight 156-199; 719 right 303-336; 189 straight 358-396. Legs: 0-156 (91 deg); 199-303 (77 deg); 336-358 (0 deg); 396-437 (0 deg). Found from the lane topology (tests/fixtures' Town10HD export) with loop_routes' rules.",
+  "source": "carla_adapter.loop_routes helpers (evaluator-side lane topology)"
+}

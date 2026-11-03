@@ -425,3 +425,18 @@ def test_the_short_lap_ends_on_the_bend_before_junction_23():
     mission = mission_from_definition(topology, lap2)
     length = float(np.hypot(*np.diff(np.asarray(mission.points_xyz_m)[:, :2], axis=0).T).sum())
     assert mission.segment_ids[-1] == "6:0:-1" and tuple(mission.manoeuvres) == ("straight", "straight") and 390.0 < length < 420.0
+
+
+def test_the_turn_route_turns_right_at_719_and_ends_past_189():
+    """``town10_turn`` (3 Nov): lap2's start and 468, then right at 719 and straight
+    through 189, the goal 40 m on: the baseline's builder accepts the chain."""
+    from planning.lane_graph import LaneTopology
+    from planning.mission import mission_from_definition
+
+    topology = LaneTopology.load(ROOT / "tests" / "fixtures" / "Town10HD.lane_graph.json")
+    turn = json.loads((ROOT / "configs" / "missions" / "town10_turn.json").read_text(encoding="utf-8"))
+    lap2 = json.loads((ROOT / "configs" / "missions" / "town10_lap2.json").read_text(encoding="utf-8"))
+    mission = mission_from_definition(topology, turn)
+    length = float(np.hypot(*np.diff(np.asarray(mission.points_xyz_m)[:, :2], axis=0).T).sum())
+    assert turn["segment_ids"][:5] == lap2["segment_ids"][:5] and turn["start_xy_m"] == lap2["start_xy_m"] and turn["obstacle_s_m"] == 120.0
+    assert tuple(mission.manoeuvres) == ("straight", "right", "straight") and 420.0 < length < 450.0
