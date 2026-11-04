@@ -1136,18 +1136,21 @@ def test_ambient_traffic_spawns_away_from_the_ego_and_releases_the_traffic_manag
             self.attrs[k] = v
 
     class Attribute:
-        """As CARLA's ActorAttribute: str() describes it; as_str()/int() give the value."""
+        """As CARLA's ActorAttribute: str() describes it; int() gives an int one's value,
+        as_str() a string one's (and raises for an int one: fd9c102 on PC 2)."""
 
         def __init__(self, k, v):
             self.k, self.v = k, v
 
         def __str__(self):
-            return f"ActorAttribute(id={self.k},type=str,value={self.v}(const))"
+            return f"ActorAttribute(id={self.k},value={self.v}(const))"
 
         def __int__(self):
             return int(self.v)
 
         def as_str(self):
+            if self.k == "number_of_wheels":
+                raise RuntimeError(f"{self.k}: bad attribute cast: cannot convert to String")
             return self.v
 
     class Actor:
