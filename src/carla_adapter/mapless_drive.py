@@ -1766,6 +1766,7 @@ class MaplessDrive:
                     same_way_filter=bool(getattr(args, "same_way_filter", False)),
                     behind_filter=bool(getattr(args, "behind_filter", False)),
                     timed_oncoming=bool(getattr(args, "timed_oncoming", False)),
+                    reactive_vehicles=bool(getattr(args, "reactive_vehicles", False)),
                 )
                 driver = MaplessStack(self.suite, self.route, config, stack_config, DT_S)
                 self.report["stack"] = dict(
@@ -2372,6 +2373,7 @@ def main(argv=None, stack=False):
     parser.add_argument("--same-way-filter", action="store_true", help="stack: a vehicle moving the car's way in the next lane, not closing on the path over 0.6 s, is no conflict (off: every moving neighbour's constant-velocity prediction is tested)")
     parser.add_argument("--behind-filter", action="store_true", help="stack: a road user wholly behind the car's rear (0.5 m margin) is no forward conflict or crossing yield (off: a faster follower in the lane could cap the car to 0 m/s)")
     parser.add_argument("--timed-oncoming", action="store_true", help="stack: a vehicle coming towards the car along its path is capped short of where the car would be when the timed conflict happens, not where its prediction first touches the path at any time (off: a car first seen ahead in a bend could cap the car to 0 m/s)")
+    parser.add_argument("--reactive-vehicles", action="store_true", help="stack: vehicles stop the car only when in its path (obstacle stop, following), never on a prediction; lights, stop signs and walkers' yields unchanged (a car pulling out is then braked for later and harder)")
     parser.add_argument("--cruise-policy", type=Path, default=None, help="RL cruise advisor (a CruisePolicy .npz from train_rl_cruise): sets the cruise target to 2, 3 or 4 m/s every 4 ticks; every cap still applies (off: --speed and the zones set it)")
     parser.add_argument("--stop-junctions", type=lambda text: tuple(int(k) for k in text.split(",") if k.strip()), default=(), help="stop signs the sat-nav marks: route junction numbers, 1-based in route order (every junction counted), comma-separated; the car stands --stop-sign-s at each before driving on (town10_rightrun: 4 = junction 841)")
     parser.add_argument("--stop-sign-s", type=float, default=None, help="how long the car stands at a stop sign (default 2 s)")

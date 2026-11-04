@@ -331,6 +331,15 @@ class StackConfig:
     timed_oncoming: bool = False
     timed_oncoming_min_mps: float = 1.5
     timed_oncoming_vehicle_mps: float = 3.0  # this fast, a track not classed a pedestrian counts as a vehicle (a partial view of a car at 35 m reads 2.3 x 1.6 m)
+    # Vehicles stop the car only when they are in its path (4 Nov, asked for the demo: stop
+    # for obstacles, red lights and stop signs, not for predictions). With reactive_vehicles
+    # on, vehicles (oncoming_kind: by class or footprint, or a fast track not classed a
+    # pedestrian) are no candidates for predicted conflicts or provisional caps; the
+    # driver's obstacle stop and following still stop the car for a vehicle in its path,
+    # lights and stop signs still hold it, and walkers and bikes keep their predicted
+    # yields. A vehicle pulling out or turning across is then braked for only once it is in
+    # the path: later and harder.
+    reactive_vehicles: bool = False
     yield_persist_s: float = 0.3
     # A radar-only track is predicted onto the path when it is moving on corroborated
     # evidence where the LiDAR sees nothing (``radar_threat``), as a vehicle of this size
@@ -750,6 +759,7 @@ class MaplessStack:
             parked_beside=self._parked[:5],
             behind_car=getattr(self, "_behind", [])[:5] or None,
             timed_oncoming=getattr(self, "_timed_oncoming", [])[:5] or None,
+            reactive_vehicles=getattr(self, "_reactive", [])[:5] or None,
             radar_threats=self._radar_threats[:5],
             incoherent_vehicles=self._incoherent,
             edge_held=self._edge_held or None,
@@ -900,6 +910,11 @@ class MaplessStack:
             others, self._parked = parked_beside(tracks, others, xy, self.driver.config.body, c)
             if c.behind_filter:
                 others, self._behind = behind_the_car(tracks, others, pose, self.driver.config.body, c)
+            self._reactive = []  # (``reactive_vehicles``) vehicles left to the obstacle stop and following
+            if c.reactive_vehicles:
+                by_id = {tr.track_id: tr for tr in tracks}
+                self._reactive = [p.track_id for p in others if p.track_id in by_id and oncoming_kind(by_id[p.track_id], c)]
+                others = [p for p in others if p.track_id not in self._reactive]
             if c.same_way_filter:
                 live_ids = {tr.track_id for tr in tracks}
                 self._same_way_lat = {tid: v for tid, v in self._same_way_lat.items() if tid in live_ids}
