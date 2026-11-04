@@ -1108,3 +1108,84 @@ def test_the_braking_and_lookahead_flags_reach_the_driver_config():
     assert base.handback_carry_m == 0.0 and drive.driver_config(VehicleBody(), 2.9, math.radians(70), 3.0, 1.75, handback_carry_m=15).handback_carry_m == 15.0
     assert base.light.approach_mps == 3.0 and drive.driver_config(VehicleBody(), 2.9, math.radians(70), 3.0, 1.75, light_approach_mps=6).light.approach_mps == 6.0
     assert base.zone_turn_mps is None and drive.driver_config(VehicleBody(), 2.9, math.radians(70), 3.0, 1.75, zone_mps=6, zone_turn_mps=3).zone_turn_mps == 3
+
+
+def test_ambient_traffic_spawns_away_from_the_ego_and_releases_the_traffic_manager():
+    """``--traffic-vehicles`` / ``--traffic-walkers`` (4 Nov): autopilot cars on spawn
+    points beyond ``clear_radius_m`` of the ego, walkers with an AI controller each;
+    ``stop`` stops the controllers and takes the Traffic Manager out of synchronous mode."""
+    from types import SimpleNamespace as NS
+
+    from carla_adapter.ambient_traffic import AmbientTraffic, TrafficConfig
+
+    calls = []
+
+    class BP:
+        def __init__(self, id_):
+            self.id, self.attrs = id_, {"number_of_wheels": "4", "role_name": "", "is_invincible": "true"}
+
+        def has_attribute(self, k):
+            return k in self.attrs
+
+        def get_attribute(self, k):
+            return self.attrs[k]
+
+        def set_attribute(self, k, v):
+            self.attrs[k] = v
+
+    class Actor:
+        def __init__(self, bp, where):
+            self.bp, self.where = bp, where
+
+        def set_autopilot(self, on, port):
+            calls.append(("autopilot", on, port))
+
+    class Controller:
+        def start(self):
+            calls.append("start")
+
+        def go_to_location(self, loc):
+            calls.append("go")
+
+        def set_max_speed(self, v):
+            calls.append(("speed", round(v, 1)))
+
+        def stop(self):
+            calls.append("stop")
+
+    loc = lambda x, y: NS(x=x, y=y)  # noqa: E731
+    points = [NS(location=loc(x, 0.0)) for x in (5.0, 20.0, 50.0, 80.0, 120.0)]
+    library = NS(filter=lambda pattern: [BP("vehicle.a"), BP("vehicle.b")] if pattern.startswith("vehicle") else [BP("walker.pedestrian.1")], find=lambda name: BP(name))
+    nav = iter([loc(10.0, 0.0), loc(60.0, 5.0), loc(70.0, 5.0), loc(90.0, 1.0), loc(95.0, 1.0)] * 4)
+    world = NS(
+        get_blueprint_library=lambda: library, get_map=lambda: NS(get_spawn_points=lambda: points),
+        get_random_location_from_navigation=lambda: next(nav), set_pedestrians_seed=lambda s: None, set_pedestrians_cross_factor=lambda f: calls.append(("cross", f)),
+        spawn_actor=lambda bp, t, attach_to=None: Controller(),
+    )
+    tm = NS(set_synchronous_mode=lambda on: calls.append(("tm_sync", on)), set_random_device_seed=lambda s: None, set_global_distance_to_leading_vehicle=lambda d: None, global_percentage_speed_difference=lambda p: None)
+    spawned = []
+
+    class Owner:
+        client = NS(get_trafficmanager=lambda port: tm)
+        _actors = []
+
+        def __init__(self):
+            self.world = world
+
+        def try_spawn(self, bp, where):
+            a = Actor(bp, where)
+            spawned.append(a)
+            return a
+
+        def tick(self):
+            calls.append("tick")
+
+    carla = NS(Transform=lambda location=None: NS(location=location))
+    traffic = AmbientTraffic(carla, Owner(), TrafficConfig(vehicles=10, walkers=2, seed=7, clear_radius_m=35.0))
+    report = traffic.spawn(loc(0.0, 0.0))
+    cars = [a for a in spawned if a.bp.id.startswith("vehicle")]
+    assert report["vehicles"] == 3 and all(a.where.location.x > 35.0 for a in cars)  # 5 and 20 m are too near
+    assert report["walkers"] == 2 and all(a.where.location.x > 35.0 for a in spawned if a.bp.id.startswith("walker"))
+    assert ("tm_sync", True) in calls and calls.count("start") == 2 and ("autopilot", True, 8000) in calls
+    assert traffic.stop() == [] and calls.count("stop") == 2 and calls[-1] == ("tm_sync", False)
+    assert not TrafficConfig().enabled and TrafficConfig(walkers=1).enabled
