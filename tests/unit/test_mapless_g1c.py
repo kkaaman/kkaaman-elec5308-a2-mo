@@ -367,3 +367,38 @@ def test_a_turns_zone_can_begin_further_out_than_a_straight_crossings():
     assert driver._zone_before_for(Command.RIGHT) == 45.0 and driver._zone_before_for(Command.STRAIGHT) == 15.0
     plain = MaplessDriver(SUITE, world.route(goal_after_turn(world)), DriverConfig(body=BODY, control=control(), corridor=CorridorConfig(keep_right_m=1.75), zone_mps=3.0), DT)
     assert plain._zone_before_for(Command.RIGHT) == 45.0 == plain._zone_before_for(Command.STRAIGHT)
+
+
+def test_a_stop_sign_on_the_route_stops_the_car_at_the_junction_before_it_turns():
+    """``stop_junctions`` (4 Nov, the showcase route): the sat-nav marks route junction 1 as
+    a stop sign. The car comes to rest short of the junction's entry, stands at least
+    ``stop_sign_s``, then makes the turn and reaches the goal; without the sign it turns
+    without stopping (the zone test above)."""
+    from mapless.planner import PlannerConfig
+
+    world, _ = junction_world(-1)
+    goal = goal_after_turn(world)
+    config = DriverConfig(
+        body=BODY, control=control(), corridor=CorridorConfig(keep_right_m=1.75), junction=JunctionConfig(),
+        planner=PlannerConfig(cruise_mps=8.0), zone_mps=6.0, zone_turn_mps=3.0, stop_junctions=(1,), stop_sign_s=2.0,
+    )
+    driver = MaplessDriver(SUITE, world.route(goal), config, DT)
+    log = []
+    for _ in range(int(80 / DT)):
+        step = driver.step(world.frame())
+        log.append((world.truth(), step))
+        world.apply(step.command)
+        if step.mode is DriveMode.FINISHED and world.state.speed == 0:
+            break
+    truth, last = log[-1]
+    assert last.mode is DriveMode.FINISHED and abs(truth.s_m - goal) < 3.0 and not any(t.collision for t, _ in log)
+    signs = [s.diagnostics["stop_sign"] for _, s in log if s.diagnostics.get("stop_sign")]
+    done = [x for x in signs if x["state"] == "done"]
+    assert len(done) == 1 and done[0]["junction"] == 1 and done[0]["stood_s"] >= 2.0
+    # Where the junction's entry is along the road (rear-axle s): from the first tick that
+    # reports it. The car stood (at rest 2 s or more) between 8 m and 1 m short of it.
+    t0, s0 = next((t, s) for t, s in log if s.diagnostics.get("junction_entry_m") is not None)
+    entry_s = t0.s_m + s0.diagnostics["junction_entry_m"]
+    still = [t.s_m for t, _ in log if t.speed_mps < 0.05 and t0.s_m + 1.0 < t.s_m < entry_s + 5.0]  # not the goal stop
+    assert len(still) * DT >= 2.0 and all(entry_s - 8.0 < x < entry_s - 1.0 for x in still)
+    assert DriverConfig(body=BODY, control=control()).stop_junctions == ()

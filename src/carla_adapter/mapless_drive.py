@@ -827,7 +827,7 @@ def _fmt(value):
     return "-" if value is None else (f"{value:.2f}" if isinstance(value, (int, float)) else str(value))
 
 
-def driver_config(body, wheelbase_m, steering_limit_rad, speed_mps, keep_right_m, zone_mps=None, overtake=False, overtake_oncoming=False, brake_mps2=None, lookahead_s=0.0, accel_mps2=None, light_release_s=None, strict_evidence=False, handback_carry_m=0.0, light_approach_mps=None, zone_turn_mps=None, zone_before_m=None, zone_turn_before_m=None, queue_carry_m=0.0):
+def driver_config(body, wheelbase_m, steering_limit_rad, speed_mps, keep_right_m, zone_mps=None, overtake=False, overtake_oncoming=False, brake_mps2=None, lookahead_s=0.0, accel_mps2=None, light_release_s=None, strict_evidence=False, handback_carry_m=0.0, light_approach_mps=None, zone_turn_mps=None, zone_before_m=None, zone_turn_before_m=None, queue_carry_m=0.0, stop_junctions=(), stop_sign_s=None):
     """The driver configuration the harness runs with (shared with the offline replay);
     ``zone_mps``: the junction zones' speed (``DriverConfig.zone_mps``), None for none;
     ``overtake``: pass a vehicle stopped in the lane (``DriverConfig.overtake``);
@@ -868,6 +868,8 @@ def driver_config(body, wheelbase_m, steering_limit_rad, speed_mps, keep_right_m
         goal_early=brake > 1.0,
         handback_carry_m=float(handback_carry_m),
         queue_carry_m=float(queue_carry_m),
+        stop_junctions=tuple(int(k) for k in stop_junctions),
+        **({} if stop_sign_s is None else dict(stop_sign_s=float(stop_sign_s))),
         light=LightConfig(**{k: float(v) for k, v in (('none_release_s', light_release_s), ('approach_mps', light_approach_mps)) if v is not None}),
         zone_mps=zone_mps,
         zone_turn_mps=zone_turn_mps,
@@ -1687,7 +1689,7 @@ class MaplessDrive:
         light_front_s = None
         self.body = vehicle_body(self.ego, self.offset)
         config = driver_config(self.body, self.adapter.geometry.wheelbase_m, self.adapter.geometry.controller_steering_limit_rad, args.speed, args.keep_right, zone_mps=getattr(args, "zone_mps", None), overtake=getattr(args, "overtake", False), overtake_oncoming=getattr(args, "overtake_oncoming", False),
-            brake_mps2=getattr(args, "brake_mps2", None), lookahead_s=getattr(args, "lookahead_s", 0.0), accel_mps2=getattr(args, "accel_mps2", None), light_release_s=getattr(args, "light_release_s", None), strict_evidence=getattr(args, "strict_evidence", False), handback_carry_m=getattr(args, "handback_carry_m", 0.0), light_approach_mps=getattr(args, "light_approach_mps", None), zone_turn_mps=getattr(args, "zone_turn_mps", None), zone_before_m=getattr(args, "zone_before_m", None), zone_turn_before_m=getattr(args, "zone_turn_before_m", None), queue_carry_m=getattr(args, "queue_carry_m", 0.0),
+            brake_mps2=getattr(args, "brake_mps2", None), lookahead_s=getattr(args, "lookahead_s", 0.0), accel_mps2=getattr(args, "accel_mps2", None), light_release_s=getattr(args, "light_release_s", None), strict_evidence=getattr(args, "strict_evidence", False), handback_carry_m=getattr(args, "handback_carry_m", 0.0), light_approach_mps=getattr(args, "light_approach_mps", None), zone_turn_mps=getattr(args, "zone_turn_mps", None), zone_before_m=getattr(args, "zone_before_m", None), zone_turn_before_m=getattr(args, "zone_turn_before_m", None), queue_carry_m=getattr(args, "queue_carry_m", 0.0), stop_junctions=getattr(args, "stop_junctions", ()), stop_sign_s=getattr(args, "stop_sign_s", None),
         )
         self.report["driver_config"] = rounded(_config_dict(config))
         rig = SensorRig(
@@ -1977,6 +1979,13 @@ class MaplessDrive:
         self.report["indicators"] = {side: round(n * DT_S, 2) for side, n in sorted(indicator_ticks.items())}  # seconds signalled, by side
         if advisor is not None:
             self.report["cruise_policy"].update(advisor.report())  # what the RL advisor chose, and how often it set the speed
+        if getattr(args, "stop_junctions", ()):
+            # Each stop sign stood at: where (evaluator route s of the rear axle) and how long.
+            stood = [r for r in log if ((r.get("driver") or {}).get("stop_sign") or {}).get("state") == "done"]
+            self.report["stop_signs"] = dict(
+                declared=list(args.stop_junctions),
+                stood=[dict(junction=r["driver"]["stop_sign"]["junction"], s_m=None if r["truth"]["s_m"] is None else round(r["truth"]["s_m"], 1), stood_s=r["driver"]["stop_sign"]["stood_s"]) for r in stood],
+            )
         passing = getattr(driver.driver if args.stack else driver, "overtake", None)
         if passing is not None:
             self.report["overtake"] = passing.record()  # passes made, and the last state and note
@@ -2362,6 +2371,8 @@ def main(argv=None, stack=False):
     parser.add_argument("--same-way-filter", action="store_true", help="stack: a vehicle moving the car's way in the next lane, not closing on the path over 0.6 s, is no conflict (off: every moving neighbour's constant-velocity prediction is tested)")
     parser.add_argument("--behind-filter", action="store_true", help="stack: a road user wholly behind the car's rear (0.5 m margin) is no forward conflict or crossing yield (off: a faster follower in the lane could cap the car to 0 m/s)")
     parser.add_argument("--cruise-policy", type=Path, default=None, help="RL cruise advisor (a CruisePolicy .npz from train_rl_cruise): sets the cruise target to 2, 3 or 4 m/s every 4 ticks; every cap still applies (off: --speed and the zones set it)")
+    parser.add_argument("--stop-junctions", type=lambda text: tuple(int(k) for k in text.split(",") if k.strip()), default=(), help="stop signs the sat-nav marks: route junction numbers, 1-based in route order (every junction counted), comma-separated; the car stands --stop-sign-s at each before driving on (town10_rightrun: 4 = junction 841)")
+    parser.add_argument("--stop-sign-s", type=float, default=None, help="how long the car stands at a stop sign (default 2 s)")
     parser.add_argument("--traffic-vehicles", type=int, default=0, help="ambient traffic: this many CARLA autopilot cars, none within 35 m of the ego's start (default 0)")
     parser.add_argument("--traffic-walkers", type=int, default=0, help="ambient traffic: this many AI walkers on the pavements (default 0)")
     parser.add_argument("--walker-cross-factor", type=float, default=0.1, help="ambient walkers: share that cross roads (default 0.1)")
