@@ -1055,4 +1055,9 @@ def test_a_car_moving_along_the_next_lane_is_no_conflict_until_it_closes():
         walker = [track(42, 8.0, -3.5, 1.5, 0.0, fp=(0.5, 0.5, 0.0), travelled=3.0, recent=1.5)]
         kept, dropped = same_way_beside(walker, predict_all(predictable_tracks(walker), c.prediction), _path(), BODY, c, walker_history, t)
     assert kept and not dropped
+    oncoming_history = {}
+    for k, t in enumerate((40.0, 40.2, 40.4, 40.6, 40.8)):
+        oncoming = [track(43, 30.0 - 1.3 * k, 3.4, -6.5, 0.0, fp=(6.3, 2.6, 0.0), travelled=20.0, recent=6.5)]
+        kept, dropped = same_way_beside(oncoming, predict_all(predictable_tracks(oncoming), c.prediction), _path(), BODY, c, oncoming_history, t)
+    assert dropped == [43]  # oncoming in its own lane, not closing
     assert not StackConfig().same_way_filter
