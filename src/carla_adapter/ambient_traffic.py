@@ -39,13 +39,24 @@ class TrafficConfig:
 LARGE = ("firetruck", "ambulance", "carlacola", "european_hgv", "fusorosa", "sprinter", "cybertruck", "t2", "truck", "bus", "van")
 
 
-def _value(bp, name):
-    """A blueprint attribute's value as text. CARLA returns an ``ActorAttribute``, whose
-    ``str()`` is its description ("ActorAttribute(id=base_type,...)"), not its value:
-    compared with "car" it matched no blueprint, and the first cars-only run stopped with
-    "Cannot choose from an empty sequence" (traffic4, 6f68f51)."""
+def _text(bp, name):
+    """A string attribute's value. CARLA returns an ``ActorAttribute``, whose ``str()`` is
+    its description ("ActorAttribute(id=base_type,...)"), not its value: compared with
+    "car" it matched no blueprint (traffic4, 6f68f51). ``as_str()`` gives the value of a
+    string attribute and raises for a number one ("bad attribute cast", fd9c102)."""
     attribute = bp.get_attribute(name)
-    return str(attribute.as_str() if hasattr(attribute, "as_str") else attribute).strip()
+    try:
+        return str(attribute.as_str()).strip()
+    except (AttributeError, RuntimeError):
+        return str(attribute).strip()
+
+
+def _wheels(bp):
+    """``number_of_wheels`` (an int attribute: ``int()``, as CARLA's own examples read it)."""
+    try:
+        return int(bp.get_attribute("number_of_wheels")) if bp.has_attribute("number_of_wheels") else None
+    except (TypeError, ValueError, RuntimeError):
+        return None
 
 
 def _by_name(bp):
@@ -55,10 +66,10 @@ def _by_name(bp):
 
 def _ordinary_car(bp):
     """A four-wheeled car: CARLA's ``base_type`` when the blueprint has one, else by name."""
-    if not (bp.has_attribute("number_of_wheels") and _value(bp, "number_of_wheels") == "4"):
+    if _wheels(bp) != 4:
         return False
-    if bp.has_attribute("base_type") and _value(bp, "base_type"):
-        return _value(bp, "base_type").lower() == "car"
+    if bp.has_attribute("base_type") and _text(bp, "base_type"):
+        return _text(bp, "base_type").lower() == "car"
     return _by_name(bp)
 
 
@@ -87,7 +98,7 @@ class AmbientTraffic:
         vehicles = list(library.filter("vehicle.*"))
         cars = [bp for bp in vehicles if _ordinary_car(bp)]
         if not cars:  # no base_type to go by: four-wheelers whose names are not large vehicles
-            cars = [bp for bp in vehicles if bp.has_attribute("number_of_wheels") and _value(bp, "number_of_wheels") == "4" and _by_name(bp)]
+            cars = [bp for bp in vehicles if _wheels(bp) == 4 and _by_name(bp)]
         for spawn in spawn_points[: c.vehicles if cars else 0]:
             bp = rng.choice(cars)
             if bp.has_attribute("role_name"):
