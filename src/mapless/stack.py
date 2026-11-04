@@ -293,6 +293,19 @@ class StackConfig:
     # clear of the body read 0.0-0.1 m (live, 7eaca3d). The driver's LiDAR obstacle stop
     # (its tube 0.35 m wider than the body) is the check for a corner that pokes in.
     parked_clearance_m: float = -0.1  # (negative: the tracked near side may be 0.1 m inside the body's edge; see parked_beside)
+    # A vehicle moving the car's way in the next lane (4 Nov, ambient traffic): predicted
+    # at constant velocity through a bend, or while it slowed for a light, its path crossed
+    # the car's lane and the car braked at 3-5 m/s^2 seven times in one lap (traffic
+    # lap2_5308). With same_way_filter on, such a vehicle is no conflict while its near side
+    # stays same_way_clearance_m outside the car's body, it moves along the path at
+    # same_way_min_along_mps or more, and its distance from the path has closed by less
+    # than same_way_max_closing_mps over the last same_way_history_s (measured, not its
+    # momentary heading). A car cutting in closes, and is a conflict again at once.
+    same_way_filter: bool = False
+    same_way_history_s: float = 0.6
+    same_way_min_along_mps: float = 1.5
+    same_way_max_closing_mps: float = 0.3
+    same_way_clearance_m: float = 0.3
     yield_persist_s: float = 0.3
     # A radar-only track is predicted onto the path when it is moving on corroborated
     # evidence where the LiDAR sees nothing (``radar_threat``), as a vehicle of this size
@@ -478,6 +491,8 @@ class MaplessStack:
         self._cause = None  # the track behind a conflict or yield cap, for the log
         self._clearing = None  # a vehicle not stopped for while clearing a left turn's opposing lane (S5)
         self._parked = []  # vehicles beside the path whose only motion is the car's passing view of them
+        self._same_way = []  # (``same_way_filter``) vehicles moving the car's way in the next lane, not closing
+        self._same_way_lat = {}  # track id -> [(time, distance from the path)]
         self._radar_threats = []  # radar-only tracks predicted onto the path this tick (F5-06), [id, full|provisional] (F6-02)
         self._incoherent = 0  # vehicle-sized tracks held still for incoherent motion this tick (4.3)
         self._edge_held = []  # ... and those held still for motion their leading edge did not bear out
@@ -854,6 +869,10 @@ class MaplessStack:
             if keep_right is not None:
                 others, self._unreachable = road_reachable(tracks, others, xy, self.driver.grid, keep_right, c, history=self._blocked_ticks)
             others, self._parked = parked_beside(tracks, others, xy, self.driver.config.body, c)
+            if c.same_way_filter:
+                live_ids = {tr.track_id for tr in tracks}
+                self._same_way_lat = {tid: v for tid, v in self._same_way_lat.items() if tid in live_ids}
+                others, self._same_way = same_way_beside(tracks, others, xy, self.driver.config.body, c, self._same_way_lat, t)
             if lead is not None and role != "crossing":
                 # Also for a followed walker or cyclist, which stays in the crossing checks
                 # itself (review of 3e9083a, M9: pieces 2.7 m beyond a narrow followed lead
@@ -1692,6 +1711,45 @@ def road_near(grid, position, config):
     if int((labels != CellLabel.UNKNOWN).sum()) < config.offroad_known_min_cells:
         return True
     return int((labels == CellLabel.ROAD).sum()) >= config.offroad_road_min_cells
+
+
+def same_way_beside(tracks, candidates, path_xy, body, config, history, now_s):
+    """``(kept, dropped_ids)``: drop vehicles moving the car's way beside the path that are
+    not closing on it (``same_way_filter``). ``history`` (track id -> [(time, |lateral|)])
+    is kept by the caller; a track without ``same_way_history_s`` of it is kept."""
+    path = np.asarray(path_xy, dtype=float)
+    if len(path) < 2:
+        return list(candidates), []
+    by_id = {t.track_id: t for t in tracks}
+    heads = path_headings(path)
+    arcs = np.concatenate(([0.0], np.cumsum(np.hypot(*np.diff(path, axis=0).T))))
+    kept, dropped = [], []
+    for p in candidates:
+        track = by_id.get(p.track_id)
+        if track is None or not is_vehicle(track, config) or track.footprint is None:
+            kept.append(p)
+            continue
+        s, lateral, _ = project_onto_polyline(track.position[None], path)
+        seg = int(np.clip(np.searchsorted(arcs, float(s[0]), side="right") - 1, 0, len(path) - 1))
+        tangent = np.array([math.cos(heads[seg]), math.sin(heads[seg])])
+        lat = abs(float(lateral[0]))
+        along = float(track.velocity @ tangent)
+        seen = history.setdefault(p.track_id, [])
+        seen.append((now_s, lat))
+        while seen and now_s - seen[0][0] > 3.0 * config.same_way_history_s:
+            seen.pop(0)
+        older = [e for e in seen if now_s - e[0] >= config.same_way_history_s]
+        if not older:
+            kept.append(p)
+            continue
+        t0, lat0 = older[-1]
+        closing = (lat0 - lat) / max(now_s - t0, 1e-6)
+        near_side = lat - 0.5 * min(track.footprint[0], track.footprint[1])
+        if near_side > body.half_width_m + config.same_way_clearance_m and along >= config.same_way_min_along_mps and closing < config.same_way_max_closing_mps:
+            dropped.append(p.track_id)
+            continue
+        kept.append(p)
+    return kept, dropped
 
 
 def parked_beside(tracks, candidates, path_xy, body, config):

@@ -118,6 +118,13 @@ class DriverConfig:
     # line was carried until it ran out 17 m short of the exit and the car faulted.
     handback_carry_m: float = 0.0
     handback_continue_m: float = 15.0
+    # Creeping in a queue (4 Nov, ambient traffic): cars queued between the car and the kerb
+    # hide it, the carried line is used up a few metres at a time and the car faults with
+    # "no corridor" (traffic lap2_5308, s 143, 13 m short of 468). Below queue_creep_mps a
+    # carried line ending within handback_continue_m is continued straight, along its last
+    # 10 m, by up to queue_carry_m past where the last refit's line ended. 0: off.
+    queue_carry_m: float = 0.0
+    queue_creep_mps: float = 3.0
     indicate_before_m: float = 30.0  # the turn's indicator on from this far before the route's entry point, until the turn is handed back
     turn_start_m: float = 25.0  # a commanded turn is looked for when the route's entry point is this close
     turn_route_tolerance_m: float = 8.0  # the entry point must be within this of the car's path
@@ -285,6 +292,7 @@ class MaplessDriver:
         self._profile_path = None  # (time, odometry polyline) of the last path planned along, for the far points' ground (terrain)
         self._turn_done = None  # route index of the junction entry whose turn is complete
         self._handback_exit = None  # (``handback_carry_m``) (exit point, crossing line heading) of a crossing handed back short of its exit, odometry
+        self._queue_limit = None  # (``queue_carry_m``) the odometry point a queue's continuation may reach, from the last refit line's end
         self._mouth_odo = None  # the junction mouth, odometry frame, nearest seen since the approach began
         self._lane_heading_odo = None  # the entry lane's direction, odometry frame, latched as the approach begins
         self._turn_corridor = None  # the last turn path steered along (the stop line if the latched path fails mid-arc)
@@ -456,6 +464,8 @@ class MaplessDriver:
                 self._handback_exit = None
             elif self.corridor.continue_straight(motion.odometry, exit_x + c.handback_carry_m + c.corridor.min_valid_m, heading_rad=heading, within_m=c.handback_continue_m):
                 d.update(corridor_continued_to_m=round(exit_x + c.handback_carry_m + c.corridor.min_valid_m, 1))
+        if c.queue_carry_m > 0.0:
+            self._queue_continue(motion, d)
         corridor = self.corridor.update(self.grid, motion.odometry, t)
         if (
             corridor.ok
@@ -1123,6 +1133,31 @@ class MaplessDriver:
             return None
         ahead = [float(x) for x in body[:, 0] if x > -5.0]
         return min(ahead) if ahead else None
+
+    def _queue_continue(self, motion, d):
+        """``queue_carry_m``: continue a carried line straight while creeping in a queue."""
+        c, est = self.config, self.corridor
+        if est.previous is None or est.last_refit is None:
+            return
+        body = motion.odometry.to_body(est.previous.centre_odometry)
+        if est.last_refit.get("refit"):
+            # A fresh line: the continuation may reach queue_carry_m past its end.
+            if len(body) >= 2:
+                d_end = body[-1] - body[-2]
+                u = d_end / max(float(np.hypot(*d_end)), 1e-9)
+                self._queue_limit = motion.odometry.to_world((body[-1] + c.queue_carry_m * u)[None])[0]
+            return
+        if self._queue_limit is None or motion.speed_mps > c.queue_creep_mps or len(body) < 2:
+            return
+        limit_x = float(motion.odometry.to_body(self._queue_limit[None])[0][0])
+        tail = body[body[:, 0] >= body[-1, 0] - 10.0]
+        if len(tail) < 2:
+            return
+        chord = tail[-1] - tail[0]
+        heading = motion.odometry.yaw_rad + math.atan2(chord[1], chord[0])
+        to_m = min(limit_x, float(body[-1, 0]) + 6.0)
+        if est.continue_straight(motion.odometry, to_m, heading_rad=heading, within_m=c.handback_continue_m):
+            d.update(corridor_queue_continued_to_m=round(to_m, 1))
 
     def _zone_mps_for(self, command):
         """The zone speed for a route junction with this command (``zone_turn_mps`` for a
