@@ -308,6 +308,16 @@ class StackConfig:
     same_way_min_along_mps: float = 1.5
     same_way_max_closing_mps: float = 0.3
     same_way_clearance_m: float = 0.3
+    # Road users wholly behind the car (4 Nov, traffic3 review): a car following in the
+    # lane, faster than the car, was predicted onto the path stations the car would reach
+    # (more so as the car slowed under a cap) and capped it to 0 m/s: 107 of 602 conflict
+    # ticks in lap2_5308 and 227 of 582 in lap2_5309 came from a track behind the car,
+    # and braking for a follower only brings it closer. With behind_filter on, a track whose
+    # footprint lies wholly behind the car's rear by behind_margin_m (vehicle frame) is no
+    # forward conflict or crossing yield. The car only drives forward: nothing behind its
+    # rear can be reached by it. Anything that comes level or ahead is a candidate again.
+    behind_filter: bool = False
+    behind_margin_m: float = 0.5
     yield_persist_s: float = 0.3
     # A radar-only track is predicted onto the path when it is moving on corroborated
     # evidence where the LiDAR sees nothing (``radar_threat``), as a vehicle of this size
@@ -495,6 +505,7 @@ class MaplessStack:
         self._parked = []  # vehicles beside the path whose only motion is the car's passing view of them
         self._same_way = []  # (``same_way_filter``) vehicles moving the car's way in the next lane, not closing
         self._same_way_lat = {}  # track id -> [(time, distance from the path)]
+        self._behind = []  # (``behind_filter``) tracks wholly behind the car's rear
         self._radar_threats = []  # radar-only tracks predicted onto the path this tick (F5-06), [id, full|provisional] (F6-02)
         self._incoherent = 0  # vehicle-sized tracks held still for incoherent motion this tick (4.3)
         self._edge_held = []  # ... and those held still for motion their leading edge did not bear out
@@ -724,6 +735,7 @@ class MaplessStack:
             clearing_for=self._clearing,
             hold_departures=self._departures[:4] or None,
             parked_beside=self._parked[:5],
+            behind_car=getattr(self, "_behind", [])[:5] or None,
             radar_threats=self._radar_threats[:5],
             incoherent_vehicles=self._incoherent,
             edge_held=self._edge_held or None,
@@ -871,6 +883,8 @@ class MaplessStack:
             if keep_right is not None:
                 others, self._unreachable = road_reachable(tracks, others, xy, self.driver.grid, keep_right, c, history=self._blocked_ticks)
             others, self._parked = parked_beside(tracks, others, xy, self.driver.config.body, c)
+            if c.behind_filter:
+                others, self._behind = behind_the_car(tracks, others, pose, self.driver.config.body, c)
             if c.same_way_filter:
                 live_ids = {tr.track_id for tr in tracks}
                 self._same_way_lat = {tid: v for tid, v in self._same_way_lat.items() if tid in live_ids}
@@ -1748,6 +1762,30 @@ def same_way_beside(tracks, candidates, path_xy, body, config, history, now_s):
         closing = (lat0 - lat) / max(now_s - t0, 1e-6)
         near_side = lat - 0.5 * min(track.footprint[0], track.footprint[1])
         if near_side > body.half_width_m + config.same_way_clearance_m and abs(along) >= config.same_way_min_along_mps and closing < config.same_way_max_closing_mps:
+            dropped.append(p.track_id)
+            continue
+        kept.append(p)
+    return kept, dropped
+
+
+def behind_the_car(tracks, candidates, pose, body, config):
+    """``(kept, dropped_ids)``: drop road users wholly behind the car's rear (``behind_filter``).
+
+    In the vehicle frame, a track's farthest-forward reach is its centre plus half its
+    longest side (``vehicle_min_m``'s half without a footprint). Below the rear bumper by
+    ``behind_margin_m`` it cannot be on the path the car drives forward along.
+    """
+    by_id = {t.track_id: t for t in tracks}
+    kept, dropped = [], []
+    limit = body.rear_m - config.behind_margin_m
+    for p in candidates:
+        track = by_id.get(p.track_id)
+        if track is None:
+            kept.append(p)
+            continue
+        x = float(pose.to_body(np.asarray(track.position, dtype=float)[None])[0][0])
+        reach = 0.5 * (max(track.footprint[0], track.footprint[1]) if track.footprint is not None else config.vehicle_min_m)
+        if x + reach < limit:
             dropped.append(p.track_id)
             continue
         kept.append(p)

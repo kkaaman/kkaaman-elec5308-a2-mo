@@ -1762,6 +1762,7 @@ class MaplessDrive:
                     light_classifier=getattr(args, "light_classifier", None), light_band_scale=getattr(args, "light_scale", None),
                     yield_ramp_decel_mps2=getattr(args, "yield_decel_mps2", None),
                     same_way_filter=bool(getattr(args, "same_way_filter", False)),
+                    behind_filter=bool(getattr(args, "behind_filter", False)),
                 )
                 driver = MaplessStack(self.suite, self.route, config, stack_config, DT_S)
                 self.report["stack"] = dict(
@@ -2342,6 +2343,7 @@ def main(argv=None, stack=False):
     )
     parser.add_argument("--queue-carry-m", type=float, default=0.0, help="creeping in a queue below 3 m/s with the kerb hidden: continue the carried line straight up to this far past the last refit's end (0: off; ~15 with --traffic-vehicles)")
     parser.add_argument("--same-way-filter", action="store_true", help="stack: a vehicle moving the car's way in the next lane, not closing on the path over 0.6 s, is no conflict (off: every moving neighbour's constant-velocity prediction is tested)")
+    parser.add_argument("--behind-filter", action="store_true", help="stack: a road user wholly behind the car's rear (0.5 m margin) is no forward conflict or crossing yield (off: a faster follower in the lane could cap the car to 0 m/s)")
     parser.add_argument("--traffic-vehicles", type=int, default=0, help="ambient traffic: this many CARLA autopilot cars, none within 35 m of the ego's start (default 0)")
     parser.add_argument("--traffic-walkers", type=int, default=0, help="ambient traffic: this many AI walkers on the pavements (default 0)")
     parser.add_argument("--walker-cross-factor", type=float, default=0.1, help="ambient walkers: share that cross roads (default 0.1)")

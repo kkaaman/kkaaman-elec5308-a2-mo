@@ -1061,3 +1061,63 @@ def test_a_car_moving_along_the_next_lane_is_no_conflict_until_it_closes():
         kept, dropped = same_way_beside(oncoming, predict_all(predictable_tracks(oncoming), c.prediction), _path(), BODY, c, oncoming_history, t)
     assert dropped == [43]  # oncoming in its own lane, not closing
     assert not StackConfig().same_way_filter
+
+
+def test_a_follower_behind_the_car_caps_it_to_zero_unless_behind_filter():
+    """traffic3 review (4 Nov): a car following in the lane, faster than the car, was
+    predicted onto the stations the car would reach and capped it to 0 m/s (lap2_5309
+    track 1018, 3.2 m behind at 7.1 m/s, reproduced here as logged; 692 and 1082 capped it
+    live in context this shell lacks). With ``behind_filter`` a track wholly behind the
+    rear is dropped; one level with the car, or ahead of it, still caps it, and the
+    default is off."""
+    from dataclasses import replace  # noqa: PLC0415
+
+    from mapless.stack import behind_the_car  # noqa: PLC0415
+
+    followers = [
+        # As logged: the footprints are of the part the LiDAR sees (a follower's front).
+        (track(1018, -3.24, -0.04, 7.13, 0.0, fp=(1.89, 0.54, 0.0), travelled=10.0, recent=7.1), 3.0, True),
+        (track(1018, -3.24, -0.04, 7.13, 0.0, fp=(1.89, 0.54, 0.0), travelled=10.0, recent=7.1), 0.0, True),
+        (track(5, -6.0, 0.0, 3.0, 0.0, fp=(4.4, 1.9, 0.0), travelled=10.0, recent=3.0), 0.0, True),
+        (track(692, -6.13, 0.04, 5.59, 0.0, fp=(3.14, 1.79, 0.0), travelled=10.0, recent=5.6), 3.0, False),
+        (track(1082, -5.51, 0.46, 2.4, 0.0, fp=(1.97, 1.87, 0.0), travelled=10.0, recent=2.4), 3.0, False),
+    ]
+    for follower, speed, reproduces in followers:
+        if reproduces:
+            assert cap_for(make_stack(cruise=3.0), [follower], speed=speed)[0] == 0.0  # the defect
+        stack = make_stack(cruise=3.0)
+        stack.config = replace(stack.config, behind_filter=True)
+        assert cap_for(stack, [follower], speed=speed)[0] is None
+        if reproduces:
+            assert stack._behind == [follower.track_id]
+    on = replace(StackConfig(), behind_filter=True)
+    pose = Pose2D(0.0, 0.0, 0.0)
+    # Its nose 0.4 m behind the bumper (inside the margin), level with the car, or a walker
+    # just behind the rear: kept. A walker 2 m behind: dropped.
+    for kept_track in (track(7, -3.1, 0.0, 5.0, 0.0, fp=(4.4, 1.9, 0.0)), track(8, 0.5, -3.0, 6.0, 0.0, fp=(4.4, 1.9, 0.0)), track(9, -1.2, -1.5, 0.0, 1.2)):
+        preds = predict_all(predictable_tracks([kept_track]), on.prediction)
+        assert behind_the_car([kept_track], preds, pose, BODY, on) == (list(preds), [])
+    walker = track(10, -3.5, 0.5, 0.0, 1.2)
+    preds = predict_all(predictable_tracks([walker]), on.prediction)
+    assert behind_the_car([walker], preds, pose, BODY, on) == ([], [10])
+    # Real hazards ahead keep exactly their caps with the filter on: a car pulling out
+    # ahead (h2), a runner stepping in (h3), a car crossing 9 m ahead mid-turn (h5).
+    radius = 8.0
+    th = np.linspace(0, math.pi / 2, 60)
+    turn = np.column_stack((radius * np.sin(th), -radius * (1 - np.cos(th))))
+    exit_ = np.column_stack((np.full(30, radius), -radius - np.arange(0.5, 15.5, 0.5)))
+    turn_path = np.vstack((np.column_stack((np.arange(-2.0, 0.0, 0.5), np.zeros(4))), turn, exit_))
+    turn_pose = Pose2D(float(turn[25, 0]), float(turn[25, 1]), -float(th[25]))
+    ahead = turn_pose.to_world(np.array([[9.0, 0.0]]))[0]
+    for hazard, kw in (
+        (track(31, 6.0, -9.0, 0.0, 1.5, fp=(4.5, 1.9, math.pi / 2)), dict()),
+        (track(1, 10.0, -3.0, 0.0, 2.6, fp=(0.6, 0.6, 0.0)), dict(cruise=4.0, speed=4.0)),
+        (track(50, float(ahead[0]), float(ahead[1]), -4.0, 0.0, fp=(4.5, 1.9, math.pi)), dict(path_odo=turn_path, pose=turn_pose)),
+    ):
+        stack_kw = {k: v for k, v in kw.items() if k in ("path_odo", "cruise", "pose")}
+        call_kw = {k: v for k, v in kw.items() if k in ("speed", "pose")}
+        off = cap_for(make_stack(**stack_kw), [hazard], **call_kw)[0]
+        stack = make_stack(**stack_kw)
+        stack.config = on
+        assert off is not None and cap_for(stack, [hazard], **call_kw)[0] == off and stack._behind == []
+    assert not StackConfig().behind_filter
