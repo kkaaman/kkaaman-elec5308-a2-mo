@@ -96,6 +96,9 @@ class DriverConfig:
     # than at 3 m/s; straight crossings were driven at 6 cleanly.
     zone_turn_mps: float | None = None
     zone_before_m: float = 45.0
+    # Where a turn's zone begins (the turn is looked for turn_start_m, 25 m, before the
+    # entry: the car must be at the turn's speed by then). None: zone_before_m.
+    zone_turn_before_m: float | None = None
     zone_after_m: float = 10.0
     # Passing a vehicle stopped in the lane (``overtake``): None, the car holds behind it
     # as before.
@@ -998,9 +1001,10 @@ class MaplessDriver:
             # deceleration, not at its edge (from 10 m/s at 3 m/s², 15 m before it).
             ahead, command = self._next_junction(motion)
             speed = None if command is None else self._zone_mps_for(command)
-            if ahead is not None and speed is not None and ahead > c.zone_before_m:
+            before = None if command is None else self._zone_before_for(command)
+            if ahead is not None and speed is not None and ahead > before:
                 slow = c.planner.decel_mps2 if c.planner.comfort_decel_mps2 is None else c.planner.comfort_decel_mps2
-                into = math.sqrt(speed**2 + 2.0 * slow * (ahead - c.zone_before_m))
+                into = math.sqrt(speed**2 + 2.0 * slow * (ahead - before))
                 zone_cap = into if into < motion.speed_mps else None  # only once it binds
         if zone_cap is not None:
             d.update(zone_cap_mps=zone_cap)
@@ -1128,6 +1132,14 @@ class MaplessDriver:
             return c.zone_turn_mps
         return c.zone_mps
 
+    def _zone_before_for(self, command):
+        """How far before a route junction's entry its zone begins: ``zone_turn_before_m``
+        for a turn when set, else ``zone_before_m``."""
+        c = self.config
+        if c.zone_turn_before_m is not None and command in (Command.LEFT, Command.RIGHT):
+            return c.zone_turn_before_m
+        return c.zone_before_m
+
     def _next_junction(self, motion):
         """(How far ahead the next route junction's entry point is, its command), as
         ``_junction_ahead_m``; (None, None) for none."""
@@ -1158,7 +1170,7 @@ class MaplessDriver:
         except Exception:  # no route pose yet (start-up)
             return None
         n = len(entries)
-        speeds = [self._zone_mps_for(route_points[entries[k]].command) for k in range(n) if body[k, 0] <= c.zone_before_m and body[n + k, 0] >= -c.zone_after_m]
+        speeds = [self._zone_mps_for(route_points[entries[k]].command) for k in range(n) if body[k, 0] <= self._zone_before_for(route_points[entries[k]].command) and body[n + k, 0] >= -c.zone_after_m]
         speeds = [v for v in speeds if v is not None]
         return min(speeds) if speeds else None
 
