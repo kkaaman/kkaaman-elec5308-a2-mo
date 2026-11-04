@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "name": "town10_rightrun",
+  "segment_ids": ["1:0:2", "8:0:2", "4:0:-2", "515:0:-2", "5:0:-2", "763:0:-1", "18:0:-2", "19:0:-2", "255:0:-2", "20:0:-2", "848:0:-1", "9:0:1", "179:0:1", "12:0:-1"],
+  "manoeuvres": ["straight", "right", "straight", "right", "right"],
+  "start_xy_m": [98.74, -91.777],
+  "end_xy_m": [-15.411, -66.229],
+  "description": "The showcase route asked for on 4 Nov (531 m, outer lane throughout): a1_test01's start in road 1's outer lane, straight through 468 (its light scripted red), right at 719 into road 18's kerb-side lane, straight through 189, right at 841 into road 9 (one lane each way: the stop-sign street), right again 11 m on at 134 into road 12, the goal 12 m short of its end (42 m of road 12 for parking).",
+  "source": "Town10HD lane topology (tests/fixtures), right exits of the outer lane (4 Nov)",
+  "notes": "Junctions by route s (entry-exit): 468 straight 151-193; 719 right 292-318; 189 straight 339-378; 841 right 433-455; 134 right 466-489. Legs between them: 193-292, 318-339 (21 m), 378-433, 455-466 (11 m), 489-531. Untested live: the inner-lane right at 719 failed 10/10 (its exit kerb ~2.6 m nearer the lane than the approach's); 841 and 134 are 11 m apart. No stop-sign behaviour and no parking are in the stack yet: the car drives the route and stops at the goal."
+}

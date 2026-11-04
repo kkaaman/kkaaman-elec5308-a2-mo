@@ -456,3 +456,16 @@ def test_the_outer_lane_route_turns_right_at_468_on_the_named_exit():
     assert tuple(mission.manoeuvres) == ("right",) and 180.0 < length < 210.0 and mission.segment_ids[-1] == "13:0:-2"
     with pytest.raises(ValueError):
         mission_along_lanes(topology, ["1:0:2", "8:0:2", "4:0:-2", "515:0:-2", "5:0:-2"], ["right"])
+
+
+def test_the_rightrun_route_is_a_legal_lane_chain():
+    """``town10_rightrun`` (4 Nov): the outer lane from a1_test01's start, straight at 468,
+    right at 719, straight at 189, right at 841 and right again at 134, 531 m."""
+    from planning.lane_graph import LaneTopology
+    from planning.mission import load_route_definition, mission_from_definition
+
+    definition = load_route_definition(ROOT / "configs" / "missions" / "town10_rightrun.json")
+    mission = mission_from_definition(LaneTopology.load(ROOT / "tests" / "fixtures" / "Town10HD.lane_graph.json"), definition)
+    points = np.asarray(mission.points_xyz_m)[:, :2]
+    assert tuple(mission.manoeuvres) == ("straight", "right", "straight", "right", "right")
+    assert abs(float(np.hypot(*np.diff(points, axis=0).T).sum()) - 531.1) < 1.0
