@@ -1709,13 +1709,13 @@ class MaplessDrive:
         record_frames = args.record_frames == "all" or (args.record_frames == "turns" and self.turn_site is not None)
         recorder = FrameRecorder(args.output / "frames", self.suite, rig.calibration_id, rig.episode_id, rig.extrinsics, cameras_every=args.record_cameras) if record_frames else None
         viewer = None
-        if getattr(args, "view", False) or getattr(args, "view_video", False):
+        if getattr(args, "view", False) or getattr(args, "view_video", False) or getattr(args, "quad_video", False):
             import cv2  # noqa: PLC0415
 
             from carla_adapter.car_view import CarView  # noqa: PLC0415
             from mapless.traffic_light import CROP_COLS, CROP_ROWS  # noqa: PLC0415
 
-            viewer = CarView(cv2, window=args.view, video_path=args.output / "car_view.mp4" if args.view_video else None, crop=(CROP_ROWS, CROP_COLS) if getattr(args, "lights", "unchanged") != "unchanged" else None, overlays=getattr(args, "view_overlays", False))
+            viewer = CarView(cv2, window=args.view, video_path=args.output / "car_view.mp4" if args.view_video else None, crop=(CROP_ROWS, CROP_COLS) if getattr(args, "lights", "unchanged") != "unchanged" else None, overlays=getattr(args, "view_overlays", False) or getattr(args, "quad_video", False), quad_path=args.output / "quad.mp4" if getattr(args, "quad_video", False) else None)
         chase = None
         if getattr(args, "chase_video", False):
             import cv2  # noqa: PLC0415
@@ -1887,7 +1887,7 @@ class MaplessDrive:
                 if viewer is not None:
                     inner = driver.driver if args.stack else driver
                     seg = getattr(driver, "segmenter", None) if args.stack and getattr(args, "segmenter", None) not in (None, "constant") else None
-                    viewer.show(sf, step.diagnostics, step.mode.value, step.reason, row["time_s"], corridor=getattr(inner, "last_corridor", None), segmenter=seg)  # after the step, outside its timing
+                    viewer.show(sf, step.diagnostics, step.mode.value, step.reason, row["time_s"], corridor=getattr(inner, "last_corridor", None), segmenter=seg, chase_image=None if chase is None else chase.latest)  # after the step, outside its timing
                 if chase is not None:
                     chase.write()
                 if args.snapshot_every and tick % args.snapshot_every == 0 and step.mode is not DriveMode.STARTUP:
@@ -2340,6 +2340,7 @@ def main(argv=None, stack=False):
     parser.add_argument("--view", action="store_true", help="Show the car's front camera with what it makes of it (speed, light reading and decision, stop line, corridor) in a window")
     parser.add_argument("--view-video", action="store_true", help="Write that view to car_view.mp4 in the run folder, at the simulation's 20 Hz")
     parser.add_argument("--view-overlays", action="store_true", help="with --view/--view-video: draw the lane the car follows (green; cyan on a junction's latched path), the segmenter's classes (stack with --segmenter: road, marking, pavement, road user) and the light classifier's reading over the view; viewer only, nothing reaches the driver")
+    parser.add_argument("--quad-video", action="store_true", help="quad.mp4 (1920 x 1080): the front camera and the chase camera (with --chase-video) over the perception overlays (as --view-overlays) and the LiDAR from above; viewer only")
     parser.add_argument("--chase-video", action="store_true", help="Record a camera 8 m behind and 5 m above the car (the --follow view) to chase.mp4; not part of the car's sensors")
     parser.add_argument("--seed", type=int, default=5308)
     parser.add_argument("--route-noise", type=float, default=0.0, metavar="SIGMA_M", help="move every sat-nav point but the first by Gaussian noise of this sigma per axis (m), seeded by --seed; 0: exact lane-centre points")

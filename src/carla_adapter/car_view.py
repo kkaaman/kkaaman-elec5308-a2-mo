@@ -52,13 +52,16 @@ def hud_lines(diagnostics, mode, reason, time_s):
 class CarView:
     """Draws the front camera with the HUD; shows it (``window``) and/or records it (``video``)."""
 
-    def __init__(self, cv2, window=True, video_path=None, camera="front", width=960, fps=20.0, crop=None, overlays=False, segment_every=2):
+    def __init__(self, cv2, window=True, video_path=None, camera="front", width=960, fps=20.0, crop=None, overlays=False, segment_every=2, quad_path=None):
         self.cv2, self.window, self.video_path, self.camera, self.width, self.fps = cv2, bool(window), video_path, camera, int(width), float(fps)
         self.crop = crop  # (rows, cols) fractions of the light classifier's band, outlined
         self.overlays = bool(overlays)  # the lane, the segmenter's classes and the light reading drawn over the image
         self.segment_every = max(1, int(segment_every))
         self._labels = None  # the segmenter's last class map (the view's size)
         self.segment_note = None  # why the segmentation overlay stopped, if it did
+        self.quad_path = quad_path  # ``--quad-video``: front | chase over overlays | LiDAR, one 1920 x 1080 video
+        self.quad_writer = None
+        self.quad_frames = 0
         self.writer = None
         self.frames = 0
         self.note = None  # why the window was turned off, if it was
@@ -126,8 +129,40 @@ class CarView:
             cv2.polylines(bgr, [centre], False, (255, 255, 255), 2, cv2.LINE_AA)
         return bgr
 
-    def frame(self, sensor_frame, diagnostics, mode, reason, time_s, corridor=None, segmenter=None):
+    def lidar_frame(self, sensor_frame, corridor, width=960, height=540, px_per_m=6.0, behind_m=15.0):
+        """The LiDAR sweep from above, the car at the bottom middle facing up, coloured by
+        height (the road dim), with the corridor the car follows and 10 m rings."""
+        cv2 = self.cv2
+        img = np.full((height, width, 3), 18, dtype=np.uint8)
+        cx, cy = width // 2, int(height - behind_m * px_per_m)
+        for r in range(10, 100, 10):
+            cv2.circle(img, (cx, cy), int(r * px_per_m), (55, 55, 55), 1, cv2.LINE_AA)
+        lidars = getattr(sensor_frame, "lidars", ()) or ()
+        for sweep in lidars[:1]:
+            pts = np.asarray(sweep.points, dtype=float)
+            if len(pts) == 0:
+                continue
+            u = np.round(cx - pts[:, 1] * px_per_m).astype(int)
+            v = np.round(cy - pts[:, 0] * px_per_m).astype(int)
+            ok = (u >= 0) & (u < width - 1) & (v >= 0) & (v < height - 1)
+            u, v, z = u[ok], v[ok], pts[ok, 2]
+            level = np.clip((z - 0.25) / 2.5, 0.0, 1.0)
+            colour = cv2.applyColorMap((level * 255).astype(np.uint8).reshape(-1, 1), cv2.COLORMAP_TURBO).reshape(-1, 3)
+            colour[z < 0.25] = (90, 90, 90)
+            for du, dv in ((0, 0), (1, 0), (0, 1), (1, 1)):
+                img[v + dv, u + du] = colour
+        if corridor is not None and getattr(corridor, "ok", False):
+            c = np.asarray(corridor.centre_body, dtype=float)
+            c = c[c[:, 0] <= max(2.0, float(getattr(corridor, "valid_length_m", 40.0) or 0.0))]
+            if len(c) >= 2:
+                line = np.column_stack([cx - c[:, 1] * px_per_m, cy - c[:, 0] * px_per_m]).astype(np.int32)
+                cv2.polylines(img, [line], False, (60, 220, 60), 2, cv2.LINE_AA)
+        cv2.rectangle(img, (int(cx - 1.0 * px_per_m), int(cy - 3.9 * px_per_m)), (int(cx + 1.0 * px_per_m), int(cy + 1.0 * px_per_m)), (255, 255, 255), 2)
+        return img
+
+    def frame(self, sensor_frame, diagnostics, mode, reason, time_s, corridor=None, segmenter=None, overlays=None):
         """The picture for this tick (BGR), or None without the camera."""
+        on = self.overlays if overlays is None else bool(overlays)
         cv2 = self.cv2
         image = next((im for im in sensor_frame.cameras if im.name == self.camera), None)
         if image is None:
@@ -138,15 +173,15 @@ class CarView:
         bgr = cv2.resize(bgr, (self.width, int(round(h * scale))), interpolation=cv2.INTER_AREA)
         h, w = bgr.shape[:2]
         d = diagnostics or {}
-        if self.overlays:
+        if on:
             bgr = self._segmentation(bgr, image, segmenter)
             bgr = self._lane(bgr, image, corridor, scale, bool(d.get("crossing")) and d.get("crossing") != "handed back to the kerb corridor")
         if self.crop is not None:
             (r0, r1), (c0, c1) = self.crop
             colour = LIGHT_BGR.get(d.get("light") or "none", (200, 200, 200))
             box = (int(w * c0), int(h * r0)), (int(w * c1), int(h * r1))
-            cv2.rectangle(bgr, *box, colour, 3 if self.overlays else 1)
-            if self.overlays:
+            cv2.rectangle(bgr, *box, colour, 3 if on else 1)
+            if on:
                 reading = d.get("light_reading")
                 label = "light classifier: " + ("-" if reading is None else f"{str(reading[0]).upper()} {reading[1]:.2f}") + f"  -> {(d.get('light') or 'none').upper()}"
                 (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)
@@ -165,13 +200,35 @@ class CarView:
             cv2.circle(bgr, (w - 30, 30), 14, LIGHT_BGR.get(decision, (200, 200, 200)), -1)
         return bgr
 
-    def show(self, sensor_frame, diagnostics, mode, reason, time_s, corridor=None, segmenter=None):
-        if not self.window and self.video_path is None:
+    def _quad(self, sensor_frame, diagnostics, mode, reason, time_s, corridor, picture, chase_image):
+        """Front camera | chase camera over perception overlays | LiDAR from above, labelled."""
+        cv2 = self.cv2
+        h, w = picture.shape[:2]
+        plain = self.frame(sensor_frame, diagnostics, mode, reason, time_s, overlays=False) if self.overlays else picture
+        chase = np.zeros_like(picture) if chase_image is None else cv2.resize(chase_image, (w, h), interpolation=cv2.INTER_AREA)
+        lidar = self.lidar_frame(sensor_frame, corridor, width=w, height=h)
+        tiles = [(plain, "Front camera"), (chase, "Chase camera"), (picture, "Perception: lane, segmentation, light"), (lidar, "LiDAR from above")]
+        for tile, label in tiles:
+            cv2.rectangle(tile, (0, 0), (12 + 11 * len(label), 30), (0, 0, 0), -1)
+            cv2.putText(tile, label, (8, 21), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1, cv2.LINE_AA)
+        grid = np.vstack([np.hstack([tiles[0][0], tiles[1][0]]), np.hstack([tiles[2][0], tiles[3][0]])])
+        if self.quad_writer is None:
+            self.quad_writer = cv2.VideoWriter(str(self.quad_path), cv2.VideoWriter_fourcc(*"mp4v"), self.fps, (grid.shape[1], grid.shape[0]))
+        self.quad_writer.write(grid)
+        self.quad_frames += 1
+
+    def show(self, sensor_frame, diagnostics, mode, reason, time_s, corridor=None, segmenter=None, chase_image=None):
+        if not self.window and self.video_path is None and self.quad_path is None:
             return
         picture = self.frame(sensor_frame, diagnostics, mode, reason, time_s, corridor=corridor, segmenter=segmenter)
         if picture is None:
             return
         cv2 = self.cv2
+        if self.quad_path is not None:
+            try:
+                self._quad(sensor_frame, diagnostics, mode, reason, time_s, corridor, picture.copy(), chase_image)
+            except Exception as error:  # a view: the run goes on without it
+                self.quad_path, self.note = None, f"quad video off: {error}"[:160]
         if self.video_path is not None:
             if self.writer is None:
                 self.writer = cv2.VideoWriter(str(self.video_path), cv2.VideoWriter_fourcc(*"mp4v"), self.fps, (picture.shape[1], picture.shape[0]))
@@ -188,6 +245,9 @@ class CarView:
         if self.writer is not None:
             self.writer.release()
             self.writer = None
+        if self.quad_writer is not None:
+            self.quad_writer.release()
+            self.quad_writer = None
         if self.window:
             try:
                 self.cv2.destroyWindow(WINDOW)
@@ -195,7 +255,7 @@ class CarView:
                 pass
 
     def record(self):
-        return dict(window=self.window, video=None if self.video_path is None else str(self.video_path), frames=self.frames, camera=self.camera, note=self.note, overlays=self.overlays, segment_note=self.segment_note)
+        return dict(window=self.window, video=None if self.video_path is None else str(self.video_path), frames=self.frames, camera=self.camera, note=self.note, overlays=self.overlays, segment_note=self.segment_note, quad_frames=self.quad_frames)
 
 
 class ChaseCamera:
