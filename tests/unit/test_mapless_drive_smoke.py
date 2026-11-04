@@ -1130,10 +1130,25 @@ def test_ambient_traffic_spawns_away_from_the_ego_and_releases_the_traffic_manag
             return k in self.attrs
 
         def get_attribute(self, k):
-            return self.attrs[k]
+            return Attribute(k, self.attrs[k])
 
         def set_attribute(self, k, v):
             self.attrs[k] = v
+
+    class Attribute:
+        """As CARLA's ActorAttribute: str() describes it; as_str()/int() give the value."""
+
+        def __init__(self, k, v):
+            self.k, self.v = k, v
+
+        def __str__(self):
+            return f"ActorAttribute(id={self.k},type=str,value={self.v}(const))"
+
+        def __int__(self):
+            return int(self.v)
+
+        def as_str(self):
+            return self.v
 
     class Actor:
         def __init__(self, bp, where):
@@ -1198,3 +1213,8 @@ def test_ambient_traffic_spawns_away_from_the_ego_and_releases_the_traffic_manag
     typed = BP("vehicle.anything")
     typed.attrs["base_type"] = "truck"
     assert not _ordinary_car(typed)
+    typed.attrs["base_type"] = "car"  # the value, not the attribute's description (traffic4)
+    assert _ordinary_car(typed)
+    bike = BP("vehicle.yamaha.yzf")
+    bike.attrs.update(number_of_wheels="2", base_type="motorcycle")
+    assert not _ordinary_car(bike)

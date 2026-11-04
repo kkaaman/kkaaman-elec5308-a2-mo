@@ -39,14 +39,27 @@ class TrafficConfig:
 LARGE = ("firetruck", "ambulance", "carlacola", "european_hgv", "fusorosa", "sprinter", "cybertruck", "t2", "truck", "bus", "van")
 
 
-def _ordinary_car(bp):
-    """A four-wheeled car: CARLA's ``base_type`` when the blueprint has one, else by name."""
-    if not (bp.has_attribute("number_of_wheels") and int(bp.get_attribute("number_of_wheels")) == 4):
-        return False
-    if bp.has_attribute("base_type"):
-        return str(bp.get_attribute("base_type")).lower() == "car"
+def _value(bp, name):
+    """A blueprint attribute's value as text. CARLA returns an ``ActorAttribute``, whose
+    ``str()`` is its description ("ActorAttribute(id=base_type,...)"), not its value:
+    compared with "car" it matched no blueprint, and the first cars-only run stopped with
+    "Cannot choose from an empty sequence" (traffic4, 6f68f51)."""
+    attribute = bp.get_attribute(name)
+    return str(attribute.as_str() if hasattr(attribute, "as_str") else attribute).strip()
+
+
+def _by_name(bp):
     name = bp.id.lower()
     return not any(word in name for word in LARGE)
+
+
+def _ordinary_car(bp):
+    """A four-wheeled car: CARLA's ``base_type`` when the blueprint has one, else by name."""
+    if not (bp.has_attribute("number_of_wheels") and _value(bp, "number_of_wheels") == "4"):
+        return False
+    if bp.has_attribute("base_type") and _value(bp, "base_type"):
+        return _value(bp, "base_type").lower() == "car"
+    return _by_name(bp)
 
 
 class AmbientTraffic:
@@ -71,8 +84,11 @@ class AmbientTraffic:
 
         spawn_points = [p for p in world.get_map().get_spawn_points() if far(p.location)]
         rng.shuffle(spawn_points)
-        cars = [bp for bp in library.filter("vehicle.*") if _ordinary_car(bp)]
-        for spawn in spawn_points[: c.vehicles]:
+        vehicles = list(library.filter("vehicle.*"))
+        cars = [bp for bp in vehicles if _ordinary_car(bp)]
+        if not cars:  # no base_type to go by: four-wheelers whose names are not large vehicles
+            cars = [bp for bp in vehicles if bp.has_attribute("number_of_wheels") and _value(bp, "number_of_wheels") == "4" and _by_name(bp)]
+        for spawn in spawn_points[: c.vehicles if cars else 0]:
             bp = rng.choice(cars)
             if bp.has_attribute("role_name"):
                 bp.set_attribute("role_name", "autopilot")
