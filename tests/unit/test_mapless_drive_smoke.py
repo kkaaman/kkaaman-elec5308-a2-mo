@@ -376,10 +376,14 @@ def test_the_cars_view_is_shown_and_recorded_without_touching_the_run(monkeypatc
     rgb = np.full((720, 1280, 3), 90, dtype=np.uint8)
     original = car_view.CarView.show
     monkeypatch.setattr(car_view.CarView, "show", lambda self, sf, *rest, **kw: original(self, SimpleNamespace(cameras=(CameraImage("front", rgb, cal),)), *rest, **kw))
-    out, report = run_drive(monkeypatch, tmp_path, "--scenario", "straight", "--goal-m", "30", "--snapshot-every", "0", "--view", "--view-video", "--view-overlays")
+    out, report = run_drive(monkeypatch, tmp_path, "--scenario", "straight", "--goal-m", "30", "--snapshot-every", "0", "--view", "--view-video", "--view-overlays", "--quad-video")
     view = report["car_view"]
     assert view["frames"] > 20 and view["window"] and shown and shown[0][1] == 960
     assert view["overlays"] and view["segment_note"] is None
+    quad = cv2.VideoCapture(str(out / "quad.mp4"))
+    assert quad.isOpened() and int(quad.get(cv2.CAP_PROP_FRAME_COUNT)) == view["quad_frames"] == view["frames"]
+    assert (int(quad.get(cv2.CAP_PROP_FRAME_WIDTH)), int(quad.get(cv2.CAP_PROP_FRAME_HEIGHT))) == (1920, 1080)
+    quad.release()
     video = out / "car_view.mp4"
     assert video.exists() and video.stat().st_size > 1000
     capture = cv2.VideoCapture(str(video))
@@ -447,6 +451,11 @@ def test_view_overlays_draw_the_lane_the_segmenter_and_the_light_reading():
     assert crossing is not None and after is not None and view.segment_note.startswith("segmentation overlay off")
     cyan = crossing[330:400, 400:560].reshape(-1, 3).astype(int)
     assert ((cyan[:, 0] > cyan[:, 2] + 40) & (cyan[:, 1] > cyan[:, 2] + 40)).any()
+    # The LiDAR from above: points ahead of the car drawn, coloured by height; the car's box.
+    pts = np.array([[10.0, 5.0, 0.0, 1.0], [20.0, 3.0, 1.5, 1.0]], dtype=np.float32)
+    bev = view.lidar_frame(SimpleNamespace(lidars=(SimpleNamespace(points=pts),)), corridor)
+    assert bev.shape == (540, 960, 3)
+    assert (bev[390, 450] == (90, 90, 90)).all() and bev[330, 462].max() > 90 and tuple(bev[330, 462]) != (90, 90, 90)
 
 
 def test_a_chase_camera_records_the_follow_view_and_a_world_without_one_runs_on(monkeypatch, tmp_path):
