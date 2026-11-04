@@ -10,7 +10,7 @@ import numpy as np
 
 from autonomy.interfaces import GraphEdge, GraphNode, LaneGraph
 from planning.corridor import RouteGeometry
-from planning.junction_planner import choose_exit
+from planning.junction_planner import choose_exit, junction_exits
 from planning.route_manager import stitch_route
 
 
@@ -175,7 +175,16 @@ def mission_along_lanes(topology, segment_ids, manoeuvres, *, start_xy_m=None, e
             continue
         if traversed >= len(manoeuvres):
             raise ValueError("More junction traversals than declared manoeuvres")
-        exit = choose_exit(topology, ids[i - 1], manoeuvres[traversed])
+        try:
+            exit = choose_exit(topology, ids[i - 1], manoeuvres[traversed])
+        except ValueError:
+            # Two legal exits of one manoeuvre (Town10HD 468's right turn from road 4's
+            # outer lane leads into either lane of road 13): the chain may name one of
+            # them, and that one is taken; a chain naming neither is still refused.
+            named = [x for x in junction_exits(topology, ids[i - 1]) if x.maneuver == manoeuvres[traversed] and tuple(x.segment_ids) == ids[i - 1 : i - 1 + len(x.segment_ids)]]
+            if len(named) != 1:
+                raise
+            exit = named[0]
         if ids[i - 1 : i - 1 + len(exit.segment_ids)] != tuple(exit.segment_ids):
             raise ValueError(
                 f"{ids[i - 1]} -> {ids[i]} is not the legal {manoeuvres[traversed]} exit"
