@@ -166,13 +166,15 @@ def manifest(args):
     import dataclasses  # noqa: PLC0415
     import platform  # noqa: PLC0415
     import subprocess  # noqa: PLC0415
+    from importlib.metadata import PackageNotFoundError  # noqa: PLC0415
+    from importlib.metadata import version as installed  # noqa: PLC0415
 
     from mapless_training.rl_cruise import RewardConfig  # noqa: PLC0415
 
-    def version(name):
+    def version(name):  # the installed distribution's version; nothing is imported (boundary scan)
         try:
-            return __import__(name).__version__
-        except Exception:  # noqa: BLE001
+            return installed(name)
+        except PackageNotFoundError:
             return None
 
     try:
