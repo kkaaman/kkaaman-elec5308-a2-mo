@@ -318,6 +318,19 @@ class StackConfig:
     # rear can be reached by it. Anything that comes level or ahead is a candidate again.
     behind_filter: bool = False
     behind_margin_m: float = 0.5
+    # Oncoming vehicles, timed (4 Nov, traffic runs with RL, review 22 §7): the cap stops
+    # short of the first path station a predicted region meets at ANY time, which is right
+    # for crossing traffic (the place is fixed) but not for a vehicle coming towards the
+    # car along its path: its region slides towards the car, so that station is where the
+    # car already is and the cap is 0 (PC 1, 918ebbc: 7.4 m/s^2 for a car first seen 35 m
+    # ahead in the bend before 719). With timed_oncoming on, a vehicle moving against the
+    # path at timed_oncoming_min_mps or more is capped short of where the CAR would be when
+    # the timed footprint conflict happens (the earliest over its arrival profiles).
+    # Crossing and same-way traffic, walkers, and the driver's own obstacle stop for
+    # anything in the path are unchanged.
+    timed_oncoming: bool = False
+    timed_oncoming_min_mps: float = 1.5
+    timed_oncoming_vehicle_mps: float = 3.0  # this fast, a track not classed a pedestrian counts as a vehicle (a partial view of a car at 35 m reads 2.3 x 1.6 m)
     yield_persist_s: float = 0.3
     # A radar-only track is predicted onto the path when it is moving on corroborated
     # evidence where the LiDAR sees nothing (``radar_threat``), as a vehicle of this size
@@ -736,6 +749,7 @@ class MaplessStack:
             hold_departures=self._departures[:4] or None,
             parked_beside=self._parked[:5],
             behind_car=getattr(self, "_behind", [])[:5] or None,
+            timed_oncoming=getattr(self, "_timed_oncoming", [])[:5] or None,
             radar_threats=self._radar_threats[:5],
             incoherent_vehicles=self._incoherent,
             edge_held=self._edge_held or None,
@@ -873,6 +887,7 @@ class MaplessStack:
             # As predicted from here on: a radar-only threat with its assumed footprint
             # (F5-06), an incoherent vehicle-sized track standing still (4.3).
             in_lane = lane_band(pose, path_body, c)
+            self._timed_oncoming = []  # (``timed_oncoming``) [track id, untimed arc ahead, timed arc ahead]
             provisional = {tr.track_id: tr for tr in tracks if provisional_radar(tr, c)}
             tracks = [_as_predicted(tr, c, in_lane) for tr in tracks]
             others = conflict_candidates(tracks, predictions, lead_id, c.prediction)
@@ -930,6 +945,11 @@ class MaplessStack:
                     # way, the car waits where it is.
                     self._clearing = _track_note(tracks, p.track_id, pose)
                     continue
+                if c.timed_oncoming and arc is not None and track is not None and oncoming_kind(track, c):
+                    timed = timed_oncoming_arc(track, p, xy, profiles, body, c)
+                    if timed is not None and timed > arc:
+                        self._timed_oncoming.append([p.track_id, round(arc - s_now, 1), round(timed - s_now, 1)])
+                        arc = timed
                 conflict_cap = conflict_speed_cap([p], xy, s_now, body, c, arc=arc)
                 why = "predicted conflict on the path"
                 if p.track_id in provisional:
@@ -1766,6 +1786,47 @@ def same_way_beside(tracks, candidates, path_xy, body, config, history, now_s):
             continue
         kept.append(p)
     return kept, dropped
+
+
+def oncoming_kind(track, config):
+    """``timed_oncoming`` applies to vehicles: a car or truck by class or footprint, or any
+    track not classed a pedestrian moving at ``timed_oncoming_vehicle_mps`` or more (PC 1
+    track 1536, a car first seen 35 m ahead, was 2.3 x 1.6 m of LiDAR at 6.7 m/s)."""
+    if is_vehicle(track, config):
+        return True
+    return decided_class(track) != "pedestrian" and float(np.hypot(*np.asarray(track.velocity, dtype=float))) >= config.timed_oncoming_vehicle_mps
+
+
+def timed_oncoming_arc(track, prediction, path_xy, profiles, body, config):
+    """``timed_oncoming``: for a vehicle moving against the path (its velocity along the
+    path's tangent at its place ``timed_oncoming_min_mps`` or more towards the car), the
+    car's own arc (rear axle, from the path's first sample, as ``first_occupied_arc``) at the
+    earliest time, over its arrival ``profiles``, that its footprint meets ``prediction``
+    within ``conflict_horizon_s``; None when the vehicle is not oncoming or nothing meets."""
+    path = np.asarray(path_xy, dtype=float)
+    if len(path) < 2:
+        return None
+    heads = path_headings(path)
+    arcs = np.concatenate(([0.0], np.cumsum(np.hypot(*np.diff(path, axis=0).T))))
+    s, _, _ = project_onto_polyline(np.asarray(track.position, dtype=float)[None], path)
+    seg = int(np.clip(np.searchsorted(arcs, float(s[0]), side="right") - 1, 0, len(path) - 1))
+    along = float(np.asarray(track.velocity, dtype=float) @ np.array([math.cos(heads[seg]), math.sin(heads[seg])]))
+    if along > -config.timed_oncoming_min_mps:
+        return None
+    best = None
+    for _, pxy, ptimes in profiles:
+        hit = first_footprint_conflict([prediction], pxy, ptimes, body)
+        if hit is None or hit[0] > config.conflict_horizon_s:
+            continue
+        pxy = np.asarray(pxy, dtype=float)
+        t = np.asarray(ptimes, dtype=float)
+        ok = np.isfinite(t)
+        if ok.sum() < 2:
+            continue
+        pa = np.concatenate(([0.0], np.cumsum(np.hypot(*np.diff(pxy, axis=0).T))))
+        at = float(np.interp(hit[0], np.maximum.accumulate(t[ok]), pa[ok]))
+        best = at if best is None else min(best, at)
+    return best
 
 
 def behind_the_car(tracks, candidates, pose, body, config):
