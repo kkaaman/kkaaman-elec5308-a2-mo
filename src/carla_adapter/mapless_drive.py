@@ -2381,6 +2381,15 @@ def main(argv=None, stack=False):
         args.actor_params[name] = float(value)
     if args.output.exists():
         parser.error("Output folder exists; choose a new one")
+    if getattr(args, "cruise_policy", None) is not None:
+        # Checked before anything is spawned: a policy that fails to load after setup left
+        # the car and its sensors in the world (4 Nov, PC 2: no such file).
+        from mapless_training.rl_cruise import CruiseAdvisor, CruisePolicy  # noqa: PLC0415
+
+        try:
+            CruiseAdvisor(CruisePolicy(args.cruise_policy))
+        except (OSError, ValueError, KeyError) as error:
+            parser.error(f"--cruise-policy {args.cruise_policy}: {error}")
     if args.segmenter not in (None, "constant") and not Path(args.segmenter).is_file():
         parser.error(f"--segmenter {args.segmenter} not found (checkpoints are not in git; copy it from the PC that trained it, or omit --segmenter)")
     if args.light_classifier is not None and not stack:
