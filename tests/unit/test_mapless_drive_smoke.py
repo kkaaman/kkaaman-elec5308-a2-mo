@@ -375,10 +375,11 @@ def test_the_cars_view_is_shown_and_recorded_without_touching_the_run(monkeypatc
     cal = CameraCalibration(640.0, 640.0, 640.0, 360.0, ((0.0, 0.0, 1.0, 1.5), (-1.0, 0.0, 0.0, 0.0), (0.0, -1.0, 0.0, 2.0), (0.0, 0.0, 0.0, 1.0)))
     rgb = np.full((720, 1280, 3), 90, dtype=np.uint8)
     original = car_view.CarView.show
-    monkeypatch.setattr(car_view.CarView, "show", lambda self, sf, *rest: original(self, SimpleNamespace(cameras=(CameraImage("front", rgb, cal),)), *rest))
-    out, report = run_drive(monkeypatch, tmp_path, "--scenario", "straight", "--goal-m", "30", "--snapshot-every", "0", "--view", "--view-video")
+    monkeypatch.setattr(car_view.CarView, "show", lambda self, sf, *rest, **kw: original(self, SimpleNamespace(cameras=(CameraImage("front", rgb, cal),)), *rest, **kw))
+    out, report = run_drive(monkeypatch, tmp_path, "--scenario", "straight", "--goal-m", "30", "--snapshot-every", "0", "--view", "--view-video", "--view-overlays")
     view = report["car_view"]
     assert view["frames"] > 20 and view["window"] and shown and shown[0][1] == 960
+    assert view["overlays"] and view["segment_note"] is None
     video = out / "car_view.mp4"
     assert video.exists() and video.stat().st_size > 1000
     capture = cv2.VideoCapture(str(video))
@@ -388,6 +389,64 @@ def test_the_cars_view_is_shown_and_recorded_without_touching_the_run(monkeypatc
 
     lines = hud_lines(dict(speed_mps=3.0, target_speed_mps=3.0, light="red", light_reading=["red", 0.99, 0.0], light_hold_m=1.2, stop_line_m=2.0, corridor_valid_m=30.0), "stopping", "junction", 12.0)
     assert "10.8 km/h" in lines[0] and "reads red 0.99" in lines[2] and "decision red" in lines[2]
+
+
+def test_view_overlays_draw_the_lane_the_segmenter_and_the_light_reading():
+    """``--view-overlays``: the corridor the car follows on the ground (green; cyan on a
+    junction's latched path), the segmenter's classes every other frame, and the light
+    classifier's reading at its band. A segmenter that fails turns its overlay off; the
+    picture is still drawn."""
+    cv2 = pytest.importorskip("cv2")
+    from autonomy.interfaces import CameraCalibration  # noqa: PLC0415
+    from carla_adapter.car_view import CarView  # noqa: PLC0415
+    from mapless.frame import CameraImage  # noqa: PLC0415
+    from mapless.road_segmentation import ROAD_CLASSES, Segmentation  # noqa: PLC0415
+
+    cal = CameraCalibration(640.0, 640.0, 640.0, 360.0, ((0.0, 0.0, 1.0, 1.5), (-1.0, 0.0, 0.0, 0.0), (0.0, -1.0, 0.0, 2.0), (0.0, 0.0, 0.0, 1.0)))
+    rgb = np.full((720, 1280, 3), 90, dtype=np.uint8)
+    frame = SimpleNamespace(cameras=(CameraImage("front", rgb, cal),))
+    x = np.arange(-2.0, 40.0, 1.0)
+    corridor = SimpleNamespace(ok=True, centre_body=np.column_stack([x, np.zeros_like(x)]), valid_length_m=30.0)
+
+    class Segmenter:
+        calls = 0
+
+        def segment(self, image):
+            Segmenter.calls += 1
+            p = np.zeros((36, 64, len(ROAD_CLASSES)), dtype=np.float32)
+            p[:, :, ROAD_CLASSES.index("other")] = 1.0
+            p[24:, :, :] = 0.0
+            p[24:, :, ROAD_CLASSES.index("road")] = 1.0
+            return Segmentation(image.name, p)
+
+    d = dict(light="red", light_reading=["red", 0.97, 0.0], speed_mps=2.0)
+    plain = CarView(cv2, window=False, crop=((0.0, 0.4), (0.3, 0.7))).frame(frame, d, "driving", "", 1.0)
+    view = CarView(cv2, window=False, video_path=None, crop=((0.0, 0.4), (0.3, 0.7)), overlays=True)
+    pictures = []
+    for _ in range(4):
+        pictures.append(view.frame(frame, d, "driving", "", 1.0, corridor=corridor, segmenter=Segmenter()))
+        view.frames += 1
+    drawn = pictures[0]
+    assert drawn.shape == plain.shape == (540, 960, 3)
+    # The lane: green over the road just ahead (the image's lower middle), centre line white.
+    lane = drawn[330:400, 470:490].reshape(-1, 3).astype(int)
+    assert (lane[:, 1] > lane[:, 0] + 20).any() and (lane == 255).all(axis=1).any()
+    # The segmenter's road class tints the bottom corners (outside the lane); the sky is untouched.
+    assert not np.array_equal(drawn[500:530, 20:60], plain[500:530, 20:60]) and np.array_equal(drawn[100:150, 20:60], plain[100:150, 20:60])
+    assert Segmenter.calls == 2  # every other frame
+    # The light reading is written at its band; the plain view only outlines the band.
+    assert not np.array_equal(drawn[0:20, 290:600], plain[0:20, 290:600])
+    # On a junction's latched path the lane is cyan; a failing segmenter switches its overlay off.
+    class Broken:
+        def segment(self, image):
+            raise RuntimeError("no GPU")
+
+    crossing = view.frame(frame, dict(d, crossing="crossing on the latched lane line"), "driving", "", 1.0, corridor=corridor, segmenter=Broken())
+    view.frames += 1
+    after = view.frame(frame, d, "driving", "", 1.0, corridor=corridor, segmenter=Broken())
+    assert crossing is not None and after is not None and view.segment_note.startswith("segmentation overlay off")
+    cyan = crossing[330:400, 400:560].reshape(-1, 3).astype(int)
+    assert ((cyan[:, 0] > cyan[:, 2] + 40) & (cyan[:, 1] > cyan[:, 2] + 40)).any()
 
 
 def test_a_chase_camera_records_the_follow_view_and_a_world_without_one_runs_on(monkeypatch, tmp_path):

@@ -19,6 +19,9 @@ import numpy as np
 
 WINDOW = "Group 7: the car's view"
 LIGHT_BGR = {"red": (60, 60, 230), "yellow": (40, 200, 230), "green": (80, 200, 80), "unknown": (200, 200, 200), "none": (200, 200, 200)}
+# ``--view-overlays``: the segmenter's classes (ROAD_CLASSES order; "other" undrawn), in BGR.
+SEGMENT_BGR = ((128, 64, 128), (0, 220, 255), (232, 35, 244), (60, 20, 220), None)
+LANE_HALF_M = 1.75  # the lane drawn either side of the corridor's centre line
 
 
 def _fmt(value, unit="", digits=1):
@@ -49,14 +52,81 @@ def hud_lines(diagnostics, mode, reason, time_s):
 class CarView:
     """Draws the front camera with the HUD; shows it (``window``) and/or records it (``video``)."""
 
-    def __init__(self, cv2, window=True, video_path=None, camera="front", width=960, fps=20.0, crop=None):
+    def __init__(self, cv2, window=True, video_path=None, camera="front", width=960, fps=20.0, crop=None, overlays=False, segment_every=2):
         self.cv2, self.window, self.video_path, self.camera, self.width, self.fps = cv2, bool(window), video_path, camera, int(width), float(fps)
         self.crop = crop  # (rows, cols) fractions of the light classifier's band, outlined
+        self.overlays = bool(overlays)  # the lane, the segmenter's classes and the light reading drawn over the image
+        self.segment_every = max(1, int(segment_every))
+        self._labels = None  # the segmenter's last class map (the view's size)
+        self.segment_note = None  # why the segmentation overlay stopped, if it did
         self.writer = None
         self.frames = 0
         self.note = None  # why the window was turned off, if it was
 
-    def frame(self, sensor_frame, diagnostics, mode, reason, time_s):
+    def _segmentation(self, bgr, image, segmenter):
+        """The segmenter's classes over the picture, every ``segment_every`` frames (the
+        last map in between). The viewer runs the model itself, after the step and
+        outside its timing: nothing it computes reaches the driver."""
+        cv2 = self.cv2
+        if segmenter is None or self.segment_note is not None:
+            return bgr
+        h, w = bgr.shape[:2]
+        if self._labels is None or self.frames % self.segment_every == 0:
+            try:
+                labels = segmenter.segment(image).labels
+            except Exception as error:  # the overlay is a view: the run goes on without it
+                self.segment_note = f"segmentation overlay off: {error}"[:160]
+                return bgr
+            self._labels = cv2.resize(labels, (w, h), interpolation=cv2.INTER_NEAREST)
+        colour = np.zeros_like(bgr)
+        drawn = np.zeros((h, w), dtype=bool)
+        for k, c in enumerate(SEGMENT_BGR):
+            if c is not None:
+                m = self._labels == k
+                colour[m] = c
+                drawn |= m
+        mixed = cv2.addWeighted(bgr, 0.6, colour, 0.4, 0)
+        bgr[drawn] = mixed[drawn]
+        return bgr
+
+    def _lane(self, bgr, image, corridor, scale, crossing):
+        """The corridor the car follows, on the ground, in the picture: its centre line and
+        the lane either side, as far as the corridor is valid (cyan on a junction's
+        latched path, green on the kerb corridor)."""
+        cv2 = self.cv2
+        if corridor is None or not getattr(corridor, "ok", False):
+            return bgr
+        from mapless.painting import PaintingConfig, project  # noqa: PLC0415
+
+        c = np.asarray(corridor.centre_body, dtype=float)
+        far = min(40.0, float(getattr(corridor, "valid_length_m", 40.0) or 0.0))
+        c = c[(c[:, 0] >= 2.0) & (c[:, 0] <= far)]
+        if len(c) < 3:
+            return bgr
+        step = np.gradient(c, axis=0)
+        norm = np.hypot(step[:, 0], step[:, 1])
+        norm[norm == 0] = 1.0
+        left = np.column_stack([-step[:, 1] / norm, step[:, 0] / norm])
+        h0, w0 = image.rgb.shape[:2]
+
+        def pixels(xy):
+            u, v, depth, _ = project(np.column_stack([xy, np.zeros(len(xy))]), image.calibration, w0, h0, PaintingConfig())
+            ok = depth > 1.0
+            return np.column_stack([u[ok] * scale, v[ok] * scale]).astype(np.int32)
+
+        centre, lp, rp = pixels(c), pixels(c + LANE_HALF_M * left), pixels(c - LANE_HALF_M * left)
+        if len(lp) < 2 or len(rp) < 2:
+            return bgr
+        colour = (230, 200, 0) if crossing else (60, 220, 60)
+        fill = bgr.copy()
+        cv2.fillPoly(fill, [np.vstack([lp, rp[::-1]])], colour)
+        bgr = cv2.addWeighted(fill, 0.3, bgr, 0.7, 0)
+        cv2.polylines(bgr, [lp, rp], False, colour, 2, cv2.LINE_AA)
+        if len(centre) >= 2:
+            cv2.polylines(bgr, [centre], False, (255, 255, 255), 2, cv2.LINE_AA)
+        return bgr
+
+    def frame(self, sensor_frame, diagnostics, mode, reason, time_s, corridor=None, segmenter=None):
         """The picture for this tick (BGR), or None without the camera."""
         cv2 = self.cv2
         image = next((im for im in sensor_frame.cameras if im.name == self.camera), None)
@@ -68,10 +138,21 @@ class CarView:
         bgr = cv2.resize(bgr, (self.width, int(round(h * scale))), interpolation=cv2.INTER_AREA)
         h, w = bgr.shape[:2]
         d = diagnostics or {}
+        if self.overlays:
+            bgr = self._segmentation(bgr, image, segmenter)
+            bgr = self._lane(bgr, image, corridor, scale, bool(d.get("crossing")) and d.get("crossing") != "handed back to the kerb corridor")
         if self.crop is not None:
             (r0, r1), (c0, c1) = self.crop
             colour = LIGHT_BGR.get(d.get("light") or "none", (200, 200, 200))
-            cv2.rectangle(bgr, (int(w * c0), int(h * r0)), (int(w * c1), int(h * r1)), colour, 1)
+            box = (int(w * c0), int(h * r0)), (int(w * c1), int(h * r1))
+            cv2.rectangle(bgr, *box, colour, 3 if self.overlays else 1)
+            if self.overlays:
+                reading = d.get("light_reading")
+                label = "light classifier: " + ("-" if reading is None else f"{str(reading[0]).upper()} {reading[1]:.2f}") + f"  -> {(d.get('light') or 'none').upper()}"
+                (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)
+                x, y = box[0][0], max(th + 6, box[0][1] - 8)
+                cv2.rectangle(bgr, (x - 2, y - th - 6), (x + tw + 4, y + 4), (0, 0, 0), -1)
+                cv2.putText(bgr, label, (x, y), cv2.FONT_HERSHEY_SIMPLEX, 0.6, colour, 2, cv2.LINE_AA)
         lines = hud_lines(d, mode, reason, time_s)
         panel = 22 * len(lines) + 10
         overlay = bgr.copy()
@@ -84,10 +165,10 @@ class CarView:
             cv2.circle(bgr, (w - 30, 30), 14, LIGHT_BGR.get(decision, (200, 200, 200)), -1)
         return bgr
 
-    def show(self, sensor_frame, diagnostics, mode, reason, time_s):
+    def show(self, sensor_frame, diagnostics, mode, reason, time_s, corridor=None, segmenter=None):
         if not self.window and self.video_path is None:
             return
-        picture = self.frame(sensor_frame, diagnostics, mode, reason, time_s)
+        picture = self.frame(sensor_frame, diagnostics, mode, reason, time_s, corridor=corridor, segmenter=segmenter)
         if picture is None:
             return
         cv2 = self.cv2
@@ -114,7 +195,7 @@ class CarView:
                 pass
 
     def record(self):
-        return dict(window=self.window, video=None if self.video_path is None else str(self.video_path), frames=self.frames, camera=self.camera, note=self.note)
+        return dict(window=self.window, video=None if self.video_path is None else str(self.video_path), frames=self.frames, camera=self.camera, note=self.note, overlays=self.overlays, segment_note=self.segment_note)
 
 
 class ChaseCamera:
