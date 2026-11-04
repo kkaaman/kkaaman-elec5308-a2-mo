@@ -1027,3 +1027,32 @@ def test_r9_a_hold_is_released_once_the_car_on_it_has_driven_clear():
         stack._judge_departures(tracks_then, 10.0)
         stack._judge_departures(tracks_now, 10.6)
         assert stack.driver.planner.departed == []
+
+
+def test_a_car_moving_along_the_next_lane_is_no_conflict_until_it_closes():
+    """``same_way_filter`` (4 Nov, ambient traffic): a car 3.5 m beside the path moving the
+    car's way, its distance from the path unchanged over 0.6 s, is dropped; one closing at
+    1 m/s, or seen for less than 0.6 s, is kept; a walker is never dropped here."""
+    from mapless.stack import same_way_beside  # noqa: PLC0415
+
+    c = StackConfig(same_way_filter=True)
+    history = {}
+    beside = [track(40, 8.0, -3.5, 6.0, 0.0, fp=(4.4, 1.9, 0.0), travelled=10.0, recent=6.0)]
+    preds = predict_all(predictable_tracks(beside), c.prediction)
+    kept, dropped = same_way_beside(beside, preds, _path(), BODY, c, history, 10.0)
+    assert kept and not dropped  # no history yet: kept
+    for k, t in enumerate((10.2, 10.4, 10.6, 10.8)):
+        moved = [track(40, 8.0 + 1.2 * (k + 1), -3.5, 6.0, 0.0, fp=(4.4, 1.9, 0.0), travelled=10.0, recent=6.0)]
+        kept, dropped = same_way_beside(moved, predict_all(predictable_tracks(moved), c.prediction), _path(), BODY, c, history, t)
+    assert dropped == [40] and not kept
+    closing_history = {}
+    for k, t in enumerate((20.0, 20.2, 20.4, 20.6, 20.8)):
+        cutting = [track(41, 8.0 + 1.2 * k, -3.5 + 0.2 * k, 6.0, 1.0, fp=(4.4, 1.9, 0.0), travelled=10.0, recent=6.0)]
+        kept, dropped = same_way_beside(cutting, predict_all(predictable_tracks(cutting), c.prediction), _path(), BODY, c, closing_history, t)
+    assert kept and not dropped  # closing at 1 m/s: a conflict
+    walker_history = {}
+    for t in (30.0, 30.4, 30.8):
+        walker = [track(42, 8.0, -3.5, 1.5, 0.0, fp=(0.5, 0.5, 0.0), travelled=3.0, recent=1.5)]
+        kept, dropped = same_way_beside(walker, predict_all(predictable_tracks(walker), c.prediction), _path(), BODY, c, walker_history, t)
+    assert kept and not dropped
+    assert not StackConfig().same_way_filter

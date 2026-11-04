@@ -827,7 +827,7 @@ def _fmt(value):
     return "-" if value is None else (f"{value:.2f}" if isinstance(value, (int, float)) else str(value))
 
 
-def driver_config(body, wheelbase_m, steering_limit_rad, speed_mps, keep_right_m, zone_mps=None, overtake=False, overtake_oncoming=False, brake_mps2=None, lookahead_s=0.0, accel_mps2=None, light_release_s=None, strict_evidence=False, handback_carry_m=0.0, light_approach_mps=None, zone_turn_mps=None, zone_before_m=None, zone_turn_before_m=None):
+def driver_config(body, wheelbase_m, steering_limit_rad, speed_mps, keep_right_m, zone_mps=None, overtake=False, overtake_oncoming=False, brake_mps2=None, lookahead_s=0.0, accel_mps2=None, light_release_s=None, strict_evidence=False, handback_carry_m=0.0, light_approach_mps=None, zone_turn_mps=None, zone_before_m=None, zone_turn_before_m=None, queue_carry_m=0.0):
     """The driver configuration the harness runs with (shared with the offline replay);
     ``zone_mps``: the junction zones' speed (``DriverConfig.zone_mps``), None for none;
     ``overtake``: pass a vehicle stopped in the lane (``DriverConfig.overtake``);
@@ -867,6 +867,7 @@ def driver_config(body, wheelbase_m, steering_limit_rad, speed_mps, keep_right_m
         accel_mps2=accel_mps2,
         goal_early=brake > 1.0,
         handback_carry_m=float(handback_carry_m),
+        queue_carry_m=float(queue_carry_m),
         light=LightConfig(**{k: float(v) for k, v in (('none_release_s', light_release_s), ('approach_mps', light_approach_mps)) if v is not None}),
         zone_mps=zone_mps,
         zone_turn_mps=zone_turn_mps,
@@ -1686,7 +1687,7 @@ class MaplessDrive:
         light_front_s = None
         self.body = vehicle_body(self.ego, self.offset)
         config = driver_config(self.body, self.adapter.geometry.wheelbase_m, self.adapter.geometry.controller_steering_limit_rad, args.speed, args.keep_right, zone_mps=getattr(args, "zone_mps", None), overtake=getattr(args, "overtake", False), overtake_oncoming=getattr(args, "overtake_oncoming", False),
-            brake_mps2=getattr(args, "brake_mps2", None), lookahead_s=getattr(args, "lookahead_s", 0.0), accel_mps2=getattr(args, "accel_mps2", None), light_release_s=getattr(args, "light_release_s", None), strict_evidence=getattr(args, "strict_evidence", False), handback_carry_m=getattr(args, "handback_carry_m", 0.0), light_approach_mps=getattr(args, "light_approach_mps", None), zone_turn_mps=getattr(args, "zone_turn_mps", None), zone_before_m=getattr(args, "zone_before_m", None), zone_turn_before_m=getattr(args, "zone_turn_before_m", None),
+            brake_mps2=getattr(args, "brake_mps2", None), lookahead_s=getattr(args, "lookahead_s", 0.0), accel_mps2=getattr(args, "accel_mps2", None), light_release_s=getattr(args, "light_release_s", None), strict_evidence=getattr(args, "strict_evidence", False), handback_carry_m=getattr(args, "handback_carry_m", 0.0), light_approach_mps=getattr(args, "light_approach_mps", None), zone_turn_mps=getattr(args, "zone_turn_mps", None), zone_before_m=getattr(args, "zone_before_m", None), zone_turn_before_m=getattr(args, "zone_turn_before_m", None), queue_carry_m=getattr(args, "queue_carry_m", 0.0),
         )
         self.report["driver_config"] = rounded(_config_dict(config))
         rig = SensorRig(
@@ -1760,6 +1761,7 @@ class MaplessDrive:
                     admission=Admission.preset(args.admission), segmenter=args.segmenter, detector=args.detector, semantic_mode=getattr(args, "semantic", "thread"),
                     light_classifier=getattr(args, "light_classifier", None), light_band_scale=getattr(args, "light_scale", None),
                     yield_ramp_decel_mps2=getattr(args, "yield_decel_mps2", None),
+                    same_way_filter=bool(getattr(args, "same_way_filter", False)),
                 )
                 driver = MaplessStack(self.suite, self.route, config, stack_config, DT_S)
                 self.report["stack"] = dict(
@@ -2338,6 +2340,8 @@ def main(argv=None, stack=False):
         default="unchanged",
         help="traffic lights: CARLA's own cycle (default), all frozen green, or scripted: red as the car nears each route junction with lights, green once it has stood at the line (showcase_lights)",
     )
+    parser.add_argument("--queue-carry-m", type=float, default=0.0, help="creeping in a queue below 3 m/s with the kerb hidden: continue the carried line straight up to this far past the last refit's end (0: off; ~15 with --traffic-vehicles)")
+    parser.add_argument("--same-way-filter", action="store_true", help="stack: a vehicle moving the car's way in the next lane, not closing on the path over 0.6 s, is no conflict (off: every moving neighbour's constant-velocity prediction is tested)")
     parser.add_argument("--traffic-vehicles", type=int, default=0, help="ambient traffic: this many CARLA autopilot cars, none within 35 m of the ego's start (default 0)")
     parser.add_argument("--traffic-walkers", type=int, default=0, help="ambient traffic: this many AI walkers on the pavements (default 0)")
     parser.add_argument("--walker-cross-factor", type=float, default=0.1, help="ambient walkers: share that cross roads (default 0.1)")

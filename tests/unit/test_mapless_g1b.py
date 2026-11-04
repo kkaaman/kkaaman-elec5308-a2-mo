@@ -563,3 +563,30 @@ def test_continue_straight_lengthens_only_a_carried_line():
     estimator.seed(np.column_stack((x, 0.0 * x)), pose, 0.0)
     estimator.last_refit = dict(refit=False, why="too few points")
     assert not estimator.continue_straight(pose, 40.0, heading_rad=pose.yaw_rad + math.radians(80))  # across the road: not continued
+
+
+def test_creeping_past_a_stretch_with_the_kerb_hidden_continues_the_line():
+    """``queue_carry_m`` (4 Nov, ambient traffic): cars queued between the car and the kerb
+    hid it, the carried line ran out at walking pace and the car faulted. Here 20 m of the
+    right kerb is missing (road surface out to 15 m): at 2 m/s the car faults at its start
+    without the continuation, and with 15 m of it drives through to the goal in lane."""
+
+    def drive(carry):
+        world = MaplessRoadWorld(RoadScene(KerbLine([Straight(200.0)]), openings=((50.0, 70.0),)), SUITE, start_s_m=15.0, seed=5308)
+        config = DriverConfig(body=BODY, control=control(), corridor=CorridorConfig(keep_right_m=1.75), planner=PlannerConfig(cruise_mps=2.0), queue_carry_m=carry)
+        driver = MaplessDriver(SUITE, world.route(130.0), config, 0.05)
+        log = []
+        for _ in range(int(120 / 0.05)):
+            step = driver.step(world.frame())
+            log.append((world.truth(), step))
+            world.apply(step.command)
+            if step.mode in (DriveMode.FINISHED, DriveMode.FAULT) and world.state.speed == 0:
+                break
+        return log
+
+    without = drive(0.0)
+    assert without[-1][1].mode is DriveMode.FAULT and without[-1][0].s_m < 55.0
+    log = drive(15.0)
+    truth, last = log[-1]
+    assert last.mode is DriveMode.FINISHED and abs(truth.s_m - 130.0) < 3.0 and max(abs(t.lane_offset_m) for t, _ in log) < 0.3
+    assert any(s.diagnostics.get("corridor_queue_continued_to_m") is not None for _, s in log)
