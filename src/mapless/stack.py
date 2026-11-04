@@ -293,14 +293,16 @@ class StackConfig:
     # clear of the body read 0.0-0.1 m (live, 7eaca3d). The driver's LiDAR obstacle stop
     # (its tube 0.35 m wider than the body) is the check for a corner that pokes in.
     parked_clearance_m: float = -0.1  # (negative: the tracked near side may be 0.1 m inside the body's edge; see parked_beside)
-    # A vehicle moving the car's way in the next lane (4 Nov, ambient traffic): predicted
-    # at constant velocity through a bend, or while it slowed for a light, its path crossed
-    # the car's lane and the car braked at 3-5 m/s^2 seven times in one lap (traffic
-    # lap2_5308). With same_way_filter on, such a vehicle is no conflict while its near side
-    # stays same_way_clearance_m outside the car's body, it moves along the path at
-    # same_way_min_along_mps or more, and its distance from the path has closed by less
-    # than same_way_max_closing_mps over the last same_way_history_s (measured, not its
-    # momentary heading). A car cutting in closes, and is a conflict again at once.
+    # A vehicle moving along its own lane beside the path, either way (4 Nov, ambient
+    # traffic): predicted at constant velocity through a bend, or while it slowed for a
+    # light, its path crossed the car's lane and the car braked at 3-5 m/s^2 seven times in
+    # one lap (traffic lap2_5308); oncoming cars and a fire engine in the next lane did the
+    # same through every bend (traffic2). With same_way_filter on, such a vehicle is no
+    # conflict while its near side stays same_way_clearance_m outside the car's body, it
+    # moves along the path (either way) at same_way_min_along_mps or more, and its distance
+    # from the path has closed by less than same_way_max_closing_mps over the last
+    # same_way_history_s (measured, not its momentary heading). A car cutting in, or
+    # turning across, closes, and is a conflict again.
     same_way_filter: bool = False
     same_way_history_s: float = 0.6
     same_way_min_along_mps: float = 1.5
@@ -1714,8 +1716,8 @@ def road_near(grid, position, config):
 
 
 def same_way_beside(tracks, candidates, path_xy, body, config, history, now_s):
-    """``(kept, dropped_ids)``: drop vehicles moving the car's way beside the path that are
-    not closing on it (``same_way_filter``). ``history`` (track id -> [(time, |lateral|)])
+    """``(kept, dropped_ids)``: drop vehicles moving along the road beside the path, either
+    way, that are not closing on it (``same_way_filter``). ``history`` (track id -> [(time, |lateral|)])
     is kept by the caller; a track without ``same_way_history_s`` of it is kept."""
     path = np.asarray(path_xy, dtype=float)
     if len(path) < 2:
@@ -1745,7 +1747,7 @@ def same_way_beside(tracks, candidates, path_xy, body, config, history, now_s):
         t0, lat0 = older[-1]
         closing = (lat0 - lat) / max(now_s - t0, 1e-6)
         near_side = lat - 0.5 * min(track.footprint[0], track.footprint[1])
-        if near_side > body.half_width_m + config.same_way_clearance_m and along >= config.same_way_min_along_mps and closing < config.same_way_max_closing_mps:
+        if near_side > body.half_width_m + config.same_way_clearance_m and abs(along) >= config.same_way_min_along_mps and closing < config.same_way_max_closing_mps:
             dropped.append(p.track_id)
             continue
         kept.append(p)

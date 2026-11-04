@@ -33,6 +33,22 @@ class TrafficConfig:
         return self.vehicles > 0 or self.walkers > 0
 
 
+# Fire engines, ambulances, lorries, buses and vans: big and slow to read (a fire engine's
+# 6.3 x 2.6 m footprint oncoming in the next lane was a "conflict" through every bend in
+# traffic2 lap2_5308); the town is populated with cars.
+LARGE = ("firetruck", "ambulance", "carlacola", "european_hgv", "fusorosa", "sprinter", "cybertruck", "t2", "truck", "bus", "van")
+
+
+def _ordinary_car(bp):
+    """A four-wheeled car: CARLA's ``base_type`` when the blueprint has one, else by name."""
+    if not (bp.has_attribute("number_of_wheels") and int(bp.get_attribute("number_of_wheels")) == 4):
+        return False
+    if bp.has_attribute("base_type"):
+        return str(bp.get_attribute("base_type")).lower() == "car"
+    name = bp.id.lower()
+    return not any(word in name for word in LARGE)
+
+
 class AmbientTraffic:
     def __init__(self, carla, owner, config):
         self.carla, self.owner, self.config = carla, owner, config
@@ -55,7 +71,7 @@ class AmbientTraffic:
 
         spawn_points = [p for p in world.get_map().get_spawn_points() if far(p.location)]
         rng.shuffle(spawn_points)
-        cars = [bp for bp in library.filter("vehicle.*") if bp.has_attribute("number_of_wheels") and int(bp.get_attribute("number_of_wheels")) == 4]
+        cars = [bp for bp in library.filter("vehicle.*") if _ordinary_car(bp)]
         for spawn in spawn_points[: c.vehicles]:
             bp = rng.choice(cars)
             if bp.has_attribute("role_name"):

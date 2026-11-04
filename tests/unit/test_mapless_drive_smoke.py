@@ -1191,3 +1191,10 @@ def test_ambient_traffic_spawns_away_from_the_ego_and_releases_the_traffic_manag
     assert ("tm_sync", True) in calls and calls.count("start") == 2 and ("autopilot", True, 8000) in calls
     assert traffic.stop() == [] and calls.count("stop") == 2 and calls[-1] == ("tm_sync", False)
     assert not TrafficConfig().enabled and TrafficConfig(walkers=1).enabled
+    from carla_adapter.ambient_traffic import _ordinary_car
+
+    truck, fire, car = BP("vehicle.carlamotors.firetruck"), BP("vehicle.mitsubishi.fusorosa"), BP("vehicle.tesla.model3")
+    assert not _ordinary_car(truck) and not _ordinary_car(fire) and _ordinary_car(car)
+    typed = BP("vehicle.anything")
+    typed.attrs["base_type"] = "truck"
+    assert not _ordinary_car(typed)
