@@ -458,7 +458,12 @@ class ParallelParker:
             if self._blocked(body_xy, reverse):
                 self._enter("parked")
                 return self._stop()
-            return self._drive(min(c.centre_mps, 0.3 + abs(error)), 0.0, reverse)
+            # Steered on the heading as it goes (4 Nov, park_kerb6: the arcs ended 3.6 deg
+            # out by the compass at the standstill, and 3.2 m forwards with the wheels straight
+            # carried the car 0.2 m back out over the shoulder's line). Reversing, the same
+            # correction takes the wheels the other way.
+            steer = float(np.clip(-c.heading_kp * st.yaw, -0.2, 0.2))
+            return self._drive(min(c.centre_mps, 0.3 + abs(error)), -steer if reverse else steer, reverse)
         return self._stop()  # parked, blocked: hold the brake
 
     @property

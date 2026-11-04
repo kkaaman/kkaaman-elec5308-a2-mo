@@ -25,7 +25,7 @@ ROOT = Path(__file__).resolve().parents[2]
 SUITE = load_sensor_suite(ROOT / "configs" / "sensor_suites" / "mapless_v2.json")
 
 
-def park(gap_m, seconds=70.0, seed=5308, behind=(), max_steer_deg=40.0, lock_gain=1.0, gyro_offset_rps=0.0):
+def park(gap_m, seconds=70.0, seed=5308, behind=(), max_steer_deg=40.0, lock_gain=1.0, gyro_offset_rps=0.0, arc_gyro_offset_rps=0.0):
     """Two cars 4.2 m long in the right lane (centres 1.75 m from the kerb), ``gap_m``
     apart; the car starts 30 m back in the left lane (5.25 m from the kerb). Its wheels
     reach at most ``max_steer_deg``; ``gyro_offset_rps`` is added to the gyro once the
@@ -41,9 +41,10 @@ def park(gap_m, seconds=70.0, seed=5308, behind=(), max_steer_deg=40.0, lock_gai
     collided = False
     for _ in range(int(seconds / 0.05)):
         frame = world.frame()
-        if gyro_offset_rps and parker.state.phase != "calibrate" and frame.imu is not None:
+        offset = gyro_offset_rps + (arc_gyro_offset_rps if parker.state.phase in ("arc1", "arc2") else 0.0)
+        if offset and parker.state.phase != "calibrate" and frame.imu is not None:
             gyro = frame.imu.gyro_rps
-            frame = dataclasses.replace(frame, imu=dataclasses.replace(frame.imu, gyro_rps=(gyro[0], gyro[1], gyro[2] + gyro_offset_rps)))
+            frame = dataclasses.replace(frame, imu=dataclasses.replace(frame.imu, gyro_rps=(gyro[0], gyro[1], gyro[2] + offset)))
         cmd = parker.step(frame)
         if not parker.phases or parker.phases[-1] != parker.state.phase:
             parker.phases.append(parker.state.phase)
@@ -123,3 +124,15 @@ def test_a_gyro_bias_the_start_up_missed_is_taken_out_by_the_compass():
     parker, truth, collided, _ = park(9.0, max_steer_deg=30.3, lock_gain=0.866, gyro_offset_rps=0.002, seconds=90.0)
     assert parker.state.phase == "parked" and not collided
     assert abs(math.degrees(truth.heading_error_rad)) < 2.0 and abs(truth.lane_offset_m + 5.25 - 1.75) < 0.3
+
+
+@pytest.mark.parametrize("arc_gyro_offset_rps", [0.006, -0.01])
+def test_the_centring_move_steers_out_the_heading_the_arcs_left(arc_gyro_offset_rps):
+    """park_kerb6 (4 Nov, PC 2, the shoulder): the arcs ended 3.6 deg out (the compass's
+    reading at the standstill), and centring 3.2 m forwards with the wheels straight carried
+    the car 0.2 m back out over the shoulder's line. The centring move now steers on the
+    heading: with a gyro error during the arcs, a 12 m gap's long centring ends under 0.6
+    deg (1.07 and 1.14 deg with the wheels straight)."""
+    parker, truth, collided, (gap_rear, gap_front) = park(12.0, max_steer_deg=30.3, lock_gain=0.866, arc_gyro_offset_rps=arc_gyro_offset_rps, seconds=110.0)
+    assert parker.state.phase == "parked" and not collided
+    assert abs(math.degrees(truth.heading_error_rad)) < 0.6 and abs(truth.lane_offset_m + 5.25 - 1.75) < 0.25
