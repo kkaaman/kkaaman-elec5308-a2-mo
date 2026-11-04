@@ -356,3 +356,14 @@ def test_without_a_zone_for_turns_every_zone_is_zone_mps():
     config = DriverConfig(body=BODY, control=control(), corridor=CorridorConfig(keep_right_m=1.75), zone_mps=4.0)
     driver = MaplessDriver(SUITE, world.route(goal_after_turn(world)), config, DT)
     assert all(driver._zone_mps_for(cmd) == 4.0 for cmd in (Command.LEFT, Command.RIGHT, Command.STRAIGHT))
+
+
+def test_a_turns_zone_can_begin_further_out_than_a_straight_crossings():
+    """``zone_turn_before_m`` (4 Nov): straight crossings' zones from 15 m, a turn's still
+    from 45 m (the turn is looked for 25 m out, at the turn's speed)."""
+    world, _ = junction_world(-1)
+    config = DriverConfig(body=BODY, control=control(), corridor=CorridorConfig(keep_right_m=1.75), zone_mps=9.0, zone_turn_mps=3.0, zone_before_m=15.0, zone_turn_before_m=45.0)
+    driver = MaplessDriver(SUITE, world.route(goal_after_turn(world)), config, DT)
+    assert driver._zone_before_for(Command.RIGHT) == 45.0 and driver._zone_before_for(Command.STRAIGHT) == 15.0
+    plain = MaplessDriver(SUITE, world.route(goal_after_turn(world)), DriverConfig(body=BODY, control=control(), corridor=CorridorConfig(keep_right_m=1.75), zone_mps=3.0), DT)
+    assert plain._zone_before_for(Command.RIGHT) == 45.0 == plain._zone_before_for(Command.STRAIGHT)

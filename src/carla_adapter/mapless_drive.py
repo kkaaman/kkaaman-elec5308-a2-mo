@@ -827,7 +827,7 @@ def _fmt(value):
     return "-" if value is None else (f"{value:.2f}" if isinstance(value, (int, float)) else str(value))
 
 
-def driver_config(body, wheelbase_m, steering_limit_rad, speed_mps, keep_right_m, zone_mps=None, overtake=False, overtake_oncoming=False, brake_mps2=None, lookahead_s=0.0, accel_mps2=None, light_release_s=None, strict_evidence=False, handback_carry_m=0.0, light_approach_mps=None, zone_turn_mps=None):
+def driver_config(body, wheelbase_m, steering_limit_rad, speed_mps, keep_right_m, zone_mps=None, overtake=False, overtake_oncoming=False, brake_mps2=None, lookahead_s=0.0, accel_mps2=None, light_release_s=None, strict_evidence=False, handback_carry_m=0.0, light_approach_mps=None, zone_turn_mps=None, zone_before_m=None, zone_turn_before_m=None):
     """The driver configuration the harness runs with (shared with the offline replay);
     ``zone_mps``: the junction zones' speed (``DriverConfig.zone_mps``), None for none;
     ``overtake``: pass a vehicle stopped in the lane (``DriverConfig.overtake``);
@@ -870,6 +870,8 @@ def driver_config(body, wheelbase_m, steering_limit_rad, speed_mps, keep_right_m
         light=LightConfig(**{k: float(v) for k, v in (('none_release_s', light_release_s), ('approach_mps', light_approach_mps)) if v is not None}),
         zone_mps=zone_mps,
         zone_turn_mps=zone_turn_mps,
+        **({} if zone_before_m is None else dict(zone_before_m=float(zone_before_m))),
+        **({} if zone_turn_before_m is None else dict(zone_turn_before_m=float(zone_turn_before_m))),
         overtake=OvertakeConfig(allow_oncoming=bool(overtake_oncoming)) if overtake else None,
     )
 
@@ -1684,7 +1686,7 @@ class MaplessDrive:
         light_front_s = None
         self.body = vehicle_body(self.ego, self.offset)
         config = driver_config(self.body, self.adapter.geometry.wheelbase_m, self.adapter.geometry.controller_steering_limit_rad, args.speed, args.keep_right, zone_mps=getattr(args, "zone_mps", None), overtake=getattr(args, "overtake", False), overtake_oncoming=getattr(args, "overtake_oncoming", False),
-            brake_mps2=getattr(args, "brake_mps2", None), lookahead_s=getattr(args, "lookahead_s", 0.0), accel_mps2=getattr(args, "accel_mps2", None), light_release_s=getattr(args, "light_release_s", None), strict_evidence=getattr(args, "strict_evidence", False), handback_carry_m=getattr(args, "handback_carry_m", 0.0), light_approach_mps=getattr(args, "light_approach_mps", None), zone_turn_mps=getattr(args, "zone_turn_mps", None),
+            brake_mps2=getattr(args, "brake_mps2", None), lookahead_s=getattr(args, "lookahead_s", 0.0), accel_mps2=getattr(args, "accel_mps2", None), light_release_s=getattr(args, "light_release_s", None), strict_evidence=getattr(args, "strict_evidence", False), handback_carry_m=getattr(args, "handback_carry_m", 0.0), light_approach_mps=getattr(args, "light_approach_mps", None), zone_turn_mps=getattr(args, "zone_turn_mps", None), zone_before_m=getattr(args, "zone_before_m", None), zone_turn_before_m=getattr(args, "zone_turn_before_m", None),
         )
         self.report["driver_config"] = rounded(_config_dict(config))
         rig = SensorRig(
@@ -2241,6 +2243,8 @@ def main(argv=None, stack=False):
     parser.add_argument("--speed", type=float, default=2.0, help="Cruise speed (m/s)")
     parser.add_argument("--brake-mps2", type=float, default=None, help="plan every stop and the sight bound at this deceleration (default 1.0): the car never drives faster than it can stop at it within the road it has seen; 3.0 allows ~11-12 m/s on 25-30 m of seen road")
     parser.add_argument("--yield-decel-mps2", type=float, default=None, help="stack: slow to walking pace for a road user crossing ahead at this deceleration, reaching it 6 m short (default: walking pace at once)")
+    parser.add_argument("--zone-before-m", type=float, default=None, help="junction zones begin this far before the route's entry point (default 45); the car slows into them at its comfort deceleration")
+    parser.add_argument("--zone-turn-before-m", type=float, default=None, help="a turn's zone begins this far before its entry (default: --zone-before-m); keep it >= 30: the turn is looked for from 25 m")
     parser.add_argument("--zone-turn-mps", type=float, default=None, help="the junction-zone speed where the route turns (default: --zone-mps); ~3 with --zone-mps 6: at 6 m/s no turn arc clears the corner")
     parser.add_argument("--light-approach-mps", type=float, default=None, help="with a light classifier, a route junction is approached no faster than this from 30 m before its entry (default 3; light_v1 reads 468's red ~31 m before the stop: 6 leaves an 11 m stop at --brake-mps2 3)")
     parser.add_argument("--light-release-s", type=float, default=None, help="a held light the classifier reads as nothing for this long while standing releases the car (default 5; light_v1 reads a green as nothing, and in rain a red too: keep 5 there)")
