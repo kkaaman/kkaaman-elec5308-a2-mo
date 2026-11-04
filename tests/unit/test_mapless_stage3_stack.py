@@ -1161,3 +1161,33 @@ def test_an_oncoming_car_is_capped_where_the_car_would_meet_it_not_where_it_is_n
     walker = track(12, 8.0, 1.0, -1.4, 0.0, fp=(0.5, 0.5, 0.0), travelled=3.0, recent=1.4)
     assert caps(walker, 3.0)[0] == caps(walker, 3.0)[1]  # walkers: unchanged
     assert not StackConfig().timed_oncoming
+
+
+def test_reactive_vehicles_leaves_vehicles_to_the_obstacle_stop_and_keeps_walkers_yields():
+    """``reactive_vehicles`` (4 Nov, asked for the demo: stop for obstacles, red lights and
+    stop signs, not predictions): vehicles are no predicted-conflict candidates, so the
+    false stops for oncoming cars go (447, 1536, 210 as logged) and so does the early cap
+    for a car pulling out (the trade-off: the driver's obstacle stop brakes for it once it
+    is in the path). A runner and a walker crossing keep their yields; the default is off."""
+    from dataclasses import replace  # noqa: PLC0415
+
+    def capped(tr, speed, cruise=4.0, **kw):
+        stack = make_stack(cruise=cruise)
+        stack.config = replace(stack.config, reactive_vehicles=True)
+        return cap_for(stack, [tr], speed=speed, **kw)[0], stack._reactive
+
+    for tr, speed in (
+        (track(447, 24.6, 3.73, -6.47, -0.02, fp=(3.22, 2.39, math.pi), travelled=20.0, recent=6.5), 2.95),
+        (track(1536, 34.66, 0.87, -6.68, 0.96, fp=(2.26, 1.56, math.pi), travelled=20.0, recent=6.7), 3.88),
+        (track(210, 32.15, -14.71, -5.27, 3.7, fp=(3.87, 1.6, 2.5), travelled=20.0, recent=6.0), 4.0),
+        (track(31, 6.0, -9.0, 0.0, 1.5, fp=(4.5, 1.9, math.pi / 2)), 2.0),
+    ):
+        assert cap_for(make_stack(cruise=4.0), [tr], speed=speed)[0] == 0.0  # as logged / h2
+        cap, reactive = capped(tr, speed)
+        assert cap is None and reactive == [tr.track_id], (tr.track_id, cap)
+    runner = track(1, 10.0, -3.0, 0.0, 2.6, fp=(0.6, 0.6, 0.0))
+    cap, reactive = capped(runner, 4.0)
+    assert cap is not None and cap <= 0.8 + 1e-9 and reactive == []
+    walker = track(5, 8.0, -2.5, 0.0, 1.3, fp=(0.5, 0.5, 0.0))
+    assert capped(walker, 3.0)[0] == cap_for(make_stack(cruise=4.0), [walker], speed=3.0)[0] is not None
+    assert not StackConfig().reactive_vehicles
