@@ -1239,3 +1239,14 @@ def test_a_cruise_policy_sets_the_cruise_target_on_a_live_drive(monkeypatch, tmp
     assert policy["actions"] == {"2": policy["decisions"], "3": 0, "4": 0}
     speed = next(c for c in report["checks"] if c["check"] == "speed")
     assert speed["max_mps"] <= 2.0 + 0.3
+
+
+def test_a_missing_cruise_policy_is_refused_before_anything_is_spawned(tmp_path):
+    """4 Nov, PC 2: a --cruise-policy path that did not exist failed after setup and left
+    the car and its sensors in the world; it is now an argument error, and the committed
+    rl_final45 policy loads."""
+    with pytest.raises(SystemExit):
+        drive.main(["--scenario", "mission", "--output", str(tmp_path / "o"), "--cruise-policy", str(tmp_path / "none.npz")], stack=True)
+    from mapless_training.rl_cruise import CruiseAdvisor, CruisePolicy  # noqa: PLC0415
+
+    assert CruiseAdvisor(CruisePolicy(ROOT / "models" / "cruise_rl_final45_5308.npz")).report()["decisions"] == 0
