@@ -1250,3 +1250,13 @@ def test_a_missing_cruise_policy_is_refused_before_anything_is_spawned(tmp_path)
     from mapless_training.rl_cruise import CruiseAdvisor, CruisePolicy  # noqa: PLC0415
 
     assert CruiseAdvisor(CruisePolicy(ROOT / "models" / "cruise_rl_final45_5308.npz")).report()["decisions"] == 0
+
+
+def test_stop_junctions_reach_the_driver_config():
+    """``--stop-junctions 4 --stop-sign-s 3``: the driver gets the route's stop signs."""
+    from mapless.terrain import VehicleBody  # noqa: PLC0415
+
+    config = drive.driver_config(VehicleBody(), 2.9, 0.6, 4.0, 1.75, stop_junctions=(4,), stop_sign_s=3.0)
+    assert config.stop_junctions == (4,) and config.stop_sign_s == 3.0
+    plain = drive.driver_config(VehicleBody(), 2.9, 0.6, 4.0, 1.75)
+    assert plain.stop_junctions == () and plain.stop_sign_s == 2.0

@@ -125,6 +125,17 @@ class DriverConfig:
     # 10 m, by up to queue_carry_m past where the last refit's line ended. 0: off.
     queue_carry_m: float = 0.0
     queue_creep_mps: float = 3.0
+    # Stop signs on the route (4 Nov, the showcase route): the sat-nav marks which route
+    # junctions have one (1-based, in route order, every junction counted, as navigation
+    # data carries stop signs). The car holds its front stop_sign_back_m short of that
+    # junction's entry point, stands there stop_sign_s, then drives on under the junction's
+    # own rules (the turn, its yielding). Standing within stop_sign_at_m of the hold point
+    # counts as at the line (a queue's car creeps up to it first). () : none.
+    stop_junctions: tuple = ()
+    stop_sign_s: float = 2.0
+    stop_sign_back_m: float = 2.0
+    stop_sign_within_m: float = 40.0
+    stop_sign_at_m: float = 1.0
     indicate_before_m: float = 30.0  # the turn's indicator on from this far before the route's entry point, until the turn is handed back
     turn_start_m: float = 25.0  # a commanded turn is looked for when the route's entry point is this close
     turn_route_tolerance_m: float = 8.0  # the entry point must be within this of the car's path
@@ -293,6 +304,7 @@ class MaplessDriver:
         self._turn_done = None  # route index of the junction entry whose turn is complete
         self._handback_exit = None  # (``handback_carry_m``) (exit point, crossing line heading) of a crossing handed back short of its exit, odometry
         self._queue_limit = None  # (``queue_carry_m``) the odometry point a queue's continuation may reach, from the last refit line's end
+        self._stops_done, self._stop_since, self._junction_order = set(), None, None  # (``stop_junctions``) signs stood at; when the car came to rest at the line; route junction indices
         self._mouth_odo = None  # the junction mouth, odometry frame, nearest seen since the approach began
         self._lane_heading_odo = None  # the entry lane's direction, odometry frame, latched as the approach begins
         self._turn_corridor = None  # the last turn path steered along (the stop line if the latched path fails mid-arc)
@@ -964,6 +976,9 @@ class MaplessDriver:
             light_hold = None if entry_m is None else stop_for(decision, entry_m - c.body.front_m, motion.speed_mps, c.light)
         if light_hold is not None:
             hold_at = light_hold if hold_at is None else min(hold_at, light_hold)
+        stop_hold = self._stop_sign_hold(motion, t, d)
+        if stop_hold is not None:
+            hold_at = stop_hold if hold_at is None else min(hold_at, stop_hold)
         if self.light_reading is not None or decision != "none":
             r = self.light_reading
             d.update(
@@ -1158,6 +1173,50 @@ class MaplessDriver:
         to_m = min(limit_x, float(body[-1, 0]) + 6.0)
         if est.continue_straight(motion.odometry, to_m, heading_rad=heading, within_m=c.handback_continue_m):
             d.update(corridor_queue_continued_to_m=round(to_m, 1))
+
+    def _stop_sign_hold(self, motion, t, d):
+        """``stop_junctions``: where to hold (m ahead) for the next route junction with a stop
+        sign the car has not yet stood at, or None. Once it has stood ``stop_sign_s`` within
+        ``stop_sign_at_m`` of the hold point, that sign is done and the junction's own rules
+        take over."""
+        c = self.config
+        if not c.stop_junctions:
+            return None
+        route_points = self.progress.route.points
+        if self._junction_order is None:
+            self._junction_order = [i for i, p in enumerate(route_points) if p.command.is_junction]
+        pending = [(k, self._junction_order[k - 1]) for k in c.stop_junctions if 0 < k <= len(self._junction_order) and k not in self._stops_done]
+        if not pending:
+            return None
+        try:
+            body = motion.odometry.to_body(motion.route_to_odometry(np.array([self.progress.xy[i] for _, i in pending])))
+        except Exception:  # no route pose yet (start-up)
+            return None
+        ahead = []
+        for x, (k, _) in zip(body[:, 0], pending):
+            if x < -2.0:
+                self._stops_done.add(k)  # behind the car (never reached in range): not held again
+            else:
+                ahead.append((float(x), k))
+        if not ahead:
+            return None
+        x, k = min(ahead)
+        if x - c.body.front_m > c.stop_sign_within_m:
+            return None
+        hold = max(0.0, x - c.body.front_m - c.stop_sign_back_m)
+        stood = 0.0
+        if motion.stationary and hold <= c.stop_sign_at_m:
+            self._stop_since = t if self._stop_since is None else self._stop_since
+            stood = t - self._stop_since
+            if stood >= c.stop_sign_s:
+                self._stops_done.add(k)
+                self._stop_since = None
+                d.update(stop_sign=dict(junction=k, state="done", stood_s=round(stood, 2)))
+                return None
+        else:
+            self._stop_since = None
+        d.update(stop_sign=dict(junction=k, state="holding", hold_m=round(hold, 2), stood_s=round(stood, 2)))
+        return hold
 
     def _zone_mps_for(self, command):
         """The zone speed for a route junction with this command (``zone_turn_mps`` for a
