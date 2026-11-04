@@ -73,6 +73,7 @@ from types import SimpleNamespace
 
 import numpy as np
 
+from carla_adapter.ambient_traffic import AmbientTraffic, TrafficConfig
 from carla_adapter.frame_record import FrameRecorder
 from carla_adapter.mapless_capture import source_commit
 from carla_adapter.mapless_mission import (
@@ -1663,6 +1664,15 @@ class MaplessDrive:
     def run(self):
         carla, args = self.carla, self.args
         self.setup()
+        # Ambient traffic (4 Nov, off by default): autopilot cars and AI walkers away from
+        # the ego; evaluator side, the car meets them only through its sensors.
+        traffic = TrafficConfig(
+            vehicles=int(getattr(args, "traffic_vehicles", 0) or 0), walkers=int(getattr(args, "traffic_walkers", 0) or 0),
+            seed=int(getattr(args, "seed", None) or 5308), cross_factor=float(getattr(args, "walker_cross_factor", 0.1)),
+        )
+        if traffic.enabled:
+            self.ambient = AmbientTraffic(carla, self.owner, traffic)
+            self.report["traffic"] = self.ambient.spawn(self.ego.get_location())
         # Traffic lights (G4 M07, 2 Nov): set as --lights says, the route junctions' lights
         # found for the judging (evaluator side; the car reads lights only from its camera).
         if getattr(args, "weather", "clear_noon") in NIGHT_PRESETS:
@@ -2324,6 +2334,9 @@ def main(argv=None, stack=False):
         default="unchanged",
         help="traffic lights: CARLA's own cycle (default), all frozen green, or scripted: red as the car nears each route junction with lights, green once it has stood at the line (showcase_lights)",
     )
+    parser.add_argument("--traffic-vehicles", type=int, default=0, help="ambient traffic: this many CARLA autopilot cars, none within 35 m of the ego's start (default 0)")
+    parser.add_argument("--traffic-walkers", type=int, default=0, help="ambient traffic: this many AI walkers on the pavements (default 0)")
+    parser.add_argument("--walker-cross-factor", type=float, default=0.1, help="ambient walkers: share that cross roads (default 0.1)")
     parser.add_argument("--red-junctions", default=None, help="scripted lights: red only at these junction ids, comma-separated (default: every lit route junction); the rest stay green")
     parser.add_argument("--light-classifier", default=None, help="stack: traffic-light classifier checkpoint (train_traffic_light.py); the car then stops for red lights")
     parser.add_argument(
@@ -2399,7 +2412,12 @@ def main(argv=None, stack=False):
     try:
         with LoadGenerator(args.cpu_load, args.gpu_load) as load, SynchronousWorldSession(client, WorldTiming(fixed_delta_seconds=DT_S)) as owner:
             report["load"] = load.note
-            MaplessDrive(carla, owner, suite, args, report).run()
+            drive = MaplessDrive(carla, owner, suite, args, report)
+            try:
+                drive.run()
+            finally:
+                if getattr(drive, "ambient", None) is not None:
+                    report["traffic_stop_errors"] = drive.ambient.stop()
         report["settings_restored"] = _settings_record(client.get_world().get_settings()) == initial_settings
         report["status"] = run_status(report["checks"])
     except Exception as error:
