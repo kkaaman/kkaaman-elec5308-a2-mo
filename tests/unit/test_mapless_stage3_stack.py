@@ -1121,3 +1121,43 @@ def test_a_follower_behind_the_car_caps_it_to_zero_unless_behind_filter():
         stack.config = on
         assert off is not None and cap_for(stack, [hazard], **call_kw)[0] == off and stack._behind == []
     assert not StackConfig().behind_filter
+
+
+def test_an_oncoming_car_is_capped_where_the_car_would_meet_it_not_where_it_is_now():
+    """``timed_oncoming`` (4 Nov, PC 1's lap in traffic on 918ebbc, three hard stops at
+    7.4-7.7 m/s^2): a vehicle coming towards the car slides its predicted region along the
+    path, so the first station it touches at any time is where the car already is, and the
+    cap was 0. Timed, the cap stops short of where the car would be at the conflict: the
+    logged cases (track 447 in the next lane, 1536 first seen 35 m out as 2.3 x 1.6 m of
+    LiDAR, 210 coming round the bend) no longer brake at first sight; an oncoming car in the
+    car's own lane 10 m or less ahead, a close pass 2.1 m beside at 7.9 m, and a car pulling
+    out across the path still cap it to 0; the default is off."""
+    from dataclasses import replace  # noqa: PLC0415
+
+    def caps(tr, speed):
+        off = cap_for(make_stack(cruise=4.0), [tr], speed=speed)[0]
+        stack = make_stack(cruise=4.0)
+        stack.config = replace(stack.config, timed_oncoming=True)
+        return off, cap_for(stack, [tr], speed=speed)[0]
+
+    eased = [
+        (track(447, 24.6, 3.73, -6.47, -0.02, fp=(3.22, 2.39, math.pi), travelled=20.0, recent=6.5), 2.95),
+        (track(1536, 34.66, 0.87, -6.68, 0.96, fp=(2.26, 1.56, math.pi), travelled=20.0, recent=6.7), 3.88),
+        (track(210, 32.15, -14.71, -5.27, 3.7, fp=(3.87, 1.6, 2.5), travelled=20.0, recent=6.0), 4.0),
+    ]
+    for tr, speed in eased:
+        off, on = caps(tr, speed)
+        assert off == 0.0 and on is not None and on > speed, (tr.track_id, off, on)
+    kept = [
+        (track(9, 10.0, 0.0, -6.5, 0.0, fp=(4.4, 1.9, math.pi), travelled=20.0, recent=6.5), 4.0),
+        (track(9, 6.0, 0.0, -6.5, 0.0, fp=(4.4, 1.9, math.pi), travelled=20.0, recent=6.5), 4.0),
+        (track(238, 7.91, 2.13, -6.49, 1.51, fp=(4.31, 2.1, math.pi), travelled=20.0, recent=6.5), 3.76),
+        (track(31, 6.0, -9.0, 0.0, 1.5, fp=(4.5, 1.9, math.pi / 2)), 2.0),
+    ]
+    for tr, speed in kept:
+        assert caps(tr, speed) == (0.0, 0.0), tr.track_id
+    off, on = caps(track(9, 15.0, 0.0, -6.5, 0.0, fp=(4.4, 1.9, math.pi), travelled=20.0, recent=6.5), 4.0)
+    assert off == 0.0 and 0.0 < on < 4.0  # in its lane 15 m out: already slowing
+    walker = track(12, 8.0, 1.0, -1.4, 0.0, fp=(0.5, 0.5, 0.0), travelled=3.0, recent=1.4)
+    assert caps(walker, 3.0)[0] == caps(walker, 3.0)[1]  # walkers: unchanged
+    assert not StackConfig().timed_oncoming
