@@ -440,3 +440,19 @@ def test_the_turn_route_turns_right_at_719_and_ends_past_189():
     length = float(np.hypot(*np.diff(np.asarray(mission.points_xyz_m)[:, :2], axis=0).T).sum())
     assert turn["segment_ids"][:5] == lap2["segment_ids"][:5] and turn["start_xy_m"] == lap2["start_xy_m"] and turn["obstacle_s_m"] == 120.0
     assert tuple(mission.manoeuvres) == ("straight", "right", "straight") and 420.0 < length < 450.0
+
+
+def test_the_outer_lane_route_turns_right_at_468_on_the_named_exit():
+    """``town10_right468`` (4 Nov): 468 has two legal right exits from road 4's outer lane;
+    the chain names connector 476 (into road 13's kerb-side lane) and the builder takes it.
+    A chain naming neither is still refused."""
+    from planning.lane_graph import LaneTopology
+    from planning.mission import mission_along_lanes, mission_from_definition
+
+    topology = LaneTopology.load(ROOT / "tests" / "fixtures" / "Town10HD.lane_graph.json")
+    turn = json.loads((ROOT / "configs" / "missions" / "town10_right468.json").read_text(encoding="utf-8"))
+    mission = mission_from_definition(topology, turn)
+    length = float(np.hypot(*np.diff(np.asarray(mission.points_xyz_m)[:, :2], axis=0).T).sum())
+    assert tuple(mission.manoeuvres) == ("right",) and 180.0 < length < 210.0 and mission.segment_ids[-1] == "13:0:-2"
+    with pytest.raises(ValueError):
+        mission_along_lanes(topology, ["1:0:2", "8:0:2", "4:0:-2", "515:0:-2", "5:0:-2"], ["right"])

@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "name": "town10_right468",
+  "segment_ids": [
+    "1:0:2",
+    "8:0:2",
+    "4:0:-2",
+    "476:0:-1",
+    "13:0:-2"
+  ],
+  "manoeuvres": [
+    "right"
+  ],
+  "start_xy_m": [
+    98.74,
+    -91.777
+  ],
+  "end_xy_m": [
+    -41.547,
+    -92.132
+  ],
+  "obstacle_s_m": 120.0,
+  "description": "a1_test01's roads in the outer lane (196 m): road 1 lane 2 (3.5 m right of a1_test01's start), its bend and 125 m straight, then right at junction 468 into road 13's kerb-side lane, the goal 22 m in. The right turn is the G1c right-turn site live-validated on Town10HD (road 8 lane 2, kerb 4.385 m before and after the turn).",
+  "notes": "468 has two legal right exits from road 4's outer lane (into road 13 lane -1 or -2); the chain names connector 476 (into -2, beside the kerb). The inner-lane routes' right turn at 719 failed 10/10 overnight (3 Nov): the exit road's kerb lies ~2.6 m nearer the lane than the approach's, and the car keeps the kerb distance it measured at the start. Road 13 runs 32 m to the next junction: the goal stops 10 m short of it."
+}
