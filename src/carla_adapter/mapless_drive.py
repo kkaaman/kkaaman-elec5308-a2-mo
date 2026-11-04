@@ -1787,6 +1787,19 @@ class MaplessDrive:
             else:
                 driver = MaplessDriver(self.suite, self.route, config, DT_S)
                 self.report["braking_assumptions"] = braking_assumptions(config.planner.decel_mps2)
+            advisor = None
+            if getattr(args, "cruise_policy", None) is not None:
+                # The RL cruise advisor (G5, 4 Nov): sets the cruise target every 4 ticks;
+                # every cap still applies on top (mapless_training.rl_cruise.CruiseAdvisor).
+                from mapless_training.rl_cruise import CruiseAdvisor, CruisePolicy  # noqa: PLC0415
+
+                policy = CruisePolicy(args.cruise_policy)
+                advisor = CruiseAdvisor(policy)
+                self.report["cruise_policy"] = dict(
+                    path=str(args.cruise_policy), sha256=_file_sha256(args.cruise_policy),
+                    provenance=policy.provenance, feature_version=policy.feature_version,
+                    actions_mps=list(policy.actions),
+                )
             start_time = None
             outages = parse_outages(args.drop_sensor)  # injected sensor outages (ninth review, T4)
             night = getattr(args, "weather", "clear_noon") in NIGHT_PRESETS
@@ -1812,6 +1825,8 @@ class MaplessDrive:
                     recorder.record(tick, sf)
                 begun = time.perf_counter()
                 step = driver.step(sf)
+                if advisor is not None:
+                    advisor.after_step(driver, step)
                 ended = time.perf_counter()
                 step_times.append(ended - begun)
                 indicator = step.diagnostics.get("indicator")
@@ -1960,6 +1975,8 @@ class MaplessDrive:
             recorder.close()
             self.report["frames_recorded"] = recorder.ticks
         self.report["indicators"] = {side: round(n * DT_S, 2) for side, n in sorted(indicator_ticks.items())}  # seconds signalled, by side
+        if advisor is not None:
+            self.report["cruise_policy"].update(advisor.report())  # what the RL advisor chose, and how often it set the speed
         passing = getattr(driver.driver if args.stack else driver, "overtake", None)
         if passing is not None:
             self.report["overtake"] = passing.record()  # passes made, and the last state and note
@@ -2344,6 +2361,7 @@ def main(argv=None, stack=False):
     parser.add_argument("--queue-carry-m", type=float, default=0.0, help="creeping in a queue below 3 m/s with the kerb hidden: continue the carried line straight up to this far past the last refit's end (0: off; ~15 with --traffic-vehicles)")
     parser.add_argument("--same-way-filter", action="store_true", help="stack: a vehicle moving the car's way in the next lane, not closing on the path over 0.6 s, is no conflict (off: every moving neighbour's constant-velocity prediction is tested)")
     parser.add_argument("--behind-filter", action="store_true", help="stack: a road user wholly behind the car's rear (0.5 m margin) is no forward conflict or crossing yield (off: a faster follower in the lane could cap the car to 0 m/s)")
+    parser.add_argument("--cruise-policy", type=Path, default=None, help="RL cruise advisor (a CruisePolicy .npz from train_rl_cruise): sets the cruise target to 2, 3 or 4 m/s every 4 ticks; every cap still applies (off: --speed and the zones set it)")
     parser.add_argument("--traffic-vehicles", type=int, default=0, help="ambient traffic: this many CARLA autopilot cars, none within 35 m of the ego's start (default 0)")
     parser.add_argument("--traffic-walkers", type=int, default=0, help="ambient traffic: this many AI walkers on the pavements (default 0)")
     parser.add_argument("--walker-cross-factor", type=float, default=0.1, help="ambient walkers: share that cross roads (default 0.1)")

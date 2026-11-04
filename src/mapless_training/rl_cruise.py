@@ -330,6 +330,49 @@ class CruisePolicy:
         return int(np.argmax(self.q_values(obs)))
 
 
+class CruiseAdvisor:
+    """The trained policy setting the cruise target on a live drive (``--cruise-policy``).
+
+    As in training (``CruiseEnv``): every ``decision_ticks`` control ticks it reads the
+    step's diagnostics, the driver's corridor and mode, and sets the driver's
+    ``cruise_target_mps`` to one of ``ACTIONS_MPS`` for the next ticks. It sets the
+    cruise target only: every cap (obstacles, conflicts, lights, junction zones, sight,
+    curvature) still applies on top, every tick. ``report`` says what it chose.
+    """
+
+    def __init__(self, policy, decision_ticks=DECISION_TICKS):
+        if policy.feature_version != FEATURE_VERSION:
+            raise ValueError(f"cruise policy has feature version {policy.feature_version}, the driver builds {FEATURE_VERSION}")
+        self.policy, self.decision_ticks = policy, int(decision_ticks)
+        self.previous, self.ticks, self.decisions, self.binding = 0, 0, 0, 0
+        self.counts = [0] * len(ACTIONS_MPS)
+
+    def after_step(self, driver, step):
+        """Call after each control step with the driver (or a stack wrapping one) and its step."""
+        inner = getattr(driver, "driver", driver)
+        if self.ticks % self.decision_ticks == 0:
+            d = step.diagnostics or {}
+            if self.decisions:
+                target = d.get("target_speed_mps")
+                self.binding += int(target is not None and target >= ACTIONS_MPS[self.previous] - 0.1)
+            action = self.policy.act(features(d, getattr(inner, "last_corridor", None), step.mode.value, self.previous))
+            inner.cruise_target_mps = ACTIONS_MPS[action]
+            self.counts[action] += 1
+            self.previous = action
+            self.decisions += 1
+        self.ticks += 1
+        return inner.cruise_target_mps
+
+    def report(self):
+        judged = max(self.decisions - 1, 0)
+        return dict(
+            decisions=self.decisions,
+            actions={f"{a:g}": n for a, n in zip(ACTIONS_MPS, self.counts)},
+            binding_share=round(self.binding / judged, 3) if judged else None,
+            decision_ticks=self.decision_ticks,
+        )
+
+
 def export_policy(model, path, provenance=""):
     """Write a stable-baselines3 DQN's Q-network (Linear/ReLU MLP) as ``CruisePolicy`` arrays."""
     import torch  # noqa: PLC0415

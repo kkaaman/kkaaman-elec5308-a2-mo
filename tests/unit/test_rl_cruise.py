@@ -95,3 +95,54 @@ def test_an_error_in_one_drive_ends_that_episode_not_the_run(monkeypatch):
     monkeypatch.setattr(env.driver, "step", broken)
     obs, reward, terminated, truncated, info = env.step(2)
     assert truncated and not terminated and info["error"].startswith("RuntimeError") and obs.shape == (len(rl_cruise.FEATURE_NAMES),)
+
+
+def _policy_file(tmp_path, favour):
+    """A one-layer CruisePolicy whose biases always pick action ``favour``."""
+    from mapless_training.rl_cruise import ACTIONS_MPS, FEATURE_NAMES, FEATURE_VERSION  # noqa: PLC0415
+
+    path = tmp_path / f"cruise_{favour}.npz"
+    b = np.full(len(ACTIONS_MPS), -1.0, dtype=np.float32)
+    b[favour] = 1.0
+    np.savez(path, layers=np.array(1), w0=np.zeros((len(ACTIONS_MPS), len(FEATURE_NAMES)), dtype=np.float32), b0=b,
+             features=np.array(FEATURE_NAMES), actions=np.array(ACTIONS_MPS), provenance=np.array("test"), feature_version=np.array(FEATURE_VERSION))
+    return path
+
+
+def test_the_live_advisor_sets_the_cruise_target_every_fourth_tick(tmp_path):
+    """``--cruise-policy`` (4 Nov): the advisor decides on the first step and every
+    DECISION_TICKS after, on the driver a stack wraps; it reports what it chose."""
+    from types import SimpleNamespace  # noqa: PLC0415
+
+    from mapless_training.rl_cruise import CruiseAdvisor, CruisePolicy  # noqa: PLC0415
+
+    advisor = CruiseAdvisor(CruisePolicy(_policy_file(tmp_path, 1)))
+    inner = SimpleNamespace(cruise_target_mps=None, last_corridor=None)
+    stack = SimpleNamespace(driver=inner)
+    step = SimpleNamespace(diagnostics={"speed_mps": 2.0, "target_speed_mps": 3.0}, mode=SimpleNamespace(value="driving"))
+    targets = [advisor.after_step(stack, step) for _ in range(9)]
+    assert targets == [3.0] * 9 and inner.cruise_target_mps == 3.0
+    report = advisor.report()
+    assert report["decisions"] == 3 and report["actions"] == {"2": 0, "3": 3, "4": 0} and report["binding_share"] == 1.0
+    stale = CruisePolicy(_policy_file(tmp_path, 2))
+    stale.feature_version = 1
+    with pytest.raises(ValueError, match="feature version"):
+        CruiseAdvisor(stale)
+
+
+def test_the_live_advisor_drives_the_real_driver_on_a_synthetic_road(tmp_path):
+    """The advisor on the real MaplessDriver in the synthetic world: the car drives at the
+    chosen 2 m/s (not the configured cruise), and every cap still applies."""
+    from mapless_training.rl_cruise import CruiseAdvisor, CruiseEnv, CruisePolicy, random_episode  # noqa: PLC0415
+
+    env = CruiseEnv(seed=3, max_decisions=50)
+    env.reset(options={"spec": random_episode(np.random.default_rng(3), 3)})
+    advisor = CruiseAdvisor(CruisePolicy(_policy_file(tmp_path, 0)))
+    speeds = []
+    for _ in range(300):
+        step = env.driver.step(env.world.frame())
+        env.world.apply(step.command)
+        advisor.after_step(env.driver, step)
+        speeds.append(env.world.truth().speed_mps)
+    assert env.driver.cruise_target_mps == 2.0 and advisor.report()["actions"]["2"] == 75
+    assert max(speeds) <= 2.0 + 0.3 and speeds[-1] > 1.0

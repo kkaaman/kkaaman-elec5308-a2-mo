@@ -1221,3 +1221,21 @@ def test_ambient_traffic_spawns_away_from_the_ego_and_releases_the_traffic_manag
     bike = BP("vehicle.yamaha.yzf")
     bike.attrs.update(number_of_wheels="2", base_type="motorcycle")
     assert not _ordinary_car(bike)
+
+
+def test_a_cruise_policy_sets_the_cruise_target_on_a_live_drive(monkeypatch, tmp_path):
+    """``--cruise-policy`` (4 Nov): the RL advisor runs inside the drive loop, the car
+    drives at the speed it chose (2 m/s here, not --speed), and the report names the
+    policy, its hash and what it chose."""
+    from mapless_training.rl_cruise import ACTIONS_MPS, FEATURE_NAMES, FEATURE_VERSION  # noqa: PLC0415
+
+    path = tmp_path / "cruise.npz"
+    b = np.array([1.0, -1.0, -1.0], dtype=np.float32)
+    np.savez(path, layers=np.array(1), w0=np.zeros((3, len(FEATURE_NAMES)), dtype=np.float32), b0=b,
+             features=np.array(FEATURE_NAMES), actions=np.array(ACTIONS_MPS), provenance=np.array("smoke"), feature_version=np.array(FEATURE_VERSION))
+    _, report = run_drive(monkeypatch, tmp_path, "--scenario", "straight", "--goal-m", "40", "--snapshot-every", "0", "--speed", "4", "--cruise-policy", str(path))
+    policy = report["cruise_policy"]
+    assert policy["provenance"] == "smoke" and len(policy["sha256"]) == 64 and policy["decisions"] > 10
+    assert policy["actions"] == {"2": policy["decisions"], "3": 0, "4": 0}
+    speed = next(c for c in report["checks"] if c["check"] == "speed")
+    assert speed["max_mps"] <= 2.0 + 0.3
