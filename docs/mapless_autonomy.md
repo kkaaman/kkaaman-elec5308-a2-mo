@@ -37,7 +37,7 @@ the official wrapper and evaluator run on this CARLA version.
 
 Report label: a mapless autonomous-driving research prototype, evaluated within a
 declared and tested operating domain. No SAE level is claimed. The working plan is
-`claude/plans/mapless_autonomy_plan.md` (v2.1) in the project.
+`plans/mapless_autonomy_plan.md` (v2.1) in the project.
 
 ## What the car receives (`src/mapless`)
 
@@ -3226,7 +3226,7 @@ never occurred is `NOT_EXERCISED`, never a pass.
 ### Eleventh review (31 Oct, an independent read of `519b8fe`): all confirmed findings taken
 
 The review was made cold: a reader with the code and this document, none of the author's
-conclusions. It is kept whole in the project (`claude/reviews/review11_519b8fe.md`). 0
+conclusions. It is kept whole in the project (`reviews/review11_519b8fe.md`). 0
 critical, 3 high, 9 medium, 9 low; 17 confirmed against the code, 4 suspected (F-08, F-10,
 F-22 need a run; F-14 is about what the repository holds). Verified sound: the import and
 string firewall (static and transitive), the sensor-only ego motion (no pose, yaw or scale
@@ -3423,7 +3423,7 @@ latest fixes must satisfy — four safety findings (radar freshness, cap continu
 transitions, stale clearance, motion vs artefacts), the observability inequality, end-to-end
 timing, the ML contribution ladder, evaluation hygiene and a regression matrix R1–R11. The
 answer, finding by finding with file, test and live-run references, is
-`claude/reviews/review12_external_31oct.md` in the project. In short: A–D and R1–R8 are in
+`reviews/review12_external_31oct.md` in the project. In short: A–D and R1–R8 are in
 place and tested (most by the tenth review's 2A–2C and 3, and the eleventh's F-01), with
 r12's live runs as evidence; the timing is measured end to end but the 50 ms budget with
 the semantic worker on is **not met** on any PC (the standing open item); R9 wants a speed
@@ -3716,7 +3716,7 @@ persistence — profiled on recorded frames first. Stated open: the carry-forwar
 evidence time from any edge hit (the review's three-timestamp separation is the right
 shape); a hold on a carried line blocks the stall recovery by design; the semantic shadow
 scored through the curve (configuration B) is the first ML experiment. Response:
-`claude/reviews/review16_external_r16.md`.
+`reviews/review16_external_r16.md`.
 
 ### Live on PC 3 (1 Nov, `ed0efe6`): r17, the G2 batch — 24 of 30, a regression of my own
 
@@ -3809,7 +3809,7 @@ per tick (Δy at 3/5/10/15 m and the heading change against last tick's line, th
 §7), so a stop that appears on the same tick as a jump of the line reads as the line's
 doing. Its other recommendations were already in `f9b5a8c`/`757fd09` (span on far-only
 refits, the refit note, the stall cap) or are the curve work. Response:
-`claude/reviews/review17_external_r16.md`; the `757fd09` source snapshot and the r17/r18
+`reviews/review17_external_r16.md`; the `757fd09` source snapshot and the r17/r18
 reports go to the reviewer.
 
 ### The curve candidate (2 Nov): the kerb chained along the car's own heading
@@ -3888,7 +3888,7 @@ tracking and prediction are not in these figures; r19 measures the whole.
 **The replay's divergence (§6):** agreed — a stateful checkpoint before s 193 would make
 the live decision reproducible; the open-loop replay establishes the sensitivity, not the
 decision. Not built yet; the recorded frames and the per-tick reports are what r19's
-analysis has. Response: `claude/reviews/review18_external_757fd09.md`.
+analysis has. Response: `reviews/review18_external_757fd09.md`.
 
 ### The real-time budget (2 Nov): the semantic job handed over after the plan
 
@@ -4147,7 +4147,7 @@ light scripted red (`--lights scripted`), which the car must see for itself
   `--light-release-s` sets `none_release_s`: in 12 clear runs the classifier never read
   anything but red while the car stood at a red, but in rain (and low sun) it reads a red
   as nothing too, so 5 s stays the default and the shorter release is for clear weather.
-- **Twenty-first review (3 Nov, on `a248a09`; `claude/reviews/review21_external_a248a09.md`).**
+- **Twenty-first review (3 Nov, on `a248a09`; `reviews/review21_external_a248a09.md`).**
   Oncoming-lane passes opt-in (`--overtake-oncoming`); `comfort` REPORT (measured
   acceleration, deceleration, jerk, each stretch braked past 3 m/s²); `light_releases`
   REPORT (each light hold ended by greens or by the none timer, and the governing
