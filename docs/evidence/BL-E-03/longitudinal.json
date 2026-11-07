@@ -1,0 +1,87 @@
+{
+  "status": "MEASURED_PASS",
+  "trials": [
+    {
+      "trial": 1,
+      "initial_speed_mps": 2.010057083134794,
+      "brake": 0.4,
+      "stopping_distance_m": 0.9442756777356038,
+      "response_lag_s": 0.3500000052154064,
+      "effective_deceleration_mps2": 2.1393802534177118
+    },
+    {
+      "trial": 2,
+      "initial_speed_mps": 2.010057083134794,
+      "brake": 0.7,
+      "stopping_distance_m": 0.48657035316001307,
+      "response_lag_s": 0.20000000298023224,
+      "effective_deceleration_mps2": 4.151845104434113
+    },
+    {
+      "trial": 3,
+      "initial_speed_mps": 2.010057083134794,
+      "brake": 1.0,
+      "stopping_distance_m": 0.47643246613383894,
+      "response_lag_s": 0.20000000298023224,
+      "effective_deceleration_mps2": 4.2401911757262045
+    },
+    {
+      "trial": 4,
+      "initial_speed_mps": 5.127836893683525,
+      "brake": 0.4,
+      "stopping_distance_m": 0.834924332093026,
+      "response_lag_s": 0.10000000149011612,
+      "effective_deceleration_mps2": 15.746763028396318
+    },
+    {
+      "trial": 5,
+      "initial_speed_mps": 5.127846821828467,
+      "brake": 0.7,
+      "stopping_distance_m": 0.8298499683331815,
+      "response_lag_s": 0.10000000149011612,
+      "effective_deceleration_mps2": 15.843112629715165
+    },
+    {
+      "trial": 6,
+      "initial_speed_mps": 5.127836893683525,
+      "brake": 1.0,
+      "stopping_distance_m": 0.8276039629752443,
+      "response_lag_s": 0.10000000149011612,
+      "effective_deceleration_mps2": 15.88604718233354
+    },
+    {
+      "trial": 7,
+      "initial_speed_mps": 8.047312622126054,
+      "brake": 0.4,
+      "stopping_distance_m": 6.731835592612926,
+      "response_lag_s": 0.20000000298023224,
+      "effective_deceleration_mps2": 4.809924391891851
+    },
+    {
+      "trial": 8,
+      "initial_speed_mps": 8.047312622126054,
+      "brake": 0.7,
+      "stopping_distance_m": 5.268775767395541,
+      "response_lag_s": 0.15000000223517418,
+      "effective_deceleration_mps2": 6.145568088034335
+    },
+    {
+      "trial": 9,
+      "initial_speed_mps": 8.047312622126054,
+      "brake": 1.0,
+      "stopping_distance_m": 4.361309216600512,
+      "response_lag_s": 0.15000000223517418,
+      "effective_deceleration_mps2": 7.424289040517386
+    }
+  ],
+  "deceleration_mps2": 1.497566177392398,
+  "measured_response_lag_s": 0.3500000052154064,
+  "response_budget_s": 0.3500000052154064,
+  "scope": "Dry-road fixed-vehicle braking >=0.4; 30% deceleration reserve. Response budget contains measured vehicle lag only; perception, processing and confirmation latency must be supplied separately from their own measured evidence.",
+  "error": null,
+  "site": 10,
+  "server": "0.9.16",
+  "map": "Carla/Maps/Town10HD_Opt",
+  "settings_restored": true,
+  "no_actor_leaks": true
+}

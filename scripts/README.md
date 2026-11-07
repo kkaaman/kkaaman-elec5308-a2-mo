@@ -26,6 +26,8 @@ Command-line entry points. Run them from the repository root after
 | `benchmark_latency.py` | Loop timing and real-time factor | TEST-03 (Abdullah), TEST-17 (Mohammad) |
 | `evaluate_weather.py` | Recall and range across weather | E1-03 (Ricky) |
 | `latency_speed_test.py` | Local, LAN and cloud inference latency | E4-07 (Saviour) |
+| `capture_lidar_sweeps.py` | Vehicle-frame LiDAR sweeps around a known target, with transform checks | E2-02 (Mohammad) |
+| `replay_lidar_obstacles.py` | LiDAR ground removal, clustering, tracking and fusion replay to JSON | E2-03/04 (Mohammad) |
 
 ## Lane topology (BL-A-02)
 
@@ -48,3 +50,24 @@ See [mapless_autonomy](../docs/mapless_autonomy.md).
 | `run_mapless_drive.py` | G1b live run: the mapless car drives a straight, a bend, or stops for a parked car, from sensors and a sat-nav route only; scored from truth |
 
 New PC setup (Windows, no admin rights): `powershell -ExecutionPolicy Bypass -File scripts\setup_group7_pc.ps1`.
+
+## Wayfinder (E3-01..03)
+
+`wayfinder_replay.py` plans a route between two named destinations from
+`configs/wayfinder/pois_town10hd.json` and replays poses along it offline,
+writing the route document, a guidance log (remaining distance, next turn,
+ETA) and mini-map PNG frames. No simulator is used. See
+[wayfinder](../docs/wayfinder.md).
+## Documentation and offline preflight (DOC-03 / DOC-05)
+
+- `python scripts/check_reproduction.py --assets-only`: verify the three model
+  binaries with the standard library before importing optional ML packages.
+- `python scripts/check_reproduction.py`: also compare the recorded runtime subset.
+- `python scripts/generate_module_notes.py`: regenerate the source inventory;
+  use `--check` in CI to reject stale documentation.
+
+These preparation/documentation utilities deliberately use only the standard
+library so they can diagnose an environment before the project is installed.
+They locate the source tree using their own file path. See
+[reproduction](../docs/reproduction.md) for disconnected installation and the
+read-only `python -m carla_adapter.environment_check` live prerequisite check.

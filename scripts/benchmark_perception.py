@@ -1,77 +1,136 @@
-"""Replay the existing YOLO + depth + production track filter on saved sequences."""
+"""Adapt PR69 recorded RGB-D replay to the canonical TrackDepthFilter.
+
+Evaluates only test roads/runs/images accepted by the existing dataset validator.
+Never accepts a training/validation subset as held-out evidence.
+"""
 
 import argparse
 import json
+from dataclasses import asdict
 from pathlib import Path
 
-from evaluation.dataset import read_dataset, save_json, sha256
+from autonomy.admission import load_admitted_baseline
+from evaluation.dataset import read_dataset, sha256
 from evaluation.perception_replay import range_summary, replay
-from perception import ObjectDetector, PerceptionConfig
-from perception.frame_detector import FrameDetector
-from perception.recorded_detector import verify_local_asset
+from obstacle_perception.box_depth import DepthPolicy
+from obstacle_perception.tracking import TrackPolicy
+from perception.recorded_detector import RecordedDetector
+from scripts.replay_local_detector import make_detector
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    for name in ("dataset", "weights", "depth-calibration", "output"):
-        parser.add_argument("--" + name, type=Path, required=True)
-    parser.add_argument("--split", choices=("val", "test"), default="val")
-    parser.add_argument("--fault", choices=("flicker", "id_reset"))
+    parser.add_argument("--dataset", type=Path, required=True)
+    parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--depth-calibration", type=Path, required=True)
     parser.add_argument(
-        "--image-size", type=int, default=640, help="Detector input size; frozen into the config"
+        "--predictions", type=Path, help="Rescore retained model records; never rerun inference"
     )
-    parser.add_argument("--confidence", type=float, default=0.25)
     args = parser.parse_args()
     manifest, rows = read_dataset(args.dataset)
-    rows = [r for r in rows if r["split"] == args.split]
-    if not rows or any("sequence_id" not in r for r in rows):
-        raise ValueError("Capture consecutive frames with this batch collector first")
-    depth = json.loads(args.depth_calibration.read_text())
-    if depth["status"] != "MEASURED_PASS" or depth.get("opendrive_sha256") != manifest.get(
-        "opendrive_sha256"
+    calibration = json.loads(args.depth_calibration.read_text())
+    if (
+        calibration.get("status") != "MEASURED_PASS"
+        or calibration.get("opendrive_sha256") != manifest.get("opendrive_sha256")
+        or calibration.get("rig")
+        != dict(
+            manifest["camera"],
+            width=manifest["image_size_wh"][0],
+            height=manifest["image_size_wh"][1],
+        )
     ):
-        raise ValueError("Matching map depth calibration required")
-    asset = json.loads((Path(__file__).resolve().parents[1] / "configs/models.yaml").read_text())[
-        "models"
-    ][0]
-    verify_local_asset(args.weights, asset["sha256"])
+        raise ValueError("Matching measured map/camera depth calibration required")
+    selected = [r for r in rows if r["split"] == "test"]
+    if not selected:
+        parser.error("No held-out test scenes")
     args.output.mkdir(parents=True, exist_ok=False)
-    detector = FrameDetector(
-        ObjectDetector(
-            PerceptionConfig(
-                model_name=str(args.weights.resolve()),
-                image_size=args.image_size,
-                confidence_threshold=args.confidence,
-            )
-        ),
-        model_version=asset["sha256"],
-    )
+    root = Path(__file__).resolve().parents[1]
+    freeze = load_admitted_baseline(root / "configs/mission_baseline.json")[
+        "baseline_threshold_freeze"
+    ]
+    track_policy = TrackPolicy(**freeze["track_policy"])
+    depth_policy = DepthPolicy(**freeze["depth_policy"])
+    if args.predictions:
+        previous = json.loads((args.predictions.parent / "summary.json").read_text())
+        expected = "yolo26n:sha256:" + freeze["detector"]["model_sha256"]
+        if previous["model_version"] != expected:
+            raise ValueError("Retained model identity differs from admitted model")
+        old = [json.loads(line) for line in args.predictions.read_text().splitlines()]
+        if len(old) != len(selected) or {v["sample_id"] for v in old} != {
+            v["sample_id"] for v in selected
+        }:
+            raise ValueError("Retained predictions do not cover exactly the held-out samples")
+        fixture = dict(
+            schema_version=1,
+            origin="recorded",
+            source_id="replay",
+            model_version=expected,
+            frames=[
+                dict(
+                    frame_id=v["frame_id"],
+                    sim_time_s=v["sim_time_s"],
+                    width=manifest["image_size_wh"][0],
+                    height=manifest["image_size_wh"][1],
+                    valid=v["valid"],
+                    invalid_reason=None if v["valid"] else "retained_invalid",
+                    detections=[
+                        {k: p[k] for k in ("class_name", "confidence", "xyxy", "track_id")}
+                        for p in v["predictions"]
+                    ],
+                )
+                for v in old
+            ],
+        )
+        fixture_path = args.output / "retained-detector.json"
+        fixture_path.write_text(json.dumps(fixture, allow_nan=False) + "\n")
+        detector = RecordedDetector(fixture_path, sha256(fixture_path))
+    else:
+        detector = make_detector()
     try:
         records = replay(
-            args.dataset, manifest, rows, detector, depth["convention"], fault=args.fault
+            args.dataset,
+            manifest,
+            selected,
+            detector,
+            calibration["convention"],
+            track_policy=track_policy,
+            depth_policy=depth_policy,
         )
     finally:
         detector.close()
     report = range_summary(records)
     report.update(
-        dataset_index_sha256=manifest["samples_sha256"],
-        model_sha256=asset["sha256"],
-        split=args.split,
-        depth_calibration_sha256=sha256(args.depth_calibration),
-        fault=args.fault,
-        detector=dict(image_size=args.image_size, confidence=args.confidence),
+        dataset_manifest_sha256=sha256(args.dataset / "manifest.json"),
+        model_version=detector.model_version,
+        evaluated_split="test",
+        track_policy=asdict(track_policy),
+        depth_policy=asdict(depth_policy),
+        prediction_source_sha256=sha256(args.predictions) if args.predictions else None,
+        timing_origin="retained fixture/filter only; not learned inference"
+        if args.predictions
+        else "measured model/filter replay",
+        frames=len(records),
+        origin="recorded",
+        reference="PR69 5942fab; canonical TrackDepthFilter adaptation",
+        limitations=[
+            "Visible-mask truth is not amodal object truth.",
+            "No tuning on test roads/runs/images is permitted.",
+            "Stationary replay does not validate autonomous RESUME or #41 acceptance.",
+            "Adjacent frames are correlated; range bins require independent sequences.",
+        ],
     )
-    save_json(args.output / "perception.json", report)
-    with (args.output / "replay.jsonl").open("x", encoding="utf-8") as handle:
+    for values in report["class_metrics"].values():
+        tp, fp, fn = (values[k] for k in ("tp", "fp", "fn"))
+        values.update(
+            precision=tp / (tp + fp) if tp + fp else None,
+            recall=tp / (tp + fn) if tp + fn else None,
+        )
+    (args.output / "summary.json").write_text(json.dumps(report, indent=2, allow_nan=False) + "\n")
+    with (args.output / "records.jsonl").open("x") as stream:
         for row in records:
-            handle.write(json.dumps(row, allow_nan=False) + "\n")
-    print(
-        f"Measured {len(records)} frames | detector {args.image_size}px conf {args.confidence}"
-        f" | warm p95 {report['warm_p95_s'] * 1000:.0f} ms"
-        f" | in-path usable ranges {report['usable_range_lower_bound_m']}"
-        f" | all visible (report only) {report['all_visible_usable_range_m']} | {args.output}"
-    )
+            stream.write(json.dumps(row, allow_nan=False) + "\n")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

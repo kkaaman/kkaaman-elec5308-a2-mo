@@ -1,0 +1,124 @@
+{
+  "origin": "recorded",
+  "settings": {
+    "confidence": 0.25,
+    "image_size": 640,
+    "allowed_classes": [
+      "person",
+      "bicycle",
+      "car",
+      "motorcycle",
+      "bus",
+      "truck",
+      "traffic light",
+      "stop sign"
+    ],
+    "tracker": "botsort.yaml",
+    "tracker_settings": {
+      "tracker_type": "botsort",
+      "track_high_thresh": 0.25,
+      "track_low_thresh": 0.1,
+      "new_track_thresh": 0.25,
+      "track_buffer": 30,
+      "match_thresh": 0.8,
+      "fuse_score": true,
+      "gmc_method": "sparseOptFlow",
+      "proximity_thresh": 0.5,
+      "appearance_thresh": 0.8,
+      "with_reid": false,
+      "model": "auto"
+    },
+    "model_version": "yolo26n:sha256:9b09cc8bf347f0fc8a5f7657480587f25db09b34bf33b0652110fb03a8ad4fef",
+    "model_sha256": "9b09cc8bf347f0fc8a5f7657480587f25db09b34bf33b0652110fb03a8ad4fef",
+    "device": "cuda:0",
+    "versions": {
+      "ultralytics": "8.4.177",
+      "torch": "2.6.0+cu124",
+      "numpy": "2.5.2",
+      "opencv-python": "5.0.0.93",
+      "lap": "0.5.13"
+    },
+    "capture_resolution_wh": [
+      640,
+      360
+    ]
+  },
+  "track_policy": {
+    "hits": 2,
+    "window": 3,
+    "expiry_s": 0.5,
+    "distance_samples": 5
+  },
+  "sequences": [
+    {
+      "sequence": "approach",
+      "first_raw": {
+        "frame_id": 47373,
+        "range_m": 45.253308933932274,
+        "latency_s": 4.397755944979963
+      },
+      "first_confirmed": {
+        "frame_id": 47401,
+        "range_m": 39.65363994983447,
+        "latency_s": 6.202199816979828
+      },
+      "source_resolutions_wh": [
+        [
+          640,
+          360
+        ]
+      ],
+      "first_confirmed_response_s": 4.802199796118202
+    },
+    {
+      "sequence": "short_occlusion",
+      "first_raw": {
+        "frame_id": 47658,
+        "range_m": 35.45388292710756,
+        "latency_s": 2.6853899744878618
+      },
+      "first_confirmed": {
+        "frame_id": 47659,
+        "range_m": 35.25389483992243,
+        "latency_s": 2.7342707332331884
+      },
+      "source_resolutions_wh": [
+        [
+          640,
+          360
+        ]
+      ],
+      "first_confirmed_response_s": 0.23427069598028538
+    },
+    {
+      "sequence": "continuity_risk",
+      "first_raw": {
+        "frame_id": 47856,
+        "range_m": 43.062070653690114,
+        "latency_s": 1.3430724789814121
+      },
+      "first_confirmed": {
+        "frame_id": 47857,
+        "range_m": 42.86188602497164,
+        "latency_s": 1.4119605539817712
+      },
+      "source_resolutions_wh": [
+        [
+          640,
+          360
+        ]
+      ],
+      "first_confirmed_response_s": 0.8119605450410745
+    }
+  ],
+  "proposed_cruise_mps": 4.0,
+  "measured_speed_cap_mps": 4.9,
+  "recommended_speed_mps": 4.0,
+  "status": "MEASURED",
+  "assumptions": {
+    "braking_deceleration_mps2": 1.497566177392398,
+    "additional_response_s": 0.3500000052154064,
+    "stopping_margin_m": 6.0
+  },
+  "input_sha256": "08252a7e0090b2335f69ab38b7fd31cd46e1b5fedb74720b7430925cffbd7a81"
+}

@@ -1,0 +1,207 @@
+{
+  "source_commit": "f777a6d0aec45feded3046749c90e384c6bdffcd",
+  "source_branch": "fix/BL-C-05-sensor-wait-screening",
+  "source_files_sha256": {
+    "scripts/capture_obstacle_tracks.py": "ad36188e15471a028a08a0b2df6a39a430e533d005f7ff2e90514ef449698664",
+    "scripts/benchmark_obstacle_tracks.py": "204a1a9b674db33bd2aa80f0a91926bd13dca66fed31d9d2e2c4be78d6873c48",
+    "src/obstacle_perception/tracking.py": "c0a2781e4b5fde3080c8b2d0d18e697be46cc4ea0e4b22c18d57e0a5b58cef61",
+    "src/carla_adapter/sensors.py": "71ea20ad14f736e3606acb92b9a433b85dd86631c7d9a51cd7ae133b6e6d0a6a",
+    "src/perception/object_detection.py": "130b2fef40353c2ef36b58e1015e2b9cd2fbe5340df6d008049bada79c07b889",
+    "configs/models.yaml": "a8e1a7956ed5646593167694264235dcd106c4d4eb4cb0cf97f4527191117533",
+    "configs/mission_baseline.json": "ab8755dd668f46fb16f14a0173ee6c072a7b0570b1c6815d9de21f087282a08d",
+    "configs/acceptance.json": "9f8ba3cf712dedd6d0483eb228a6df8155e9f2e65880bd6a560ec07495c6c7d8",
+    "docs/evidence/BL-C-04-06/depth-calibration.json": "89d64df2475790eea16a0fc2b862a9fcbafdf125c9f3fd5ef3f74453afc9cf5f",
+    "docs/evidence/BL-C-04-06/longitudinal.json": "f718d60b26416675e563bb92099d01aebd95c4aa7011e141414cb82ec2f3ee73"
+  },
+  "python": "3.12.11 (main, Sep 22 2026, 19:00:33) [GCC 15.2.0]",
+  "platform": "Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.43",
+  "installed_versions": {
+    "carla": null,
+    "ultralytics": "8.4.177",
+    "torch": "2.6.0+cu124",
+    "numpy": "2.5.2",
+    "opencv-python": "5.0.0.93",
+    "lap": "0.5.13"
+  },
+  "version_notes": "CARLA distribution metadata unavailable; imported client and live server both report 0.9.16.",
+  "requested_environment": {
+    "host": "172.28.176.1",
+    "port": 2000,
+    "server_version": "0.9.16",
+    "map": "Town10HD_Opt",
+    "rig": {
+      "width": 640,
+      "height": 360,
+      "fov_deg": 90,
+      "x_actor_m": 1.5,
+      "z_actor_m": 2.0
+    },
+    "depth_convention": "axial",
+    "fixed_delta_seconds": 0.05,
+    "frames_per_sequence": 200,
+    "scenarios": [
+      "approach",
+      "short_occlusion",
+      "continuity_risk"
+    ]
+  },
+  "observed_environment": {
+    "client_version": "0.9.16",
+    "client_module_path": "/home/alan/26-S2-Assignment2-Group7/.venv/lib/python3.12/site-packages/carla/__init__.py",
+    "server_version": "0.9.16",
+    "map": "Carla/Maps/Town10HD_Opt",
+    "rig_validated_against_server": true,
+    "cuda_available": true,
+    "device": "NVIDIA GeForce RTX 4070 Laptop GPU"
+  },
+  "detector": {
+    "model_sha256": "9b09cc8bf347f0fc8a5f7657480587f25db09b34bf33b0652110fb03a8ad4fef",
+    "verified_local_model_sha256": "9b09cc8bf347f0fc8a5f7657480587f25db09b34bf33b0652110fb03a8ad4fef",
+    "confidence": 0.25,
+    "image_size": 640,
+    "tracker": "botsort.yaml",
+    "tracker_settings": {
+      "tracker_type": "botsort",
+      "track_high_thresh": 0.25,
+      "track_low_thresh": 0.1,
+      "new_track_thresh": 0.25,
+      "track_buffer": 30,
+      "match_thresh": 0.8,
+      "fuse_score": true,
+      "gmc_method": "sparseOptFlow",
+      "proximity_thresh": 0.5,
+      "appearance_thresh": 0.8,
+      "with_reid": false,
+      "model": "auto"
+    },
+    "tracker_sha256": "8cd88930d3be5557be0777f384eecff0a36a7011850fe613fc0a68178bfd5b01",
+    "track_policy": {
+      "hits": 2,
+      "window": 3,
+      "expiry_s": 0.5,
+      "distance_samples": 5
+    }
+  },
+  "timing_contract": {
+    "schema_version": 3,
+    "sensor_read_timeout_s": 5.0,
+    "measured_sensor_read_wall_s": "read + conversion measured by perf_counter; failures included; stops before detector",
+    "replay": "max(source_elapsed + sim_sensor_delay, previous_ready) + measured_read + detector + filter",
+    "recorded_sensor_read_durations": 600
+  },
+  "recorded_source_files_match_base_commit": true,
+  "observed_live_environment": {
+    "server": "0.9.16",
+    "client": "0.9.16",
+    "map": "Carla/Maps/Town10HD_Opt",
+    "opendrive_sha256": "5d883b799f634030af92be1e9d79d107845540ba04338e8c60e095be1aef7be7",
+    "rig": {
+      "width": 640,
+      "height": 360,
+      "fov_deg": 90,
+      "x_actor_m": 1.5,
+      "z_actor_m": 2.0
+    },
+    "site": 10,
+    "fixed_delta_seconds": 0.05,
+    "depth_convention": "axial",
+    "weather": "WeatherParameters(cloudiness=20.000000, precipitation=0.000000, precipitation_deposits=0.000000, wind_intensity=10.000000, sun_azimuth_angle=300.000000, sun_altitude_angle=45.000000, fog_density=2.000000, fog_distance=0.750000, fog_falloff=0.100000, wetness=0.000000, scattering_intensity=1.000000, mie_scattering_scale=0.030000, rayleigh_scattering_scale=0.033100, dust_storm=0.000000)"
+  },
+  "observed_settings": {
+    "confidence": 0.25,
+    "image_size": 640,
+    "allowed_classes": [
+      "person",
+      "bicycle",
+      "car",
+      "motorcycle",
+      "bus",
+      "truck",
+      "traffic light",
+      "stop sign"
+    ],
+    "tracker": "botsort.yaml",
+    "tracker_settings": {
+      "tracker_type": "botsort",
+      "track_high_thresh": 0.25,
+      "track_low_thresh": 0.1,
+      "new_track_thresh": 0.25,
+      "track_buffer": 30,
+      "match_thresh": 0.8,
+      "fuse_score": true,
+      "gmc_method": "sparseOptFlow",
+      "proximity_thresh": 0.5,
+      "appearance_thresh": 0.8,
+      "with_reid": false,
+      "model": "auto"
+    },
+    "model_version": "yolo26n:sha256:9b09cc8bf347f0fc8a5f7657480587f25db09b34bf33b0652110fb03a8ad4fef",
+    "model_sha256": "9b09cc8bf347f0fc8a5f7657480587f25db09b34bf33b0652110fb03a8ad4fef",
+    "device": "cuda:0",
+    "versions": {
+      "ultralytics": "8.4.177",
+      "torch": "2.6.0+cu124",
+      "numpy": "2.5.2",
+      "opencv-python": "5.0.0.93",
+      "lap": "0.5.13"
+    },
+    "capture_resolution_wh": [
+      640,
+      360
+    ]
+  },
+  "track_policy": {
+    "hits": 2,
+    "window": 3,
+    "expiry_s": 0.5,
+    "distance_samples": 5
+  },
+  "capture_provenance": {
+    "depth": {
+      "path": "/tmp/blc05-refresh/docs/evidence/BL-C-04-06/depth-calibration.json",
+      "sha256": "89d64df2475790eea16a0fc2b862a9fcbafdf125c9f3fd5ef3f74453afc9cf5f"
+    },
+    "braking": {
+      "path": "/tmp/blc05-refresh/docs/evidence/BL-C-04-06/longitudinal.json",
+      "sha256": "f718d60b26416675e563bb92099d01aebd95c4aa7011e141414cb82ec2f3ee73"
+    },
+    "baseline": {
+      "path": "/tmp/blc05-refresh/configs/mission_baseline.json",
+      "sha256": "ab8755dd668f46fb16f14a0173ee6c072a7b0570b1c6815d9de21f087282a08d"
+    },
+    "acceptance": {
+      "path": "/tmp/blc05-refresh/configs/acceptance.json",
+      "sha256": "9f8ba3cf712dedd6d0483eb228a6df8155e9f2e65880bd6a560ec07495c6c7d8"
+    },
+    "models_manifest": {
+      "path": "/tmp/blc05-refresh/configs/models.yaml",
+      "sha256": "a8e1a7956ed5646593167694264235dcd106c4d4eb4cb0cf97f4527191117533"
+    },
+    "tracker": {
+      "path": "/home/alan/26-S2-Assignment2-Group7/.venv/lib/python3.12/site-packages/ultralytics/cfg/trackers/botsort.yaml",
+      "sha256": "8cd88930d3be5557be0777f384eecff0a36a7011850fe613fc0a68178bfd5b01"
+    },
+    "capture_script": {
+      "path": "/tmp/blc05-refresh/scripts/capture_obstacle_tracks.py",
+      "sha256": "ad36188e15471a028a08a0b2df6a39a430e533d005f7ff2e90514ef449698664"
+    }
+  },
+  "schema_version": 3,
+  "raw_directory": "/home/alan/26-S2-Assignment2-Group7/runs/BL-C-05-refresh/20261021-wait-aware-02",
+  "sequences_sha256": "7d5d17d6274a31a52b221fa5fe205bb8940bd12b1ec61d035be66190ede98e68",
+  "benchmark_sha256": "71403bf001e9ab0d388fb740766162615766c581c6eec7055684f959ec9a6f97",
+  "settings_restored": true,
+  "no_actor_leaks": true,
+  "rig_validation_this_attempt": true,
+  "historical_result_reused": false,
+  "versioned_csv_normalization": {
+    "path": "frame-analysis.csv",
+    "transformation": "CRLF to LF only; CSV values unchanged. artifact-manifest.json retains original raw-output bytes/hash.",
+    "original_raw_record": {
+      "bytes": 144878,
+      "sha256": "7b3b69802203e5bb7f4c2c4720f74e5ed1866af7efdf4acb4a9a138924d43ea3"
+    },
+    "versioned_bytes": 144277,
+    "versioned_sha256": "2186f879aa31738a0da798ad72ac8456dabd1a47c86325fb9be7169b699c901f"
+  }
+}

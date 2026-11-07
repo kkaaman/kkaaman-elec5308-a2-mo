@@ -1,0 +1,222 @@
+........................................................................ [  7%]
+........................................................................ [ 15%]
+.F...................................................................... [ 23%]
+........................................................................ [ 30%]
+....................................................F.....F............. [ 38%]
+..................................................................... [ 46%]
+........................................................................ [ 53%]
+.....................................................................F.. [ 61%]
+........................................................................ [ 69%]
+........................................................................ [ 77%]
+........................................................................ [ 84%]
+........................................................................ [ 92%]
+......................................................................   [100%]
+=================================== FAILURES ===================================
+_ test_warm_freeze_covers_the_full_admitted_age_not_only_the_observed_maximum __
+
+    def test_warm_freeze_covers_the_full_admitted_age_not_only_the_observed_maximum():
+        from autonomy.baseline_operation import frozen_governor_config
+    
+        result = review(EVIDENCE)
+        baseline = json.loads((ROOT / "configs/mission_baseline.json").read_text())
+>       assert frozen_governor_config(ROOT / "configs/mission_baseline.json").cruise_mps == 4.0
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/unit/test_baseline_freeze_review.py:153: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/autonomy/baseline_operation.py:13: in frozen_governor_config
+    return _governor_config(load_admitted_baseline(path))
+                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = PosixPath('/tmp/phase-j/docs/configs/mission_baseline.json')
+
+    def load_admitted_baseline(path):
+        """Fail closed on candidate, altered config, broadened scope or source drift."""
+        baseline = read_json(path)
+        freeze = baseline["baseline_threshold_freeze"]
+        if freeze["status"] != "FROZEN_GATED_OPERATIONAL":
+            raise ValueError("Baseline is not frozen for operational governance")
+        record = read_json(ADMISSION_ROOT / RECORD_PATH)
+        if (record["config_path"] != "configs/mission_baseline.json"
+                or Path(path).resolve() != (ADMISSION_ROOT / record["config_path"]).resolve()):
+            raise ValueError("Configuration path is not the admitted config path")
+        if record["decision"] != "PASS" or record["schema_version"] != 1:
+            raise ValueError("G1 admission record is not PASS")
+        if config_identity(baseline) != record["config_identity_sha256"]:
+            raise ValueError("Admitted configuration identity mismatch")
+        if (freeze["frozen_values"] != record["frozen_values"]
+                or freeze["operational_scope"] != record["operational_scope"]
+                or freeze["admitted_profile"] != "stationary_vehicle_g2_only"
+                or record["admitted_profile"] != "stationary_vehicle_g2_only"):
+            raise ValueError("Admitted numeric values or stationary-vehicle scope mismatch")
+        expected = record["runner_scope_sha256"]
+        if freeze["issue41_runner_scope_sha256"] != expected:
+            raise ValueError("Admitted runner fingerprint mismatch")
+        if freeze["issue41_runner_source_revision"] != record["runner_base_revision"]:
+            raise ValueError("Admitted source revision mismatch")
+        runner_variant = record["source_variants"]["issue41_runner"]
+        if (runner_variant["kind"] != "issue41_runner"
+                or runner_variant["scope_sha256"] != expected
+                or scope_fingerprint(record["runner_scope"], runner_variant["source_hashes"]) != expected):
+            raise ValueError("Admitted runner record fingerprint mismatch")
+        hashes = source_inventory(ADMISSION_ROOT)
+        matching = [v for v in record["source_variants"].values() if v["source_hashes"] == hashes]
+        if len(matching) != 1:
+>           raise ValueError("Admitted source inventory mismatch")
+E           ValueError: Admitted source inventory mismatch
+
+src/autonomy/admission.py:85: ValueError
+_____________ test_current_record_pins_source_and_stationary_scope _____________
+
+    def test_current_record_pins_source_and_stationary_scope():
+        record = admission.read_json(ROOT / admission.RECORD_PATH)
+>       baseline = admission.load_admitted_baseline(ROOT / "configs/mission_baseline.json")
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/unit/test_g1_admission.py:145: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = PosixPath('/tmp/phase-j/docs/configs/mission_baseline.json')
+
+    def load_admitted_baseline(path):
+        """Fail closed on candidate, altered config, broadened scope or source drift."""
+        baseline = read_json(path)
+        freeze = baseline["baseline_threshold_freeze"]
+        if freeze["status"] != "FROZEN_GATED_OPERATIONAL":
+            raise ValueError("Baseline is not frozen for operational governance")
+        record = read_json(ADMISSION_ROOT / RECORD_PATH)
+        if (record["config_path"] != "configs/mission_baseline.json"
+                or Path(path).resolve() != (ADMISSION_ROOT / record["config_path"]).resolve()):
+            raise ValueError("Configuration path is not the admitted config path")
+        if record["decision"] != "PASS" or record["schema_version"] != 1:
+            raise ValueError("G1 admission record is not PASS")
+        if config_identity(baseline) != record["config_identity_sha256"]:
+            raise ValueError("Admitted configuration identity mismatch")
+        if (freeze["frozen_values"] != record["frozen_values"]
+                or freeze["operational_scope"] != record["operational_scope"]
+                or freeze["admitted_profile"] != "stationary_vehicle_g2_only"
+                or record["admitted_profile"] != "stationary_vehicle_g2_only"):
+            raise ValueError("Admitted numeric values or stationary-vehicle scope mismatch")
+        expected = record["runner_scope_sha256"]
+        if freeze["issue41_runner_scope_sha256"] != expected:
+            raise ValueError("Admitted runner fingerprint mismatch")
+        if freeze["issue41_runner_source_revision"] != record["runner_base_revision"]:
+            raise ValueError("Admitted source revision mismatch")
+        runner_variant = record["source_variants"]["issue41_runner"]
+        if (runner_variant["kind"] != "issue41_runner"
+                or runner_variant["scope_sha256"] != expected
+                or scope_fingerprint(record["runner_scope"], runner_variant["source_hashes"]) != expected):
+            raise ValueError("Admitted runner record fingerprint mismatch")
+        hashes = source_inventory(ADMISSION_ROOT)
+        matching = [v for v in record["source_variants"].values() if v["source_hashes"] == hashes]
+        if len(matching) != 1:
+>           raise ValueError("Admitted source inventory mismatch")
+E           ValueError: Admitted source inventory mismatch
+
+src/autonomy/admission.py:85: ValueError
+___________ test_pr98_rebind_preserves_pr104_values_scope_and_runner ___________
+
+    def test_pr98_rebind_preserves_pr104_values_scope_and_runner():
+        current = admission.read_json(ROOT / admission.RECORD_PATH)
+        old = admission.read_json(ROOT / "docs/gates/history/G1-admission-pr104.json")
+        for field in ("frozen_values", "operational_scope", "admitted_profile", "runner_scope",
+                      "runner_scope_sha256", "runner_base_revision", "config_identity_sha256",
+                      "config_file_sha256"):
+            assert current[field] == old[field]
+        assert current["source_variants"]["issue41_runner"] == old["source_variants"]["issue41_runner"]
+>       assert admission.source_inventory(ROOT) == current["source_variants"]["canonical_loader_only"]["source_hashes"]
+E       AssertionError: assert {'src/autodri...de39ee6', ...} == {'src/autodri...de39ee6', ...}
+E         
+E         Omitting 117 identical items, use -vv to show
+E         Left contains 2 more items:
+E         {'configs/reproduction.json': '20a6bdd82da79a3bb77a92ca9437d70ba38169358721741274be61227fbdad05',
+E          'src/carla_adapter/environment_check.py': '50d070c01f71148b159e93f5189bdbf6045585270d28a5b869963c46f778a6b5'}
+E         Use -v to get more diff
+
+tests/unit/test_g1_admission.py:188: AssertionError
+_________ test_frozen_baseline_entry_point_uses_the_same_startup_gate __________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x70b5da0b8ec0>
+tmp_path = PosixPath('/tmp/pytest-of-alan/pytest-7/test_frozen_baseline_entry_poi0')
+
+    def test_frozen_baseline_entry_point_uses_the_same_startup_gate(monkeypatch, tmp_path):
+        import json
+        from pathlib import Path
+    
+        from autonomy.baseline_operation import baseline_operational_stack, frozen_governor_config
+        from obstacle_perception.box_depth import DepthPolicy
+        from obstacle_perception.tracking import TrackPolicy
+        from perception.types import PerceptionConfig
+    
+        root = Path(__file__).resolve().parents[2]
+        document = json.loads((root / "configs/mission_baseline.json").read_text())
+        freeze = document["baseline_threshold_freeze"]
+        # Use the exact versioned local admission proposal, retaining its identity.
+        freeze["status"] = "FROZEN_GATED_OPERATIONAL"
+        freeze["frozen_values"] = dict(freeze["candidate_values"])
+        path = root / "configs/mission_baseline.json"
+        assert json.loads(path.read_text()) == document
+        import perception.object_detection as detector_module
+        import perception.recorded_detector as assets
+    
+        tracker_file = tmp_path / "tracker.yaml"
+        tracker_file.write_text(json.dumps(freeze["detector"]["tracker_settings"]))
+        monkeypatch.setattr(assets, "verify_local_asset", lambda path, sha: Path(path))
+        monkeypatch.setattr(detector_module, "_resolve_tracker", lambda name: str(tracker_file))
+        clock, backend, policy, _, _ = setup()
+        backend.config = PerceptionConfig(model_name=str(root / "yolo26n.pt"))
+>       policy.governor = SpeedGovernor(frozen_governor_config(path))
+                                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/unit/test_operational_freshness.py:227: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/autonomy/baseline_operation.py:13: in frozen_governor_config
+    return _governor_config(load_admitted_baseline(path))
+                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = PosixPath('/tmp/phase-j/docs/configs/mission_baseline.json')
+
+    def load_admitted_baseline(path):
+        """Fail closed on candidate, altered config, broadened scope or source drift."""
+        baseline = read_json(path)
+        freeze = baseline["baseline_threshold_freeze"]
+        if freeze["status"] != "FROZEN_GATED_OPERATIONAL":
+            raise ValueError("Baseline is not frozen for operational governance")
+        record = read_json(ADMISSION_ROOT / RECORD_PATH)
+        if (record["config_path"] != "configs/mission_baseline.json"
+                or Path(path).resolve() != (ADMISSION_ROOT / record["config_path"]).resolve()):
+            raise ValueError("Configuration path is not the admitted config path")
+        if record["decision"] != "PASS" or record["schema_version"] != 1:
+            raise ValueError("G1 admission record is not PASS")
+        if config_identity(baseline) != record["config_identity_sha256"]:
+            raise ValueError("Admitted configuration identity mismatch")
+        if (freeze["frozen_values"] != record["frozen_values"]
+                or freeze["operational_scope"] != record["operational_scope"]
+                or freeze["admitted_profile"] != "stationary_vehicle_g2_only"
+                or record["admitted_profile"] != "stationary_vehicle_g2_only"):
+            raise ValueError("Admitted numeric values or stationary-vehicle scope mismatch")
+        expected = record["runner_scope_sha256"]
+        if freeze["issue41_runner_scope_sha256"] != expected:
+            raise ValueError("Admitted runner fingerprint mismatch")
+        if freeze["issue41_runner_source_revision"] != record["runner_base_revision"]:
+            raise ValueError("Admitted source revision mismatch")
+        runner_variant = record["source_variants"]["issue41_runner"]
+        if (runner_variant["kind"] != "issue41_runner"
+                or runner_variant["scope_sha256"] != expected
+                or scope_fingerprint(record["runner_scope"], runner_variant["source_hashes"]) != expected):
+            raise ValueError("Admitted runner record fingerprint mismatch")
+        hashes = source_inventory(ADMISSION_ROOT)
+        matching = [v for v in record["source_variants"].values() if v["source_hashes"] == hashes]
+        if len(matching) != 1:
+>           raise ValueError("Admitted source inventory mismatch")
+E           ValueError: Admitted source inventory mismatch
+
+src/autonomy/admission.py:85: ValueError
+=========================== short test summary info ============================
+FAILED tests/unit/test_baseline_freeze_review.py::test_warm_freeze_covers_the_full_admitted_age_not_only_the_observed_maximum
+FAILED tests/unit/test_g1_admission.py::test_current_record_pins_source_and_stationary_scope
+FAILED tests/unit/test_g1_admission.py::test_pr98_rebind_preserves_pr104_values_scope_and_runner
+FAILED tests/unit/test_operational_freshness.py::test_frozen_baseline_entry_point_uses_the_same_startup_gate
+4 failed, 927 passed, 1 deselected, 3 subtests passed in 16.35s

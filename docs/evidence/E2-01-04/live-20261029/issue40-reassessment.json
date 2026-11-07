@@ -1,0 +1,19 @@
+{
+  "status": "BLOCKED_VALIDATED_LIDAR_CANNOT_SUPPLY_CURRENT_CLEARANCE_CERTIFICATE",
+  "validated_scope": "This32-channel roof-mounted ray-cast rig at2.4m actor-relative height, the checked straight sites and stationary known vehicle matrix",
+  "first_road_return_from_bumper_m": 1.4570929780535522,
+  "first_broad_supported_road_bin_m": 1.5,
+  "road_returns_first_metre_all90_sweeps": 0,
+  "positive_clearance_frames": 0,
+  "supported_from_bumper_free_prefix_m": null,
+  "clear_start8m_is_not_positive_prefix": true,
+  "conclusion": "No integration of a private LiDAR copy, blind probing or removal/resume acceptance is justified",
+  "preserves": [
+    "five valid clear observations AND0.4s",
+    "track expiry never releases HOLD",
+    "unknown/invalid coverage remains HOLD"
+  ],
+  "full_height_volume_not_imposed_as_issue40_requirement": true,
+  "different_rig_proven_necessary": false,
+  "missing_premise": "Validated inference/operating-domain rule supporting the portion actually traversed; obstacle surface/range and sparse road returns do not establish it"
+}

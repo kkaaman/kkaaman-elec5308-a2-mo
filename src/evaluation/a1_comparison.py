@@ -186,7 +186,7 @@ KNOWN_DIFFERENCES = (
     " distribution, not sample by sample.",
     "Timing: A1 runs asynchronously (variable control period); A2 runs synchronously at a fixed"
     " 0.05 s step, reading the frame it just ticked.",
-    "Speed: A1 cruises at 3 m/s; A2 at the frozen cruise speed (provisional 5 m/s).",
+    "Speed: A1 cruises at 3 m/s; the retained A2 TEST-02 acceptance runs use a ""4.0 m/s mission cruise target; final BL-D-06 safety freeze remains separate.",
     "Vehicle/geometry: A1 used its demo's first blueprint match, 2.5 m wheelbase and 0.6 rad"
     " normalisation; A2 uses the measured Tesla Model 3 geometry (BL-E-01).",
     "Latency: A1 cycle_wall_before_apply includes all A1 perception for that cycle; A2"

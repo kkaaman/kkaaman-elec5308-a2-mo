@@ -51,8 +51,23 @@ class SkeletonStack:
     No simulator import, ground truth, route selection or obstacle association.
     """
 
-    def __init__(self, detector, config=None, motion_policy=None, clock=time.monotonic):
+    def __init__(
+        self,
+        detector,
+        config=None,
+        motion_policy=None,
+        clock=time.monotonic,
+        *,
+        freshness_gate=None,
+        simulation_clock=None,
+        use_tracking=False,
+    ):
         self.detector = detector
+        self.freshness_gate = freshness_gate
+        self.simulation_clock = simulation_clock
+        self.use_tracking = use_tracking
+        if freshness_gate is not None and simulation_clock is None:
+            raise ValueError("Operational gate requires current simulation clock")
         self.motion_policy = motion_policy
         self.clock = clock
         self._config_error = None
@@ -90,10 +105,27 @@ class SkeletonStack:
                 raise TypeError("Expected LaneGraph")
             LaneGraph(graph.nodes, graph.edges)
             self.detector.reset(episode_id=episode_id)
+            if self.freshness_gate is not None:
+                self.freshness_gate.reset(
+                    episode_id=episode_id, generation=self.detector.generation
+                )
             if self.motion_policy is not None and hasattr(self.motion_policy, "reset"):
                 self.motion_policy.reset(episode_id=episode_id, graph=graph)
         except Exception as error:
             self._emergency = f"reset_failed:{type(error).__name__}"
+
+    def _gate_check(self, frame, started):
+        return self.freshness_gate.check(
+            frame,
+            now=self.clock(),
+            sim_time_s=self.simulation_clock(),
+            generation=self.detector.generation,
+            processing_s=time.perf_counter() - started,
+        )
+
+    def _policy_hold(self, frame):
+        if self.motion_policy is not None and hasattr(self.motion_policy, "on_hold"):
+            self.motion_policy.on_hold(frame)
 
     def step(self, frame):
         if self._closed or self._episode is None:
@@ -108,30 +140,29 @@ class SkeletonStack:
             if not isinstance(frame, FrameBundle):
                 raise TypeError("Expected FrameBundle")
             # Revalidate even if a caller bypassed frozen dataclass protection.
-            frame = replace(
-                frame, ego=replace(frame.ego, state=replace(frame.ego.state))
-            )
+            frame = replace(frame, ego=replace(frame.ego, state=replace(frame.ego.state)))
             if frame.episode_id != self._episode:
                 raise ValueError("Episode mismatch")
             if self._last_frame is not None and (
-                frame.frame_id <= self._last_frame
-                or frame.sim_time_s <= self._last_time
+                frame.frame_id <= self._last_frame or frame.sim_time_s <= self._last_time
             ):
                 raise ValueError("Nonmonotonic observation")
             packet_frame, packet_time = frame.frame_id, frame.sim_time_s
             self._last_frame, self._last_time = packet_frame, packet_time
             age = self.clock() - frame.received_monotonic_s
-            if (
-                not math.isfinite(age)
-                or age < 0
-                or age > self.config.max_observation_age_s
-            ):
+            if not math.isfinite(age) or age < 0 or age > self.config.max_observation_age_s:
                 raise ValueError("Observation is stale or clock is inconsistent")
             if self.config.require_depth and frame.depth_m is None:
                 raise ValueError("Required depth missing")
-            if self._emergency is None:
+            gate_eligible = self.freshness_gate is None or self._gate_check(frame, started)
+            if not gate_eligible:
+                reason = self.freshness_gate.reason
+                self._policy_hold(frame)
+            if self._emergency is None and gate_eligible:
                 stage_start = time.perf_counter()
-                batch = self.detector.detect(frame)
+                batch = (
+                    self.detector.track(frame) if self.use_tracking else self.detector.detect(frame)
+                )
                 stages.append(("detector", time.perf_counter() - stage_start))
                 if not isinstance(batch, DetectionBatch):
                     raise TypeError("Detector must return DetectionBatch")
@@ -140,11 +171,10 @@ class SkeletonStack:
                     metadata=replace(batch.metadata),
                     timing=replace(batch.timing),
                     detections=tuple(
-                        replace(item, box=replace(item.box))
-                        for item in batch.detections
+                        replace(item, box=replace(item.box)) for item in batch.detections
                     ),
                 )
-                if not batch.valid:
+                if not batch.valid and self.freshness_gate is None:
                     raise ValueError("Detector returned invalid observations")
                 if (
                     batch.metadata.episode_id != frame.episode_id
@@ -153,25 +183,48 @@ class SkeletonStack:
                     or (batch.image_height, batch.image_width) != frame.rgb.shape[:2]
                 ):
                     raise ValueError("Detector source does not match frame")
+                fresh = ready = True
+                if self.freshness_gate is not None:
+                    fresh, ready = self.freshness_gate.result(
+                        frame,
+                        valid=batch.valid,
+                        now=self.clock(),
+                        sim_time_s=self.simulation_clock(),
+                        generation=self.detector.generation,
+                        processing_s=time.perf_counter() - started,
+                    )
                 if self.motion_policy is not None:
                     stage_start = time.perf_counter()
-                    command = self.motion_policy(frame, batch)
+                    if self.freshness_gate is not None and hasattr(self.motion_policy, "evaluate"):
+                        command = self.motion_policy.evaluate(
+                            frame, batch, fresh=fresh, ready=ready
+                        )
+                    elif ready:
+                        command = self.motion_policy(frame, batch)
                     stages.append(("policy", time.perf_counter() - stage_start))
                     if not isinstance(command, ControlCommand):
                         raise TypeError("Policy must return ControlCommand")
                     command = replace(command)
-                    reason = "policy_command"
-                if time.perf_counter() - started > self.config.max_step_wall_s:
+                    reason = (
+                        "policy_command"
+                        if getattr(self.motion_policy, "observation_valid", True)
+                        else "perception_hold"
+                    )
+                if self.freshness_gate is not None:
+                    final_fresh = self._gate_check(frame, started)
+                    if not final_fresh or not ready:
+                        command = ControlCommand(0, 0, 1)
+                        reason = self.freshness_gate.reason
+                        if not final_fresh:
+                            self._policy_hold(frame)
+                elif time.perf_counter() - started > self.config.max_step_wall_s:
                     raise TimeoutError("Step wall-time budget exceeded")
-                if (
-                    self.clock() - frame.received_monotonic_s
-                    > self.config.max_observation_age_s
+                if self.freshness_gate is None and (
+                    self.clock() - frame.received_monotonic_s > self.config.max_observation_age_s
                 ):
                     raise TimeoutError("Observation expired during processing")
         except Exception as error:
-            self._emergency = (
-                self._emergency or f"invalid_step:{type(error).__name__}:{error}"
-            )
+            self._emergency = self._emergency or f"invalid_step:{type(error).__name__}:{error}"
         if self._emergency is not None:
             command = ControlCommand(0, 0, 1)
             reason = self._emergency
@@ -182,7 +235,19 @@ class SkeletonStack:
             packet_time,
             packet_time + self.config.command_ttl_s,
             command,
-            Diagnostics(tuple(stages), self._emergency is None, (reason,)),
+            Diagnostics(
+                tuple(stages),
+                self._emergency is None
+                and (self.freshness_gate is None or reason == "policy_command"),
+                (reason,),
+            ),
+            (
+                frame.capture_started_monotonic_s + self.config.max_observation_age_s
+                if self.freshness_gate is not None
+                and isinstance(frame, FrameBundle)
+                and frame.capture_started_monotonic_s is not None
+                else None
+            ),
         )
 
     def close(self):

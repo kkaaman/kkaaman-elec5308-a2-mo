@@ -1,8 +1,6 @@
-"""Adapter from the preserved A1 RGB detector API to exact-frame contracts."""
+"""Frame contract adapter preserving image detector detect/track separation."""
 
 import time
-
-import numpy as np
 
 from obstacle_perception.types import (
     CallTiming,
@@ -13,64 +11,43 @@ from obstacle_perception.types import (
 
 
 class FrameDetector:
-    def __init__(self, backend, *, model_version, source_id="front-rgb", tracking=True):
-        ObservationMetadata("validate", 0, 0.0, source_id, model_version)
+    def __init__(self, backend, *, source_id, model_version):
         self.backend = backend
-        self.model_version, self.source_id, self.tracking = model_version, source_id, tracking
-        self.episode_id = None
+        self.source_id, self.model_version = source_id, model_version
+
+    @property
+    def generation(self):
+        return self.backend.generation
 
     def reset(self, *, episode_id):
         self.backend.reset(episode_id=episode_id)
-        self.episode_id = episode_id
 
     def detect(self, frame):
-        if frame.episode_id != self.episode_id:
-            raise ValueError("Detector episode mismatch")
-        items = self.backend.track(frame.rgb) if self.tracking else self.backend.detect(frame.rgb)
+        return self._run(frame, tracking=False)
+
+    def track(self, frame):
+        return self._run(frame, tracking=True)
+
+    def _run(self, frame, tracking):
+        if self.backend.episode_id != frame.episode_id:
+            raise ValueError("Reset detector for matching episode")
+        started = time.perf_counter()
+        metadata = ObservationMetadata(
+            frame.episode_id, frame.frame_id, frame.sim_time_s, self.source_id, self.model_version
+        )
+        result = self.backend.track(frame.rgb) if tracking else self.backend.detect(frame.rgb)
+        observations = tuple(
+            DetectionObservation(d.class_name, d.confidence, d.bounding_box, d.track_id)
+            for d in result
+        )
+        # Includes conversion to canonical observations, not just GPU inference.
         return DetectionBatch(
-            ObservationMetadata(
-                frame.episode_id,
-                frame.frame_id,
-                frame.sim_time_s,
-                self.source_id,
-                self.model_version,
-            ),
-            tuple(
-                DetectionObservation(d.class_name, d.confidence, d.bounding_box, d.track_id)
-                for d in items
-            ),
+            metadata,
+            observations,
             frame.rgb.shape[1],
             frame.rgb.shape[0],
-            self.backend.last_call_timing or CallTiming(0),
+            CallTiming(time.perf_counter() - started),
         )
-
-    def warmup(self):
-        """Empty-image tracker initialization, recorded outside loop timings."""
-        start = time.perf_counter()
-        for _ in range(3):
-            self.backend.track(np.zeros((360, 640, 3), dtype=np.uint8))
-        return time.perf_counter() - start
 
     def close(self):
         self.backend.close()
-
-
-class EmptyDetector:
-    """Explicit navigation-only diagnostic; never used for obstacle acceptance."""
-
-    def reset(self, *, episode_id):
-        self.episode_id = episode_id
-
-    def detect(self, frame):
-        return DetectionBatch(
-            ObservationMetadata(
-                frame.episode_id, frame.frame_id, frame.sim_time_s, "navigation-only", "no-detector"
-            ),
-            (),
-            frame.rgb.shape[1],
-            frame.rgb.shape[0],
-            CallTiming(0),
-        )
-
-    def close(self):
-        self.episode_id = None

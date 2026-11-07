@@ -1,109 +1,116 @@
-"""Explicit stop/hold/resume guards; track expiry cannot authorize motion."""
+"""Conservative obstacle-clearance guards for baseline behaviour (BL-D-05)."""
+
+from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from enum import Enum
-
-
-class BehaviourState(str, Enum):
-    CRUISE = "CRUISE"
-    APPROACH = "APPROACH"
-    STOPPING = "STOPPING"
-    HOLD = "HOLD"
-    RESUME = "RESUME"
-    FINISHED = "FINISHED"
-    FAULT_STOP = "FAULT_STOP"
 
 
 @dataclass(frozen=True)
-class BehaviourConfig:
-    stopped_speed_mps: float = 0.1
+class ClearanceGuardConfig:
+    """Requirements for confirming that a previously blocked route is clear."""
+
     clear_frames: int = 5
     clear_duration_s: float = 0.4
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if type(self.clear_frames) is not int or self.clear_frames < 1:
-            raise ValueError("Positive clear-frame count required")
-        if any(
-            not math.isfinite(v) or v <= 0 for v in (self.stopped_speed_mps, self.clear_duration_s)
+            raise ValueError("clear_frames must be a positive integer")
+
+        if (
+            isinstance(self.clear_duration_s, bool)
+            or not math.isfinite(self.clear_duration_s)
+            or self.clear_duration_s <= 0
         ):
-            raise ValueError("Positive finite speed/time required")
+            raise ValueError("clear_duration_s must be a positive finite value")
 
 
-class Behaviour:
-    def __init__(self, config=None):
-        self.config = config or BehaviourConfig()
+class ClearanceGuard:
+    """Track conservative clearance evidence for a blocked route.
+
+    A missing or expired obstacle track is not sufficient evidence of
+    clearance. Clearance is confirmed only after fresh, valid observations
+    report the corridor clear for both the configured frame count and
+    duration.
+    """
+
+    def __init__(self, config: ClearanceGuardConfig | None = None) -> None:
+        self.config = config or ClearanceGuardConfig()
         self.reset()
 
-    def reset(self):
-        self.state = BehaviourState.CRUISE
-        self.clear_count = 0
-        self.clear_since = None
-        self.last_time = None
-        self.blocked_latch = False
-        self.reason = "reset"
+    def reset(self) -> None:
+        """Reset all episode-local guard state."""
 
-    def fault(self, reason):
-        self.state = BehaviourState.FAULT_STOP
-        self.reason = str(reason)
-        self.clear_count = 0
-        self.clear_since = None
+        self._blocked_latch = False
+        self._clear_count = 0
+        self._clear_since_s: float | None = None
+        self._last_time_s: float | None = None
+
+    @property
+    def blocked_latch(self) -> bool:
+        """Whether an obstacle has been observed since the last confirmed clear."""
+
+        return self._blocked_latch
+
+    @property
+    def clear_count(self) -> int:
+        """Number of consecutive fresh observations reporting a clear corridor."""
+
+        return self._clear_count
+
+    def invalidate(self) -> None:
+        """Discard partial clearance evidence without releasing a blocked latch."""
+        self._clear_count = 0
+        self._clear_since_s = None
 
     def update(
-        self, *, time_s, speed, obstacle, must_stop, clear, observation_valid=True, finished=False
-    ):
-        if not all(math.isfinite(x) for x in (time_s, speed)) or speed < 0:
-            raise ValueError("Invalid behaviour observation")
-        if self.last_time is not None and time_s <= self.last_time:
-            raise ValueError("Behaviour time must advance")
-        self.last_time = time_s
-        if self.state in (BehaviourState.FAULT_STOP, BehaviourState.FINISHED):
-            return self.state
-        if finished:
-            self.state, self.reason = BehaviourState.FINISHED, "goal_reached"
-            return self.state
-        # Latch only once a stop has actually been required. Latching on any
-        # sighting turned one far, unconfirmed detection into a STOPPING episode
-        # as soon as it disappeared. Confirmed obstacles that flicker during an
-        # approach are retained spatially by the policy instead.
-        if must_stop or not observation_valid:
-            self.blocked_latch = True
-        if obstacle or not clear or not observation_valid:
-            self.clear_count, self.clear_since = 0, None
-        else:
-            self.clear_count += 1
-            if self.clear_since is None:
-                self.clear_since = time_s
-        cleared = (
-            self.clear_count >= self.config.clear_frames
-            and self.clear_since is not None
-            and time_s - self.clear_since + 1e-9 >= self.config.clear_duration_s
+        self,
+        *,
+        time_s: float,
+        obstacle_present: bool,
+        observation_valid: bool,
+    ) -> bool:
+        """Update clearance evidence and return whether clearance is confirmed.
+
+        ``observation_valid=False`` always resets accumulated clearance
+        evidence. Therefore track expiry, sensor loss or stale observations
+        cannot independently authorize motion.
+        """
+
+        if isinstance(time_s, bool) or not math.isfinite(time_s):
+            raise ValueError("time_s must be finite")
+
+        if self._last_time_s is not None and time_s <= self._last_time_s:
+            raise ValueError("time_s must advance monotonically")
+
+        self._last_time_s = time_s
+
+        if obstacle_present:
+            self._blocked_latch = True
+
+        if not observation_valid or obstacle_present:
+            self._clear_count = 0
+            self._clear_since_s = None
+            return False
+
+        if not self._blocked_latch:
+            return True
+
+        self._clear_count += 1
+
+        if self._clear_since_s is None:
+            self._clear_since_s = time_s
+
+        duration_s = time_s - self._clear_since_s
+
+        confirmed = (
+            self._clear_count >= self.config.clear_frames
+            and duration_s + 1e-9 >= self.config.clear_duration_s
         )
-        if self.state == BehaviourState.HOLD:
-            if cleared:
-                self.blocked_latch = False
-                self.state, self.reason = BehaviourState.RESUME, "fresh_visible_clearance"
-            else:
-                self.reason = "await_fresh_visible_clearance"
-            return self.state
-        if (
-            must_stop
-            or not observation_valid
-            or (self.blocked_latch and not obstacle and not cleared)
-        ):
-            self.state = (
-                BehaviourState.HOLD
-                if speed <= self.config.stopped_speed_mps
-                else BehaviourState.STOPPING
-            )
-            self.reason = "obstacle_or_unknown_corridor"
-        elif obstacle:
-            self.state, self.reason = BehaviourState.APPROACH, "obstacle_ahead"
-        elif self.state == BehaviourState.STOPPING and not cleared:
-            if speed <= self.config.stopped_speed_mps:
-                self.state = BehaviourState.HOLD
-            self.reason = "clearance_hysteresis"
-        else:
-            self.blocked_latch = False
-            self.state, self.reason = BehaviourState.CRUISE, "visible_route"
-        return self.state
+
+        if confirmed:
+            self._blocked_latch = False
+            self._clear_count = 0
+            self._clear_since_s = None
+
+        return confirmed

@@ -1,0 +1,8 @@
+{
+  "trials": 5, "dt_s": 0.05,
+  "stopped_speed_mps": 0.1, "stopped_duration_s": 1.0,
+  "stable_cruise_s": 2.0, "goal_tolerance_m": 1.0,
+  "cruise_rms_mps": 0.5, "mean_cte_m": 0.3,
+  "latency_p95_ms": 100.0, "collision_dedup_s": 0.5,
+  "margin_min_m": 2.5, "margin_max_m": 6.0
+}

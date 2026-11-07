@@ -1,0 +1,84 @@
+{
+  "scope": "Optional wayfinder modules/configuration under unchanged frozen baseline; recorded HUD remains outstanding",
+  "classification": {
+    "src/planning/__init__.py": {
+      "category": "documentation/evidence only",
+      "reason": "Docstring only; contributor and canonical module ownership retained"
+    },
+    "src/planning/wayfinder/__init__.py": {
+      "category": "additional validated functionality",
+      "reason": "Optional exports only"
+    },
+    "src/planning/wayfinder/astar.py": {
+      "category": "additional validated functionality",
+      "reason": "Directed length-cost deterministic shortest path on exported graph"
+    },
+    "src/planning/wayfinder/guidance.py": {
+      "category": "additional validated functionality",
+      "reason": "Observer progress and bounded ETA, stopped paused and lateral arrival condition"
+    },
+    "src/planning/wayfinder/minimap.py": {
+      "category": "additional validated functionality",
+      "reason": "RGB observer rendering only"
+    },
+    "src/planning/wayfinder/pois.py": {
+      "category": "additional validated functionality",
+      "reason": "Pinned topology POIs, legal nonjunction snapped destinations"
+    },
+    "src/planning/wayfinder/route.py": {
+      "category": "additional validated functionality",
+      "reason": "Canonical stitch_route legal route and explicit ambiguous/loop refusal"
+    },
+    "configs/wayfinder/pois_town10hd.json": {
+      "category": "additional validated functionality",
+      "reason": "Pinned named destinations; no baseline route changed"
+    },
+    "configs/wayfinder/fixture_pairs_town10hd.json": {
+      "category": "additional validated functionality",
+      "reason": "Five legal route fixtures and explicit unreachable pair"
+    },
+    "configs/README.md": {
+      "category": "documentation/evidence only",
+      "reason": "Adds wayfinder configuration ownership description"
+    }
+  },
+  "existing_baseline_safety_contract_change": false,
+  "other_diff_review": [
+    "All A-star/POI/route/guidance/minimap production modules reviewed",
+    "Directed exported graph only, deterministic cost search, route-manager legal stitching and ambiguous-turn refusal",
+    "Scripted fixtures remain synthetic; explicit recorded input preserves identity and never invents stop"
+  ],
+  "status": "REVIEWED_LOADER_ONLY_REBIND_APPLIED",
+  "pr": 102,
+  "review_authority": "Explicit owner delegation in continuation request; Codex review, not a new human approval",
+  "reviewed_head": "41a91018a7f84342549a69aa4decb0122f2b0b14",
+  "canonical_base": "deeefde82fee14257d5b9e4dd0cf915f89ec99fe",
+  "inventory_delta": {
+    "added": [
+      "configs/wayfinder/fixture_pairs_town10hd.json",
+      "configs/wayfinder/pois_town10hd.json",
+      "src/planning/wayfinder/__init__.py",
+      "src/planning/wayfinder/astar.py",
+      "src/planning/wayfinder/guidance.py",
+      "src/planning/wayfinder/minimap.py",
+      "src/planning/wayfinder/pois.py",
+      "src/planning/wayfinder/route.py"
+    ],
+    "removed": [],
+    "changed": [
+      "configs/README.md",
+      "src/planning/__init__.py"
+    ]
+  },
+  "old_source_fingerprint": "e036881ecd771d85698915075c3f6c5c7134a36de30d02f62cc3418ceff32924",
+  "new_source_fingerprint": "bf72ba45692595a89810d36f7859f1417f0321b96555b21fbdbb885f1610d496",
+  "old_record_sha256": "2adf832e0f547cf31db08ba9a84a37ae10193bf12384f91304a26ffaaeb2f438",
+  "new_record_sha256": "05adc033867c8ac6d4d65e21d9c6ff201496c46baa49f34c3285f4bc2d1d3315",
+  "configuration_semantic_sha256": "2903124878485c8030e160f3598c381bf0197329f79d74773d84048a96c2e9ef",
+  "configuration_file_sha256": "a4b5e669f9426db24d42d9a1d20114981c95bb15302af006b1196044696fe187",
+  "actual_model_asset_sha256": "9b09cc8bf347f0fc8a5f7657480587f25db09b34bf33b0652110fb03a8ad4fef",
+  "camera_rig_sha256": "05a325d4a957d938e02cced63f4968b376ca82cb0aa2d362a8da781c87b16677",
+  "depth_policy_sha256": "052aa8a5890ed0d17fb902f14616d9158c32851bbd9971826aa843d85ac79dc6",
+  "frozen_values_scope_model_sensor_and_runner_unchanged": true,
+  "live_or_extension_operation_admitted": false
+}

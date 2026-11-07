@@ -1,0 +1,84 @@
+{
+  "cpu": "AMD Ryzen 5 5600H with Radeon Graphics",
+  "gpu": "NVIDIA GeForce RTX 3050 Laptop GPU",
+  "gpu_memory_mib": 4096,
+  "nvidia_driver": "617.42",
+  "physical_memory_bytes": 17024741376,
+  "os": "Windows-10-10.0.19045-SP0",
+  "python": "3.12.14",
+  "carla_client": "0.9.16",
+  "carla_server": "0.9.16",
+  "simulator_path": "D:/CARLA_0.9.16",
+  "target_role": "Minimum-configuration validation machine",
+  "graphics_attempts": [
+    {
+      "backend": "DirectX 12",
+      "result": "Startup access violation in NVIDIA driver"
+    },
+    {
+      "backend": "DirectX 11 offscreen",
+      "result": "Loaded map; stalled during first camera warm-up"
+    },
+    {
+      "backend": "DirectX 11 hidden windowed",
+      "result": "Map loaded; camera warm-up stalled again"
+    },
+    {
+      "backend": "Vulkan",
+      "result": "Installed server exited with code 3"
+    },
+    {
+      "backend": "DirectX 11 visible window, optional map layers NONE",
+      "result": "Independent paced synchronous and asynchronous camera probes stall after a few receipts; GPU memory about 1962 MiB"
+    }
+  ],
+  "scope": "Minimum-spec hardware, retained historical diagnostics and final RGB acceptance",
+  "diagnostic_navigation": "Full route and straight/curve/near-goal HOLD completed using actual physics, collision/lane sensors and explicit RGB-disabled diagnostic mode",
+  "formal_s0_acceptance": "PASS: five frozen RGB-enabled runs on isolated repaired runtime",
+  "historical_original_nvidia_driver": "552.22",
+  "graphics_attempts_scope": "Historical original/intermediate runtime attempts; see RGB repair report for final passing profile",
+  "current_rgb_runtime": {
+    "status": "CREATED",
+    "source": "D:\\CARLA_0.9.16\\CarlaUE4\\Binaries\\Win64\\CarlaUE4-Win64-Shipping.exe",
+    "destination": "D:\\26-S2-Assignment2-Group7\\runs\\carla-rgb-runtime\\CarlaUE4\\Binaries\\Win64\\CarlaUE4-Win64-Shipping.exe",
+    "original_sha256": "ba05ec36f7f0b548b266865ea2787a1dc5a028e298ebefcf0c49196ac629c4d3",
+    "patched_sha256": "9deba9928ffe56ee8c27cc89d88bcdd4e49204b771f86da2e438c613f4205245",
+    "instruction_rva": "0x8945b8",
+    "file_offset": "0x893bb8",
+    "before": "b900020000e82ec17c00",
+    "after": "b9ff020000e82ec17c00",
+    "changed_bytes": 1,
+    "source_equivalent": "AsyncTask(ENamedThreads::AnyNormalThreadHiPriTask, ...)",
+    "scope": "Isolated server task-routing and D3D11 context protection; original executable unchanged",
+    "kind": "CARLA_RGB_READBACK_RUNTIME_V1",
+    "carla_root": "D:\\CARLA_0.9.16",
+    "runtime_root": "D:\\26-S2-Assignment2-Group7\\runs\\carla-rgb-runtime",
+    "executable": "D:\\26-S2-Assignment2-Group7\\runs\\carla-rgb-runtime\\CarlaUE4\\Binaries\\Win64\\CarlaUE4-Win64-Shipping.exe",
+    "guard_sha256": "704c13b4e9d10c7ba4f5df9b5d2977bacb310ddf776b1cd035325901a69a3b42",
+    "guard_source_sha256": {
+      "d3d11_guard.cpp": "5eec8aedbee50223ce40b6d8c8c36d512f3600879b5288d95cde8b60bc9c60f9",
+      "d3d11_guard.def": "03dec70936f9fd862ae7c6795e7df3d7fae61eb38f4a81e4598c397e6b09da0f"
+    },
+    "compiler": "D:\\mingw64\\bin\\g++.exe",
+    "build_command": [
+      "D:\\mingw64\\bin\\g++.exe",
+      "-shared",
+      "-O2",
+      "-s",
+      "-static-libgcc",
+      "-static-libstdc++",
+      "D:\\26-S2-Assignment2-Group7\\tools\\carla_rgb_readback\\d3d11_guard.cpp",
+      "D:\\26-S2-Assignment2-Group7\\tools\\carla_rgb_readback\\d3d11_guard.def",
+      "-o",
+      "D:\\26-S2-Assignment2-Group7\\runs\\carla-rgb-runtime\\CarlaUE4\\Binaries\\Win64\\d3d11.dll"
+    ],
+    "shared_assets": {
+      "Engine": "D:\\CARLA_0.9.16\\Engine",
+      "CarlaUE4/Content": "D:\\CARLA_0.9.16\\CarlaUE4\\Content",
+      "CarlaUE4/Config": "D:\\CARLA_0.9.16\\CarlaUE4\\Config",
+      "CarlaUE4/Plugins": "D:\\CARLA_0.9.16\\CarlaUE4\\Plugins"
+    },
+    "launch_arguments": "-dx11 -windowed -ResX=640 -ResY=360 -quality-level=Low -nosound"
+  },
+  "current_rgb_report": "rgb-repair-results.json"
+}

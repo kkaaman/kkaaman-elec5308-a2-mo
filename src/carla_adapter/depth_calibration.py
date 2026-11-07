@@ -6,11 +6,11 @@ import json
 import math
 import time
 from pathlib import Path
+from queue import Empty, Queue
 
 import numpy as np
 
 from carla_adapter.conversions import decode_depth
-from carla_adapter.dataset_capture import FrameBuffer
 from carla_adapter.world import SynchronousWorldSession, _settings_record
 
 
@@ -113,12 +113,27 @@ def collect(client, output):
                     attachment_type=carla.AttachmentType.Rigid,
                 )
                 owner._actors.append(sensor)
-                frames = FrameBuffer(("depth",))
-                sensor.listen(lambda image: frames.put("depth", image))
+                frames = Queue()
+                sensor.listen(frames.put)
                 for _ in range(18):
                     last = owner.tick()
                     time.sleep(0.005)
-                image = frames.take(last - 4)["depth"]
+
+                target_frame = last - 4
+                deadline = time.monotonic() + 5.0
+                image = None
+                while time.monotonic() < deadline:
+                    try:
+                        candidate = frames.get(timeout=max(0.01, deadline - time.monotonic()))
+                    except Empty:
+                        break
+                    if candidate.frame == target_frame:
+                        image = candidate
+                        break
+                    if candidate.frame > target_frame:
+                        break
+                if image is None:
+                    raise TimeoutError(f"Missing depth frame {target_frame}")
                 depth = decode_depth(image.raw_data, 640, 360)
                 for u in (35, 75, 115, 155, 195, 445, 485, 525, 565, 605):
                     for v in (170, 200, 230, 260, 290, 320):

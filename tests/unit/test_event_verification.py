@@ -135,7 +135,7 @@ def fixture(monkeypatch):
     fake = SimpleNamespace(Location=Location, Rotation=Rotation, Transform=Transform)
     monkeypatch.setitem(sys.modules, "carla", fake)
     from carla_adapter import event_verification as ev
-    from planning.corridor import RouteGeometry
+    from planning.baseline35_corridor import RouteGeometry
 
     # Straight mission heading +X in core coordinates (CARLA yaw 0).
     route = RouteGeometry(tuple((float(x), 0.0) for x in range(0, 80)))
@@ -202,7 +202,7 @@ def test_obstacle_placement_record_uses_applied_pose_before_a_tick(monkeypatch, 
     monkeypatch.setitem(sys.modules, "carla", fake)
     from autonomy.baseline import BaselineConfig
     from carla_adapter.baseline_world import CarlaWorld
-    from planning.corridor import RouteGeometry
+    from planning.baseline35_corridor import RouteGeometry
     from sim_harness.baseline import scenario_definition
 
     # Mission far from the CARLA origin, heading -X like the live Town10HD start.
@@ -261,7 +261,7 @@ def test_truth_during_streaming_uses_boxes_cached_before_sensors(monkeypatch):
     monkeypatch.setitem(sys.modules, "carla", fake)
     from autonomy.baseline import BaselineConfig
     from carla_adapter.baseline_world import CarlaWorld
-    from planning.corridor import RouteGeometry
+    from planning.baseline35_corridor import RouteGeometry
     from sim_harness.baseline import scenario_definition
 
     points = tuple((27.0 - float(i), -66.3) for i in range(0, 120))
@@ -318,7 +318,7 @@ def _placement_world(monkeypatch, ground_projection, try_spawn):
     monkeypatch.setitem(sys.modules, "carla", fake)
     from autonomy.baseline import BaselineConfig
     from carla_adapter.baseline_world import CarlaWorld
-    from planning.corridor import RouteGeometry
+    from planning.baseline35_corridor import RouteGeometry
     from sim_harness.baseline import scenario_definition
 
     points = tuple((27.0 - float(i), -66.3) for i in range(0, 120))

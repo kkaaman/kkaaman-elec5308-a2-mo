@@ -10,7 +10,7 @@ from pathlib import Path
 import numpy as np
 
 from carla_adapter.topology import export_lane_topology
-from planning.corridor import RouteGeometry
+from planning.baseline35_corridor import RouteGeometry
 from planning.mission import (
     load_route_definition,
     mission_from_definition,

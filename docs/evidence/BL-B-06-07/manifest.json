@@ -1,0 +1,166 @@
+{
+  "archive": "live-20261025.zip",
+  "sha256": "5e5e5b372a16b45b8ac8619b9df54a70dc52eca6cf49c1b1c4fe27f4630d9e6c",
+  "members": {
+    "preflight/canonical-comparison.json": {
+      "bytes": 425,
+      "sha256": "75162192f08d9ca5e3d31e8269ce4ea22418358bf5c54bdef1e22fd1c0621f18"
+    },
+    "preflight/environment-probe.json": {
+      "bytes": 17103,
+      "sha256": "08cdc41b429e4e5139f1079bee03d4bfe8a558feb72a6b55885747e23a151413"
+    },
+    "preflight/geometry-probe.json": {
+      "bytes": 1547,
+      "sha256": "19951f206f5844ac8b469e20440857483775bf3a41e5ca8582f619c7dab0097b"
+    },
+    "preflight/preflight.json": {
+      "bytes": 206,
+      "sha256": "2b9f4d8d5e395ebe1b95e6867b4adffc43365f4d2591614d3bdf17eded6028f8"
+    },
+    "verification-01/scenario_verification.json": {
+      "bytes": 24030,
+      "sha256": "e735fadc626d43e14139c555ec1187892d446df09701d52e73767c45dfaecbf6"
+    },
+    "verification-01/stdout.log": {
+      "bytes": 216,
+      "sha256": "95bc2503eb2be7872075ecabc278eebffa68a6fd7d11c3f464e55c858e7e4911"
+    },
+    "verification-02/scenario_verification.json": {
+      "bytes": 62448,
+      "sha256": "961aa774405d0ee078a831286fb8288183bd66ffd4964a1ac68cc86b5ac40a7e"
+    },
+    "verification-02/source/configs/mission_baseline.json": {
+      "bytes": 6963,
+      "sha256": "ab8755dd668f46fb16f14a0173ee6c072a7b0570b1c6815d9de21f087282a08d"
+    },
+    "verification-02/source/configs/scenarios/S1.json": {
+      "bytes": 585,
+      "sha256": "938940c899d7236ca86b142d78a0490b471273ff357ea5fbc5a23df96be4cae9"
+    },
+    "verification-02/source/configs/scenarios/S2.json": {
+      "bytes": 583,
+      "sha256": "f3cc2664153d0644568f13b0de053b609db56dc28772d361daa35f1bc9246e70"
+    },
+    "verification-02/source/configs/scenarios/S3.json": {
+      "bytes": 560,
+      "sha256": "5952d5dc45d7e8410ee083522e10d3809a88a8a47277021bb894ed3515ea0b40"
+    },
+    "verification-02/source/configs/scenarios/S4.json": {
+      "bytes": 558,
+      "sha256": "97694513184c68dddb6cdc43cba8993913244be71ebe3e62ce7ced051a6ec8fc"
+    },
+    "verification-02/source/configs/scenarios/S5.json": {
+      "bytes": 592,
+      "sha256": "2f6fc530c76fcba71120c2d6ccf410951ede6779d1cbd3a84fc2f91d0301206c"
+    },
+    "verification-02/source/scripts/verify_scenarios.py": {
+      "bytes": 431,
+      "sha256": "cf939af637b94dc618cb8cc1918487be2e7c02f16188cc0a6960d2eb3e5cce0b"
+    },
+    "verification-02/source/src/carla_adapter/scenario_verification.py": {
+      "bytes": 27650,
+      "sha256": "08ff7c05d616c28b575e7a0f3321dbc0c9951e72637e3d25126b52fa12c6b4fd"
+    },
+    "verification-02/source/src/carla_adapter/scenario_world.py": {
+      "bytes": 11959,
+      "sha256": "f156f26e50725456322630dd2184f00e17aef3f5a43888d6f31497e30bc947d8"
+    },
+    "verification-02/source/src/carla_adapter/vehicle.py": {
+      "bytes": 6334,
+      "sha256": "1580fb5124b3bf7fa2d0e46b788e757da6566f17a551bbd24d85a29a23203493"
+    },
+    "verification-02/source/src/carla_adapter/world.py": {
+      "bytes": 11442,
+      "sha256": "2d844de3e9e8f8cd71023469094891ca4974eb72a008ffb9dc81f036e5561161"
+    },
+    "verification-02/source/src/evaluation/scenario_events.py": {
+      "bytes": 4957,
+      "sha256": "672851c760b0b15c35b53071629bd86d18e9b45d04e28e9aad61e911084f8cdf"
+    },
+    "verification-02/source/src/evaluation/scenarios.py": {
+      "bytes": 8757,
+      "sha256": "3c7e52061e05a0a60b28a0aae3d6adf7c1a089584bfa6b70f91b2324ac18bba4"
+    },
+    "verification-02/source/src/evaluation/stop_truth.py": {
+      "bytes": 7375,
+      "sha256": "dddc4485a9f05a97ce450744c94f28eec146d56049f7877b7abe218c420b2fcc"
+    },
+    "verification-02/source/uncommitted.patch": {
+      "bytes": 19808,
+      "sha256": "d92bd73f8856aa9c9d74028ddcac52de8cfda3fee3898be44cc4b9ca81024dbc"
+    },
+    "verification-02/stdout.log": {
+      "bytes": 963,
+      "sha256": "57c8901ef133fa98afa982a1cc5250c04fb26fa47a664709444edd07ccc12c09"
+    },
+    "verification-03/scenario_verification.json": {
+      "bytes": 79049,
+      "sha256": "34497d3546aa0b9c57a23df66f7b67ea954a39467a8864b0b7dfaa36be4afb26"
+    },
+    "verification-03/source/configs/mission_baseline.json": {
+      "bytes": 6963,
+      "sha256": "ab8755dd668f46fb16f14a0173ee6c072a7b0570b1c6815d9de21f087282a08d"
+    },
+    "verification-03/source/configs/scenarios/S1.json": {
+      "bytes": 585,
+      "sha256": "938940c899d7236ca86b142d78a0490b471273ff357ea5fbc5a23df96be4cae9"
+    },
+    "verification-03/source/configs/scenarios/S2.json": {
+      "bytes": 583,
+      "sha256": "f3cc2664153d0644568f13b0de053b609db56dc28772d361daa35f1bc9246e70"
+    },
+    "verification-03/source/configs/scenarios/S3.json": {
+      "bytes": 560,
+      "sha256": "5952d5dc45d7e8410ee083522e10d3809a88a8a47277021bb894ed3515ea0b40"
+    },
+    "verification-03/source/configs/scenarios/S4.json": {
+      "bytes": 558,
+      "sha256": "97694513184c68dddb6cdc43cba8993913244be71ebe3e62ce7ced051a6ec8fc"
+    },
+    "verification-03/source/configs/scenarios/S5.json": {
+      "bytes": 592,
+      "sha256": "2f6fc530c76fcba71120c2d6ccf410951ede6779d1cbd3a84fc2f91d0301206c"
+    },
+    "verification-03/source/scripts/verify_scenarios.py": {
+      "bytes": 431,
+      "sha256": "cf939af637b94dc618cb8cc1918487be2e7c02f16188cc0a6960d2eb3e5cce0b"
+    },
+    "verification-03/source/src/carla_adapter/scenario_verification.py": {
+      "bytes": 27846,
+      "sha256": "db23d4de35896f92446c7ebe340fb73aafc2683ac4f47e7c4032ca6ad92447f1"
+    },
+    "verification-03/source/src/carla_adapter/scenario_world.py": {
+      "bytes": 11959,
+      "sha256": "f156f26e50725456322630dd2184f00e17aef3f5a43888d6f31497e30bc947d8"
+    },
+    "verification-03/source/src/carla_adapter/vehicle.py": {
+      "bytes": 6334,
+      "sha256": "1580fb5124b3bf7fa2d0e46b788e757da6566f17a551bbd24d85a29a23203493"
+    },
+    "verification-03/source/src/carla_adapter/world.py": {
+      "bytes": 11442,
+      "sha256": "2d844de3e9e8f8cd71023469094891ca4974eb72a008ffb9dc81f036e5561161"
+    },
+    "verification-03/source/src/evaluation/scenario_events.py": {
+      "bytes": 4957,
+      "sha256": "672851c760b0b15c35b53071629bd86d18e9b45d04e28e9aad61e911084f8cdf"
+    },
+    "verification-03/source/src/evaluation/scenarios.py": {
+      "bytes": 8757,
+      "sha256": "3c7e52061e05a0a60b28a0aae3d6adf7c1a089584bfa6b70f91b2324ac18bba4"
+    },
+    "verification-03/source/src/evaluation/stop_truth.py": {
+      "bytes": 7375,
+      "sha256": "dddc4485a9f05a97ce450744c94f28eec146d56049f7877b7abe218c420b2fcc"
+    },
+    "verification-03/source/uncommitted.patch": {
+      "bytes": 25680,
+      "sha256": "bac6e599ae9cdfc4711ad81748dc482048fb0c835965164b8126c8152dde071d"
+    },
+    "verification-03/stdout.log": {
+      "bytes": 1061,
+      "sha256": "b17e20e3d0520baa3ba3582bd0f7264b272680afeabf75de346886ab02827166"
+    }
+  }
+}

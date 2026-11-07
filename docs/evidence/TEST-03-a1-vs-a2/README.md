@@ -13,7 +13,7 @@ interpretation below is ours.
 Reproduce:
 
 ```
-python scripts/compare_runs.py --a2-run <Navigation>/runs/S0-01 ... S0-05 --topology <LiveSetup>/mission/topology.json --output <new folder>
+python scripts/baseline35_compare_runs.py --a2-run <Navigation>/runs/S0-01 ... S0-05 --topology <LiveSetup>/mission/topology.json --output <new folder>
 ```
 
 Outputs: `comparison.json` and `comparison.png` (this folder). `traces.json` stays in

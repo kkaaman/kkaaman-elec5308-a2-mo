@@ -6,8 +6,8 @@ from pathlib import Path
 import pytest
 
 from evaluation.acceptance import aggregate
+from evaluation.baseline35_metrics import evaluate, load_run, summarize
 from evaluation.ground_truth import front_edge_gap
-from evaluation.metrics import evaluate, load_run, summarize
 from evaluation.run_logger import RunLogger
 
 

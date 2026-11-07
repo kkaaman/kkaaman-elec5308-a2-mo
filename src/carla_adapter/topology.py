@@ -139,6 +139,14 @@ def export_lane_topology(
     return document
 
 
+def _map_name_matches(actual: str, expected: str, *, allow_town10hd_alias=False) -> bool:
+    """Recognize the two Town10HD assets only with a separately verified hash."""
+    actual = actual.rsplit("/", 1)[-1]
+    return actual == expected or (
+        allow_town10hd_alias and {actual, expected} == {"Town10HD", "Town10HD_Opt"}
+    )
+
+
 def validate_lane_topology_on_map(map_: carla.Map, document: LaneTopology) -> dict:
     """Check a saved graph against source waypoints, not another graph copy.
 
@@ -148,7 +156,7 @@ def validate_lane_topology_on_map(map_: carla.Map, document: LaneTopology) -> di
     opendrive = map_.to_opendrive().replace("\r\n", "\n")
     if hashlib.sha256(opendrive.encode("utf-8")).hexdigest() != document.opendrive_sha256:
         raise TopologyError("graph and source OpenDRIVE hashes differ")
-    if map_.name.rsplit("/", 1)[-1] != document.map_name:
+    if not _map_name_matches(map_.name, document.map_name, allow_town10hd_alias=True):
         raise TopologyError("graph and source map names differ")
     bounds = _section_bounds(opendrive)
     if {tuple((lane.road_id, lane.section_id, lane.lane_id)) for lane in document.lanes} != set(bounds):
@@ -197,8 +205,16 @@ def validate_lane_topology_on_map(map_: carla.Map, document: LaneTopology) -> di
             "successors_checked": successor_count, "max_point_error_m": max_error}
 
 
-def connect_map(host: str, port: int, timeout_s: float, expected_map: str) -> tuple[carla.Map, str]:
-    """Read the active map; require matching SDK/server and expected map."""
+def connect_map(
+    host: str, port: int, timeout_s: float, expected_map: str, *,
+    expected_opendrive_sha256: str | None = None,
+) -> tuple[carla.Map, str]:
+    """Read the active map; require matching versions and optional frozen content.
+
+    Map names remain strict unless a frozen fingerprint is supplied. Town10HD
+    and Town10HD_Opt may then identify the same road network only when its
+    normalized OpenDRIVE content matches that fingerprint exactly.
+    """
     import carla
 
     _positive("timeout_s", timeout_s)
@@ -208,8 +224,14 @@ def connect_map(host: str, port: int, timeout_s: float, expected_map: str) -> tu
     if client_version != server_version:
         raise TopologyError(f"client/server version mismatch: {client_version} != {server_version}")
     map_ = client.get_world().get_map()
-    if map_.name.rsplit("/", 1)[-1] != expected_map:
+    if not _map_name_matches(
+        map_.name, expected_map, allow_town10hd_alias=expected_opendrive_sha256 is not None,
+    ):
         raise TopologyError(f"expected active map {expected_map}, got {map_.name}")
+    if expected_opendrive_sha256 is not None:
+        opendrive = map_.to_opendrive().replace("\r\n", "\n")
+        if hashlib.sha256(opendrive.encode("utf-8")).hexdigest() != expected_opendrive_sha256:
+            raise TopologyError("active map OpenDRIVE hash differs from the frozen mission")
     return map_, server_version
 
 

@@ -1,0 +1,21 @@
+{
+  "status": "READY_PREPARATION_SCOPE_ONLY",
+  "base_main": "86a7e189776d996bc6a6e9fe4ca80ead3bbac5d7",
+  "production_inventory_changed": false,
+  "admission_rebind_required": false,
+  "scope": "Owner-reviewed evidence register aggregation scaffold; no raw log evaluation or baseline approval",
+  "review": "Complete new script reviewed; source/config/sensor/model/operating values and acceptance definition bytes unchanged",
+  "fixes": [
+    "fault run IDs required and unique across scenario/fault records",
+    "fault configuration identity matches candidate register",
+    "fault evidence must be live complete-stack",
+    "duplicate JSON fields rejected rather than overwritten"
+  ],
+  "focused_tests": "16 passed",
+  "full_tests": "1000 passed, 1 CARLA deselected, 3 subtests passed",
+  "negative_probes": "19 rejected",
+  "empty_register_status": "BLOCKED",
+  "missing_trial_slots": 30,
+  "issue47_complete": false,
+  "definitions_sha256": "9bdbca7d9f1983b9a3c04cbada39061c1223dfb452fd77dbfdac71d9bb278b0a"
+}

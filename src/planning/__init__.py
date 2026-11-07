@@ -6,6 +6,10 @@ Implemented:
   the existing LaneGraph contract (BL-A-02 Zhaolin)
 * ``lane_graph_audit.py``: independent raw OpenDRIVE connectivity/geometry
   checks for the Town10HD fixture (BL-A-02)
+* ``wayfinder/``: A* on the exported lane graph, named destinations, route
+  generation for the route manager, guidance state and mini-map (E3-01..03)
+* ``parking.py`` / ``parking_geometry.py``: bounded forward bay approaches,
+  curvature certificates and full-body sweeps (E5-01 to E5-03)
 
 Planned modules:
 
@@ -16,7 +20,8 @@ Planned modules:
 * ``speed_governor.py``: cruise, curve and obstacle speed caps (BL-D-07 Alan)
 * ``behaviour.py``: CRUISE/APPROACH/STOPPING/HOLD/RESUME/EMERGENCY_STOP
   (BL-D-08 Alan)
-* ``wayfinder.py``: A* on the exported lane graph (E3-01, E3-02 Abdullah)
 * ``parking.py``: forward bay parking, optional reverse (E5-02 to E5-04
   Zhaolin)
+* ``wayfinder.py``: A* on the exported lane graph (E3-01, E3-02 Abdullah)
+* Optional reverse parking remains separate (E5-04 Zhaolin).
 """

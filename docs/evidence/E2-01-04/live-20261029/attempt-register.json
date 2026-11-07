@@ -1,0 +1,132 @@
+[
+  {
+    "attempt": "attempt-01",
+    "archive": "attempt-01.zip",
+    "archive_sha256": "017a7c7c7b4376346c4bcacd7a42a9f257f79688b71786d796adea404f7b6e03",
+    "archive_bytes": 22727174,
+    "site": 10,
+    "sweeps": 90,
+    "known_object_passed": 30,
+    "known_object_failed": 60,
+    "capture_status": "INCOMPLETE",
+    "cleanup": {
+      "owned_ids": [
+        24,
+        25,
+        26
+      ],
+      "leaked_owned_ids": [
+        24,
+        25,
+        26
+      ],
+      "settings_restored": true
+    },
+    "target_classification_failures": 0
+  },
+  {
+    "attempt": "attempt-02",
+    "archive": "attempt-02.zip",
+    "archive_sha256": "116bff4a504b213d7c4ae6a0a4fc01f5f16ddade84658fa4c060e1295b1b6122",
+    "archive_bytes": 44945225,
+    "site": 10,
+    "sweeps": 90,
+    "known_object_passed": 80,
+    "known_object_failed": 10,
+    "capture_status": "INCOMPLETE",
+    "cleanup": {
+      "owned_ids": [
+        27,
+        28,
+        29
+      ],
+      "leaked_owned_ids": [],
+      "settings_restored": true,
+      "observations": [
+        {
+          "leaked_owned_ids": [
+            27,
+            28,
+            29
+          ],
+          "settings_restored": true
+        },
+        {
+          "leaked_owned_ids": [],
+          "settings_restored": true
+        }
+      ]
+    },
+    "target_classification_failures": 0
+  },
+  {
+    "attempt": "attempt-03",
+    "archive": "attempt-03.zip",
+    "archive_sha256": "0c525ae20a20e18e0bdc18cb0c5e8e0596638a6138cfd8b69e74448699e72be2",
+    "archive_bytes": 44335410,
+    "site": 22,
+    "sweeps": 90,
+    "known_object_passed": 90,
+    "known_object_failed": 0,
+    "capture_status": "COMPLETE",
+    "cleanup": {
+      "owned_ids": [
+        30,
+        31,
+        32
+      ],
+      "leaked_owned_ids": [],
+      "settings_restored": true,
+      "observations": [
+        {
+          "leaked_owned_ids": [
+            30,
+            31,
+            32
+          ],
+          "settings_restored": true
+        },
+        {
+          "leaked_owned_ids": [],
+          "settings_restored": true
+        }
+      ]
+    },
+    "target_classification_failures": 0
+  },
+  {
+    "attempt": "attempt-04",
+    "archive": "attempt-04.zip",
+    "archive_sha256": "410d7bb312da886fcc40f15902f93d58d4ffa90f4c497b6351998a0ead6f7051",
+    "archive_bytes": 92129108,
+    "site": 22,
+    "sweeps": 90,
+    "known_object_passed": 90,
+    "known_object_failed": 0,
+    "capture_status": "COMPLETE",
+    "cleanup": {
+      "owned_ids": [
+        33,
+        34,
+        35
+      ],
+      "leaked_owned_ids": [],
+      "settings_restored": true,
+      "observations": [
+        {
+          "leaked_owned_ids": [
+            33,
+            34,
+            35
+          ],
+          "settings_restored": true
+        },
+        {
+          "leaked_owned_ids": [],
+          "settings_restored": true
+        }
+      ]
+    },
+    "target_classification_failures": 0
+  }
+]

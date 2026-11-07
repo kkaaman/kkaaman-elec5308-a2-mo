@@ -1,4 +1,5 @@
 """CARLA-like map queries exercise export without a simulator."""
+import hashlib
 import math
 import struct
 import sys
@@ -8,6 +9,7 @@ from types import SimpleNamespace
 import pytest
 
 import carla_adapter.topology as exporter
+from scripts import check_baseline_mission
 
 
 class FakeWaypoint:
@@ -230,3 +232,62 @@ def test_live_connection_checks_versions_and_map_without_mutation(monkeypatch):
     assert exporter.connect_map("localhost", 2000, 2, "Town10HD")[1] == "0.9.16"
     with pytest.raises(exporter.TopologyError, match="expected active map"):
         exporter.connect_map("localhost", 2000, 2, "Town01")
+
+
+@pytest.mark.parametrize(("actual", "expected"), [
+    ("Town10HD_Opt", "Town10HD"), ("Town10HD", "Town10HD_Opt"),
+])
+def test_town10hd_alias_requires_the_frozen_opendrive_fingerprint(monkeypatch, actual, expected):
+    map_ = FakeMap()
+    map_.name = f"Carla/Maps/{actual}"
+    digest = hashlib.sha256(map_.to_opendrive().encode("utf-8")).hexdigest()
+    client = SimpleNamespace(
+        set_timeout=lambda seconds: None, get_client_version=lambda: "0.9.16",
+        get_server_version=lambda: "0.9.16",
+        get_world=lambda: SimpleNamespace(get_map=lambda: map_),
+    )
+    monkeypatch.setitem(sys.modules, "carla", SimpleNamespace(Client=lambda host, port: client))
+    with pytest.raises(exporter.TopologyError, match="expected active map"):
+        exporter.connect_map("localhost", 2000, 2, expected)
+    assert exporter.connect_map(
+        "localhost", 2000, 2, expected, expected_opendrive_sha256=digest
+    )[0] is map_
+    with pytest.raises(exporter.TopologyError, match="OpenDRIVE hash"):
+        exporter.connect_map("localhost", 2000, 2, expected, expected_opendrive_sha256="b" * 64)
+    with pytest.raises(exporter.TopologyError, match="expected active map"):
+        exporter.connect_map("localhost", 2000, 2, "Town01", expected_opendrive_sha256=digest)
+
+
+@pytest.mark.parametrize(("actual", "expected"), [
+    ("Town10HD_Opt", "Town10HD"), ("Town10HD", "Town10HD_Opt"),
+])
+def test_topology_validation_accepts_town10hd_alias_only_after_hash_match(actual, expected):
+    map_ = FakeMap()
+    map_.name = expected
+    document = exporter.export_lane_topology(map_)
+    map_.name = f"Carla/Maps/{actual}"
+    assert exporter.validate_lane_topology_on_map(map_, document)["lanes_checked"] == 4
+    with pytest.raises(exporter.TopologyError, match="hashes differ"):
+        exporter.validate_lane_topology_on_map(map_, replace(document, opendrive_sha256="b" * 64))
+    with pytest.raises(exporter.TopologyError, match="map names differ"):
+        exporter.validate_lane_topology_on_map(map_, replace(document, map_name="Town01"))
+
+
+def test_baseline_verify_map_passes_frozen_fingerprint_to_live_connection(monkeypatch, capsys):
+    observed = {}
+    actual_map = object()
+
+    def connect(host, port, timeout_s, expected_map, *, expected_opendrive_sha256):
+        observed.update(map_name=expected_map, digest=expected_opendrive_sha256)
+        return actual_map, "0.9.16"
+
+    def validate(map_, document):
+        assert map_ is actual_map
+        assert observed["map_name"] == document.map_name
+        assert observed["digest"] == document.opendrive_sha256
+        return {"verified": True}
+
+    monkeypatch.setattr(exporter, "connect_map", connect)
+    monkeypatch.setattr(exporter, "validate_lane_topology_on_map", validate)
+    assert check_baseline_mission.main(["--verify-map"]) == 0
+    assert '"verified": true' in capsys.readouterr().out

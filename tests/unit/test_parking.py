@@ -1,138 +1,287 @@
-"""Parallel parking on the synthetic road (the showcase's parking clip, 2 Nov): the gap
-found by the LiDAR, the two reversing arcs planned clear of both cars, centred by what
-the LiDAR sees; a gap too short for the planned sweep is not tried."""
+"""P1 contracts, continuous geometry bounds, depth coverage and terminal guards."""
 
-import dataclasses
 import math
-from pathlib import Path
+from dataclasses import replace
 
+import numpy as np
 import pytest
 
-from mapless.parking import ParallelParker, ParkingConfig
-from mapless.sensor_suite import load_sensor_suite
-from mapless.terrain import VehicleBody
-from navigation_control.types import ControlCommand
-from sim_harness.mapless_road import (
-    CarModel,
-    KerbLine,
-    MaplessRoadWorld,
-    ParkedCar,
-    RoadScene,
-    Straight,
+from autonomy.interfaces import CameraCalibration, EgoPose, FrameBundle
+from autonomy.parking import ParkingEpisode
+from autonomy.parking_contracts import (
+    DriveMode,
+    MotionState,
+    ParkingConfig,
+    ParkingPhase,
+    angle_error,
 )
-
-ROOT = Path(__file__).resolve().parents[2]
-SUITE = load_sensor_suite(ROOT / "configs" / "sensor_suites" / "mapless_v2.json")
-
-
-def park(gap_m, seconds=70.0, seed=5308, behind=(), max_steer_deg=40.0, lock_gain=1.0, gyro_offset_rps=0.0, arc_gyro_offset_rps=0.0):
-    """Two cars 4.2 m long in the right lane (centres 1.75 m from the kerb), ``gap_m``
-    apart; the car starts 30 m back in the left lane (5.25 m from the kerb). Its wheels
-    reach at most ``max_steer_deg``; ``gyro_offset_rps`` is added to the gyro once the
-    parker's start-up bias estimate is made (a bias it does not know). The phases the
-    parker went through are ``parker.phases``."""
-    rear_c = 60.0
-    front_c = rear_c + 4.2 + gap_m
-    cars = tuple(ParkedCar(s, 1.75) for s in behind) + (ParkedCar(rear_c, 1.75), ParkedCar(front_c, 1.75))
-    scene = RoadScene(KerbLine([Straight(160)]), road_width_m=11.0, lane_centre_m=5.25, parked=cars)
-    world = MaplessRoadWorld(scene, SUITE, start_s_m=30.0, seed=seed, car=CarModel(max_steer_rad=math.radians(max_steer_deg)))
-    parker = ParallelParker(VehicleBody(), 3.00465, ParkingConfig(lock_gain=lock_gain))
-    parker.phases = []
-    collided = False
-    for _ in range(int(seconds / 0.05)):
-        frame = world.frame()
-        offset = gyro_offset_rps + (arc_gyro_offset_rps if parker.state.phase in ("arc1", "arc2") else 0.0)
-        if offset and parker.state.phase != "calibrate" and frame.imu is not None:
-            gyro = frame.imu.gyro_rps
-            frame = dataclasses.replace(frame, imu=dataclasses.replace(frame.imu, gyro_rps=(gyro[0], gyro[1], gyro[2] + offset)))
-        cmd = parker.step(frame)
-        if not parker.phases or parker.phases[-1] != parker.state.phase:
-            parker.phases.append(parker.state.phase)
-        world.apply(ControlCommand(cmd.steering_angle_rad, cmd.throttle, cmd.brake), reverse=cmd.reverse)
-        truth = world.truth()
-        collided = collided or truth.collision
-        if parker.done and parker.state.phase_t > 0.5 or truth.s_m > front_c + 25.0:
-            break
-    return parker, world.truth(), collided, (rear_c + 2.1, front_c - 2.1)
+from navigation_control import VehicleState
+from obstacle_perception.parking_clearance import Clearance, DepthParkingClearance
+from planning.parking import _leaves, plan_forward_parking
+from planning.parking_geometry import (
+    bay_polygon,
+    contains,
+    footprint,
+    intersects,
+    polygon,
+    rectangle,
+    swept_rectangle,
+)
+from sim_harness.parking import DepthBox, render_parking_depth, standard_case
+from sim_harness.synthetic import SyntheticScenario
 
 
-def test_the_car_parks_between_two_cars_in_a_9_m_gap():
-    parker, truth, collided, (gap_rear, gap_front) = park(9.0)
-    body = VehicleBody()
-    assert parker.state.phase == "parked" and not collided
-    assert abs(math.degrees(truth.heading_error_rad)) < 5.0
-    kerb = truth.lane_offset_m + 5.25  # the rear axle's distance from the kerb
-    assert abs(kerb - 1.75) < 0.5 and kerb - body.half_width_m > 0.2  # in the parked cars' line, clear of the kerb
-    rear, front = truth.s_m + body.rear_m, truth.s_m + body.front_m
-    assert gap_rear + 0.3 < rear and front < gap_front - 0.3  # the whole body in the gap
-    assert abs((rear - gap_rear) - (gap_front - front)) < 0.6  # centred
+def observed(state=None, *, frame_id=0, boxes=(), unknown=False):
+    state = VehicleState(0, 0, 0, 0) if state is None else state
+    scenario = SyntheticScenario(image_width=256, image_height=256)
+    rgb, depth = scenario.sensor_arrays(frame_id)
+    frame = FrameBundle("p1-test", frame_id, frame_id*0.05, 100, EgoPose(state),
+                        rgb, scenario.calibration, depth, frame_id)
+    return render_parking_depth(frame, boxes, unknown=unknown)
 
 
-@pytest.mark.parametrize("gap_m", [6.5, 8.0])  # 8 m: the planned sweep comes within 0.4 m of the front car
-def test_a_gap_the_planned_sweep_does_not_fit_is_passed_by(gap_m):
-    parker, truth, collided, _ = park(gap_m, seconds=45.0)
-    assert parker.state.phase == "search" and parker.state.slot is None and not collided
+def episode(frame=None):
+    start, goal, vehicle, area, _ = standard_case("straight")
+    frame = observed(start) if frame is None else frame
+    return ParkingEpisode(frame, goal, vehicle, area)
 
 
-def test_a_gap_behind_the_start_is_not_the_one_the_car_was_sent_to():
-    """park_t3 (PC 1): roadside objects behind the start made a gap and the car reversed
-    towards it at once. Two cars 8 m apart behind the start: it parks in the 9 m gap ahead."""
-    parker, truth, collided, (gap_rear, gap_front) = park(9.0, behind=(10.0, 22.2))
-    assert parker.state.phase == "parked" and not collided and gap_rear < truth.s_m < gap_front
+def test_signed_api_does_not_weaken_a1_or_enable_park_by_default():
+    signed = MotionState(0, 0, 0, -0.2)
+    assert signed.mode == DriveMode.DRIVE
+    with pytest.raises(ValueError, match="reverse"):
+        signed.as_forward()
+    with pytest.raises(ValueError):
+        VehicleState(0, 0, 0, -0.2)
+    state = VehicleState(1, 2, 3, 0.4)
+    assert MotionState.from_forward(state).as_forward() == state
+    assert angle_error(-math.pi + 0.01, math.pi - 0.01) == pytest.approx(0.02)
 
 
-def test_a_car_that_turns_wider_than_planned_finishes_forwards():
-    """park_t4 (PC 1): the second arc ran out of room behind with the nose still 23 deg out.
-    A car whose wheels reach 29 deg where the plan asks 35 (radius 5.4 m, not 4.3) comes
-    up against the rear car with its nose out, and finishes forwards with the wheels the
-    other way: parked, no contact, heading under 5 deg."""
-    parker, truth, collided, (gap_rear, gap_front) = park(9.0, max_steer_deg=29.0, seconds=90.0)
-    body = VehicleBody()
-    assert parker.state.phase == "parked" and not collided, parker.record()
-    assert abs(math.degrees(truth.heading_error_rad)) < 5.0
-    assert gap_rear < truth.s_m + body.rear_m and truth.s_m + body.front_m < gap_front
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), True, "1"])
+def test_signed_api_rejects_invalid_numbers(value):
+    with pytest.raises(ValueError):
+        MotionState(0, 0, 0, value)
 
 
-@pytest.mark.parametrize("seed", [5308, 5310])
-def test_a_car_that_turns_on_a_wider_circle_than_asked_parks_on_the_line(seed):
-    """park_t5 (PC 1): the Tesla turned on 5.14 m where 4.29 m was planned (its wheels at
-    about 30 of the 35 deg asked): the arcs ended 0.55 m deep, out of room behind, and it
-    finished forwards. Planned on the car's lock gain, and measured again on the first
-    arc: in the parked cars' line within 0.25 m, under 2 deg, no forward finish."""
-    parker, truth, collided, (gap_rear, gap_front) = park(9.0, max_steer_deg=30.3, lock_gain=0.866, seed=seed, seconds=90.0)
-    body = VehicleBody()
-    assert parker.state.phase == "parked" and not collided and "fix" not in parker.phases, (parker.phases, parker.record())
-    assert abs(truth.lane_offset_m + 5.25 - 1.75) < 0.25 and abs(math.degrees(truth.heading_error_rad)) < 2.0
-    assert gap_rear < truth.s_m + body.rear_m and truth.s_m + body.front_m < gap_front
-    assert parker.record()["measured_radius_m"] == pytest.approx(5.2, abs=0.2)
+@pytest.mark.parametrize("changes", [
+    {"max_speed_mps": 1.01}, {"dt_s": 0}, {"sample_step_m": 0.5},
+    {"response_budget_s": 0.1}, {"ground_exclusion_m": 0.01},
+    {"stopped_speed_mps": 0.9}, {"hold_brake": 2},
+])
+def test_parking_policy_rejects_unsafe_or_unsupported_configuration(changes):
+    with pytest.raises(ValueError):
+        ParkingConfig(**changes)
 
 
-def test_the_first_arc_measures_the_radius_the_plan_got_wrong():
-    """The same car planned on the bicycle model's 4.29 m: the first arc measures ~5.2 m
-    and re-solves theta from where the car is; the arcs end on the line all the same."""
-    parker, truth, collided, _ = park(9.0, max_steer_deg=30.3, lock_gain=1.0, seed=5310, seconds=90.0)
-    assert parker.state.phase == "parked" and not collided
-    assert parker.record()["planned_radius_m"] == pytest.approx(4.29, abs=0.01) and parker.record()["measured_radius_m"] == pytest.approx(5.2, abs=0.2)
-    assert abs(truth.lane_offset_m + 5.25 - 1.75) < 0.3
+@pytest.mark.parametrize("changes", [
+    {"position_tolerance_m": 0.31}, {"heading_tolerance_rad": math.radians(5.1)},
+    {"clearance_m": 0},
+])
+def test_goal_cannot_relax_issue_acceptance(changes):
+    goal = standard_case("straight")[1]
+    with pytest.raises(ValueError):
+        replace(goal, **changes)
 
 
-def test_a_gyro_bias_the_start_up_missed_is_taken_out_by_the_compass():
-    """A 1 s start-up leaves ~0.001 rad/s of the gyro's bias unknown (park_t5: 2 deg over
-    the manoeuvre; synthetic seed 5310: 2.3 deg over the pass, the arcs 0.57 m out). With
-    0.002 rad/s it does not know (7 deg over the minute), the compass's pull while moving
-    and its mean at each standstill keep the heading: parked under 2 deg, on the line."""
-    parker, truth, collided, _ = park(9.0, max_steer_deg=30.3, lock_gain=0.866, gyro_offset_rps=0.002, seconds=90.0)
-    assert parker.state.phase == "parked" and not collided
-    assert abs(math.degrees(truth.heading_error_rad)) < 2.0 and abs(truth.lane_offset_m + 5.25 - 1.75) < 0.3
+@pytest.mark.parametrize("case", ["straight", "left", "right", "rotated"])
+def test_plan_endpoints_tangents_curvature_and_full_body(case):
+    start, goal, vehicle, area, _ = standard_case(case)
+    plan = plan_forward_parking(start, goal, vehicle, area)
+    assert (plan.waypoints[0].x_m, plan.waypoints[0].y_m) == (start.x_m, start.y_m)
+    assert plan.waypoints[-1].x_m == pytest.approx(goal.x_m)
+    assert plan.waypoints[-1].y_m == pytest.approx(goal.y_m)
+    assert angle_error(plan.headings_rad[0], start.yaw_rad) == pytest.approx(0)
+    assert angle_error(plan.headings_rad[-1], goal.yaw_rad) == pytest.approx(0, abs=1e-10)
+    assert all(s.curvature_bound <= vehicle.curvature_limit for s in plan.segments)
+    assert all(contains(area, s.sweep) for s in plan.segments)
+    final = VehicleState(goal.x_m, goal.y_m, goal.yaw_rad, 0)
+    assert contains(bay_polygon(goal.bay), footprint(final, vehicle, goal.clearance_m))
 
 
-@pytest.mark.parametrize("arc_gyro_offset_rps", [0.006, -0.01])
-def test_the_centring_move_steers_out_the_heading_the_arcs_left(arc_gyro_offset_rps):
-    """park_kerb6 (4 Nov, PC 2, the shoulder): the arcs ended 3.6 deg out (the compass's
-    reading at the standstill), and centring 3.2 m forwards with the wheels straight carried
-    the car 0.2 m back out over the shoulder's line. The centring move now steers on the
-    heading: with a gyro error during the arcs, a 12 m gap's long centring ends under 0.6
-    deg (1.07 and 1.14 deg with the wheels straight)."""
-    parker, truth, collided, (gap_rear, gap_front) = park(12.0, max_steer_deg=30.3, lock_gain=0.866, arc_gyro_offset_rps=arc_gyro_offset_rps, seconds=110.0)
-    assert parker.state.phase == "parked" and not collided
-    assert abs(math.degrees(truth.heading_error_rad)) < 0.6 and abs(truth.lane_offset_m + 5.25 - 1.75) < 0.25
+def test_continuous_bezier_bound_encloses_intermediate_body_corners():
+    vehicle = standard_case("left")[2]
+    controls = np.array([[0, 0], [5, 0], [10, 0], [20, 8], [20, 13], [20, 18]], dtype=float)
+    leaves = _leaves(controls, vehicle.curvature_limit, 0.15)
+    for p, bound in leaves[::7]:
+        sweep = swept_rectangle(p, vehicle, 0.15)
+        for t in np.linspace(0, 1, 13):
+            def evaluate(c):
+                n = len(c)-1
+                return sum(math.comb(n, k) * (1-t)**(n-k) * t**k * c[k] for k in range(n+1))
+            position = evaluate(p)
+            velocity = evaluate(5*np.diff(p, axis=0))
+            acceleration = evaluate(20*np.diff(p, n=2, axis=0))
+            curvature = abs(velocity[0]*acceleration[1]-velocity[1]*acceleration[0]) / np.linalg.norm(velocity)**3
+            assert curvature <= bound + 1e-8
+            state = VehicleState(*position, math.atan2(velocity[1], velocity[0]), 0)
+            assert contains(sweep, footprint(state, vehicle, 0.1))
+
+
+def test_rejects_narrow_bay_unreachable_turn_and_body_overhang():
+    start, goal, vehicle, area, _ = standard_case("straight")
+    with pytest.raises(ValueError, match="fit"):
+        plan_forward_parking(start, replace(goal, bay=replace(goal.bay, width_m=1.9)), vehicle, area)
+    behind = replace(goal, x_m=-16, bay=replace(goal.bay, x_m=-14.5))
+    with pytest.raises(ValueError, match="approach"):
+        plan_forward_parking(start, behind, vehicle, area)
+    narrow_area = ((-2, -0.95), (23, -0.95), (23, 4), (-2, 4))
+    with pytest.raises(ValueError):
+        plan_forward_parking(start, goal, vehicle, narrow_area)
+    turn_goal = replace(goal, x_m=3, y_m=3, yaw_rad=math.pi/2,
+                        bay=replace(goal.bay, x_m=3, y_m=4.5, yaw_rad=math.pi/2))
+    with pytest.raises(ValueError, match="feasible"):
+        plan_forward_parking(start, turn_goal, vehicle, area)
+
+
+def test_convex_geometry_rejects_concavity_and_detects_edge_contact():
+    with pytest.raises(ValueError):
+        polygon(((0, 0), (2, 0), (1, 0.5), (2, 2), (0, 2)))
+    a = rectangle(0, 0, 0, 1, 1, 1)
+    assert intersects(a, rectangle(2, 0, 0, 1, 1, 1))
+    assert not intersects(a, rectangle(2.1, 0, 0, 1, 1, 1))
+
+
+def test_depth_requires_observed_volume_and_uses_full_body_not_axle():
+    vehicle = standard_case("straight")[2]
+    state = VehicleState(0, 0, 0, 0)
+    body = footprint(state, vehicle)
+    assert DepthParkingClearance(observed(), vehicle, ParkingConfig()).check(body) == Clearance.CLEAR
+    nose_box = DepthBox(rectangle(3.8, 0, 0, 0.1, 0.1, 0.2))
+    frame = observed(boxes=(nose_box,))
+    assert DepthParkingClearance(frame, vehicle, ParkingConfig()).check(body) == Clearance.BLOCKED
+    assert DepthParkingClearance(observed(unknown=True), vehicle, ParkingConfig()).check(body) == Clearance.UNKNOWN
+    missing = replace(frame, depth_m=None, depth_frame_id=None)
+    assert DepthParkingClearance(missing, vehicle, ParkingConfig()).check(body) == Clearance.UNKNOWN
+
+
+def test_outside_fov_nan_and_max_range_are_not_free_space():
+    frame = observed()
+    vehicle = standard_case("straight")[2]
+    far = rectangle(100, 0, 0, 1, 1, 1)
+    assert DepthParkingClearance(frame, vehicle, ParkingConfig()).check(far) == Clearance.UNKNOWN
+    for value in (np.nan, 100.0):
+        depth = frame.depth_m.copy()
+        depth[128, 128] = value
+        query = DepthParkingClearance(replace(frame, depth_m=depth), vehicle, ParkingConfig())
+        assert query.check(footprint(frame.ego.state, vehicle)) == Clearance.UNKNOWN
+    # Valid empty front-camera images still do not see the body behind the lens.
+    front = CameraCalibration(100, 100, 128, 128,
+                              ((0, 0, 1, 0), (-1, 0, 0, 0), (0, -1, 0, 1.5), (0, 0, 0, 1)))
+    assert DepthParkingClearance(replace(frame, calibration=front), vehicle, ParkingConfig()).check(
+        footprint(frame.ego.state, vehicle)
+    ) == Clearance.UNKNOWN
+
+
+@pytest.mark.parametrize("kind", ["depth", "stale", "future", "capture_age"])
+def test_invalid_observation_holds_then_valid_observation_can_resume(kind):
+    original = observed()
+    task = episode(original)
+    if kind == "depth":
+        frame = replace(original, depth_m=None, depth_frame_id=None)
+    elif kind == "stale":
+        frame = replace(original, received_monotonic_s=99)
+    elif kind == "future":
+        frame = replace(original, received_monotonic_s=101)
+    else:
+        frame = replace(original, capture_started_monotonic_s=99)
+    result = task.step(frame, now_monotonic_s=100)
+    assert result.phase == ParkingPhase.HOLD
+    assert result.packet.command.throttle == 0 and result.packet.command.brake == 1
+    assert task.mode == DriveMode.DRIVE
+    assert not result.packet.diagnostics.observation_valid
+    for frame_id in range(1, 10):
+        resumed = task.step(observed(frame_id=frame_id), now_monotonic_s=100)
+    assert resumed.packet.command.throttle > 0
+    assert task.route_install_count == 1
+
+
+@pytest.mark.parametrize("kind", ["duplicate", "episode", "time", "jump"])
+def test_frame_identity_fault_latches_full_brake(kind):
+    task = episode()
+    task.step(observed(), now_monotonic_s=100)
+    frame = observed(frame_id=1)
+    if kind == "duplicate":
+        frame = observed()
+    elif kind == "episode":
+        frame = replace(frame, episode_id="foreign")
+    elif kind == "time":
+        frame = replace(frame, sim_time_s=0.07)
+    else:
+        frame = observed(frame_id=2)
+    result = task.step(frame, now_monotonic_s=100)
+    assert result.phase == ParkingPhase.FAULT
+    assert result.packet.command.brake == 1
+    assert task.step(observed(frame_id=2), now_monotonic_s=100).phase == ParkingPhase.FAULT
+
+
+def test_blocker_disappearance_requires_duration_and_frames():
+    box = DepthBox(rectangle(3.5, 0, 0, 0.2, 0.2, 0.3))
+    first = observed(boxes=(box,))
+    task = episode(first)
+    assert task.step(first, now_monotonic_s=100).phase == ParkingPhase.HOLD
+    for frame_id in range(1, 9):
+        result = task.step(observed(frame_id=frame_id), now_monotonic_s=100)
+        assert result.phase == ParkingPhase.HOLD
+        assert result.packet.command.throttle == 0
+    assert task.step(observed(frame_id=9), now_monotonic_s=100).packet.command.throttle > 0
+
+
+@pytest.mark.parametrize("kind", ["heading", "moving", "blocked", "unknown", "body"])
+def test_near_goal_is_insufficient_for_park(kind):
+    task = episode()
+    task.step(observed(), now_monotonic_s=100)
+    goal = task.goal
+    state = VehicleState(goal.x_m, goal.y_m, math.radians(6) if kind == "heading" else 0,
+                         0.2 if kind == "moving" else 0)
+    if kind == "body":
+        state = replace(state, y_m=2)
+    boxes = (DepthBox(rectangle(goal.x_m+3.5, 0, 0, 0.2, 0.2, 0.2)),) if kind == "blocked" else ()
+    frame = observed(state, frame_id=1, boxes=boxes, unknown=kind == "unknown")
+    result = task.step(frame, now_monotonic_s=100)
+    assert result.motion.mode == DriveMode.DRIVE
+    assert not any(e.event == "drive_to_park" for e in task.events)
+
+
+def test_park_requires_stop_latches_once_and_outputs_expiring_brake_packets():
+    task = episode()
+    task.step(observed(), now_monotonic_s=100)
+    state = VehicleState(task.goal.x_m, task.goal.y_m, task.goal.yaw_rad, 0)
+    for frame_id in range(1, 6):
+        result = task.step(observed(state, frame_id=frame_id), now_monotonic_s=100)
+        assert result.motion.mode == DriveMode.PARK
+        assert result.packet.command.brake == 1 and result.packet.command.throttle == 0
+        assert result.packet.is_current(task.episode_id, frame_id*0.05, monotonic_s=100)
+        assert not result.packet.is_current(task.episode_id, frame_id*0.05, monotonic_s=101)
+    assert sum(e.event == "drive_to_park" for e in task.events) == 1
+    assert task.route_install_count == 1
+
+
+def test_invalid_frame_interrupts_clear_confirmation_without_erasing_blocker():
+    box = DepthBox(rectangle(3.5, 0, 0, 0.2, 0.2, 0.3))
+    frame = observed(boxes=(box,))
+    task = episode(frame)
+    task.step(frame, now_monotonic_s=100)
+    for frame_id in range(1, 7):
+        task.step(observed(frame_id=frame_id), now_monotonic_s=100)
+    invalid = task.step(observed(frame_id=7, unknown=True), now_monotonic_s=100)
+    assert invalid.packet.command.brake == 1
+    for frame_id in range(8, 16):
+        assert task.step(observed(frame_id=frame_id), now_monotonic_s=100).packet.command.throttle == 0
+    assert task.step(observed(frame_id=16), now_monotonic_s=100).packet.command.throttle > 0
+
+
+@pytest.mark.parametrize(("times", "reason"), [
+    ((100.0, 100.11), "processing_timeout"),
+    ((100.24, 100.27), "observation_expired_during_step"),
+])
+def test_expiry_during_computation_cannot_publish_park(monkeypatch, times, reason):
+    task = episode()
+    task.step(observed(), now_monotonic_s=100)
+    state = VehicleState(task.goal.x_m, task.goal.y_m, task.goal.yaw_rad, 0)
+    clock = iter(times)
+    monkeypatch.setattr("autonomy.parking.time.monotonic", lambda: next(clock))
+    result = task.step(observed(state, frame_id=1))
+    assert result.phase == ParkingPhase.FAULT and result.reason == reason
+    assert task.mode == DriveMode.DRIVE and result.packet.command.brake == 1
+    assert not any(event.event in ("drive_to_park", "parked") for event in task.events)

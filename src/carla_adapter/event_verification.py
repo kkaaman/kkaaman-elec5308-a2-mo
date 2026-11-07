@@ -37,7 +37,7 @@ from evaluation.event_checks import (
 )
 from navigation_control import PathFollower
 from navigation_control.types import ControllerConfig, Waypoint
-from planning.corridor import RouteGeometry
+from planning.baseline35_corridor import RouteGeometry
 from planning.mission import Mission
 
 HALF_WIDTH_M = 1.08173 + 0.15

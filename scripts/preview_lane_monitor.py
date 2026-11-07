@@ -67,7 +67,7 @@ def main():
             status="VISUAL_REVIEW_REQUIRED",
             records=records,
             control_coupling=False,
-            scope="Parked dataset frames, flat-plane projection, offset 8 m ahead of the rear axle; use scripts/replay_lane_monitor.py on recorded runs for the map comparison on curves.",
+            scope="Parked dataset frames, flat-plane projection, offset 8 m ahead of the rear axle; use scripts/baseline35_replay_lane_monitor.py on recorded runs for the map comparison on curves.",
         ),
     )
     print(f"Review {len(records)} overlays | {args.output}")

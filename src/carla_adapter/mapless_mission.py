@@ -92,7 +92,7 @@ def resolve_mission(carla, carla_map, definition_path, spacing_m=1.0):
     baseline's own topology export and mission builder (simulator side; the car never
     sees them)."""
     from carla_adapter.topology import export_lane_topology  # noqa: PLC0415
-    from planning.corridor import RouteGeometry  # noqa: PLC0415
+    from planning.baseline35_corridor import RouteGeometry  # noqa: PLC0415
     from planning.mission import load_route_definition, mission_from_definition  # noqa: PLC0415
 
     definition = load_route_definition(definition_path)

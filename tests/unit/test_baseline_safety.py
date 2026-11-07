@@ -12,9 +12,9 @@ from obstacle_perception.association import Footprint
 from obstacle_perception.track_filter import TrackFilter, TrackFilterConfig
 from obstacle_perception.types import ObservationMetadata
 from obstacle_perception.visibility import DepthVisibility
-from planning.behaviour import Behaviour, BehaviourState
-from planning.corridor import RouteGeometry
-from planning.speed_governor import SpeedGovernor, speed_for_distance, stopping_distance
+from planning.baseline35_behaviour import Behaviour, BehaviourState
+from planning.baseline35_corridor import RouteGeometry
+from planning.baseline35_speed_governor import SpeedGovernor, speed_for_distance, stopping_distance
 
 
 def footprint(

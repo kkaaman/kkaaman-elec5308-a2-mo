@@ -8,6 +8,7 @@ Example (A2 runs from the Navigation stage, A1 from the committed TEST-01 captur
 """
 
 import argparse
+import csv
 import json
 from pathlib import Path
 
@@ -24,10 +25,66 @@ from evaluation.a1_comparison import (
     compare,
     load_a1_capture,
 )
-from evaluation.metrics import load_run, summarize
 from planning.lane_graph import LaneTopology
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def _load_a2_run(folder):
+    """Load the retained TEST-02 CARLA CSV format for TEST-03 comparison."""
+    folder = Path(folder)
+    manifest = json.loads((folder / "manifest.json").read_text())
+    summary = json.loads((folder / "summary.json").read_text())
+
+    config = manifest["effective_config"]
+    dt_s = float(config["runtime"]["fixed_delta_seconds"])
+
+    with (folder / "samples.csv").open(newline="") as handle:
+        raw_rows = list(csv.DictReader(handle))
+
+    rows = []
+    for row in raw_rows:
+        rows.append(
+            {
+                "sim_time_s": float(row["simulation_time_s"]),
+                "speed_mps": float(row["speed_mps"]),
+                "ego": {
+                    "x_m": float(row["x_m"]),
+                    "y_m": float(row["y_m"]),
+                    "yaw_rad": float(row["yaw_rad"]),
+                },
+                "signed_cte_m": float(row["signed_cte_m"]),
+                "cte_m": float(row["signed_cte_m"]),
+                "capture_apply_s": float(row["capture_to_apply_ms"]) / 1000.0,
+                "simulation_age_s": float(row["frame_age"]) * dt_s,
+            }
+        )
+
+    normalized_manifest = dict(manifest)
+    normalized_manifest.update(
+        engine="carla",
+        scenario=manifest.get("scenario"),
+        mode="rgb",
+        seed=config["runtime"].get("seed"),
+        dt_s=dt_s,
+    )
+
+    if len(raw_rows) >= 2:
+        sim_elapsed = (
+            float(raw_rows[-1]["simulation_time_s"])
+            - float(raw_rows[0]["simulation_time_s"])
+        )
+        wall_elapsed = (
+            float(raw_rows[-1]["apply_monotonic_s"])
+            - float(raw_rows[0]["apply_monotonic_s"])
+        )
+        summary["real_time_factor"] = (
+            sim_elapsed / wall_elapsed if wall_elapsed > 0 else None
+        )
+    else:
+        summary["real_time_factor"] = None
+
+    return normalized_manifest, rows, summary
 
 
 def _cdf(ax, values, label):
@@ -58,8 +115,7 @@ def main():
     a1 = a1_metrics(a1_rows, lanes)
     a2 = []
     for folder in args.a2_run:
-        manifest, rows, events = load_run(folder)
-        summary = summarize(rows, events, manifest)
+        manifest, rows, summary = _load_a2_run(folder)
         a2.append(a2_metrics(dict(manifest, run_folder=str(folder)), rows, summary, lanes))
     args.output.mkdir(parents=True, exist_ok=False)
     report = compare(a1, a2)

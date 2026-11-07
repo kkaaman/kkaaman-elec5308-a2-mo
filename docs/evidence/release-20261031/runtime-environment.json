@@ -1,0 +1,19 @@
+{
+  "python": "3.12.11 (main, Sep 22 2026, 19:00:33) [GCC 15.2.0]",
+  "platform": "Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.43",
+  "packages": {
+    "numpy": "2.5.2",
+    "torch": "2.6.0+cu124",
+    "ultralytics": "8.4.177",
+    "opencv-python": "5.0.0.93",
+    "pytest": "9.1.1",
+    "fastapi": "0.115.0",
+    "uvicorn": "0.30.6",
+    "sphinx": "9.1.0"
+  },
+  "validation_interpreter": "/home/alan/issue40-runtime312/bin/python",
+  "source_resolution": "PYTHONPATH=src in clean candidate; dependencies preinstalled, not a fresh install claim",
+  "cuda_available": false,
+  "torch_cuda_build": "12.4",
+  "execution_device": "CPU; CUDA build installed but device unavailable"
+}

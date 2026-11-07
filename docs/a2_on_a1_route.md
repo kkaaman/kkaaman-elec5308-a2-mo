@@ -80,7 +80,7 @@ Watch one run in CARLA:
 
 ```powershell
 $s = Get-Content $state -Raw | ConvertFrom-Json
-.venv\Scripts\python.exe scripts\run_scenario.py --engine carla --scenario S2 --config $s.candidate --mission $s.mission --depth-calibration $s.depth --event-verification $s.event_verification --follow --output "$HOME\Downloads\Group7_a1route_S2_$(Get-Date -Format yyyyMMdd_HHmmss)"
+.venv\Scripts\python.exe scripts\baseline35_run_scenario.py --engine carla --scenario S2 --config $s.candidate --mission $s.mission --depth-calibration $s.depth --event-verification $s.event_verification --follow --output "$HOME\Downloads\Group7_a1route_S2_$(Get-Date -Format yyyyMMdd_HHmmss)"
 ```
 
 ## Results (21 Oct)

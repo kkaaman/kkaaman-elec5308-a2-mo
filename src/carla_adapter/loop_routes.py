@@ -27,7 +27,7 @@ from pathlib import Path
 
 import numpy as np
 
-from planning.corridor import RouteGeometry
+from planning.baseline35_corridor import RouteGeometry
 from planning.junction_planner import choose_exit
 from planning.lane_graph import LaneTopology
 from planning.mission import mission_along_lanes

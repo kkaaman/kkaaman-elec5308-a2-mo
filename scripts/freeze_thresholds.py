@@ -7,7 +7,7 @@ from pathlib import Path
 
 from autonomy.configuration import content_hash, read_config, write_config
 from evaluation.run_logger import file_sha256
-from planning.speed_governor import speed_for_distance
+from planning.baseline35_speed_governor import speed_for_distance
 
 
 def derive(config, braking, perception, depth):

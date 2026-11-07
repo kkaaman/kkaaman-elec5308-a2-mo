@@ -25,3 +25,5 @@ runs/
 
 # Mapless training checkpoints (large; the .provenance.json sidecar is kept as evidence)
 models/*.pt
+# Prepared offline inference-service wheels (hashes tracked separately).
+/wheelhouse/

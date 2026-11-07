@@ -1,0 +1,126 @@
+{
+  "status": "INSTALLED_SETTINGS_VERIFIED_NOT_CAPTURED",
+  "client_version": "0.9.16",
+  "server_version": "0.9.16",
+  "map": "Carla/Maps/Town10HD_Opt",
+  "conditions": [
+    {
+      "name": "ClearNoon",
+      "preset_values": {
+        "cloudiness": 5.0,
+        "precipitation": 0.0,
+        "precipitation_deposits": 0.0,
+        "wind_intensity": 10.0,
+        "sun_azimuth_angle": -1.0,
+        "sun_altitude_angle": 45.0,
+        "fog_density": 2.0,
+        "fog_distance": 0.75,
+        "fog_falloff": 0.10000000149011612,
+        "wetness": 0.0,
+        "scattering_intensity": 1.0,
+        "mie_scattering_scale": 0.029999999329447746,
+        "rayleigh_scattering_scale": 0.03310000151395798,
+        "dust_storm": 0.0
+      },
+      "configured_values": {
+        "cloudiness": 5,
+        "precipitation": 0,
+        "precipitation_deposits": 0,
+        "wind_intensity": 10,
+        "sun_azimuth_angle": 0,
+        "sun_altitude_angle": 45,
+        "fog_density": 2,
+        "fog_distance": 0.75,
+        "fog_falloff": 0.1,
+        "wetness": 0,
+        "scattering_intensity": 1,
+        "mie_scattering_scale": 0.03,
+        "rayleigh_scattering_scale": 0.0331,
+        "dust_storm": 0
+      },
+      "vehicle_lights": []
+    },
+    {
+      "name": "HardRainNoon",
+      "preset_values": {
+        "cloudiness": 100.0,
+        "precipitation": 100.0,
+        "precipitation_deposits": 90.0,
+        "wind_intensity": 100.0,
+        "sun_azimuth_angle": -1.0,
+        "sun_altitude_angle": 45.0,
+        "fog_density": 7.0,
+        "fog_distance": 0.75,
+        "fog_falloff": 0.10000000149011612,
+        "wetness": 0.0,
+        "scattering_intensity": 1.0,
+        "mie_scattering_scale": 0.029999999329447746,
+        "rayleigh_scattering_scale": 0.03310000151395798,
+        "dust_storm": 0.0
+      },
+      "configured_values": {
+        "cloudiness": 100,
+        "precipitation": 100,
+        "precipitation_deposits": 90,
+        "wind_intensity": 100,
+        "sun_azimuth_angle": 0,
+        "sun_altitude_angle": 45,
+        "fog_density": 7,
+        "fog_distance": 0.75,
+        "fog_falloff": 0.1,
+        "wetness": 0,
+        "scattering_intensity": 1,
+        "mie_scattering_scale": 0.03,
+        "rayleigh_scattering_scale": 0.0331,
+        "dust_storm": 0
+      },
+      "vehicle_lights": []
+    },
+    {
+      "name": "ClearNight",
+      "preset_values": {
+        "cloudiness": 5.0,
+        "precipitation": 0.0,
+        "precipitation_deposits": 0.0,
+        "wind_intensity": 10.0,
+        "sun_azimuth_angle": -1.0,
+        "sun_altitude_angle": -90.0,
+        "fog_density": 60.0,
+        "fog_distance": 75.0,
+        "fog_falloff": 1.0,
+        "wetness": 0.0,
+        "scattering_intensity": 1.0,
+        "mie_scattering_scale": 0.029999999329447746,
+        "rayleigh_scattering_scale": 0.03310000151395798,
+        "dust_storm": 0.0
+      },
+      "configured_values": {
+        "cloudiness": 5,
+        "precipitation": 0,
+        "precipitation_deposits": 0,
+        "wind_intensity": 10,
+        "sun_azimuth_angle": 0,
+        "sun_altitude_angle": -90,
+        "fog_density": 60,
+        "fog_distance": 75,
+        "fog_falloff": 1,
+        "wetness": 0,
+        "scattering_intensity": 1,
+        "mie_scattering_scale": 0.03,
+        "rayleigh_scattering_scale": 0.0331,
+        "dust_storm": 0
+      },
+      "vehicle_lights": [
+        "Position",
+        "LowBeam"
+      ]
+    }
+  ],
+  "world_mutated": false,
+  "dataset": "NOT_CAPTURED",
+  "sensor_effects": {
+    "rgb": "NOT_OBSERVED",
+    "depth": "NOT_OBSERVED",
+    "lidar": "NOT_RUN_OPTIONAL"
+  }
+}

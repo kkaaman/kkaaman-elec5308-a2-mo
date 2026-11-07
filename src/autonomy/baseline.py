@@ -11,9 +11,9 @@ from obstacle_perception.association import associate
 from obstacle_perception.box_depth import ground_fallback
 from obstacle_perception.track_filter import TrackFilter, TrackFilterConfig
 from obstacle_perception.visibility import DepthVisibility, RouteClearanceMemory
-from planning.behaviour import Behaviour, BehaviourConfig, BehaviourState
-from planning.corridor import RouteGeometry
-from planning.speed_governor import GovernorConfig, SpeedGovernor
+from planning.baseline35_behaviour import Behaviour, BehaviourConfig, BehaviourState
+from planning.baseline35_corridor import RouteGeometry
+from planning.baseline35_speed_governor import GovernorConfig, SpeedGovernor
 
 
 @dataclass(frozen=True)

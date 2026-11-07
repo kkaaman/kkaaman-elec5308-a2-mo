@@ -1,0 +1,68 @@
+[
+  {
+    "attempt": "preflight-01",
+    "classification": "site152 unsuitable",
+    "raw_path": "/home/alan/26-S2-Assignment2-Group7/runs/BL-D-06/operational-approach/preflight-01/report.json",
+    "sha256": "518de3d95fce78ac45d5029ddecc2af569aa8c0ec673a069d65afc3629929c40",
+    "status": "COMPLETE",
+    "settings_restored": true,
+    "no_actor_leaks": true,
+    "failure": null,
+    "frames": 40
+  },
+  {
+    "attempt": "background-preflight-01",
+    "classification": "background site selection",
+    "raw_path": "/home/alan/26-S2-Assignment2-Group7/runs/BL-D-06/operational-approach/background-preflight-01/report.json",
+    "sha256": "8f2d9baaa73f3fc6de6131b6466cf4e120ed54f28b3dc74aaa6eb20259eea6e9",
+    "status": "COMPLETE",
+    "settings_restored": true,
+    "no_actor_leaks": true,
+    "failure": null,
+    "frames": 80
+  },
+  {
+    "attempt": "same-frame-01",
+    "classification": "superseded elevated target geometry",
+    "raw_path": "/home/alan/26-S2-Assignment2-Group7/runs/BL-D-06/operational-approach/same-frame-01/report.json",
+    "sha256": "564cc30689a936f235983bb6361f678d8ea86ece817e4f53c78f9e3a2b72cba5",
+    "status": "COMPLETE",
+    "settings_restored": true,
+    "no_actor_leaks": true,
+    "failure": null,
+    "frames": 800
+  },
+  {
+    "attempt": "same-frame-02",
+    "classification": "failed ego ground spawn; no sampled frames",
+    "raw_path": "/home/alan/26-S2-Assignment2-Group7/runs/BL-D-06/operational-approach/same-frame-02/report.json",
+    "sha256": "6c5d4c9c006370950f7263d185353ea64764a1e08a1754a9927bdd3d82efecc4",
+    "status": "INCOMPLETE",
+    "settings_restored": true,
+    "no_actor_leaks": true,
+    "failure": "RuntimeError: Ego spawn failed",
+    "frames": 0
+  },
+  {
+    "attempt": "same-frame-03",
+    "classification": "setup helper NameError; no sampled frames",
+    "raw_path": "/home/alan/26-S2-Assignment2-Group7/runs/BL-D-06/operational-approach/same-frame-03/report.json",
+    "sha256": "bfb8fb28022885c5fcc4430b875e67b337eaa9b78fa59296b55ab34eebaf1926",
+    "status": "INCOMPLETE",
+    "settings_restored": true,
+    "no_actor_leaks": true,
+    "failure": "NameError: name 'spawn' is not defined",
+    "frames": 0
+  },
+  {
+    "attempt": "same-frame-04",
+    "classification": "accepted road-height operational evidence",
+    "raw_path": "/home/alan/26-S2-Assignment2-Group7/runs/BL-D-06/operational-approach/same-frame-04/report.json",
+    "sha256": "f90e94b2a8a112d8bdbb70bb7c2941c9e8d14bb298845270e354ff37aea6b79b",
+    "status": "COMPLETE",
+    "settings_restored": true,
+    "no_actor_leaks": true,
+    "failure": null,
+    "frames": 800
+  }
+]

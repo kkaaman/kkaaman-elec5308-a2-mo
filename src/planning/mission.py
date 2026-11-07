@@ -9,7 +9,7 @@ from pathlib import Path
 import numpy as np
 
 from autonomy.interfaces import GraphEdge, GraphNode, LaneGraph
-from planning.corridor import RouteGeometry
+from planning.baseline35_corridor import RouteGeometry
 from planning.junction_planner import choose_exit, junction_exits
 from planning.route_manager import stitch_route
 

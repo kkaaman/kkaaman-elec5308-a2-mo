@@ -19,7 +19,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 
 from autonomy.paths import FIXTURES_DIR, REPO_ROOT  # noqa: E402
-from planning.corridor import RouteGeometry  # noqa: E402
+from planning.baseline35_corridor import RouteGeometry  # noqa: E402
 from planning.lane_graph import LaneTopology  # noqa: E402
 from planning.mission import load_route_definition, mission_from_definition  # noqa: E402
 

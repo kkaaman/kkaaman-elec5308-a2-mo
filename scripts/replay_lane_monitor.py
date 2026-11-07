@@ -1,150 +1,159 @@
-"""RV-06: replay the lane departure monitor on a recorded CARLA run.
+"""Replay RV-06 monitor on the prescribed A1 display recording and matched poses.
 
-Reads ``video.avi`` and ``samples.jsonl`` from a run folder, runs the existing
-LaneUNet on every Nth frame, compares the perceived lane offset with the fixed
-route at the same look-ahead point, and writes monitor.json, a time-series plot
-and HUD screenshots on curves and straights. Diagnostic only; no control.
+Uses recorded camera/vehicle geometry; display frames are not pristine RGB or
+exact sensor-frame timestamps. This is a convention/overlay check, not accuracy.
 """
 
 import argparse
+import csv
+import hashlib
 import json
 import math
 from pathlib import Path
 
 import cv2
-import matplotlib
+import numpy as np
 
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
-
-from evaluation.lane_monitor_replay import replay, report
-from evaluation.metrics import load_run
-from evaluation.run_logger import file_sha256
+from autonomy.paths import model_path
+from evaluation.a1_comparison import LaneCentrelines
 from geometry.camera import CameraIntrinsics
-from planning.corridor import RouteGeometry
-from visualisation.lane_monitor import MIN_CONFIDENCE, LaneDeparture, draw_monitor
+from perception.lane_inference import LaneSegmenter
+from perception.lane_path import extract_ego_path
+from planning.lane_graph import LaneTopology
+from visualisation.hud import draw_departure_overlay
+from visualisation.lane_departure import LaneDepartureMonitor, lane_estimate_from_centerline
 
-ROOT = Path(__file__).resolve().parents[1]
-LANE_SHA256 = "10dca01621fb8e110f1d5b8419e81fb616a8ce1b75d6aface11f5793af88e8ff"  # RV-02
 
-
-def calibration_from(manifest):
-    recorded = manifest.get("camera_calibration")
-    if recorded:
-        from autonomy.interfaces import CameraCalibration
-
-        return CameraCalibration(**recorded)
-    # Runs recorded before the calibration was logged: the fixed CarlaWorld rig.
-    return CameraIntrinsics.from_horizontal_fov(640, 360, math.radians(90)).calibration(
-        ((0, 0, 1, 1.5 + 1.38641), (-1, 0, 0, 0), (0, -1, 0, 2.0), (0, 0, 0, 1))
+def replay(clip, output, topology_path):
+    clip, output = Path(clip), Path(output)
+    manifest = json.loads((clip / "manifest.json").read_text())
+    camera = next(a for a in manifest["spawned_actors"] if a["blueprint"] == "sensor.camera.rgb")
+    mount = camera["requested_pose_carla"]
+    if any(abs(mount[k]) > 1e-5 for k in ("pitch_deg", "yaw_deg", "roll_deg")):
+        raise ValueError("This recorded projection needs a zero-rotation optical mount")
+    vehicle = manifest["actual_vehicle"]
+    pose = vehicle["first_recorded_pose"]
+    rear = [w["position"] for w in vehicle["wheels"] if w["max_steer_angle_deg"] == 0]
+    if len(rear) != 2:
+        raise ValueError("Two non-steering rear wheel positions required")
+    rear_world = np.mean(rear, axis=0) / 100
+    yaw = math.radians(pose["yaw_deg"])
+    offset = -float(
+        (rear_world[:2] - [pose["x"], pose["y"]]) @ np.array([math.cos(yaw), math.sin(yaw)])
     )
-
-
-def video_frames(path, counter):
-    capture = cv2.VideoCapture(str(path))
-    if not capture.isOpened():
-        raise RuntimeError(f"Cannot open {path}")
+    if not 0 < offset < 3:
+        raise ValueError("Invalid measured actor-to-rear-axle offset")
+    samples = list(csv.DictReader((clip / "samples.csv").open()))
+    index = list(csv.DictReader((clip / "video_frames.csv").open()))
+    video = cv2.VideoCapture(str(clip / "video.avi"))
+    ok, first = video.read()
+    if not ok:
+        raise ValueError("Recording has no readable video frame")
+    height, width = first.shape[:2]
+    # The recorder's video may be a resized display; use its actual dimensions.
+    fov = math.radians(float(camera["attributes"]["fov"]))
+    matrix = (
+        (0, 0, 1, mount["x"] + offset),
+        (-1, 0, 0, -mount["y"]),
+        (0, -1, 0, mount["z"]),
+        (0, 0, 0, 1),
+    )
+    cal = CameraIntrinsics.from_horizontal_fov(width, height, fov).calibration(matrix)
+    video.set(cv2.CAP_PROP_POS_FRAMES, 0)
+    lanes = LaneCentrelines(LaneTopology.load(topology_path))
+    segmenter, monitor = LaneSegmenter(model_path("lane")), LaneDepartureMonitor()
+    rows = []
+    previous = None
+    output.mkdir(parents=True, exist_ok=False)
     try:
-        while True:
-            ok, bgr = capture.read()
+        for record in index:
+            ok, bgr = video.read()
             if not ok:
-                return
-            counter[0] += 1
-            yield bgr[:, :, ::-1].copy()
+                raise ValueError("Video shorter than recorded frame index")
+            sample = samples[int(record["latest_control_sample"])]
+            x, y, angle = (float(sample[k]) for k in ("actor_x_m", "actor_y_m", "actor_yaw_rad"))
+            x -= offset * math.cos(angle)
+            y -= offset * math.sin(angle)
+            map_cte, section, junction = lanes.signed_offset(x, y)
+            rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
+            path = extract_ego_path(segmenter.predict(rgb))
+            t, frame = float(record["sim_time_s"]), int(record["video_frame"])
+            estimate = (
+                None
+                if path is None
+                else lane_estimate_from_centerline(
+                    path["centerline"], cal, frame_id=frame, sim_time_s=t
+                )
+            )
+            report = monitor.update(estimate, None if junction else map_cte, now_sim_time_s=t)
+            turn = "unknown"
+            if previous is not None and t > previous[0]:
+                rate = math.atan2(math.sin(angle - previous[1]), math.cos(angle - previous[1])) / (
+                    t - previous[0]
+                )
+                turn = "left" if rate > 0.01 else "right" if rate < -0.01 else "straight"
+            previous = (t, angle)
+            rows.append(
+                dict(
+                    report.as_record(),
+                    display_frame=frame,
+                    reference_rear_axle_xy_m=[x, y],
+                    map_section=section,
+                    in_junction=bool(junction),
+                    turn=turn,
+                    actor_reference_cte_m=float(sample["nearest_lane_cte_signed_m"]),
+                )
+            )
+            if frame % 5 == 0:
+                image = draw_departure_overlay(rgb, report)
+                if not cv2.imwrite(
+                    str(output / f"frame_{frame:06d}.png"), cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+                ):
+                    raise OSError("Failed to save recorded overlay")
     finally:
-        capture.release()
-
-
-def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--run", type=Path, required=True)
-    parser.add_argument("--mission", type=Path, required=True, help="LiveSetup mission.json")
-    parser.add_argument("--weights", type=Path, default=ROOT / "lane_unet_best.pth")
-    parser.add_argument("--every", type=int, default=2)
-    parser.add_argument("--screenshots", type=int, default=12)
-    parser.add_argument("--output", type=Path, required=True)
-    args = parser.parse_args()
-    from perception.lane_inference import LaneSegmenter
-    from perception.lane_path import draw_ego_path
-    from perception.recorded_detector import verify_local_asset
-    from planning.mission import Mission
-
-    verify_local_asset(args.weights, LANE_SHA256)
-    manifest, rows, _ = load_run(args.run)
-    mission = Mission.load(args.mission)
-    if manifest.get("mission_sha256") not in (None, mission.sha256):
-        raise ValueError("Run was recorded on a different mission")
-    route = RouteGeometry(mission.points_xy_m)
-    calibration = calibration_from(manifest)
-    counter = [0]
-    frames = video_frames(args.run / "video.avi", counter)
-    records = replay(
-        rows, frames, LaneSegmenter(str(args.weights)), calibration, route, every=args.every
+        video.release()
+    valid = [
+        r
+        for r in rows
+        if r["lane_monitor_valid"] and not r["in_junction"] and abs(r["lane_map_cte_m"]) > 0.1
+    ]
+    counts = {}
+    for turn in ("left", "right", "straight"):
+        chosen = [r for r in valid if r["turn"] == turn]
+        agree = sum(
+            math.copysign(1, r["lane_image_offset_m"]) == math.copysign(1, r["lane_map_cte_m"])
+            for r in chosen
+        )
+        counts[turn] = dict(
+            valid_samples=len(chosen),
+            sign_agreement=agree,
+            mean_abs_difference_m=float(np.mean([abs(r["lane_difference_m"]) for r in chosen]))
+            if chosen
+            else None,
+        )
+    summary = dict(
+        frames=len(rows),
+        valid_nonjunction_samples=len(valid),
+        turn_results=counts,
+        measured_rear_axle_offset_m=offset,
+        camera_mount=mount,
+        display_dimensions=[width, height],
+        video_sha256=hashlib.sha256((clip / "video.avi").read_bytes()).hexdigest(),
+        scope="Processed display frames with approximate matched control pose; not pristine sensor accuracy or exact frame-aligned latency",
+        operational_acceptance=False,
     )
-    for _ in frames:  # count any remaining frames for the alignment check
-        pass
-    args.output.mkdir(parents=True, exist_ok=False)
-    result = report(records, rows=len(rows), frames_read=counter[0])
-    result.update(
-        run=str(args.run),
-        run_manifest_sha256=file_sha256(args.run / "manifest.json"),
-        mission_sha256=mission.sha256,
-        weights_sha256=LANE_SHA256,
-        min_confidence=MIN_CONFIDENCE,
+    (output / "monitor.json").write_text(
+        json.dumps(dict(summary=summary, frames=rows), indent=2) + "\n"
     )
-    (args.output / "monitor.json").write_text(json.dumps(result, indent=2, allow_nan=False) + "\n")
-
-    t = [r["sim_time_s"] - records[0]["sim_time_s"] for r in records] if records else []
-    fig, (top, bottom) = plt.subplots(2, 1, figsize=(11, 6), sharex=True)
-    top.plot(t, [r["map_offset_m"] for r in records], color="black", label="Fixed route (map)")
-    usable = [(ti, r) for ti, r in zip(t, records) if r["comparison"]["usable"]]
-    top.scatter(
-        [ti for ti, _ in usable],
-        [r["departure"]["signed_offset_m"] for _, r in usable],
-        s=8,
-        color="tab:orange",
-        label=f"Lane monitor (confidence >= {MIN_CONFIDENCE})",
-    )
-    for ti, r in zip(t, records):
-        if r["curve"]:
-            top.axvspan(ti - 0.05, ti + 0.05, color="0.9", linewidth=0)
-    top.set(
-        ylabel="Look-ahead offset (m, +left)",
-        title="RV-06 lane monitor vs fixed route (grey: curve)",
-    )
-    top.legend(fontsize=8)
-    bottom.plot(t, [r["departure"]["confidence"] for r in records], color="tab:blue")
-    bottom.axhline(MIN_CONFIDENCE, color="red", linestyle="--", linewidth=1)
-    bottom.set(xlabel="Simulation time (s)", ylabel="Confidence")
-    fig.tight_layout()
-    fig.savefig(args.output / "monitor.png", dpi=130)
-    plt.close(fig)
-
-    shots = args.output / "screenshots"
-    shots.mkdir()
-    curve = [r for r in records if r["curve"]]
-    straight = [r for r in records if not r["curve"]]
-    wanted = set()
-    for group in (curve, straight):
-        if group:
-            step = max(1, len(group) // max(1, args.screenshots // 2))
-            wanted.update(r["index"] for r in group[::step][: args.screenshots // 2])
-    by_index = {r["index"]: r for r in records}
-    for index, rgb in enumerate(video_frames(args.run / "video.avi", [0])):
-        if index not in wanted:
-            continue
-        r = by_index[index]
-        image = draw_ego_path(rgb, r["path"]) if r["path"] is not None else rgb
-        image = draw_monitor(image, LaneDeparture(**r["departure"]), r["map_offset_m"])
-        label = "curve" if r["curve"] else "straight"
-        cv2.imwrite(str(shots / f"{label}_{r['frame_id']}.png"), image[:, :, ::-1])
-    summary = result["summary"]
-    print(
-        f"{result['status']} | usable {summary['all']['usable_frames']}/{len(records)} |"
-        f" curve sign agreement {summary['curve']['sign_agreement']} |"
-        f" median |diff| {summary['all']['median_abs_difference_m']} | {args.output}"
-    )
+    return summary
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--clip", type=Path, required=True)
+    parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument(
+        "--topology", type=Path, default=Path("tests/fixtures/Town10HD.lane_graph.json")
+    )
+    args = parser.parse_args()
+    print(json.dumps(replay(args.clip, args.output, args.topology), indent=2))

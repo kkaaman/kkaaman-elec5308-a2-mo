@@ -1,0 +1,42 @@
+{
+  "origin": "black-image-real-model-protocol-smoke",
+  "accuracy": "NOT_MEASURED",
+  "model_sha256": "9b09cc8bf347f0fc8a5f7657480587f25db09b34bf33b0652110fb03a8ad4fef",
+  "clients": [
+    {
+      "valid": true,
+      "source_id": "remote",
+      "run_id": "smoke-client-0",
+      "session_id": "1ebba0ff-7128-4251-b7d8-18800c8689fa",
+      "detections": 0,
+      "timing": {
+        "session_reset_s": 6.209993443917483e-07,
+        "encode_s": 0.01525699700050609,
+        "http_round_trip_s": 2.5918341509996026,
+        "decode_s": 8.844199965096777e-05,
+        "server_duration_s": 2.5729877140001918,
+        "rtt_residual_s": 0.0188464369994108,
+        "total_s": 2.607180210999104
+      }
+    },
+    {
+      "valid": true,
+      "source_id": "remote",
+      "run_id": "smoke-client-1",
+      "session_id": "3e0bbf09-8f1a-42d3-be84-e422769b7f7e",
+      "detections": 0,
+      "timing": {
+        "session_reset_s": 5.609999789157882e-07,
+        "encode_s": 0.0003408619995752815,
+        "http_round_trip_s": 1.0899523440002667,
+        "decode_s": 6.349300019792281e-05,
+        "server_duration_s": 1.0806544479992226,
+        "rtt_residual_s": 0.009297896001044137,
+        "total_s": 1.0903572600000189
+      }
+    }
+  ],
+  "duplicate_status": 409,
+  "repeated_episode_valid": true,
+  "passed": true
+}

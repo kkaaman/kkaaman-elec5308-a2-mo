@@ -1,0 +1,131 @@
+{
+  "files": [
+    {
+      "path": "README.md",
+      "bytes": 1155,
+      "sha256": "6d4ce578b65d1419e10405f4b4dd94791bfe49bf485120948e3559e42c468505"
+    },
+    {
+      "path": "admission-check.json",
+      "bytes": 570,
+      "sha256": "5e8097b76cd778ed54b6194a401960ac6ed8fef754e670aa47fa7a76bd62d31e"
+    },
+    {
+      "path": "admission-review.json",
+      "bytes": 1509,
+      "sha256": "6a30012a51c0ca11d9f3ac7d8287017ac53b5eac9f0f0f8f322a33f0fd087c9b"
+    },
+    {
+      "path": "archive-integrity.json",
+      "bytes": 1220,
+      "sha256": "3723d62fe94360bdaca69582f6d3e76f89bc9b4e3b4dc56ffd03b6d3daa10dae"
+    },
+    {
+      "path": "boundary.log",
+      "bytes": 87,
+      "sha256": "8f12f6ff4641dbb9e9014f0e5c3b568f93cdd4785029ec4392d992914a28b22e"
+    },
+    {
+      "path": "candidate-front-high128.json",
+      "bytes": 256,
+      "sha256": "5e7dd673b6d279bfb8307dd75975c9e86f68a4e68fbba0dec164768aedd7cd8e"
+    },
+    {
+      "path": "final-focused-pytest.log",
+      "bytes": 99,
+      "sha256": "525d249cd8bb5f4ebc672b99f8f94236bb0968745fa3b3bdfc9ad9f277425bc6"
+    },
+    {
+      "path": "focused-pytest.log",
+      "bytes": 180,
+      "sha256": "8c6f6bc2483732eca5e70cde4042b4bfa1e9fc49746aa644d6fcab7a5b17b286"
+    },
+    {
+      "path": "full-bin-audit.json",
+      "bytes": 850706,
+      "sha256": "251adca15555aec62e2d8655e3954a5abd0295abbbcbd92631ee24111cb544f7"
+    },
+    {
+      "path": "full-pytest.log",
+      "bytes": 2203,
+      "sha256": "a2e8193b1f4949d9195678f8dfd727f04b31a21567e6795e4bebff59a2d023aa"
+    },
+    {
+      "path": "nearfield-01-members.json",
+      "bytes": 47822,
+      "sha256": "148a16783d2ea38660ab8e6f71fe2be79b0b6d49d7600fb560abd5422b6300a6"
+    },
+    {
+      "path": "nearfield-01.tar.xz",
+      "bytes": 10571320,
+      "sha256": "1814f1ff0de3c82deaf3fa570ca0d5bb5406a2db4aca1cc6b5178f7610fbe5d1"
+    },
+    {
+      "path": "negative-probes.json",
+      "bytes": 2621,
+      "sha256": "b016ddbd6b0ba5e24ed3fd164f2e882219570f2b6bbdf37dfa6fb8d71bde9d86"
+    },
+    {
+      "path": "preserved-issue40-pytest.log",
+      "bytes": 99,
+      "sha256": "61d1153400850a92d97802104261714339583949687f35defc205f31cbc7ff22"
+    },
+    {
+      "path": "qualification-01-members.json",
+      "bytes": 48925,
+      "sha256": "de47350589f304dae9fa22d2f3c89fa188da43e7e1be376426ebf13d55430bac"
+    },
+    {
+      "path": "qualification-01.tar.xz",
+      "bytes": 7395820,
+      "sha256": "228b4eb4f49ad74d249f34c89247746435f94e93e4af4bd76a230657a403da0b"
+    },
+    {
+      "path": "ruff.log",
+      "bytes": 19,
+      "sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18"
+    },
+    {
+      "path": "screen-01-members.json",
+      "bytes": 24949,
+      "sha256": "79fb5c8d175a238cdccea8dd5f88abff04984ac4142425e974e2d89f5349b3e6"
+    },
+    {
+      "path": "screen-01.tar.xz",
+      "bytes": 5077168,
+      "sha256": "55ec6892eb71ed53eb7f404eacd9d80c28449d814f1f5fcab5838019296abfe8"
+    },
+    {
+      "path": "site66-01-members.json",
+      "bytes": 3867,
+      "sha256": "d2cae69f7b213829062866e6bf05b597c1db12a863dcb921c516286789f788a9"
+    },
+    {
+      "path": "site66-01.tar.xz",
+      "bytes": 1108064,
+      "sha256": "3dc0568567e90773234ec4f10bba29724c623628503de06c448a20e91e72b5ce"
+    },
+    {
+      "path": "sphinx.log",
+      "bytes": 8404,
+      "sha256": "72f50287429a1e02218fea65a207011e714fe2ad6206765a07f767b12c1cf199"
+    },
+    {
+      "path": "tolerance-01-members.json",
+      "bytes": 15889,
+      "sha256": "f9687e6d71325960ce0f5aae649144bf93d6f07461ad67d74c999cfa9dedc304"
+    },
+    {
+      "path": "tolerance-01.tar.xz",
+      "bytes": 10540256,
+      "sha256": "5247eebff18ec4d51153a0e0672437553a9e1f552332e6cd471864a1e08f4ae6"
+    },
+    {
+      "path": "transform-and-final-world.json",
+      "bytes": 2659,
+      "sha256": "3f652c0832e8867a4d9a6fe38788505c756597ce96f655f7dcd9667bbb94e36e"
+    }
+  ],
+  "all_archive_members_verified": true,
+  "logs": "Trailing whitespace normalized; result text preserved"
+}

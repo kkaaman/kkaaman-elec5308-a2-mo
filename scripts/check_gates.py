@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 
 from autonomy.configuration import read_config
-from evaluation.metrics import load_run, summarize
+from evaluation.baseline35_metrics import load_run, summarize
 from evaluation.run_logger import file_sha256
 
 

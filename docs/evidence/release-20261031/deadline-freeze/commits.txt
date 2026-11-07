@@ -1,0 +1,6 @@
+b005326d94515b01aefa06a673e553e4d2f0f34e fix(runtime): reserve bounded dispatch time and defer raw evidence I/O | PASS
+1b6f4a907715cd4221fcfaeb8e35498733732a0a fix(runtime): bound current lidar acquisition by the capture deadline | PASS
+372f66acab959044407eef143285dd879ae9c315 fix(runtime): isolate parked inference from simulator GPU contention | PASS
+588710472e8393b4f540a1953bf5f6e8b4e2b3c8 perf(runtime): join CPU results within the shared acquisition cutoff | PASS
+91491bf45097b689760112c57f39cfb5733f69ec fix(release): select the validated low-cost Windows renderer profile | PASS
+9d4fc530eb3e03825885b45e0ea155e99dc18343 fix(release): retain DX12 for the unmodified CARLA camera backend | PASS

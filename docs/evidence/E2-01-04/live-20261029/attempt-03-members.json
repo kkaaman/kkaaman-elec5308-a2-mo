@@ -1,0 +1,922 @@
+[
+  {
+    "file": "capture-script.py",
+    "sha256": "59e15bc28ac5dee4d045b7cc37c16f998b31ba5c2d56e0ca898ac34a745dd58a",
+    "bytes": 15844
+  },
+  {
+    "file": "console.log",
+    "sha256": "5080da6a62f2875b3dc8e71e530e745177de917f0748687304b8249fca410478",
+    "bytes": 8935
+  },
+  {
+    "file": "raw-sensor/sensor_047255.bin",
+    "sha256": "6e08ddd95aed5222ac1c0d34b5bc1a5f83c1c48995ca7db2c66f3d366902e448",
+    "bytes": 430432
+  },
+  {
+    "file": "raw-sensor/sensor_047256.bin",
+    "sha256": "6e08ddd95aed5222ac1c0d34b5bc1a5f83c1c48995ca7db2c66f3d366902e448",
+    "bytes": 430432
+  },
+  {
+    "file": "raw-sensor/sensor_047257.bin",
+    "sha256": "6e08ddd95aed5222ac1c0d34b5bc1a5f83c1c48995ca7db2c66f3d366902e448",
+    "bytes": 430432
+  },
+  {
+    "file": "raw-sensor/sensor_047258.bin",
+    "sha256": "6e08ddd95aed5222ac1c0d34b5bc1a5f83c1c48995ca7db2c66f3d366902e448",
+    "bytes": 430432
+  },
+  {
+    "file": "raw-sensor/sensor_047259.bin",
+    "sha256": "6e08ddd95aed5222ac1c0d34b5bc1a5f83c1c48995ca7db2c66f3d366902e448",
+    "bytes": 430432
+  },
+  {
+    "file": "raw-sensor/sensor_047260.bin",
+    "sha256": "6e08ddd95aed5222ac1c0d34b5bc1a5f83c1c48995ca7db2c66f3d366902e448",
+    "bytes": 430432
+  },
+  {
+    "file": "raw-sensor/sensor_047261.bin",
+    "sha256": "6e08ddd95aed5222ac1c0d34b5bc1a5f83c1c48995ca7db2c66f3d366902e448",
+    "bytes": 430432
+  },
+  {
+    "file": "raw-sensor/sensor_047262.bin",
+    "sha256": "6e08ddd95aed5222ac1c0d34b5bc1a5f83c1c48995ca7db2c66f3d366902e448",
+    "bytes": 430432
+  },
+  {
+    "file": "raw-sensor/sensor_047263.bin",
+    "sha256": "6e08ddd95aed5222ac1c0d34b5bc1a5f83c1c48995ca7db2c66f3d366902e448",
+    "bytes": 430432
+  },
+  {
+    "file": "raw-sensor/sensor_047264.bin",
+    "sha256": "6e08ddd95aed5222ac1c0d34b5bc1a5f83c1c48995ca7db2c66f3d366902e448",
+    "bytes": 430432
+  },
+  {
+    "file": "raw-sensor/sensor_047277.bin",
+    "sha256": "23e826136108c2d3d3c09627f7011ccd581c2b1e5f71ebb577ff4161ee88f515",
+    "bytes": 430432
+  },
+  {
+    "file": "raw-sensor/sensor_047278.bin",
+    "sha256": "23e826136108c2d3d3c09627f7011ccd581c2b1e5f71ebb577ff4161ee88f515",
+    "bytes": 430432
+  },
+  {
+    "file": "raw-sensor/sensor_047279.bin",
+    "sha256": "23e826136108c2d3d3c09627f7011ccd581c2b1e5f71ebb577ff4161ee88f515",
+    "bytes": 430432
+  },
+  {
+    "file": "raw-sensor/sensor_047280.bin",
+    "sha256": "23e826136108c2d3d3c09627f7011ccd581c2b1e5f71ebb577ff4161ee88f515",
+    "bytes": 430432
+  },
+  {
+    "file": "raw-sensor/sensor_047281.bin",
+    "sha256": "23e826136108c2d3d3c09627f7011ccd581c2b1e5f71ebb577ff4161ee88f515",
+    "bytes": 430432
+  },
+  {
+    "file": "raw-sensor/sensor_047282.bin",
+    "sha256": "23e826136108c2d3d3c09627f7011ccd581c2b1e5f71ebb577ff4161ee88f515",
+    "bytes": 430432
+  },
+  {
+    "file": "raw-sensor/sensor_047283.bin",
+    "sha256": "23e826136108c2d3d3c09627f7011ccd581c2b1e5f71ebb577ff4161ee88f515",
+    "bytes": 430432
+  },
+  {
+    "file": "raw-sensor/sensor_047284.bin",
+    "sha256": "23e826136108c2d3d3c09627f7011ccd581c2b1e5f71ebb577ff4161ee88f515",
+    "bytes": 430432
+  },
+  {
+    "file": "raw-sensor/sensor_047285.bin",
+    "sha256": "23e826136108c2d3d3c09627f7011ccd581c2b1e5f71ebb577ff4161ee88f515",
+    "bytes": 430432
+  },
+  {
+    "file": "raw-sensor/sensor_047286.bin",
+    "sha256": "23e826136108c2d3d3c09627f7011ccd581c2b1e5f71ebb577ff4161ee88f515",
+    "bytes": 430432
+  },
+  {
+    "file": "raw-sensor/sensor_047299.bin",
+    "sha256": "7f0c564432e6205d81884b8aaf3c78be9c9ad6c3d05a7b0cc797ee092380477f",
+    "bytes": 430432
+  },
+  {
+    "file": "raw-sensor/sensor_047300.bin",
+    "sha256": "7f0c564432e6205d81884b8aaf3c78be9c9ad6c3d05a7b0cc797ee092380477f",
+    "bytes": 430432
+  },
+  {
+    "file": "raw-sensor/sensor_047301.bin",
+    "sha256": "7f0c564432e6205d81884b8aaf3c78be9c9ad6c3d05a7b0cc797ee092380477f",
+    "bytes": 430432
+  },
+  {
+    "file": "raw-sensor/sensor_047302.bin",
+    "sha256": "7f0c564432e6205d81884b8aaf3c78be9c9ad6c3d05a7b0cc797ee092380477f",
+    "bytes": 430432
+  },
+  {
+    "file": "raw-sensor/sensor_047303.bin",
+    "sha256": "7f0c564432e6205d81884b8aaf3c78be9c9ad6c3d05a7b0cc797ee092380477f",
+    "bytes": 430432
+  },
+  {
+    "file": "raw-sensor/sensor_047304.bin",
+    "sha256": "7f0c564432e6205d81884b8aaf3c78be9c9ad6c3d05a7b0cc797ee092380477f",
+    "bytes": 430432
+  },
+  {
+    "file": "raw-sensor/sensor_047305.bin",
+    "sha256": "7f0c564432e6205d81884b8aaf3c78be9c9ad6c3d05a7b0cc797ee092380477f",
+    "bytes": 430432
+  },
+  {
+    "file": "raw-sensor/sensor_047306.bin",
+    "sha256": "7f0c564432e6205d81884b8aaf3c78be9c9ad6c3d05a7b0cc797ee092380477f",
+    "bytes": 430432
+  },
+  {
+    "file": "raw-sensor/sensor_047307.bin",
+    "sha256": "7f0c564432e6205d81884b8aaf3c78be9c9ad6c3d05a7b0cc797ee092380477f",
+    "bytes": 430432
+  },
+  {
+    "file": "raw-sensor/sensor_047308.bin",
+    "sha256": "7f0c564432e6205d81884b8aaf3c78be9c9ad6c3d05a7b0cc797ee092380477f",
+    "bytes": 430432
+  },
+  {
+    "file": "raw-sensor/sensor_047321.bin",
+    "sha256": "94b036c9dffcf67ce35d0e7dbe5f4862b5ffa34fc7be0b6643b006dc8a475d62",
+    "bytes": 430432
+  },
+  {
+    "file": "raw-sensor/sensor_047322.bin",
+    "sha256": "94b036c9dffcf67ce35d0e7dbe5f4862b5ffa34fc7be0b6643b006dc8a475d62",
+    "bytes": 430432
+  },
+  {
+    "file": "raw-sensor/sensor_047323.bin",
+    "sha256": "94b036c9dffcf67ce35d0e7dbe5f4862b5ffa34fc7be0b6643b006dc8a475d62",
+    "bytes": 430432
+  },
+  {
+    "file": "raw-sensor/sensor_047324.bin",
+    "sha256": "94b036c9dffcf67ce35d0e7dbe5f4862b5ffa34fc7be0b6643b006dc8a475d62",
+    "bytes": 430432
+  },
+  {
+    "file": "raw-sensor/sensor_047325.bin",
+    "sha256": "94b036c9dffcf67ce35d0e7dbe5f4862b5ffa34fc7be0b6643b006dc8a475d62",
+    "bytes": 430432
+  },
+  {
+    "file": "raw-sensor/sensor_047326.bin",
+    "sha256": "94b036c9dffcf67ce35d0e7dbe5f4862b5ffa34fc7be0b6643b006dc8a475d62",
+    "bytes": 430432
+  },
+  {
+    "file": "raw-sensor/sensor_047327.bin",
+    "sha256": "94b036c9dffcf67ce35d0e7dbe5f4862b5ffa34fc7be0b6643b006dc8a475d62",
+    "bytes": 430432
+  },
+  {
+    "file": "raw-sensor/sensor_047328.bin",
+    "sha256": "94b036c9dffcf67ce35d0e7dbe5f4862b5ffa34fc7be0b6643b006dc8a475d62",
+    "bytes": 430432
+  },
+  {
+    "file": "raw-sensor/sensor_047329.bin",
+    "sha256": "94b036c9dffcf67ce35d0e7dbe5f4862b5ffa34fc7be0b6643b006dc8a475d62",
+    "bytes": 430432
+  },
+  {
+    "file": "raw-sensor/sensor_047330.bin",
+    "sha256": "94b036c9dffcf67ce35d0e7dbe5f4862b5ffa34fc7be0b6643b006dc8a475d62",
+    "bytes": 430432
+  },
+  {
+    "file": "raw-sensor/sensor_047343.bin",
+    "sha256": "fa8113c5ca6c579c14340f9fafc2b993770afda5a5c5c2902cc9abda85ac4580",
+    "bytes": 430432
+  },
+  {
+    "file": "raw-sensor/sensor_047344.bin",
+    "sha256": "fa8113c5ca6c579c14340f9fafc2b993770afda5a5c5c2902cc9abda85ac4580",
+    "bytes": 430432
+  },
+  {
+    "file": "raw-sensor/sensor_047345.bin",
+    "sha256": "fa8113c5ca6c579c14340f9fafc2b993770afda5a5c5c2902cc9abda85ac4580",
+    "bytes": 430432
+  },
+  {
+    "file": "raw-sensor/sensor_047346.bin",
+    "sha256": "fa8113c5ca6c579c14340f9fafc2b993770afda5a5c5c2902cc9abda85ac4580",
+    "bytes": 430432
+  },
+  {
+    "file": "raw-sensor/sensor_047347.bin",
+    "sha256": "fa8113c5ca6c579c14340f9fafc2b993770afda5a5c5c2902cc9abda85ac4580",
+    "bytes": 430432
+  },
+  {
+    "file": "raw-sensor/sensor_047348.bin",
+    "sha256": "fa8113c5ca6c579c14340f9fafc2b993770afda5a5c5c2902cc9abda85ac4580",
+    "bytes": 430432
+  },
+  {
+    "file": "raw-sensor/sensor_047349.bin",
+    "sha256": "fa8113c5ca6c579c14340f9fafc2b993770afda5a5c5c2902cc9abda85ac4580",
+    "bytes": 430432
+  },
+  {
+    "file": "raw-sensor/sensor_047350.bin",
+    "sha256": "fa8113c5ca6c579c14340f9fafc2b993770afda5a5c5c2902cc9abda85ac4580",
+    "bytes": 430432
+  },
+  {
+    "file": "raw-sensor/sensor_047351.bin",
+    "sha256": "fa8113c5ca6c579c14340f9fafc2b993770afda5a5c5c2902cc9abda85ac4580",
+    "bytes": 430432
+  },
+  {
+    "file": "raw-sensor/sensor_047352.bin",
+    "sha256": "fa8113c5ca6c579c14340f9fafc2b993770afda5a5c5c2902cc9abda85ac4580",
+    "bytes": 430432
+  },
+  {
+    "file": "raw-sensor/sensor_047365.bin",
+    "sha256": "1c94ce7d8f08bf72cc62d5b6a62490a46c163cf20bd06046fa2598f378dfe10f",
+    "bytes": 430432
+  },
+  {
+    "file": "raw-sensor/sensor_047366.bin",
+    "sha256": "1c94ce7d8f08bf72cc62d5b6a62490a46c163cf20bd06046fa2598f378dfe10f",
+    "bytes": 430432
+  },
+  {
+    "file": "raw-sensor/sensor_047367.bin",
+    "sha256": "1c94ce7d8f08bf72cc62d5b6a62490a46c163cf20bd06046fa2598f378dfe10f",
+    "bytes": 430432
+  },
+  {
+    "file": "raw-sensor/sensor_047368.bin",
+    "sha256": "1c94ce7d8f08bf72cc62d5b6a62490a46c163cf20bd06046fa2598f378dfe10f",
+    "bytes": 430432
+  },
+  {
+    "file": "raw-sensor/sensor_047369.bin",
+    "sha256": "1c94ce7d8f08bf72cc62d5b6a62490a46c163cf20bd06046fa2598f378dfe10f",
+    "bytes": 430432
+  },
+  {
+    "file": "raw-sensor/sensor_047370.bin",
+    "sha256": "1c94ce7d8f08bf72cc62d5b6a62490a46c163cf20bd06046fa2598f378dfe10f",
+    "bytes": 430432
+  },
+  {
+    "file": "raw-sensor/sensor_047371.bin",
+    "sha256": "1c94ce7d8f08bf72cc62d5b6a62490a46c163cf20bd06046fa2598f378dfe10f",
+    "bytes": 430432
+  },
+  {
+    "file": "raw-sensor/sensor_047372.bin",
+    "sha256": "1c94ce7d8f08bf72cc62d5b6a62490a46c163cf20bd06046fa2598f378dfe10f",
+    "bytes": 430432
+  },
+  {
+    "file": "raw-sensor/sensor_047373.bin",
+    "sha256": "1c94ce7d8f08bf72cc62d5b6a62490a46c163cf20bd06046fa2598f378dfe10f",
+    "bytes": 430432
+  },
+  {
+    "file": "raw-sensor/sensor_047374.bin",
+    "sha256": "1c94ce7d8f08bf72cc62d5b6a62490a46c163cf20bd06046fa2598f378dfe10f",
+    "bytes": 430432
+  },
+  {
+    "file": "raw-sensor/sensor_047387.bin",
+    "sha256": "366d1c8455d1cdcb371de836f58afbae96d6fac57cca31f76c367b2865577e50",
+    "bytes": 430432
+  },
+  {
+    "file": "raw-sensor/sensor_047388.bin",
+    "sha256": "366d1c8455d1cdcb371de836f58afbae96d6fac57cca31f76c367b2865577e50",
+    "bytes": 430432
+  },
+  {
+    "file": "raw-sensor/sensor_047389.bin",
+    "sha256": "366d1c8455d1cdcb371de836f58afbae96d6fac57cca31f76c367b2865577e50",
+    "bytes": 430432
+  },
+  {
+    "file": "raw-sensor/sensor_047390.bin",
+    "sha256": "366d1c8455d1cdcb371de836f58afbae96d6fac57cca31f76c367b2865577e50",
+    "bytes": 430432
+  },
+  {
+    "file": "raw-sensor/sensor_047391.bin",
+    "sha256": "366d1c8455d1cdcb371de836f58afbae96d6fac57cca31f76c367b2865577e50",
+    "bytes": 430432
+  },
+  {
+    "file": "raw-sensor/sensor_047392.bin",
+    "sha256": "366d1c8455d1cdcb371de836f58afbae96d6fac57cca31f76c367b2865577e50",
+    "bytes": 430432
+  },
+  {
+    "file": "raw-sensor/sensor_047393.bin",
+    "sha256": "366d1c8455d1cdcb371de836f58afbae96d6fac57cca31f76c367b2865577e50",
+    "bytes": 430432
+  },
+  {
+    "file": "raw-sensor/sensor_047394.bin",
+    "sha256": "366d1c8455d1cdcb371de836f58afbae96d6fac57cca31f76c367b2865577e50",
+    "bytes": 430432
+  },
+  {
+    "file": "raw-sensor/sensor_047395.bin",
+    "sha256": "366d1c8455d1cdcb371de836f58afbae96d6fac57cca31f76c367b2865577e50",
+    "bytes": 430432
+  },
+  {
+    "file": "raw-sensor/sensor_047396.bin",
+    "sha256": "366d1c8455d1cdcb371de836f58afbae96d6fac57cca31f76c367b2865577e50",
+    "bytes": 430432
+  },
+  {
+    "file": "raw-sensor/sensor_047409.bin",
+    "sha256": "aaa7e8fa240c7fa7202d685997e0cc75b9e5ba4370e384217f3d46f8d78f719d",
+    "bytes": 430432
+  },
+  {
+    "file": "raw-sensor/sensor_047410.bin",
+    "sha256": "aaa7e8fa240c7fa7202d685997e0cc75b9e5ba4370e384217f3d46f8d78f719d",
+    "bytes": 430432
+  },
+  {
+    "file": "raw-sensor/sensor_047411.bin",
+    "sha256": "aaa7e8fa240c7fa7202d685997e0cc75b9e5ba4370e384217f3d46f8d78f719d",
+    "bytes": 430432
+  },
+  {
+    "file": "raw-sensor/sensor_047412.bin",
+    "sha256": "aaa7e8fa240c7fa7202d685997e0cc75b9e5ba4370e384217f3d46f8d78f719d",
+    "bytes": 430432
+  },
+  {
+    "file": "raw-sensor/sensor_047413.bin",
+    "sha256": "aaa7e8fa240c7fa7202d685997e0cc75b9e5ba4370e384217f3d46f8d78f719d",
+    "bytes": 430432
+  },
+  {
+    "file": "raw-sensor/sensor_047414.bin",
+    "sha256": "aaa7e8fa240c7fa7202d685997e0cc75b9e5ba4370e384217f3d46f8d78f719d",
+    "bytes": 430432
+  },
+  {
+    "file": "raw-sensor/sensor_047415.bin",
+    "sha256": "aaa7e8fa240c7fa7202d685997e0cc75b9e5ba4370e384217f3d46f8d78f719d",
+    "bytes": 430432
+  },
+  {
+    "file": "raw-sensor/sensor_047416.bin",
+    "sha256": "aaa7e8fa240c7fa7202d685997e0cc75b9e5ba4370e384217f3d46f8d78f719d",
+    "bytes": 430432
+  },
+  {
+    "file": "raw-sensor/sensor_047417.bin",
+    "sha256": "aaa7e8fa240c7fa7202d685997e0cc75b9e5ba4370e384217f3d46f8d78f719d",
+    "bytes": 430432
+  },
+  {
+    "file": "raw-sensor/sensor_047418.bin",
+    "sha256": "aaa7e8fa240c7fa7202d685997e0cc75b9e5ba4370e384217f3d46f8d78f719d",
+    "bytes": 430432
+  },
+  {
+    "file": "raw-sensor/sensor_047431.bin",
+    "sha256": "4f4debdec9e118ce296b121991ecd67156e7465b8ba709ef16b90e97870df3e2",
+    "bytes": 430432
+  },
+  {
+    "file": "raw-sensor/sensor_047432.bin",
+    "sha256": "4f4debdec9e118ce296b121991ecd67156e7465b8ba709ef16b90e97870df3e2",
+    "bytes": 430432
+  },
+  {
+    "file": "raw-sensor/sensor_047433.bin",
+    "sha256": "4f4debdec9e118ce296b121991ecd67156e7465b8ba709ef16b90e97870df3e2",
+    "bytes": 430432
+  },
+  {
+    "file": "raw-sensor/sensor_047434.bin",
+    "sha256": "4f4debdec9e118ce296b121991ecd67156e7465b8ba709ef16b90e97870df3e2",
+    "bytes": 430432
+  },
+  {
+    "file": "raw-sensor/sensor_047435.bin",
+    "sha256": "4f4debdec9e118ce296b121991ecd67156e7465b8ba709ef16b90e97870df3e2",
+    "bytes": 430432
+  },
+  {
+    "file": "raw-sensor/sensor_047436.bin",
+    "sha256": "4f4debdec9e118ce296b121991ecd67156e7465b8ba709ef16b90e97870df3e2",
+    "bytes": 430432
+  },
+  {
+    "file": "raw-sensor/sensor_047437.bin",
+    "sha256": "4f4debdec9e118ce296b121991ecd67156e7465b8ba709ef16b90e97870df3e2",
+    "bytes": 430432
+  },
+  {
+    "file": "raw-sensor/sensor_047438.bin",
+    "sha256": "4f4debdec9e118ce296b121991ecd67156e7465b8ba709ef16b90e97870df3e2",
+    "bytes": 430432
+  },
+  {
+    "file": "raw-sensor/sensor_047439.bin",
+    "sha256": "4f4debdec9e118ce296b121991ecd67156e7465b8ba709ef16b90e97870df3e2",
+    "bytes": 430432
+  },
+  {
+    "file": "raw-sensor/sensor_047440.bin",
+    "sha256": "4f4debdec9e118ce296b121991ecd67156e7465b8ba709ef16b90e97870df3e2",
+    "bytes": 430432
+  },
+  {
+    "file": "replay.json",
+    "sha256": "e01932f2cebddd42336f36ffc835351e1593760850f6042b39e3b64cc22ad879",
+    "bytes": 728339
+  },
+  {
+    "file": "sweep_047255.npy",
+    "sha256": "0ab8149739369986b70a0f22e297d76105e4e62781b53819e4b39638694db858",
+    "bytes": 430560
+  },
+  {
+    "file": "sweep_047256.npy",
+    "sha256": "0ab8149739369986b70a0f22e297d76105e4e62781b53819e4b39638694db858",
+    "bytes": 430560
+  },
+  {
+    "file": "sweep_047257.npy",
+    "sha256": "0ab8149739369986b70a0f22e297d76105e4e62781b53819e4b39638694db858",
+    "bytes": 430560
+  },
+  {
+    "file": "sweep_047258.npy",
+    "sha256": "0ab8149739369986b70a0f22e297d76105e4e62781b53819e4b39638694db858",
+    "bytes": 430560
+  },
+  {
+    "file": "sweep_047259.npy",
+    "sha256": "0ab8149739369986b70a0f22e297d76105e4e62781b53819e4b39638694db858",
+    "bytes": 430560
+  },
+  {
+    "file": "sweep_047260.npy",
+    "sha256": "0ab8149739369986b70a0f22e297d76105e4e62781b53819e4b39638694db858",
+    "bytes": 430560
+  },
+  {
+    "file": "sweep_047261.npy",
+    "sha256": "0ab8149739369986b70a0f22e297d76105e4e62781b53819e4b39638694db858",
+    "bytes": 430560
+  },
+  {
+    "file": "sweep_047262.npy",
+    "sha256": "0ab8149739369986b70a0f22e297d76105e4e62781b53819e4b39638694db858",
+    "bytes": 430560
+  },
+  {
+    "file": "sweep_047263.npy",
+    "sha256": "0ab8149739369986b70a0f22e297d76105e4e62781b53819e4b39638694db858",
+    "bytes": 430560
+  },
+  {
+    "file": "sweep_047264.npy",
+    "sha256": "0ab8149739369986b70a0f22e297d76105e4e62781b53819e4b39638694db858",
+    "bytes": 430560
+  },
+  {
+    "file": "sweep_047277.npy",
+    "sha256": "34f2e0d56b9d86db6bdf52f79eba1116dd91842f8ac9d4f7bdb03a7289a12b61",
+    "bytes": 430560
+  },
+  {
+    "file": "sweep_047278.npy",
+    "sha256": "34f2e0d56b9d86db6bdf52f79eba1116dd91842f8ac9d4f7bdb03a7289a12b61",
+    "bytes": 430560
+  },
+  {
+    "file": "sweep_047279.npy",
+    "sha256": "34f2e0d56b9d86db6bdf52f79eba1116dd91842f8ac9d4f7bdb03a7289a12b61",
+    "bytes": 430560
+  },
+  {
+    "file": "sweep_047280.npy",
+    "sha256": "34f2e0d56b9d86db6bdf52f79eba1116dd91842f8ac9d4f7bdb03a7289a12b61",
+    "bytes": 430560
+  },
+  {
+    "file": "sweep_047281.npy",
+    "sha256": "34f2e0d56b9d86db6bdf52f79eba1116dd91842f8ac9d4f7bdb03a7289a12b61",
+    "bytes": 430560
+  },
+  {
+    "file": "sweep_047282.npy",
+    "sha256": "34f2e0d56b9d86db6bdf52f79eba1116dd91842f8ac9d4f7bdb03a7289a12b61",
+    "bytes": 430560
+  },
+  {
+    "file": "sweep_047283.npy",
+    "sha256": "34f2e0d56b9d86db6bdf52f79eba1116dd91842f8ac9d4f7bdb03a7289a12b61",
+    "bytes": 430560
+  },
+  {
+    "file": "sweep_047284.npy",
+    "sha256": "34f2e0d56b9d86db6bdf52f79eba1116dd91842f8ac9d4f7bdb03a7289a12b61",
+    "bytes": 430560
+  },
+  {
+    "file": "sweep_047285.npy",
+    "sha256": "34f2e0d56b9d86db6bdf52f79eba1116dd91842f8ac9d4f7bdb03a7289a12b61",
+    "bytes": 430560
+  },
+  {
+    "file": "sweep_047286.npy",
+    "sha256": "34f2e0d56b9d86db6bdf52f79eba1116dd91842f8ac9d4f7bdb03a7289a12b61",
+    "bytes": 430560
+  },
+  {
+    "file": "sweep_047299.npy",
+    "sha256": "652f3cfe9596652b72741bc3c7359b7f2b548f2ee7ea131c4057dd505faada06",
+    "bytes": 430560
+  },
+  {
+    "file": "sweep_047300.npy",
+    "sha256": "652f3cfe9596652b72741bc3c7359b7f2b548f2ee7ea131c4057dd505faada06",
+    "bytes": 430560
+  },
+  {
+    "file": "sweep_047301.npy",
+    "sha256": "652f3cfe9596652b72741bc3c7359b7f2b548f2ee7ea131c4057dd505faada06",
+    "bytes": 430560
+  },
+  {
+    "file": "sweep_047302.npy",
+    "sha256": "652f3cfe9596652b72741bc3c7359b7f2b548f2ee7ea131c4057dd505faada06",
+    "bytes": 430560
+  },
+  {
+    "file": "sweep_047303.npy",
+    "sha256": "652f3cfe9596652b72741bc3c7359b7f2b548f2ee7ea131c4057dd505faada06",
+    "bytes": 430560
+  },
+  {
+    "file": "sweep_047304.npy",
+    "sha256": "652f3cfe9596652b72741bc3c7359b7f2b548f2ee7ea131c4057dd505faada06",
+    "bytes": 430560
+  },
+  {
+    "file": "sweep_047305.npy",
+    "sha256": "652f3cfe9596652b72741bc3c7359b7f2b548f2ee7ea131c4057dd505faada06",
+    "bytes": 430560
+  },
+  {
+    "file": "sweep_047306.npy",
+    "sha256": "652f3cfe9596652b72741bc3c7359b7f2b548f2ee7ea131c4057dd505faada06",
+    "bytes": 430560
+  },
+  {
+    "file": "sweep_047307.npy",
+    "sha256": "652f3cfe9596652b72741bc3c7359b7f2b548f2ee7ea131c4057dd505faada06",
+    "bytes": 430560
+  },
+  {
+    "file": "sweep_047308.npy",
+    "sha256": "652f3cfe9596652b72741bc3c7359b7f2b548f2ee7ea131c4057dd505faada06",
+    "bytes": 430560
+  },
+  {
+    "file": "sweep_047321.npy",
+    "sha256": "d596a41dfb8a4ea7dfcf78c1f5849e295796d2071ec03c376e9ae63e08bb894f",
+    "bytes": 430560
+  },
+  {
+    "file": "sweep_047322.npy",
+    "sha256": "d596a41dfb8a4ea7dfcf78c1f5849e295796d2071ec03c376e9ae63e08bb894f",
+    "bytes": 430560
+  },
+  {
+    "file": "sweep_047323.npy",
+    "sha256": "d596a41dfb8a4ea7dfcf78c1f5849e295796d2071ec03c376e9ae63e08bb894f",
+    "bytes": 430560
+  },
+  {
+    "file": "sweep_047324.npy",
+    "sha256": "d596a41dfb8a4ea7dfcf78c1f5849e295796d2071ec03c376e9ae63e08bb894f",
+    "bytes": 430560
+  },
+  {
+    "file": "sweep_047325.npy",
+    "sha256": "d596a41dfb8a4ea7dfcf78c1f5849e295796d2071ec03c376e9ae63e08bb894f",
+    "bytes": 430560
+  },
+  {
+    "file": "sweep_047326.npy",
+    "sha256": "d596a41dfb8a4ea7dfcf78c1f5849e295796d2071ec03c376e9ae63e08bb894f",
+    "bytes": 430560
+  },
+  {
+    "file": "sweep_047327.npy",
+    "sha256": "d596a41dfb8a4ea7dfcf78c1f5849e295796d2071ec03c376e9ae63e08bb894f",
+    "bytes": 430560
+  },
+  {
+    "file": "sweep_047328.npy",
+    "sha256": "d596a41dfb8a4ea7dfcf78c1f5849e295796d2071ec03c376e9ae63e08bb894f",
+    "bytes": 430560
+  },
+  {
+    "file": "sweep_047329.npy",
+    "sha256": "d596a41dfb8a4ea7dfcf78c1f5849e295796d2071ec03c376e9ae63e08bb894f",
+    "bytes": 430560
+  },
+  {
+    "file": "sweep_047330.npy",
+    "sha256": "d596a41dfb8a4ea7dfcf78c1f5849e295796d2071ec03c376e9ae63e08bb894f",
+    "bytes": 430560
+  },
+  {
+    "file": "sweep_047343.npy",
+    "sha256": "5212f0e240a4b7459a55d577783385e08de1f6990619ef7a873f103c7833171c",
+    "bytes": 430560
+  },
+  {
+    "file": "sweep_047344.npy",
+    "sha256": "5212f0e240a4b7459a55d577783385e08de1f6990619ef7a873f103c7833171c",
+    "bytes": 430560
+  },
+  {
+    "file": "sweep_047345.npy",
+    "sha256": "5212f0e240a4b7459a55d577783385e08de1f6990619ef7a873f103c7833171c",
+    "bytes": 430560
+  },
+  {
+    "file": "sweep_047346.npy",
+    "sha256": "5212f0e240a4b7459a55d577783385e08de1f6990619ef7a873f103c7833171c",
+    "bytes": 430560
+  },
+  {
+    "file": "sweep_047347.npy",
+    "sha256": "5212f0e240a4b7459a55d577783385e08de1f6990619ef7a873f103c7833171c",
+    "bytes": 430560
+  },
+  {
+    "file": "sweep_047348.npy",
+    "sha256": "5212f0e240a4b7459a55d577783385e08de1f6990619ef7a873f103c7833171c",
+    "bytes": 430560
+  },
+  {
+    "file": "sweep_047349.npy",
+    "sha256": "5212f0e240a4b7459a55d577783385e08de1f6990619ef7a873f103c7833171c",
+    "bytes": 430560
+  },
+  {
+    "file": "sweep_047350.npy",
+    "sha256": "5212f0e240a4b7459a55d577783385e08de1f6990619ef7a873f103c7833171c",
+    "bytes": 430560
+  },
+  {
+    "file": "sweep_047351.npy",
+    "sha256": "5212f0e240a4b7459a55d577783385e08de1f6990619ef7a873f103c7833171c",
+    "bytes": 430560
+  },
+  {
+    "file": "sweep_047352.npy",
+    "sha256": "5212f0e240a4b7459a55d577783385e08de1f6990619ef7a873f103c7833171c",
+    "bytes": 430560
+  },
+  {
+    "file": "sweep_047365.npy",
+    "sha256": "3fadcbb314f1cd5f15ee5aa92d938b2741a190836b292d5d0d3f6faf6d072eaf",
+    "bytes": 430560
+  },
+  {
+    "file": "sweep_047366.npy",
+    "sha256": "3fadcbb314f1cd5f15ee5aa92d938b2741a190836b292d5d0d3f6faf6d072eaf",
+    "bytes": 430560
+  },
+  {
+    "file": "sweep_047367.npy",
+    "sha256": "3fadcbb314f1cd5f15ee5aa92d938b2741a190836b292d5d0d3f6faf6d072eaf",
+    "bytes": 430560
+  },
+  {
+    "file": "sweep_047368.npy",
+    "sha256": "3fadcbb314f1cd5f15ee5aa92d938b2741a190836b292d5d0d3f6faf6d072eaf",
+    "bytes": 430560
+  },
+  {
+    "file": "sweep_047369.npy",
+    "sha256": "3fadcbb314f1cd5f15ee5aa92d938b2741a190836b292d5d0d3f6faf6d072eaf",
+    "bytes": 430560
+  },
+  {
+    "file": "sweep_047370.npy",
+    "sha256": "3fadcbb314f1cd5f15ee5aa92d938b2741a190836b292d5d0d3f6faf6d072eaf",
+    "bytes": 430560
+  },
+  {
+    "file": "sweep_047371.npy",
+    "sha256": "3fadcbb314f1cd5f15ee5aa92d938b2741a190836b292d5d0d3f6faf6d072eaf",
+    "bytes": 430560
+  },
+  {
+    "file": "sweep_047372.npy",
+    "sha256": "3fadcbb314f1cd5f15ee5aa92d938b2741a190836b292d5d0d3f6faf6d072eaf",
+    "bytes": 430560
+  },
+  {
+    "file": "sweep_047373.npy",
+    "sha256": "3fadcbb314f1cd5f15ee5aa92d938b2741a190836b292d5d0d3f6faf6d072eaf",
+    "bytes": 430560
+  },
+  {
+    "file": "sweep_047374.npy",
+    "sha256": "3fadcbb314f1cd5f15ee5aa92d938b2741a190836b292d5d0d3f6faf6d072eaf",
+    "bytes": 430560
+  },
+  {
+    "file": "sweep_047387.npy",
+    "sha256": "f010a9609080c57af69cce3b3cf9cbd467549e2f1446920ee0c87dc6c67b2d07",
+    "bytes": 430560
+  },
+  {
+    "file": "sweep_047388.npy",
+    "sha256": "f010a9609080c57af69cce3b3cf9cbd467549e2f1446920ee0c87dc6c67b2d07",
+    "bytes": 430560
+  },
+  {
+    "file": "sweep_047389.npy",
+    "sha256": "f010a9609080c57af69cce3b3cf9cbd467549e2f1446920ee0c87dc6c67b2d07",
+    "bytes": 430560
+  },
+  {
+    "file": "sweep_047390.npy",
+    "sha256": "f010a9609080c57af69cce3b3cf9cbd467549e2f1446920ee0c87dc6c67b2d07",
+    "bytes": 430560
+  },
+  {
+    "file": "sweep_047391.npy",
+    "sha256": "f010a9609080c57af69cce3b3cf9cbd467549e2f1446920ee0c87dc6c67b2d07",
+    "bytes": 430560
+  },
+  {
+    "file": "sweep_047392.npy",
+    "sha256": "f010a9609080c57af69cce3b3cf9cbd467549e2f1446920ee0c87dc6c67b2d07",
+    "bytes": 430560
+  },
+  {
+    "file": "sweep_047393.npy",
+    "sha256": "f010a9609080c57af69cce3b3cf9cbd467549e2f1446920ee0c87dc6c67b2d07",
+    "bytes": 430560
+  },
+  {
+    "file": "sweep_047394.npy",
+    "sha256": "f010a9609080c57af69cce3b3cf9cbd467549e2f1446920ee0c87dc6c67b2d07",
+    "bytes": 430560
+  },
+  {
+    "file": "sweep_047395.npy",
+    "sha256": "f010a9609080c57af69cce3b3cf9cbd467549e2f1446920ee0c87dc6c67b2d07",
+    "bytes": 430560
+  },
+  {
+    "file": "sweep_047396.npy",
+    "sha256": "f010a9609080c57af69cce3b3cf9cbd467549e2f1446920ee0c87dc6c67b2d07",
+    "bytes": 430560
+  },
+  {
+    "file": "sweep_047409.npy",
+    "sha256": "1bf3874ff01036ae4b562aef2ec852750cb9c699ff3e5f8c2d13402a26febb86",
+    "bytes": 430560
+  },
+  {
+    "file": "sweep_047410.npy",
+    "sha256": "1bf3874ff01036ae4b562aef2ec852750cb9c699ff3e5f8c2d13402a26febb86",
+    "bytes": 430560
+  },
+  {
+    "file": "sweep_047411.npy",
+    "sha256": "1bf3874ff01036ae4b562aef2ec852750cb9c699ff3e5f8c2d13402a26febb86",
+    "bytes": 430560
+  },
+  {
+    "file": "sweep_047412.npy",
+    "sha256": "1bf3874ff01036ae4b562aef2ec852750cb9c699ff3e5f8c2d13402a26febb86",
+    "bytes": 430560
+  },
+  {
+    "file": "sweep_047413.npy",
+    "sha256": "1bf3874ff01036ae4b562aef2ec852750cb9c699ff3e5f8c2d13402a26febb86",
+    "bytes": 430560
+  },
+  {
+    "file": "sweep_047414.npy",
+    "sha256": "1bf3874ff01036ae4b562aef2ec852750cb9c699ff3e5f8c2d13402a26febb86",
+    "bytes": 430560
+  },
+  {
+    "file": "sweep_047415.npy",
+    "sha256": "1bf3874ff01036ae4b562aef2ec852750cb9c699ff3e5f8c2d13402a26febb86",
+    "bytes": 430560
+  },
+  {
+    "file": "sweep_047416.npy",
+    "sha256": "1bf3874ff01036ae4b562aef2ec852750cb9c699ff3e5f8c2d13402a26febb86",
+    "bytes": 430560
+  },
+  {
+    "file": "sweep_047417.npy",
+    "sha256": "1bf3874ff01036ae4b562aef2ec852750cb9c699ff3e5f8c2d13402a26febb86",
+    "bytes": 430560
+  },
+  {
+    "file": "sweep_047418.npy",
+    "sha256": "1bf3874ff01036ae4b562aef2ec852750cb9c699ff3e5f8c2d13402a26febb86",
+    "bytes": 430560
+  },
+  {
+    "file": "sweep_047431.npy",
+    "sha256": "13194de1cb86ca567649384ad2cb0a6c25c05115c3f90a065a872fc564bd6465",
+    "bytes": 430560
+  },
+  {
+    "file": "sweep_047432.npy",
+    "sha256": "13194de1cb86ca567649384ad2cb0a6c25c05115c3f90a065a872fc564bd6465",
+    "bytes": 430560
+  },
+  {
+    "file": "sweep_047433.npy",
+    "sha256": "13194de1cb86ca567649384ad2cb0a6c25c05115c3f90a065a872fc564bd6465",
+    "bytes": 430560
+  },
+  {
+    "file": "sweep_047434.npy",
+    "sha256": "13194de1cb86ca567649384ad2cb0a6c25c05115c3f90a065a872fc564bd6465",
+    "bytes": 430560
+  },
+  {
+    "file": "sweep_047435.npy",
+    "sha256": "13194de1cb86ca567649384ad2cb0a6c25c05115c3f90a065a872fc564bd6465",
+    "bytes": 430560
+  },
+  {
+    "file": "sweep_047436.npy",
+    "sha256": "13194de1cb86ca567649384ad2cb0a6c25c05115c3f90a065a872fc564bd6465",
+    "bytes": 430560
+  },
+  {
+    "file": "sweep_047437.npy",
+    "sha256": "13194de1cb86ca567649384ad2cb0a6c25c05115c3f90a065a872fc564bd6465",
+    "bytes": 430560
+  },
+  {
+    "file": "sweep_047438.npy",
+    "sha256": "13194de1cb86ca567649384ad2cb0a6c25c05115c3f90a065a872fc564bd6465",
+    "bytes": 430560
+  },
+  {
+    "file": "sweep_047439.npy",
+    "sha256": "13194de1cb86ca567649384ad2cb0a6c25c05115c3f90a065a872fc564bd6465",
+    "bytes": 430560
+  },
+  {
+    "file": "sweep_047440.npy",
+    "sha256": "13194de1cb86ca567649384ad2cb0a6c25c05115c3f90a065a872fc564bd6465",
+    "bytes": 430560
+  },
+  {
+    "file": "sweeps.json",
+    "sha256": "1673632c36752cb20a8988b92e890151deae169188d1483ea562476305caf02d",
+    "bytes": 218411
+  }
+]

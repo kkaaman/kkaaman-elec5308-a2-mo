@@ -14,7 +14,7 @@ import pytest
 from autonomy.baseline import BaselineConfig
 from autonomy.paths import FIXTURES_DIR, REPO_ROOT
 from evaluation.runner import run_episode
-from planning.corridor import RouteGeometry
+from planning.baseline35_corridor import RouteGeometry
 from planning.lane_graph import LaneTopology
 from planning.mission import (
     load_route_definition,

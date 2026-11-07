@@ -1,0 +1,29 @@
+{
+  "canonical_base": "8d9a797c92075a10b29fb00f65d4aab6f124db7b",
+  "classification": {
+    "src/carla_adapter/lidar.py": "Reviewed sensor geometry change, correct pitch/roll transform and evaluation-only ego exclusion; qualified 180 sweeps plus screening; no clearance/governor change",
+    "configs/lidar_issue40.json": "Protected reproducible final sensor configuration; equal to tested adapter defaults"
+  },
+  "old_source_fingerprint": "4bbcbe04975691ae8e98026611fd6be698426ba98729b3e3bfaf89aba2a566a9",
+  "new_source_fingerprint": "ed42f70670961ea0792e8c637225ffa33dd15f15bbc6d7c0ba7484125ecf43fb",
+  "configuration_semantic_sha256": "2903124878485c8030e160f3598c381bf0197329f79d74773d84048a96c2e9ef",
+  "configuration_file_sha256": "a4b5e669f9426db24d42d9a1d20114981c95bb15302af006b1196044696fe187",
+  "original_runner_scope_sha256": "cac8bc9c4f131b16b871191f69562d87517d3f1b956849b9950543e582ff400a",
+  "actual_model_sha256": "9b09cc8bf347f0fc8a5f7657480587f25db09b34bf33b0652110fb03a8ad4fef",
+  "unchanged": [
+    "mission_baseline bytes and semantic identity",
+    "model bytes",
+    "cruise 4m/s",
+    "deceleration 1.497566177392398m/s2",
+    "response .9500000052154064s",
+    "margin 6m",
+    "depth25m",
+    "stationary vehicle scope",
+    "historical runner binding"
+  ],
+  "sensor_configuration_changed": true,
+  "loader_only": true,
+  "live_runner_admitted": false,
+  "issue40_acceptance": false,
+  "review_authority": "Explicit user delegation; Codex source review; no new human signoff"
+}

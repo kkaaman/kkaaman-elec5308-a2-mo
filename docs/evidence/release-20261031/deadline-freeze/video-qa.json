@@ -1,0 +1,9 @@
+{
+  "decoded_frames": 120,
+  "size": [
+    640,
+    360
+  ],
+  "fps": 10,
+  "scope": "Recorded parked RGB frames, current accepted detection boxes only; local playback decoding verified, second laptop not tested"
+}

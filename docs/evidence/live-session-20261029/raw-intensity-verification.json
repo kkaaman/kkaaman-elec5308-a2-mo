@@ -1,0 +1,546 @@
+{
+  "frames": 90,
+  "all_finite_and_intensity_unit_interval": true,
+  "frames_checked": [
+    {
+      "frame_id": 69864,
+      "raw_points": 26902,
+      "intensity_min": 0.8187971711158752,
+      "intensity_max": 0.989843487739563
+    },
+    {
+      "frame_id": 69865,
+      "raw_points": 26902,
+      "intensity_min": 0.8187971711158752,
+      "intensity_max": 0.989843487739563
+    },
+    {
+      "frame_id": 69866,
+      "raw_points": 26902,
+      "intensity_min": 0.8187971711158752,
+      "intensity_max": 0.989843487739563
+    },
+    {
+      "frame_id": 69867,
+      "raw_points": 26902,
+      "intensity_min": 0.8187971711158752,
+      "intensity_max": 0.989843487739563
+    },
+    {
+      "frame_id": 69868,
+      "raw_points": 26902,
+      "intensity_min": 0.8187971711158752,
+      "intensity_max": 0.989843487739563
+    },
+    {
+      "frame_id": 69869,
+      "raw_points": 26902,
+      "intensity_min": 0.8187971711158752,
+      "intensity_max": 0.989843487739563
+    },
+    {
+      "frame_id": 69870,
+      "raw_points": 26902,
+      "intensity_min": 0.8187971711158752,
+      "intensity_max": 0.989843487739563
+    },
+    {
+      "frame_id": 69871,
+      "raw_points": 26902,
+      "intensity_min": 0.8187971711158752,
+      "intensity_max": 0.989843487739563
+    },
+    {
+      "frame_id": 69872,
+      "raw_points": 26902,
+      "intensity_min": 0.8187971711158752,
+      "intensity_max": 0.989843487739563
+    },
+    {
+      "frame_id": 69873,
+      "raw_points": 26902,
+      "intensity_min": 0.8187971711158752,
+      "intensity_max": 0.989843487739563
+    },
+    {
+      "frame_id": 69886,
+      "raw_points": 26902,
+      "intensity_min": 0.8187971711158752,
+      "intensity_max": 0.989843487739563
+    },
+    {
+      "frame_id": 69887,
+      "raw_points": 26902,
+      "intensity_min": 0.8187971711158752,
+      "intensity_max": 0.989843487739563
+    },
+    {
+      "frame_id": 69888,
+      "raw_points": 26902,
+      "intensity_min": 0.8187971711158752,
+      "intensity_max": 0.989843487739563
+    },
+    {
+      "frame_id": 69889,
+      "raw_points": 26902,
+      "intensity_min": 0.8187971711158752,
+      "intensity_max": 0.989843487739563
+    },
+    {
+      "frame_id": 69890,
+      "raw_points": 26902,
+      "intensity_min": 0.8187971711158752,
+      "intensity_max": 0.989843487739563
+    },
+    {
+      "frame_id": 69891,
+      "raw_points": 26902,
+      "intensity_min": 0.8187971711158752,
+      "intensity_max": 0.989843487739563
+    },
+    {
+      "frame_id": 69892,
+      "raw_points": 26902,
+      "intensity_min": 0.8187971711158752,
+      "intensity_max": 0.989843487739563
+    },
+    {
+      "frame_id": 69893,
+      "raw_points": 26902,
+      "intensity_min": 0.8187971711158752,
+      "intensity_max": 0.989843487739563
+    },
+    {
+      "frame_id": 69894,
+      "raw_points": 26902,
+      "intensity_min": 0.8187971711158752,
+      "intensity_max": 0.989843487739563
+    },
+    {
+      "frame_id": 69895,
+      "raw_points": 26902,
+      "intensity_min": 0.8187971711158752,
+      "intensity_max": 0.989843487739563
+    },
+    {
+      "frame_id": 69908,
+      "raw_points": 26902,
+      "intensity_min": 0.8187971711158752,
+      "intensity_max": 0.989843487739563
+    },
+    {
+      "frame_id": 69909,
+      "raw_points": 26902,
+      "intensity_min": 0.8187971711158752,
+      "intensity_max": 0.989843487739563
+    },
+    {
+      "frame_id": 69910,
+      "raw_points": 26902,
+      "intensity_min": 0.8187971711158752,
+      "intensity_max": 0.989843487739563
+    },
+    {
+      "frame_id": 69911,
+      "raw_points": 26902,
+      "intensity_min": 0.8187971711158752,
+      "intensity_max": 0.989843487739563
+    },
+    {
+      "frame_id": 69912,
+      "raw_points": 26902,
+      "intensity_min": 0.8187971711158752,
+      "intensity_max": 0.989843487739563
+    },
+    {
+      "frame_id": 69913,
+      "raw_points": 26902,
+      "intensity_min": 0.8187971711158752,
+      "intensity_max": 0.989843487739563
+    },
+    {
+      "frame_id": 69914,
+      "raw_points": 26902,
+      "intensity_min": 0.8187971711158752,
+      "intensity_max": 0.989843487739563
+    },
+    {
+      "frame_id": 69915,
+      "raw_points": 26902,
+      "intensity_min": 0.8187971711158752,
+      "intensity_max": 0.989843487739563
+    },
+    {
+      "frame_id": 69916,
+      "raw_points": 26902,
+      "intensity_min": 0.8187971711158752,
+      "intensity_max": 0.989843487739563
+    },
+    {
+      "frame_id": 69917,
+      "raw_points": 26902,
+      "intensity_min": 0.8187971711158752,
+      "intensity_max": 0.989843487739563
+    },
+    {
+      "frame_id": 69930,
+      "raw_points": 26902,
+      "intensity_min": 0.8187971711158752,
+      "intensity_max": 0.989843487739563
+    },
+    {
+      "frame_id": 69931,
+      "raw_points": 26902,
+      "intensity_min": 0.8187971711158752,
+      "intensity_max": 0.989843487739563
+    },
+    {
+      "frame_id": 69932,
+      "raw_points": 26902,
+      "intensity_min": 0.8187971711158752,
+      "intensity_max": 0.989843487739563
+    },
+    {
+      "frame_id": 69933,
+      "raw_points": 26902,
+      "intensity_min": 0.8187971711158752,
+      "intensity_max": 0.989843487739563
+    },
+    {
+      "frame_id": 69934,
+      "raw_points": 26902,
+      "intensity_min": 0.8187971711158752,
+      "intensity_max": 0.989843487739563
+    },
+    {
+      "frame_id": 69935,
+      "raw_points": 26902,
+      "intensity_min": 0.8187971711158752,
+      "intensity_max": 0.989843487739563
+    },
+    {
+      "frame_id": 69936,
+      "raw_points": 26902,
+      "intensity_min": 0.8187971711158752,
+      "intensity_max": 0.989843487739563
+    },
+    {
+      "frame_id": 69937,
+      "raw_points": 26902,
+      "intensity_min": 0.8187971711158752,
+      "intensity_max": 0.989843487739563
+    },
+    {
+      "frame_id": 69938,
+      "raw_points": 26902,
+      "intensity_min": 0.8187971711158752,
+      "intensity_max": 0.989843487739563
+    },
+    {
+      "frame_id": 69939,
+      "raw_points": 26902,
+      "intensity_min": 0.8187971711158752,
+      "intensity_max": 0.989843487739563
+    },
+    {
+      "frame_id": 69952,
+      "raw_points": 26902,
+      "intensity_min": 0.8187971711158752,
+      "intensity_max": 0.989843487739563
+    },
+    {
+      "frame_id": 69953,
+      "raw_points": 26902,
+      "intensity_min": 0.8187971711158752,
+      "intensity_max": 0.989843487739563
+    },
+    {
+      "frame_id": 69954,
+      "raw_points": 26902,
+      "intensity_min": 0.8187971711158752,
+      "intensity_max": 0.989843487739563
+    },
+    {
+      "frame_id": 69955,
+      "raw_points": 26902,
+      "intensity_min": 0.8187971711158752,
+      "intensity_max": 0.989843487739563
+    },
+    {
+      "frame_id": 69956,
+      "raw_points": 26902,
+      "intensity_min": 0.8187971711158752,
+      "intensity_max": 0.989843487739563
+    },
+    {
+      "frame_id": 69957,
+      "raw_points": 26902,
+      "intensity_min": 0.8187971711158752,
+      "intensity_max": 0.989843487739563
+    },
+    {
+      "frame_id": 69958,
+      "raw_points": 26902,
+      "intensity_min": 0.8187971711158752,
+      "intensity_max": 0.989843487739563
+    },
+    {
+      "frame_id": 69959,
+      "raw_points": 26902,
+      "intensity_min": 0.8187971711158752,
+      "intensity_max": 0.989843487739563
+    },
+    {
+      "frame_id": 69960,
+      "raw_points": 26902,
+      "intensity_min": 0.8187971711158752,
+      "intensity_max": 0.989843487739563
+    },
+    {
+      "frame_id": 69961,
+      "raw_points": 26902,
+      "intensity_min": 0.8187971711158752,
+      "intensity_max": 0.989843487739563
+    },
+    {
+      "frame_id": 69974,
+      "raw_points": 26902,
+      "intensity_min": 0.8187971711158752,
+      "intensity_max": 0.989843487739563
+    },
+    {
+      "frame_id": 69975,
+      "raw_points": 26902,
+      "intensity_min": 0.8187971711158752,
+      "intensity_max": 0.989843487739563
+    },
+    {
+      "frame_id": 69976,
+      "raw_points": 26902,
+      "intensity_min": 0.8187971711158752,
+      "intensity_max": 0.989843487739563
+    },
+    {
+      "frame_id": 69977,
+      "raw_points": 26902,
+      "intensity_min": 0.8187971711158752,
+      "intensity_max": 0.989843487739563
+    },
+    {
+      "frame_id": 69978,
+      "raw_points": 26902,
+      "intensity_min": 0.8187971711158752,
+      "intensity_max": 0.989843487739563
+    },
+    {
+      "frame_id": 69979,
+      "raw_points": 26902,
+      "intensity_min": 0.8187971711158752,
+      "intensity_max": 0.989843487739563
+    },
+    {
+      "frame_id": 69980,
+      "raw_points": 26902,
+      "intensity_min": 0.8187971711158752,
+      "intensity_max": 0.989843487739563
+    },
+    {
+      "frame_id": 69981,
+      "raw_points": 26902,
+      "intensity_min": 0.8187971711158752,
+      "intensity_max": 0.989843487739563
+    },
+    {
+      "frame_id": 69982,
+      "raw_points": 26902,
+      "intensity_min": 0.8187971711158752,
+      "intensity_max": 0.989843487739563
+    },
+    {
+      "frame_id": 69983,
+      "raw_points": 26902,
+      "intensity_min": 0.8187971711158752,
+      "intensity_max": 0.989843487739563
+    },
+    {
+      "frame_id": 69996,
+      "raw_points": 26902,
+      "intensity_min": 0.8187971711158752,
+      "intensity_max": 0.989843487739563
+    },
+    {
+      "frame_id": 69997,
+      "raw_points": 26902,
+      "intensity_min": 0.8187971711158752,
+      "intensity_max": 0.989843487739563
+    },
+    {
+      "frame_id": 69998,
+      "raw_points": 26902,
+      "intensity_min": 0.8187971711158752,
+      "intensity_max": 0.989843487739563
+    },
+    {
+      "frame_id": 69999,
+      "raw_points": 26902,
+      "intensity_min": 0.8187971711158752,
+      "intensity_max": 0.989843487739563
+    },
+    {
+      "frame_id": 70000,
+      "raw_points": 26902,
+      "intensity_min": 0.8187971711158752,
+      "intensity_max": 0.989843487739563
+    },
+    {
+      "frame_id": 70001,
+      "raw_points": 26902,
+      "intensity_min": 0.8187971711158752,
+      "intensity_max": 0.989843487739563
+    },
+    {
+      "frame_id": 70002,
+      "raw_points": 26902,
+      "intensity_min": 0.8187971711158752,
+      "intensity_max": 0.989843487739563
+    },
+    {
+      "frame_id": 70003,
+      "raw_points": 26902,
+      "intensity_min": 0.8187971711158752,
+      "intensity_max": 0.989843487739563
+    },
+    {
+      "frame_id": 70004,
+      "raw_points": 26902,
+      "intensity_min": 0.8187971711158752,
+      "intensity_max": 0.989843487739563
+    },
+    {
+      "frame_id": 70005,
+      "raw_points": 26902,
+      "intensity_min": 0.8187971711158752,
+      "intensity_max": 0.989843487739563
+    },
+    {
+      "frame_id": 70018,
+      "raw_points": 26902,
+      "intensity_min": 0.8187971711158752,
+      "intensity_max": 0.989843487739563
+    },
+    {
+      "frame_id": 70019,
+      "raw_points": 26902,
+      "intensity_min": 0.8187971711158752,
+      "intensity_max": 0.989843487739563
+    },
+    {
+      "frame_id": 70020,
+      "raw_points": 26902,
+      "intensity_min": 0.8187971711158752,
+      "intensity_max": 0.989843487739563
+    },
+    {
+      "frame_id": 70021,
+      "raw_points": 26902,
+      "intensity_min": 0.8187971711158752,
+      "intensity_max": 0.989843487739563
+    },
+    {
+      "frame_id": 70022,
+      "raw_points": 26902,
+      "intensity_min": 0.8187971711158752,
+      "intensity_max": 0.989843487739563
+    },
+    {
+      "frame_id": 70023,
+      "raw_points": 26902,
+      "intensity_min": 0.8187971711158752,
+      "intensity_max": 0.989843487739563
+    },
+    {
+      "frame_id": 70024,
+      "raw_points": 26902,
+      "intensity_min": 0.8187971711158752,
+      "intensity_max": 0.989843487739563
+    },
+    {
+      "frame_id": 70025,
+      "raw_points": 26902,
+      "intensity_min": 0.8187971711158752,
+      "intensity_max": 0.989843487739563
+    },
+    {
+      "frame_id": 70026,
+      "raw_points": 26902,
+      "intensity_min": 0.8187971711158752,
+      "intensity_max": 0.989843487739563
+    },
+    {
+      "frame_id": 70027,
+      "raw_points": 26902,
+      "intensity_min": 0.8187971711158752,
+      "intensity_max": 0.989843487739563
+    },
+    {
+      "frame_id": 70040,
+      "raw_points": 26902,
+      "intensity_min": 0.8187971711158752,
+      "intensity_max": 0.989843487739563
+    },
+    {
+      "frame_id": 70041,
+      "raw_points": 26902,
+      "intensity_min": 0.8187971711158752,
+      "intensity_max": 0.989843487739563
+    },
+    {
+      "frame_id": 70042,
+      "raw_points": 26902,
+      "intensity_min": 0.8187971711158752,
+      "intensity_max": 0.989843487739563
+    },
+    {
+      "frame_id": 70043,
+      "raw_points": 26902,
+      "intensity_min": 0.8187971711158752,
+      "intensity_max": 0.989843487739563
+    },
+    {
+      "frame_id": 70044,
+      "raw_points": 26902,
+      "intensity_min": 0.8187971711158752,
+      "intensity_max": 0.989843487739563
+    },
+    {
+      "frame_id": 70045,
+      "raw_points": 26902,
+      "intensity_min": 0.8187971711158752,
+      "intensity_max": 0.989843487739563
+    },
+    {
+      "frame_id": 70046,
+      "raw_points": 26902,
+      "intensity_min": 0.8187971711158752,
+      "intensity_max": 0.989843487739563
+    },
+    {
+      "frame_id": 70047,
+      "raw_points": 26902,
+      "intensity_min": 0.8187971711158752,
+      "intensity_max": 0.989843487739563
+    },
+    {
+      "frame_id": 70048,
+      "raw_points": 26902,
+      "intensity_min": 0.8187971711158752,
+      "intensity_max": 0.989843487739563
+    },
+    {
+      "frame_id": 70049,
+      "raw_points": 26902,
+      "intensity_min": 0.8187971711158752,
+      "intensity_max": 0.989843487739563
+    }
+  ]
+}

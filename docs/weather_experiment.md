@@ -1,0 +1,105 @@
+# E1 weather robustness matrix — issue #49
+
+This is an explicit experiment specification and read-only preflight, not a
+captured dataset or robustness claim. Every planned cell remains **NOT RUN**.
+
+The matrix pairs S0/S1/S2 with ClearNoon, HardRainNoon and ClearNight, using three
+identical scene seeds across conditions: 27 cells total. The JSON records all
+14 weather fields, fixed 0.05 s steps and explicit vehicle-light names. Night
+uses Position + LowBeam; daytime vehicle lights are off. Numeric values follow
+[CARLA 0.9.16 source](https://github.com/carla-simulator/carla/blob/0.9.16/LibCarla/source/carla/rpc/WeatherParameters.cpp).
+Sun azimuth is explicitly overridden from the inherited -1 sentinel to 0 degrees
+in every condition. Installed attributes/presets must pass preflight; mismatches
+are errors rather than silent substitutions. This is not installed-version evidence.
+
+## Prepare offline
+
+```powershell
+$py = '.\.venv\Scripts\python.exe'
+& $py scripts/prepare_weather_matrix.py --output runs/weather-v1/matrix.json
+& $py -m pytest tests/unit/test_weather_matrix.py
+```
+
+Output uses exclusive creation to preserve previous attempts. Each cell includes
+scenario, condition, repetition, paired seed, full weather/light settings and
+NOT_RUN status. Twelve tests cover pairing, missing/nonfinite fields, inherited
+azimuth, night lighting, bad seeds and fake installed preset/attribute drift.
+
+## Live preflight and dataset queue
+
+Prerequisites: matching CARLA 0.9.16 client/server, Town10HD_Opt, local admitted
+models, final source-admission review. When CARLA is available:
+
+```powershell
+& $py -m carla_adapter.weather_experiment --host 127.0.0.1 --output runs/weather-v1/installed-settings.json
+```
+
+This reads actual versions/map and verifies all preset fields, explicit override
+round trips and light flags; it never applies weather, ticks or spawns actors.
+The output explicitly remains NOT_CAPTURED. Actual paired sensor capture needs
+the final S1/S2 runner and positive clearance/stop-resume path from #40/#41.
+Do not run the current S0 runner and label it rain/night: its baseline environment
+owner deliberately installs ClearNoon. Wire the verified condition into an
+extension-only environment owner with restoration checks after the runner
+prerequisites are complete; baseline settings stay frozen.
+
+For every cell, retain configuration/source/model hashes, actual weather and
+light readback, seed, timestamps/frame/session IDs, RGB and depth frames,
+verified car/person boxes with visibility/occlusion, control/event logs and
+cleanup/restoration results. Repeat identical scene placement and visibility
+windows across conditions; do not tune confidence/model/tracker on this held-out
+set. Failed captures and invalid-depth cases remain visible with denominators.
+Document measured RGB/depth/LiDAR effects separately: rain/night appearance
+cannot establish a depth or LiDAR degradation. LiDAR is optional and stays
+NOT_RUN when absent. Collection and labels are not implemented/verified here;
+issue #49 remains open for that work after its runner prerequisites.
+
+## E1-03 held-out scoring
+
+After the 27 weather recordings are collected and labelled,
+`scripts/evaluate_weather.py` compares the labelled cars/people with the detector
+output. It reports correct detections, misses, false detections, recall, precision
+and first-confirmed distance for ClearNoon, HardRainNoon and ClearNight. Missing
+runs or missing labelled classes make the result `INCOMPLETE`.
+
+```powershell
+$py = '.\.venv\Scripts\python.exe'
+& $py scripts/evaluate_weather.py `
+  --matrix runs/weather-v1/matrix.json `
+  --input runs/weather-v1/observations.json `
+  --output runs/weather-v1/e1-03-report.json `
+  --table runs/weather-v1/e1-03-table.md
+```
+
+This tool only calculates results; it does not collect the CARLA recordings.
+
+## Admission and attribution
+
+The new config/adapter is covered by an explicitly reviewed loader-only source
+rebind. Baseline values/scope/model/sensor and the historical first-stop runner
+binding remain unchanged; this grants no weather-driving or pedestrian admission.
+AI-assisted with OpenAI Codex, 28 October 2026; no human or live approval claimed.
+
+```{toctree}
+:hidden:
+
+evidence/E1-01-02/phase-j-20261028/README
+```
+
+## Evaluator input and fail-closed rules
+
+Observations require origin recorded/synthetic, matching specification SHA and
+frames with cell_id, integer frame_id, sim_time_s, boolean valid, labels and
+detections. Labels: class_name car/person, finite positive-area xyxy, boolean
+visible/depth_valid and finite nonnegative distance_m. Detections: class_name,
+xyxy, boolean confirmed. Distances are evaluation labels, never control inputs.
+
+The full27 matrix must be unique and weather seeds paired. Unknown/duplicate
+frames, malformed values and nonmonotonic frame/time identity are rejected.
+Invalid frames earn no TP or confirmed range; visible labels count FN and the
+report remains INCOMPLETE. Counts cover visible labels; no labels is undefined,
+never recall1. First-confirmed range is first eligible matched frame per cell/
+class, ordered by frame ID, summarized across cells; it is not per-actor range.
+COMPLETE means input coverage, never operational/weather admission. Declared
+recorded origin requires separate provenance/label audit. Real dataset remains
+missing; issue50 stays open. AI-assisted continuation: OpenAI Codex.

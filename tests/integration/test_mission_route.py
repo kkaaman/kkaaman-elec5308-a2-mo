@@ -19,7 +19,7 @@ from evaluation.runner import run_episode
 from navigation_control.types import VehicleState
 from obstacle_perception.types import DetectionObservation, PixelBox
 from obstacle_perception.visibility import DepthVisibility, RouteClearanceMemory
-from planning.corridor import RouteGeometry
+from planning.baseline35_corridor import RouteGeometry
 from sim_harness.baseline import BaselineWorld, RasterDetector, flat_ground_depth, mission_route
 
 FRONT = 3.81152

@@ -29,7 +29,7 @@ from obstacle_perception.types import (
     ObservationMetadata,
     PixelBox,
 )
-from planning.corridor import RouteGeometry
+from planning.baseline35_corridor import RouteGeometry
 from planning.mission import route_graph, scenario_obstacle_s
 from sim_harness.kinematic import KinematicConfig, KinematicWorld
 

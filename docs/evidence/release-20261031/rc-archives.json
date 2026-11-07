@@ -1,0 +1,162 @@
+{
+  "archives": [
+    {
+      "path": "docs/evidence/BL-B-06-07/accepted-20261025.zip",
+      "size": 66925,
+      "sha256": "df2076fc64f40b7abfc1057e8d6030705b3198c8abec732e1bcdba01c262dc5b",
+      "crc": "PASS"
+    },
+    {
+      "path": "docs/evidence/BL-B-06-07/live-20261025.zip",
+      "size": 101346,
+      "sha256": "5e5e5b372a16b45b8ac8619b9df54a70dc52eca6cf49c1b1c4fe27f4630d9e6c",
+      "crc": "PASS"
+    },
+    {
+      "path": "docs/evidence/BL-D-06/operational-approach/measured-source.zip",
+      "size": 58486,
+      "sha256": "93bad573fe5639bf3a99f8274e84a807d839193de1db1d1053c3946ee6ffbb97",
+      "crc": "PASS"
+    },
+    {
+      "path": "docs/evidence/BL-D-06/operational-approach/raw-evidence.zip",
+      "size": 1307700,
+      "sha256": "b6bbf3cea4065e2a1100e5b30561ba5c33f4cace31ce7e996964d4b8f8298af8",
+      "crc": "PASS"
+    },
+    {
+      "path": "docs/evidence/BL-D-06/warm-source.zip",
+      "size": 106319,
+      "sha256": "6e6d9b7742b7d8624d1cc79bb88c2a9f5cabe55680b9f1853ad316b020d07b42",
+      "crc": "PASS"
+    },
+    {
+      "path": "docs/evidence/E2-01-04/live-20261029/attempt-01.zip",
+      "size": 22727174,
+      "sha256": "017a7c7c7b4376346c4bcacd7a42a9f257f79688b71786d796adea404f7b6e03",
+      "crc": "PASS"
+    },
+    {
+      "path": "docs/evidence/E2-01-04/live-20261029/attempt-02.zip",
+      "size": 44945225,
+      "sha256": "116bff4a504b213d7c4ae6a0a4fc01f5f16ddade84658fa4c060e1295b1b6122",
+      "crc": "PASS"
+    },
+    {
+      "path": "docs/evidence/E2-01-04/live-20261029/attempt-03.zip",
+      "size": 44335410,
+      "sha256": "0c525ae20a20e18e0bdc18cb0c5e8e0596638a6138cfd8b69e74448699e72be2",
+      "crc": "PASS"
+    },
+    {
+      "path": "docs/evidence/E2-01-04/live-20261029/attempt-04.zip",
+      "size": 92129108,
+      "sha256": "410d7bb312da886fcc40f15902f93d58d4ffa90f4c497b6351998a0ead6f7051",
+      "crc": "PASS"
+    },
+    {
+      "path": "docs/evidence/E5-P1/phase-j-20261028/final-offline-acceptance.zip",
+      "size": 863411,
+      "sha256": "6bef9e57971ebd688b53211ec0cab8a469c1287fbdd56c247364997fa78aade9",
+      "crc": "PASS"
+    },
+    {
+      "path": "docs/evidence/RV-06-08-TEST-22/live-20261029/S0-attempt-01.zip",
+      "size": 714711,
+      "sha256": "b0057965c68d2765173f5244e53a1d6387dece831350e4aed98c0de4907e6dd9",
+      "crc": "PASS"
+    },
+    {
+      "path": "docs/evidence/RV-06-08-TEST-22/live-20261029/curve-clip-attempt-01.zip",
+      "size": 41333744,
+      "sha256": "9d0fb958906fa1615ad7266721c727bc8d1580bf5a87502c5ee911e727f45f3a",
+      "crc": "PASS"
+    },
+    {
+      "path": "docs/evidence/RV-06-08-TEST-22/live-20261029/monitor-attempt-01.zip",
+      "size": 64049836,
+      "sha256": "727613aeddcddf2929dc7049ab9c8dabd04f35852ee69427c51199d0c4838b1a",
+      "crc": "PASS"
+    },
+    {
+      "path": "docs/evidence/RV-06-08-TEST-22/live-20261029/profile-navigation.zip",
+      "size": 71944,
+      "sha256": "d93459dd748dc7cc24459a46c26c204fd7d77f520f91721a4ec5d15f2299c5b4",
+      "crc": "PASS"
+    },
+    {
+      "path": "docs/evidence/RV-06-08-TEST-22/live-20261029/profile-warm-shadow.zip",
+      "size": 71325,
+      "sha256": "c2e98d1168c51f70d4d22d50f58ff3f29b3cdbaf10a2b0ec3c71465152eb5a82",
+      "crc": "PASS"
+    },
+    {
+      "path": "docs/evidence/RV-06-08-TEST-22/live-20261029/warm-shadow-attempt-01.zip",
+      "size": 98474,
+      "sha256": "2e67db67957f3b61b62af27aead8cbf0c71ecf90cc1c0e4e9578c18d0e188d76",
+      "crc": "PASS"
+    },
+    {
+      "path": "docs/evidence/TEST-02/raw-evidence.zip",
+      "size": 2072257,
+      "sha256": "1189af4d224090e1957fb56fa4127f1f74d5ba2d652f2388584109bc4488c457",
+      "crc": "PASS"
+    },
+    {
+      "path": "docs/evidence/TEST-02/rgb-repair-evidence.zip",
+      "size": 4421222,
+      "sha256": "b9a66a04d1e4d3a1b737b9f6d0eec60bab97237d4cbf1445a18135245d00a0e9",
+      "crc": "PASS"
+    },
+    {
+      "path": "docs/evidence/TEST-18/development-evidence.zip",
+      "size": 198329,
+      "sha256": "2866498ffef0210cfb6a587ccc2653ceb5e7ebeb63202a1a4ea0ba4fc0a3c2d3",
+      "crc": "PASS"
+    },
+    {
+      "path": "docs/evidence/TEST-18/windows-local-01.zip",
+      "size": 73954,
+      "sha256": "4ad991c3d12dad8d726a947f63768b5c37043ee77b09931774c281eeb851db3a",
+      "crc": "PASS"
+    },
+    {
+      "path": "docs/evidence/issue41-20261025/validation-evidence.zip",
+      "size": 51771,
+      "sha256": "208fca8ddd27c1873c194d1ad23ac9510c13828c13711ab166a9efaf0bc772dd",
+      "crc": "PASS"
+    },
+    {
+      "path": "docs/evidence/issue41-recovery-20261026/approach-live-metadata.zip",
+      "size": 863516,
+      "sha256": "aa8cc864eba9bf68affc98e7688051f48a805dc95d965e4b331014421657c68f",
+      "crc": "PASS"
+    },
+    {
+      "path": "docs/evidence/issue41-recovery-20261026/detector-deep-20261027/validation-logs.zip",
+      "size": 4263,
+      "sha256": "5ece35e14d07b157afafc45cc2209257bc97a8c28c0d057f43d4b94826dcbdfc",
+      "crc": "PASS"
+    },
+    {
+      "path": "docs/evidence/issue41-recovery-20261026/perception-fp-20261027/validation-logs.zip",
+      "size": 6211,
+      "sha256": "601c075de5382d6a3e17b1f371a8619052a0c0ae18b3e734518981d1d67c1236",
+      "crc": "PASS"
+    },
+    {
+      "path": "docs/evidence/issue41-recovery-20261026/raw-validation-logs.zip",
+      "size": 12634,
+      "sha256": "5e0829681322da41aeeba562736d49ae695f860f70287e0b39730e21f541fd4f",
+      "crc": "PASS"
+    },
+    {
+      "path": "docs/evidence/issue41-recovery-20261026/run-metadata.zip",
+      "size": 1462156,
+      "sha256": "d0fb0ee25ca797562d6fba6ab0bffbb3c1b79db118a827b5534c0e5fa3456017",
+      "crc": "PASS"
+    }
+  ],
+  "count": 26,
+  "result": "ALL_CRC_PASS"
+}

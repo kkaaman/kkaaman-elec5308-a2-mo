@@ -61,3 +61,8 @@ Numerical specification tests do not replace live alignment/convention checks,
 vehicle calibration, obstacle-association tests or the five-run scenario suite.
 The current BL-D-01 task is CARLA-free as marked in the board. Later sensor and
 vehicle tasks must provide live CARLA evidence before pushing their acceptance claims.
+
+
+## Offline acceptance logging
+
+See [acceptance-logging.md](acceptance-logging.md) for the offline S0 logging implementation and its limitations.

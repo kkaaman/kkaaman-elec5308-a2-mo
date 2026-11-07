@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 
 from autonomy.baseline import BaselineConfig
-from evaluation.metrics import load_run
+from evaluation.baseline35_metrics import load_run
 from evaluation.runner import run_episode
 from sim_harness.baseline import BaselineWorld, RasterDetector
 

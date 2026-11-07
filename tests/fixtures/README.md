@@ -17,3 +17,10 @@ OBSTACLE-class LiDAR points of the last startup sweep of PC 2's `stack_braking_B
 (Town05, 26 Oct): on a grade, both kerb railings and the rising road chain into one
 63 x 26 m cluster. Used by the scenery-splitting regression in
 `tests/unit/test_mapless_g2_framework.py`.
+
+`lidar/` holds ten synthetic vehicle-frame LiDAR sweeps (`sweep_*.npy`, N×4
+float32) and their manifest `sweeps.json`, generated deterministically by
+`obstacle_perception.lidar_synthetic.build_fixture` (regenerate with
+`python scripts/replay_lidar_obstacles.py --regenerate-fixture`). They are
+ray-cast through a flat road, kerbed pavements and boxes, not CARLA recordings;
+see `docs/lidar_obstacles.md`.

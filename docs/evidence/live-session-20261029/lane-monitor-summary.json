@@ -1,0 +1,37 @@
+{
+  "frames": 573,
+  "valid_nonjunction_samples": 262,
+  "turn_results": {
+    "left": {
+      "valid_samples": 57,
+      "sign_agreement": 29,
+      "mean_abs_difference_m": 1.1519582554837358
+    },
+    "right": {
+      "valid_samples": 152,
+      "sign_agreement": 69,
+      "mean_abs_difference_m": 1.1085364463119036
+    },
+    "straight": {
+      "valid_samples": 53,
+      "sign_agreement": 40,
+      "mean_abs_difference_m": 0.5739715851282209
+    }
+  },
+  "measured_rear_axle_offset_m": 1.2566680222388846,
+  "camera_mount": {
+    "x": 1.5,
+    "y": 0.0,
+    "z": 2.4000000953674316,
+    "pitch_deg": 0.0,
+    "yaw_deg": 0.0,
+    "roll_deg": 0.0
+  },
+  "display_dimensions": [
+    800,
+    600
+  ],
+  "video_sha256": "352cd5f477c50f7faeee1936a3c1922bc3403dad36700becf910fb3fa6ecbc88",
+  "scope": "Processed display frames with approximate matched control pose; not pristine sensor accuracy or exact frame-aligned latency",
+  "operational_acceptance": false
+}

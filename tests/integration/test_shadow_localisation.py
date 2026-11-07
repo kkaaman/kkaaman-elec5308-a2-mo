@@ -20,7 +20,7 @@ from autonomy.paths import REPO_ROOT
 from carla_adapter.localisation_sensors import LiveLocalisationSensors, geo_calibration
 from evaluation.runner import run_episode
 from navigation_control.types import VehicleState
-from planning.corridor import RouteGeometry
+from planning.baseline35_corridor import RouteGeometry
 from sim_harness.baseline import BaselineWorld, RasterDetector
 
 STRAIGHT = RouteGeometry(tuple((float(x), 0.0) for x in range(0, 200, 5)))

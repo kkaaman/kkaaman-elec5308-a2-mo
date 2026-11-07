@@ -17,7 +17,7 @@ import math
 import numpy as np
 
 from mapless.satnav import EARTH_RADIUS_M, Command, RoutePoint, SatNavRoute
-from planning.corridor import RouteGeometry
+from planning.baseline35_corridor import RouteGeometry
 
 GENERATOR_VERSION = "satnav-from-mission-1"
 _MANOEUVRE = {"left": Command.LEFT, "right": Command.RIGHT, "straight": Command.STRAIGHT}

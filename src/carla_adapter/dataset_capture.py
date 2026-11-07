@@ -5,7 +5,6 @@ import hashlib
 import json
 import math
 import random
-import re
 import threading
 import time
 from collections import Counter
@@ -16,12 +15,10 @@ import numpy as np
 from PIL import Image
 
 from evaluation.dataset import (
-    DEMO_MAPS,
     KIT_VERSION,
     ROADLINE_TAG,
     decode_bgra,
     decode_depth,
-    map_short_name,
     road_splits,
     save_json,
     sha256,
@@ -69,32 +66,6 @@ class FrameBuffer:
         return images
 
 
-# Small towns only: large maps stream tiles around the ego and are not set up here.
-_CAPTURE_MAP = re.compile(r"Town(0[1-7]|10HD)(_Opt)?")
-
-
-def supported_capture_map(name):
-    return _CAPTURE_MAP.fullmatch(map_short_name(name)) is not None
-
-
-def same_map(a, b):
-    """Town10HD and Town10HD_Opt share one OpenDRIVE; other towns compare by name."""
-    a, b = map_short_name(a), map_short_name(b)
-    return a == b or (a in DEMO_MAPS and b in DEMO_MAPS)
-
-
-def is_demo_map(name):
-    return map_short_name(name) in DEMO_MAPS
-
-
-def _box_values(box):
-    """Plain copy of a carla.BoundingBox (local centre and half extents)."""
-    return {
-        "centre_m": [box.location.x, box.location.y, box.location.z],
-        "extent_m": [box.extent.x, box.extent.y, box.extent.z],
-    }
-
-
 def transform_dict(transform):
     return {
         "location_m": [transform.location.x, transform.location.y, transform.location.z],
@@ -103,6 +74,32 @@ def transform_dict(transform):
             transform.rotation.yaw,
             transform.rotation.roll,
         ],
+    }
+
+def target_surface_reference(camera_transform, actor, actor_transform):
+    """Evaluation-only range to the nearest point of the actor bounding box."""
+    camera_matrix = np.asarray(camera_transform.get_matrix(), dtype=float)
+    camera_inverse = np.linalg.inv(camera_matrix)
+
+    vertices = actor.bounding_box.get_world_vertices(actor_transform)
+    camera_points = []
+
+    for vertex in vertices:
+        world = np.array([vertex.x, vertex.y, vertex.z, 1.0], dtype=float)
+        local = camera_inverse @ world
+        camera_points.append(local[:3])
+
+    points = np.asarray(camera_points)
+    positive = points[points[:, 0] > 0]
+    if not len(positive):
+        return None
+
+    nearest = positive[np.argmin(positive[:, 0])]
+    return {
+        "axial_m": float(nearest[0]),
+        "radial_m": float(np.linalg.norm(nearest)),
+        "semantic": "TARGET_BOUNDING_BOX",
+        "world_xyz_m": None,
     }
 
 
@@ -116,6 +113,33 @@ def location_for_target(carla, waypoint, distance, lateral):
     transform.location.y += math.cos(yaw) * lateral
     transform.location.z += 0.65
     return carla.Transform(transform.location, transform.rotation)
+
+
+
+
+def destroy_owned_actors(owned):
+    """Destroy known-owned actors even before their first cached world snapshot."""
+    errors = []
+    for actor in reversed(owned):
+        try:
+            if not actor.destroy():
+                errors.append(f"Destroy failed: {actor.id}")
+        except Exception as error:
+            errors.append(str(error))
+    return errors
+
+
+def verify_owned_cleanup(world, owned_ids, *, timeout_s=5.0):
+    """Wait for post-destroy asynchronous snapshots without advancing sync ticks."""
+    deadline = time.monotonic() + timeout_s
+    while True:
+        remaining = any(actor.id in owned_ids for actor in world.get_actors())
+        if not remaining:
+            return True
+        budget = deadline-time.monotonic()
+        if budget <= 0:
+            return False
+        world.wait_for_tick(min(.5, budget))
 
 
 def main():
@@ -145,19 +169,11 @@ def main():
         "--camera-z", type=float, default=2.0, help="Height above the Tesla actor origin, metres"
     )
     parser.add_argument("--camera-x", type=float, default=1.5)
+    parser.add_argument("--weather-cell", help="Approved paired stationary S0/S1/S2 dataset cell")
+    parser.add_argument("--weather-config", type=Path,
+                        default=Path(__file__).resolve().parents[2]/"configs/weather/robustness_v1.json")
     parser.add_argument("--follow", action="store_true")
-    parser.add_argument(
-        "--map",
-        default="Town10HD_Opt",
-        help=(
-            "Town to collect in (Town01-Town07, Town10HD[_Opt]). The demo map is the"
-            " measurement dataset; another town keeps training data off the demo map."
-            " A different town is loaded for the capture and the original map restored."
-        ),
-    )
     args = parser.parse_args()
-    if not supported_capture_map(args.map):
-        parser.error("--map must be Town01-Town07 (optionally _Opt), Town10HD or Town10HD_Opt")
     if (
         args.samples < 3
         or args.rounds < 1
@@ -172,6 +188,11 @@ def main():
         or not math.isfinite(args.camera_x)
     ):
         parser.error("Invalid sample count or camera/spacing parameters")
+    from carla_adapter.weather_experiment import select_capture_cell
+
+    weather_cell = select_capture_cell(args.weather_config, args.weather_cell) if args.weather_cell else None
+    if weather_cell:
+        args.seed = weather_cell["seed"]
     import carla
 
     output = args.output.resolve()
@@ -194,8 +215,8 @@ def main():
         "no_actor_leaks": False,
         "failure": None,
     }
+    report["weather_experiment"] = weather_cell
     world = None
-    original_map = None
     original_settings = original_weather = original_view = None
     owned = []
     sensors = []
@@ -210,14 +231,6 @@ def main():
                 "This label mapping requires matching CARLA 0.9.16 client and server"
             )
         world = client.get_world()
-        current_map = map_short_name(world.get_map().name)
-        if not same_map(current_map, args.map):
-            if world.get_settings().synchronous_mode:
-                raise RuntimeError("Another client owns synchronous ticks; close that client first")
-            print(f"Loading {args.map} for capture (was {current_map}); restored afterwards.")
-            world = client.load_world(args.map)
-            original_map = current_map
-            report["loaded_map_from"] = current_map
         if world.get_settings().synchronous_mode:
             raise RuntimeError("Another client owns synchronous ticks; close that client first")
         busy = [
@@ -232,9 +245,8 @@ def main():
         report["opendrive_sha256"] = hashlib.sha256(
             carla_map.to_opendrive().replace("\r\n", "\n").encode()
         ).hexdigest()
-        if not same_map(carla_map.name, args.map):
-            raise RuntimeError(f"Server map {carla_map.name} is not the requested {args.map}")
-        report["demo_map"] = is_demo_map(carla_map.name)
+        if carla_map.name.split("/")[-1] not in ("Town10HD_Opt", "Town10HD"):
+            raise RuntimeError("Load Town10HD_Opt before collecting this baseline dataset")
         points = [
             p
             for p in carla_map.generate_waypoints(args.spacing_m)
@@ -294,27 +306,6 @@ def main():
         if ego is None:
             raise RuntimeError("No free Tesla spawn point")
         ego.set_simulate_physics(False)
-        # actor.bounding_box is a server call that keeps the Python GIL; with
-        # camera callbacks streaming it hung for the 60 s client timeout on the
-        # live baseline runs. Read every box needed before the cameras exist.
-        ego_box = _box_values(ego.bounding_box)
-        target_boxes = {}
-        parking = carla.Transform(
-            carla.Location(spawn.location.x, spawn.location.y, spawn.location.z + 200.0)
-        )
-        for candidate in sorted(bp_library.filter("walker.pedestrian.*"), key=lambda b: b.id) + [
-            bp_library.find("vehicle.tesla.model3")
-        ]:
-            probe = world.try_spawn_actor(candidate, parking)
-            if probe is None:
-                continue
-            try:
-                target_boxes[candidate.id] = _box_values(probe.bounding_box)
-            finally:
-                probe.destroy()
-        if "vehicle.tesla.model3" not in target_boxes:
-            raise RuntimeError("Could not read the target vehicle bounding box")
-        report["target_bounding_boxes"] = len(target_boxes)
         frames = FrameBuffer(("rgb", "instance", "depth"))
         mount = carla.Transform(carla.Location(x=args.camera_x, z=args.camera_z))
         for name, blueprint in (
@@ -350,10 +341,21 @@ def main():
             for name in ("car", "person")
         ]
         cases += [("car", 15, 4), ("car", 25, -4), ("none", 0, 0), ("none", 0, 0)]
+        if weather_cell:
+            from carla_adapter.weather_experiment import apply_capture_weather, verify_settings
+
+            verify_settings(carla, json.loads(args.weather_config.read_text()))
+            name = {"S0": "none", "S1": "car", "S2": "person"}[weather_cell["scenario"]]
+            cases = [(name, distance, 0) for distance in (5, 10, 15, 20, 25, 30)]
+
         with index_path.open("x", encoding="utf-8", buffering=1) as index:
             for round_index in range(args.rounds):
                 weather_name = weather_names[round_index % len(weather_names)]
-                world.set_weather(getattr(carla.WeatherParameters, weather_name))
+                if weather_cell:
+                    weather_name = weather_cell["condition"]
+                    report["weather_readback"] = apply_capture_weather(carla, world, ego, weather_cell)
+                else:
+                    world.set_weather(getattr(carla.WeatherParameters, weather_name))
                 for point in ordered:
                     if report["sample_count"] >= args.samples:
                         break
@@ -363,7 +365,9 @@ def main():
                         owned.remove(spawned_target)
                         spawned_target = None
                     pose = point.transform
-                    pose.location.z += 0.02 - ego_box["centre_m"][2] + ego_box["extent_m"][2]
+                    pose.location.z += (
+                        0.02 - ego.bounding_box.location.z + ego.bounding_box.extent.z
+                    )
                     pose.rotation.yaw += rng.uniform(-4, 4)
                     ego.set_transform(pose)
                     sample_number = report["sample_count"]
@@ -397,14 +401,7 @@ def main():
                             if ground is None:
                                 raise RuntimeError("No ground at collected target site")
                             candidates = (
-                                sorted(
-                                    (
-                                        b
-                                        for b in bp_library.filter("walker.pedestrian.*")
-                                        if b.id in target_boxes
-                                    ),
-                                    key=lambda b: b.id,
-                                )
+                                sorted(bp_library.filter("walker.pedestrian.*"), key=lambda b: b.id)
                                 if target_kind == "person"
                                 else [bp_library.find("vehicle.tesla.model3")]
                             )
@@ -415,10 +412,11 @@ def main():
                             if spawned_target is not None:
                                 owned.append(spawned_target)
                                 spawned_target.set_simulate_physics(False)
-                                target_box = target_boxes[bp.id]
                                 target_pose.location.z = ground.location.z
                                 target_pose.location.z += (
-                                    0.02 - target_box["centre_m"][2] + target_box["extent_m"][2]
+                                    0.02
+                                    - spawned_target.bounding_box.location.z
+                                    + spawned_target.bounding_box.extent.z
                                 )
                                 spawned_target.set_transform(target_pose)
                                 target_metadata.update(
@@ -477,9 +475,18 @@ def main():
                             target_metadata["transform"] = transform_dict(
                                 actor_snapshot.get_transform()
                             )
-                            target_metadata["bounding_box_local"] = dict(
-                                target_boxes[spawned_target.type_id]
-                            )
+                            target_metadata["bounding_box_local"] = {
+                                "centre_m": [
+                                    spawned_target.bounding_box.location.x,
+                                    spawned_target.bounding_box.location.y,
+                                    spawned_target.bounding_box.location.z,
+                                ],
+                                "extent_m": [
+                                    spawned_target.bounding_box.extent.x,
+                                    spawned_target.bounding_box.extent.y,
+                                    spawned_target.bounding_box.extent.z,
+                                ],
+                            }
                         split = splits[point.road_id]
                         run_id = f"{split}-road{point.road_id}-round{round_index:03d}"
                         folder = output / "data" / run_id
@@ -513,6 +520,9 @@ def main():
                             "sensor_frames": {name: image.frame for name, image in images.items()},
                             "sim_time_s": images["rgb"].timestamp,
                             "weather": weather_name,
+                            "weather_cell_id": weather_cell["cell_id"] if weather_cell else None,
+                            "scene_pair_id": (f"{weather_cell['scenario']}-r{weather_cell['repetition']}-road{point.road_id}-s{point.s:.3f}"
+                                              if weather_cell else f"{run_id}-pose{pose_number:06d}"),
                             "camera_world": transform_dict(images["rgb"].transform),
                             "ego_world": transform_dict(snapshot.find(ego.id).get_transform()),
                             "target_evaluation_only": target_metadata,
@@ -525,36 +535,46 @@ def main():
                             },
                         }
                         record["surface_references"] = []
-                        if args.ray_reference and sequence_index == 0:
-                            from carla_adapter.depth_calibration import ray_reference
-
+                        if args.ray_reference and sequence_index == 0 and spawned_target is not None:
                             decoded = decode_depth(raw["depth"])
-                            for box in record["visible_boxes"]:
-                                x0, y0, x1, y1 = box["xyxy"]
+
+                            target_instance_code = spawned_target.id * 256
+                            target_boxes = [
+                                box
+                                for box in record["visible_boxes"]
+                                if box["instance_code"] == target_instance_code
+                            ]
+
+                            target_metadata["visible_instance_box_count"] = len(target_boxes)
+
+                            if len(target_boxes) > 1:
+                                raise ValueError(
+                                    f"Expected at most one visible box for target {spawned_target.id}, "
+                                    f"found {len(target_boxes)}"
+                                )
+
+                            if target_boxes:
+                                target_box = target_boxes[0]
+                                reference = target_surface_reference(
+                                    images["rgb"].transform,
+                                    spawned_target,
+                                    actor_snapshot.get_transform(),
+                                )
+
+                                x0, y0, x1, y1 = target_box["xyxy"]
                                 for fraction in (0.3, 0.5, 0.7):
                                     u = min(args.width - 1, int(x0 + (x1 - x0) * fraction))
                                     v = min(args.height - 1, int((y0 + y1) / 2))
-                                    tag = int(raw["instance"][v, u, 2])
-                                    if tag not in (12, 14):
-                                        continue
-                                    hit = ray_reference(
-                                        world,
-                                        images["rgb"].transform,
-                                        u,
-                                        v,
-                                        args.width,
-                                        args.height,
-                                        args.fov,
-                                    )
+
                                     value = float(decoded[v, u])
                                     record["surface_references"].append(
-                                        dict(
-                                            u=u,
-                                            v=v,
-                                            class_name=box["class_name"],
-                                            raw_depth_m=value if math.isfinite(value) else None,
-                                            reference=hit,
-                                        )
+                                        {
+                                            "u": u,
+                                            "v": v,
+                                            "class_name": target_box["class_name"],
+                                            "raw_depth_m": value if math.isfinite(value) else None,
+                                            "reference": reference,
+                                        }
                                     )
                         index.write(json.dumps(record, allow_nan=False) + "\n")
                         report["sample_count"] += 1
@@ -584,12 +604,7 @@ def main():
             except Exception as error:
                 cleanup.append(str(error))
         ids = [actor.id for actor in owned]
-        for actor in reversed(owned):
-            try:
-                if actor.is_alive and not actor.destroy():
-                    cleanup.append(f"Destroy failed: {actor.id}")
-            except Exception as error:
-                cleanup.append(str(error))
+        cleanup.extend(destroy_owned_actors(owned))
         if world is not None and original_settings is not None:
             try:
                 world.set_weather(original_weather)
@@ -607,17 +622,9 @@ def main():
                 report["settings_restored"] = all(
                     getattr(current, k) == getattr(original_settings, k) for k in fields
                 )
-                report["no_actor_leaks"] = not any(actor.id in ids for actor in world.get_actors())
+                report["no_actor_leaks"] = verify_owned_cleanup(world, set(ids))
             except Exception as error:
                 cleanup.append(str(error))
-        if original_map is not None:
-            # Later stages (Tune, Navigation, Acceptance) run on the demo map.
-            try:
-                restored = client.load_world(original_map)
-                report["map_restored"] = same_map(restored.get_map().name, original_map)
-            except Exception as error:
-                report["map_restored"] = False
-                print(f"WARNING: could not reload {original_map}: {error}. Load it before Tune.")
         report["cleanup_errors"] = cleanup
         report["split_counts"] = dict(counts)
         if index_path.exists():

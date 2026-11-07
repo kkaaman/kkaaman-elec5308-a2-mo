@@ -166,12 +166,12 @@ try {
                 @{ Name = "S1-full"; Args = @("--scenario","S1") }
             )
             foreach ($run in $quickRuns) {
-                Invoke-ProjectPython -PythonArgs (@("scripts/run_scenario.py") + $run.Args + @("--config",$quickConfig,"--max-sim-s","120","--output",(Join-Path $stageFolder $run.Name)) + $liveArgs)
+                Invoke-ProjectPython -PythonArgs (@("scripts/baseline35_run_scenario.py") + $run.Args + @("--config",$quickConfig,"--max-sim-s","120","--output",(Join-Path $stageFolder $run.Name)) + $liveArgs)
             }
             # RV-06: lane monitor replayed on the recorded full-stack runs (diagnostic only).
             if (Test-Path -LiteralPath "lane_unet_best.pth") {
                 foreach ($name in @("S0-full","S1-full")) {
-                    Invoke-ProjectPython -PythonArgs @("scripts/replay_lane_monitor.py","--run",(Join-Path $stageFolder $name),"--mission",(Need-Result "mission"),"--output",(Join-Path $stageFolder ($name + "-lane-monitor")))
+                    Invoke-ProjectPython -PythonArgs @("scripts/baseline35_replay_lane_monitor.py","--run",(Join-Path $stageFolder $name),"--mission",(Need-Result "mission"),"--output",(Join-Path $stageFolder ($name + "-lane-monitor")))
                 }
             }
             $batchState["quick"] = $stageFolder
@@ -198,10 +198,10 @@ try {
             $datasetPath = Need-Result "dataset"
             $depthPath = Need-Result "depth"
             $detectorArgs = @("--image-size",[string]$DetectorImageSize,"--confidence",[string]$DetectorConfidence)
-            Invoke-ProjectPython -PythonArgs (@("scripts/benchmark_perception.py","--dataset",$datasetPath,"--weights","yolo26n.pt","--depth-calibration",$depthPath,"--output",(Join-Path $stageFolder "detector")) + $detectorArgs)
+            Invoke-ProjectPython -PythonArgs (@("scripts/baseline35_benchmark_perception.py","--dataset",$datasetPath,"--weights","yolo26n.pt","--depth-calibration",$depthPath,"--output",(Join-Path $stageFolder "detector")) + $detectorArgs)
             $batchState["perception"] = Join-Path $stageFolder "detector\perception.json"
             Save-BatchState
-            Invoke-ProjectPython -PythonArgs (@("scripts/analyze_depth.py","--dataset",$datasetPath,"--depth-calibration",$depthPath,"--segmentation-weights","segmentation_model.pth","--weights","yolo26n.pt","--output",(Join-Path $stageFolder "depth_analysis")) + $detectorArgs)
+            Invoke-ProjectPython -PythonArgs (@("scripts/baseline35_analyze_depth.py","--dataset",$datasetPath,"--depth-calibration",$depthPath,"--segmentation-weights","segmentation_model.pth","--weights","yolo26n.pt","--output",(Join-Path $stageFolder "depth_analysis")) + $detectorArgs)
             $batchState["depth_analysis"] = Join-Path $stageFolder "depth_analysis\depth_analysis.json"
             Invoke-ProjectPython -PythonArgs @("scripts/preview_lane_monitor.py","--dataset",$datasetPath,"--weights","lane_unet_best.pth","--output",(Join-Path $stageFolder "lane_monitor"))
             $batchState["lane_monitor"] = Join-Path $stageFolder "lane_monitor\monitor.json"
@@ -234,7 +234,7 @@ try {
         "Smoke" {
             $liveArgs = Get-LiveArgs -RequireEvents
             $frozenPath = Need-Result "frozen"
-            Invoke-ProjectPython -PythonArgs (@("scripts/run_scenario.py","--scenario","S1","--config",$frozenPath,"--output",(Join-Path $stageFolder "S1")) + $liveArgs)
+            Invoke-ProjectPython -PythonArgs (@("scripts/baseline35_run_scenario.py","--scenario","S1","--config",$frozenPath,"--output",(Join-Path $stageFolder "S1")) + $liveArgs)
             $batchState["s1"] = Join-Path $stageFolder "S1"
         }
         "Acceptance" {
@@ -250,7 +250,7 @@ try {
             # The Perception stage's replay at the same settings is the clean reference.
             $detectorArgs = Get-DrivenDetectorArgs
             foreach ($faultName in @("flicker","id_reset")) {
-                Invoke-ProjectPython -PythonArgs (@("scripts/benchmark_perception.py","--dataset",$datasetPath,"--weights","yolo26n.pt","--depth-calibration",$depthPath,"--fault",$faultName,"--output",(Join-Path $stageFolder $faultName)) + $detectorArgs)
+                Invoke-ProjectPython -PythonArgs (@("scripts/baseline35_benchmark_perception.py","--dataset",$datasetPath,"--weights","yolo26n.pt","--depth-calibration",$depthPath,"--fault",$faultName,"--output",(Join-Path $stageFolder $faultName)) + $detectorArgs)
             }
             $batchState["replay_faults"] = $stageFolder
         }
@@ -272,7 +272,7 @@ try {
         "Audit" {
             $datasetPath = Need-Result "dataset"
             $depthPath = Need-Result "depth"
-            Invoke-ProjectPython -PythonArgs (@("scripts/benchmark_perception.py","--dataset",$datasetPath,"--weights","yolo26n.pt","--depth-calibration",$depthPath,"--split","test","--output",(Join-Path $stageFolder "heldout")) + (Get-DrivenDetectorArgs))
+            Invoke-ProjectPython -PythonArgs (@("scripts/baseline35_benchmark_perception.py","--dataset",$datasetPath,"--weights","yolo26n.pt","--depth-calibration",$depthPath,"--split","test","--output",(Join-Path $stageFolder "heldout")) + (Get-DrivenDetectorArgs))
             $batchState["heldout"] = Join-Path $stageFolder "heldout\perception.json"
         }
         "Archive" {

@@ -36,8 +36,10 @@ CARLA Adapter
 Assignment 2 packages
 ---------------------
 
-These packages hold the A2 work. Each module docstring lists its planned
-contents and task owners until the code lands.
+These packages contain the current A2 implementation and reserved extension
+namespaces. See :doc:`module_notes` for the source inventory, module purposes
+and public protocol/dataflow notes. A namespace docstring is not evidence of
+implemented capability.
 
 .. automodule:: autonomy
 
@@ -51,12 +53,48 @@ contents and task owners until the code lands.
 
 .. automodule:: obstacle_perception
 
+.. automodule:: obstacle_perception.lidar
+   :members:
+
+.. automodule:: obstacle_perception.lidar_obstacles
+   :members:
+
+.. automodule:: obstacle_perception.fusion
+   :members:
+
+.. automodule:: obstacle_perception.lidar_synthetic
+   :members:
+
+.. automodule:: autonomy.lidar_fusion
+   :members:
+
+.. automodule:: autonomy.lidar_replay
+   :members:
+
+.. automodule:: carla_adapter.lidar
+   :members:
+
 .. automodule:: planning
 
 .. automodule:: planning.lane_graph
    :members:
 
 .. automodule:: planning.lane_graph_audit
+   :members:
+
+.. automodule:: planning.wayfinder.astar
+   :members:
+
+.. automodule:: planning.wayfinder.pois
+   :members:
+
+.. automodule:: planning.wayfinder.route
+   :members:
+
+.. automodule:: planning.wayfinder.guidance
+   :members:
+
+.. automodule:: planning.wayfinder.minimap
    :members:
 
 .. automodule:: carla_adapter.topology
@@ -67,3 +105,45 @@ contents and task owners until the code lands.
 .. automodule:: visualisation
 
 .. automodule:: cloud
+
+Shared protocols and executable stack
+-------------------------------------
+
+.. automodule:: autonomy.interfaces
+   :members:
+
+.. automodule:: autonomy.detector_contracts
+   :members:
+
+.. automodule:: autonomy.stack
+   :members:
+
+.. automodule:: sim_harness.kinematic
+   :members:
+
+.. automodule:: obstacle_perception.types
+   :members:
+
+.. automodule:: geometry.camera
+   :members:
+
+.. automodule:: geometry.transforms
+   :members:
+
+Optional inference service
+--------------------------
+
+.. automodule:: cloud.server
+   :members:
+
+Optional hybrid control adapter
+-------------------------------
+
+.. automodule:: autonomy.hybrid_detector
+   :members:
+
+Weather evaluation
+------------------
+
+.. automodule:: evaluation.weather
+   :members:

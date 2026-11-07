@@ -1,0 +1,25 @@
+{
+  "description": "Known-answer geometry and stopping fixture distinguishing Euclidean distance, route-relative longitudinal gap and front-bumper-to-surface stopping distance.",
+  "route": [[0, 0], [10, 0], [10, 20]],
+  "ego_rear_axle": [0, 0],
+  "ego_front_offset_m": 4.0,
+  "obstacle_point": [10, 8],
+  "signed_corridor_point": [9, 8],
+  "expected": {
+    "route_progress_m": 18.0,
+    "euclidean_distance_m": 12.806248474865697,
+    "rear_axle_route_gap_m": 18.0,
+    "front_surface_gap_m": 14.0,
+    "signed_lateral_m": 1.0
+  },
+  "dt_s": 0.1,
+  "speeds": [0.2, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1],
+  "stop_frame": 11,
+  "stopped_margin_m": 3.0,
+  "percentile_input": [0, 10, 20, 30, 40],
+  "p95": 38.0,
+  "cruise_rms_mps": 0.5,
+  "false_stops": 1,
+  "collision_count": 2,
+  "lane_invasion_count": 1
+}

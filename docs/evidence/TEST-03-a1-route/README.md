@@ -13,7 +13,7 @@ first TEST-03 (`../TEST-03-a1-vs-a2/`), where A1 and A2 drove different roads.
 - Route validated live: `MAP_GEOMETRY_VALIDATED` (RouteSetup, 21 Oct).
 
 Files:
-- `comparison.json` and `comparison.png`: `scripts/compare_runs.py` output.
+- `comparison.json` and `comparison.png`: `scripts/baseline35_compare_runs.py` output.
 - `cte_by_distance.png`: both drives on one distance axis, made by `plot_by_distance.py`
   from the same traces.
 

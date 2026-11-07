@@ -20,7 +20,7 @@ from autonomy.localisation import FilterTuning, LocalisationConfig, Localisation
 from autonomy.paths import FIXTURES_DIR, REPO_ROOT
 from evaluation.lane_localisation_replay import lane_measurements, replay, summarise
 from evaluation.runner import run_episode
-from planning.corridor import RouteGeometry
+from planning.baseline35_corridor import RouteGeometry
 from planning.lane_graph import LaneTopology
 from planning.mission import load_route_definition, mission_from_definition
 from sim_harness.baseline import BaselineWorld, RasterDetector

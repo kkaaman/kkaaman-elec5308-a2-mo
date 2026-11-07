@@ -1,0 +1,110 @@
+[
+  {
+    "sha": "a1ae152ab0ac39e4216092f097dc436ceb0b6a48",
+    "subject": "fix(runtime): discard diagnostic warmup before parked control",
+    "is_merge": false,
+    "status": "PASS"
+  },
+  {
+    "sha": "3dd6b7bacbcfa2b4a86e85e78ec0e787ba9b384d",
+    "subject": "feat(runtime): add parked full-stack release entry point",
+    "is_merge": false,
+    "status": "PASS"
+  },
+  {
+    "sha": "020e1f94b0c377669820b1858c1caf95cdfbac63",
+    "subject": "fix(runtime): reset guidance per episode and verify LiDAR dropout",
+    "is_merge": false,
+    "status": "PASS"
+  },
+  {
+    "sha": "2fe83c7642992b0f2bf8f887cdc49823f1746a2f",
+    "subject": "feat(runtime): compose offline release workflow and bounded observers",
+    "is_merge": false,
+    "status": "PASS"
+  },
+  {
+    "sha": "48acf71103ecf7b7c3c12cb721bcbbc5e86ede0e",
+    "subject": "merge: refresh canonical runtime dependencies for PR #99",
+    "is_merge": true,
+    "status": "PASS"
+  },
+  {
+    "sha": "3d643fce96a8c517b0a54da1e877740420af157a",
+    "subject": "docs: record detector false-positive blocker",
+    "is_merge": false,
+    "status": "PASS"
+  },
+  {
+    "sha": "1e863274ab64beecd2120594f38f442514fba340",
+    "subject": "fix: preserve recovery evidence and qualify approach scenes",
+    "is_merge": false,
+    "status": "PASS"
+  },
+  {
+    "sha": "e0a804072c1ea07e755153c18952168462d01f95",
+    "subject": "merge(main): sync G1 and scenario baseline into issue41",
+    "is_merge": true,
+    "status": "HISTORICAL_NONCONVENTIONAL"
+  },
+  {
+    "sha": "897bd126cb098ccc29a9a16f9b06c1052ca13d73",
+    "subject": "fix(issue41): support valid startup and braked detector warmup",
+    "is_merge": false,
+    "status": "PASS"
+  },
+  {
+    "sha": "b1c2871f741ba3ab71c4afefb0efbee4c5646cb0",
+    "subject": "Add first-stop runner guide to documentation index",
+    "is_merge": false,
+    "status": "HISTORICAL_NONCONVENTIONAL"
+  },
+  {
+    "sha": "16a0bc43e2536c9df7535aa23cce1c4de51d894b",
+    "subject": "Add gated CARLA first-stop evidence runner",
+    "is_merge": false,
+    "status": "HISTORICAL_NONCONVENTIONAL"
+  },
+  {
+    "sha": "a46019a3de41cdf74942cd88209c74c7bcbc2551",
+    "subject": "Add bounded surface provider and offline integration fault checks",
+    "is_merge": false,
+    "status": "HISTORICAL_NONCONVENTIONAL"
+  },
+  {
+    "sha": "141085589de298ebed897509c3f08b5b33ade6e7",
+    "subject": "Merge remote-tracking branch 'upstream/main' into feat/41-perception-control-integration",
+    "is_merge": true,
+    "status": "HISTORICAL_NONCONVENTIONAL"
+  },
+  {
+    "sha": "134df38db9d7e5c2a347e2c591300b134826be66",
+    "subject": "Connect governed control to fixed-route mission lifecycle",
+    "is_merge": false,
+    "status": "HISTORICAL_NONCONVENTIONAL"
+  },
+  {
+    "sha": "3d3c8b8525d3af681d39d3665da745b2a978d772",
+    "subject": "Add host deadline watchdog and stalled-loop fault tests",
+    "is_merge": false,
+    "status": "HISTORICAL_NONCONVENTIONAL"
+  },
+  {
+    "sha": "de2645e49a8ee586850b7ad3be30afad355b6115",
+    "subject": "Connect owned RGBD capture to control cycle and run logging",
+    "is_merge": false,
+    "status": "HISTORICAL_NONCONVENTIONAL"
+  },
+  {
+    "sha": "558fc35c1b8024f09d23bece5e71eeacba4ba1be",
+    "subject": "Link control cycle documentation in Sphinx index",
+    "is_merge": false,
+    "status": "HISTORICAL_NONCONVENTIONAL"
+  },
+  {
+    "sha": "2b1c69ecdd9cee536a4322508ef828e6e4ffd421",
+    "subject": "Add shared perception-control cycle with fault handling",
+    "is_merge": false,
+    "status": "HISTORICAL_NONCONVENTIONAL"
+  }
+]

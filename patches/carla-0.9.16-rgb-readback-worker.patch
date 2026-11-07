@@ -1,0 +1,6 @@
+diff --git a/Unreal/CarlaUE4/Plugins/Carla/Source/Carla/Sensor/PixelReader.cpp b/Unreal/CarlaUE4/Plugins/Carla/Source/Carla/Sensor/PixelReader.cpp
+--- a/Unreal/CarlaUE4/Plugins/Carla/Source/Carla/Sensor/PixelReader.cpp
++++ b/Unreal/CarlaUE4/Plugins/Carla/Source/Carla/Sensor/PixelReader.cpp
+@@ -52,1 +52,1 @@
+-  AsyncTask(ENamedThreads::HighTaskPriority, [=, Readback=std::move(BackBufferReadback)]() mutable {
++  AsyncTask(ENamedThreads::AnyNormalThreadHiPriTask, [=, Readback=std::move(BackBufferReadback)]() mutable {

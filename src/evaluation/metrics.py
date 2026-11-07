@@ -1,245 +1,181 @@
-"""Scenario applicability and per-run metrics; absent data is never a pass."""
+"""Offline S0 metrics. Missing evidence is blocked, never interpreted as zero."""
+from __future__ import annotations
 
 import json
 import math
 from pathlib import Path
 
-import numpy as np
 
-from evaluation.event_checks import count_contacts, count_unplanned_invasions
-from evaluation.run_logger import file_sha256
-
-METRIC_KEYS = {
-    "Route completion (minimum per run)": "route_completion",
-    "Collisions (maximum per run)": "collisions",
-    "Unplanned lane invasions (max per run)": "unplanned_lane_invasions",
-    "Cross-track mean (worst run)": "cte_mean_m",
-    "Cruise speed RMS (worst run)": "cruise_speed_rms_mps",
-    "Capture-to-apply p95 (worst run)": "capture_apply_p95_ms",
-    "False stops (maximum per run)": "false_stops",
-    "Minimum stopped bumper margin": "hold_margin_min_m",
-    "Maximum stopped bumper margin": "hold_margin_max_m",
-    "HOLD maximum speed": "hold_max_speed_mps",
-    "Resume delay (median)": "resume_delay_s",
-    "Continuous HOLD duration (minimum)": "continuous_hold_s",
-    "Cruise speed drop versus matched S0": "cruise_drop_mps",
-}
+def percentile(values, q):
+    ordered = sorted(values)
+    if not ordered:
+        return None
+    p = (len(ordered) - 1) * q
+    lo, hi = math.floor(p), math.ceil(p)
+    return ordered[lo] + (ordered[hi] - ordered[lo]) * (p - lo)
 
 
-def _max_duration(rows, predicate, dt):
-    start, duration = None, 0.0
-    previous = None
+def first_sustained(rows, predicate, duration, dt):
+    start = previous = None
     for row in rows:
-        active = predicate(row)
-        if active:
-            if start is None or (previous is not None and row["sim_time_s"] - previous > dt * 1.5):
-                start = row["sim_time_s"]
-            duration = max(duration, row["sim_time_s"] - start + dt)
+        t = row["sim_time_s"]
+        if previous is not None and t - previous > dt * 1.01:
+            start = None
+        if predicate(row):
+            if start is None:
+                start = t
+            if t - start >= duration - 1e-9:
+                return row
         else:
             start = None
-        previous = row["sim_time_s"]
-    return duration
+        previous = t
+    return None
 
 
-def _false_stops(rows, dt, waiting=None):
-    """Stops >= 1 s outside the goal window with no obstacle in the corridor.
+def stopped_margin(rows, config):
+    """GT front-to-surface route gap when the sustained stop first holds."""
+    row = first_sustained(rows, lambda r: abs(r["ego"]["speed_mps"]) <= config["stopped_speed_mps"],
+                          config["stopped_duration_s"], config["dt_s"])
+    return None if row is None else row.get("truth_front_gap_m")
 
-    ``waiting`` is the (removal, motion) interval after a scripted removal:
-    holding until fresh depth confirms clearance is the expected resume
-    behaviour, reported as the resume delay, not a false stop. A run that
-    never moves again after a removal gets no exemption.
-    """
-    count, elapsed, counted = 0, 0.0, False
-    for row in rows:
-        exempt = waiting is not None and waiting[0] <= row["sim_time_s"] < waiting[1]
-        qualifies = (
-            not exempt
-            and row["target_mps"] < 0.1
-            and row["distance_to_goal_m"] > 2.0
-            and not row.get("truth_in_corridor", False)
-        )
-        if qualifies:
-            elapsed += dt
-            if elapsed >= 1.0 - 1e-9 and not counted:
-                count, counted = count + 1, True
+
+def read_json(text):
+    def reject(value):
+        raise ValueError(f"nonfinite JSON value: {value}")
+
+    def validate(value):
+        if isinstance(value, float) and not math.isfinite(value):
+            reject(value)
+        if isinstance(value, dict):
+            for item in value.values():
+                validate(item)
+        elif isinstance(value, list):
+            for item in value:
+                validate(item)
+
+    data = json.loads(text, parse_constant=reject)
+    validate(data)
+    return data
+
+
+def validate_s0_criteria(acceptance, definitions):
+    """Refuse config drift against the team's authoritative metric sheet."""
+    metrics = {m["metric"]: m for m in definitions["metrics"] if m["scenario"] == "S0" and m["applicable"]}
+    expected = {
+        "Route completion (minimum per run)": (">=", 1.0, None),
+        "Collisions (maximum per run)": ("=", 0.0, 0.0),
+        "Unplanned lane invasions (max per run)": ("=", 0.0, 0.0),
+        "False stops (maximum per run)": ("=", 0.0, 0.0),
+        "Cross-track mean (worst run)": ("<=", None, acceptance["mean_cte_m"]),
+        "Cruise speed RMS (worst run)": ("<=", None, acceptance["cruise_rms_mps"]),
+        "Capture-to-apply p95 (worst run)": ("<=", None, acceptance["latency_p95_ms"]),
+    }
+    if metrics.keys() != expected.keys():
+        raise ValueError("S0 applicability changed; update the evaluator explicitly")
+    for name, limits in expected.items():
+        metric = metrics[name]
+        if (metric["rule"], metric["lower"], metric["upper"]) != limits or metric["required_runs"] != acceptance["trials"]:
+            raise ValueError(f"S0 configuration disagrees with team criteria: {name}")
+
+
+def evaluate_run(directory):
+    directory = Path(directory)
+    manifest = read_json((directory / "manifest.json").read_text())
+    if manifest["schema_version"] != 2:
+        raise ValueError("unsupported log schema")
+    c = manifest["config"]["acceptance"]
+    if any(not isinstance(v, (int, float)) or isinstance(v, bool) or not math.isfinite(v) or v <= 0 for v in c.values()):
+        raise ValueError("acceptance settings must be finite and positive")
+    if not isinstance(c["trials"], int):
+        raise ValueError("trials must be an integer")
+    if "acceptance_definitions" in manifest["config"]:
+        validate_s0_criteria(c, manifest["config"]["acceptance_definitions"])
+    rows = [read_json(s) for s in (directory / "ticks.jsonl").read_text().splitlines()]
+    events = [read_json(s) for s in (directory / "evaluation.jsonl").read_text().splitlines()]
+    if not rows or len(rows) != len(events):
+        raise ValueError("empty or incomplete run")
+    for i, (r, e) in enumerate(zip(rows, events)):
+        if r["frame_id"] != e["frame_id"] or (i and (r["frame_id"] <= rows[i-1]["frame_id"] or r["sim_time_s"] <= rows[i-1]["sim_time_s"])):
+            raise ValueError("misaligned or unordered log")
+        if i and (r["frame_id"] != rows[i-1]["frame_id"] + 1 or not math.isclose(r["sim_time_s"] - rows[i-1]["sim_time_s"], c["dt_s"], abs_tol=1e-8)):
+            raise ValueError("missing frame or incorrect simulation step")
+        if r["simulation_frame_age_s"] < 0:
+            raise ValueError("negative simulation frame age")
+        if not 0 <= r["host_receive_s"] <= r["host_applied_s"]:
+            raise ValueError("invalid host clock order")
+    complete = first_sustained(rows, lambda r: r["goal_distance_m"] <= c["goal_tolerance_m"] and abs(r["ego"]["speed_mps"]) <= c["stopped_speed_mps"], c["stopped_duration_s"], c["dt_s"]) is not None
+    false_stops = 0
+    start = previous = stable_since = last_target = None
+    counted = False
+    errors, latencies, ages, ctes = [], [], [], []
+    collisions, lane_events = 0, 0
+    contacts = {}
+    for r, e in zip(rows, events):
+        t, d = r["sim_time_s"], r["diagnostics"]
+        continuous = previous is None or t - previous <= c["dt_s"] * 1.01
+        low = d["target_speed_mps"] < 0.1 and not r["planned_final_stop"]
+        if low:
+            if start is None or not continuous:
+                start, counted = t, False
+            if not counted and t - start >= c["stopped_duration_s"] - 1e-9:
+                false_stops += 1
+                counted = True
         else:
-            elapsed, counted = 0.0, False
-    return count
+            start, counted = None, False
+        target, caps = d["target_speed_mps"], d["speed_caps_mps"]
+        cruise = d["behaviour"] == "CRUISE" and all(caps.get(k, caps.get("cruise", target)) >= caps.get("cruise", target) for k in ("curve", "endpoint"))
+        if not cruise or target != last_target or not continuous:
+            stable_since = t if cruise else None
+        if stable_since is not None and t - stable_since >= c["stable_cruise_s"] - 1e-9:
+            errors.append((r["ego"]["speed_mps"] - target) ** 2)
+        latencies.append(1000 * (r["host_applied_s"] - r["host_receive_s"]))
+        ages.append(r["simulation_frame_age_s"])
+        if d["signed_cte_m"] is not None:
+            ctes.append(d["signed_cte_m"])
+        for event in e["collisions"]:
+            key = event["other_actor_id"]
+            if key is None or key not in contacts or t - contacts[key] > c["collision_dedup_s"] + 1e-9:
+                collisions += 1
+            contacts[key] = t
+        lane_events += len(e["lane_invasions"])
+        last_target, previous = target, t
+    rms = math.sqrt(sum(errors) / len(errors)) if errors else None
+    mean_cte = sum(map(abs, ctes)) / len(ctes) if len(ctes) == len(rows) else None
+    metrics = {"route_complete": complete, "collisions": collisions, "lane_invasions": lane_events,
+               "false_stops": false_stops, "cruise_rms_mps": rms, "cruise_samples": len(errors),
+               "mean_cte_m": mean_cte, "cte_samples": len(ctes), "max_cte_m": max(map(abs, ctes)) if ctes else None,
+               "latency_p50_ms": percentile(latencies, .5), "latency_p95_ms": percentile(latencies, .95),
+               "latency_max_ms": max(latencies), "simulation_frame_age_max_s": max(ages), "latency_samples": len(latencies),
+               "missed_deadlines": sum(v > c["dt_s"] * 1000 for v in latencies)}
+    wall = rows[-1]["host_applied_s"] - rows[0]["host_receive_s"]
+    metrics["real_time_factor"] = (rows[-1]["sim_time_s"] - rows[0]["sim_time_s"]) / wall if wall > 0 else None
+    checks = {"route_complete": complete, "collisions": collisions == 0, "lane_invasions": lane_events == 0,
+              "false_stops": false_stops == 0, "cruise_rms_mps": None if rms is None else rms <= c["cruise_rms_mps"],
+              "mean_cte_m": None if mean_cte is None else mean_cte <= c["mean_cte_m"],
+              "latency_p95_ms": metrics["latency_p95_ms"] <= c["latency_p95_ms"]}
+    checks["observation_valid"] = all(r["diagnostics"].get("observation_valid", False) for r in rows)
+    supported = manifest["config"]["scenario"] == "S0"
+    status = "FAIL" if False in checks.values() else "BLOCKED" if not supported or None in checks.values() else "PASS"
+    return {"schema_version": 2, "status": status, "evidence_kind": manifest["config"].get("evidence_kind", "unspecified"),
+            "metrics": metrics, "checks": checks, "scope": "S0 only; S1-S5 and dataset depth evaluation remain blocked"}
 
 
-def _timing(rows, manifest):
-    """Wall-clock budget overruns; report-only next to the scored p95."""
-    budget = manifest.get("step_wall_budget_s", 0.1)
-    capture = [r["capture_apply_s"] for r in rows]
-    steps = [r.get("stages", {}).get("total") for r in rows]
-    steps = [s for s in steps if s is not None]
-    return dict(
-        step_budget_s=budget,
-        step_over_budget=sum(s > budget for s in steps),
-        step_max_ms=max(steps) * 1000 if steps else None,
-        capture_apply_over_100ms=sum(c > 0.1 for c in capture),
-        capture_apply_max_ms=max(capture) * 1000,
-        tick_to_apply_max_ms=max(r.get("tick_to_apply_s", 0.0) for r in rows) * 1000,
-        stalls_over_500ms=sum(r.get("tick_to_apply_s", 0.0) > 0.5 for r in rows),
-        guard=manifest.get("wall_guard"),
-    )
-
-
-def _localisation(rows):
-    """Shadow pose-estimate error while moving (report-only; never scored)."""
-    moving = [r["localisation"] for r in rows if "localisation" in r and r["speed_mps"] > 0.5]
-    if not moving:
-        return None
-
-    def stats(values):
-        values = np.abs(np.asarray(values, dtype=float))
-        return dict(
-            mean=float(values.mean()),
-            p95=float(np.percentile(values, 95)),
-            max=float(values.max()),
-        )
-
-    measured = np.array([r["yaw_rate_rps"] for r in moving])
-    truth = np.array([r["true_yaw_rate_rps"] for r in moving])
-    agreement = (
-        float(np.corrcoef(measured, truth)[0, 1])
-        if measured.std() > 1e-9 and truth.std() > 1e-9
-        else None
-    )
-    return dict(
-        moving_samples=len(moving),
-        lateral_error_m=stats([r["lateral_error_m"] for r in moving]),
-        along_error_m=stats([r["along_error_m"] for r in moving]),
-        position_error_m=stats([r["error_m"] for r in moving]),
-        yaw_error_deg=stats([math.degrees(r["yaw_error_rad"]) for r in moving]),
-        final_position_error_m=float(moving[-1]["error_m"]),
-        # Sign/scale sanity check of the gyro input against the true yaw rate.
-        gyro_truth_correlation=agreement,
-    )
-
-
-def summarize(rows, events, manifest):
-    dt = manifest["dt_s"]
-    if not rows:
-        return {"samples": 0, "metrics": {key: None for key in METRIC_KEYS.values()}}
-    moving = [r for r in rows if r["speed_mps"] > 0.1]
-    cruise = [r for r in rows if r.get("cruise_window", False)]
-    hold = [r for r in rows if r["state"] == "HOLD"]
-    margins = [
-        r["truth_gap_m"] for r in hold if r["speed_mps"] <= 0.1 and r.get("truth_gap_m") is not None
-    ]
-    last = rows[-1]
-    completed = bool(
-        last.get("finished")
-        and last["speed_mps"] <= 0.1
-        and last["distance_to_goal_m"] <= manifest.get("goal_tolerance_m", 1.0)
-    )
-    removals = [e["sim_time_s"] for e in events if e["type"] == "obstacle_removed"]
-    resume = waiting = None
-    if removals:
-        resumed = next(
-            (r for r in rows if r["sim_time_s"] >= removals[0] and r["speed_mps"] > 0.1), None
-        )
-        if resumed:
-            resume = resumed["sim_time_s"] - removals[0]
-            waiting = (removals[0], resumed["sim_time_s"])
-    sensor_events = manifest.get("event_sensors_verified", False)
-    # Collision contacts are keyed by actor, separated by >=1 s of no callback.
-    # The same functions are exercised live by scripts/verify_event_sensors.py.
-    contacts = count_contacts(events)
-    invasions = count_unplanned_invasions(events)
-    metrics = dict(
-        route_completion=1.0 if completed else 0.0,
-        collisions=contacts if sensor_events else None,
-        unplanned_lane_invasions=invasions if sensor_events else None,
-        cte_mean_m=float(np.mean([abs(r["cte_m"]) for r in moving])) if moving else None,
-        cruise_speed_rms_mps=float(
-            np.sqrt(np.mean([(r["speed_mps"] - manifest["cruise_mps"]) ** 2 for r in cruise]))
-        )
-        if cruise
-        else None,
-        cruise_mean_mps=float(np.mean([r["speed_mps"] for r in cruise])) if cruise else None,
-        capture_apply_p95_ms=float(
-            np.percentile([r["capture_apply_s"] * 1000 for r in rows], 95, method="linear")
-        ),
-        tick_to_apply_p95_ms=float(
-            np.percentile(
-                [r.get("tick_to_apply_s", r["capture_apply_s"]) * 1000 for r in rows],
-                95,
-                method="linear",
-            )
-        ),
-        false_stops=(
-            _false_stops(rows, dt, waiting) if manifest.get("truth_channel_complete") else None
-        ),
-        hold_margin_min_m=min(margins) if margins else None,
-        hold_margin_max_m=max(margins) if margins else None,
-        hold_max_speed_mps=max((r["speed_mps"] for r in hold), default=None),
-        continuous_hold_s=_max_duration(
-            rows,
-            lambda r: (
-                r["state"] == "HOLD" and r["speed_mps"] <= 0.1 and r.get("truth_in_corridor", False)
-            ),
-            dt,
-        ),
-        resume_delay_s=resume,
-        cruise_drop_mps=None,
-    )
-    if manifest["scenario"] == "S4":
-        metrics["route_completion"] = None
-    return dict(
-        samples=len(rows),
-        timing=_timing(rows, manifest),
-        localisation=_localisation(rows),
-        cruise_samples=len(cruise),
-        moving_samples=len(moving),
-        metrics=metrics,
-        max_simulation_age_s=max(r.get("simulation_age_s", 0) for r in rows),
-        real_time_factor=(rows[-1]["sim_time_s"] - rows[0]["sim_time_s"])
-        / max(1e-9, manifest.get("loop_wall_s", 0)),
-        scope=manifest["engine"],
-        percentile_method="numpy linear",
-    )
-
-
-def evaluate(summary, criteria, scenario, *, collected=True):
-    outcomes = []
-    for definition in criteria["metrics"]:
-        if definition["scenario"] != scenario:
-            continue
-        key = METRIC_KEYS[definition["metric"]]
-        value = summary["metrics"].get(key)
-        rule = definition["rule"]
-        if not definition["applicable"]:
-            status = "NOT_APPLICABLE"
-        elif value is None or not math.isfinite(value):
-            status = "MISSING"
-        elif rule == "report":
-            status = "REPORTED"
-        else:
-            passed = (
-                (rule == "<=" and value <= definition["upper"])
-                or (rule == ">=" and value >= definition["lower"])
-                or (rule == "=" and value == definition["lower"])
-            )
-            status = "PASS" if passed else "FAIL"
-        outcomes.append(dict(metric=key, value=value, status=status))
-    passed = (
-        collected
-        and bool(outcomes)
-        and all(x["status"] in {"PASS", "REPORTED", "NOT_APPLICABLE"} for x in outcomes)
-    )
-    return dict(status="PASS" if passed else "INCOMPLETE_OR_FAIL", metrics=outcomes)
-
-
-def load_run(folder):
-    folder = Path(folder)
-    manifest = json.loads((folder / "manifest.json").read_text())
-    if set(manifest.get("files_sha256", {})) != {"samples.jsonl", "events.jsonl"}:
-        raise ValueError("Run evidence hashes are missing")
-    for name, digest in manifest["files_sha256"].items():
-        if name not in {"samples.jsonl", "events.jsonl"} or file_sha256(folder / name) != digest:
-            raise ValueError("Run evidence hash mismatch")
-    rows = [json.loads(line) for line in (folder / "samples.jsonl").read_text().splitlines()]
-    events = [json.loads(line) for line in (folder / "events.jsonl").read_text().splitlines()]
-    return manifest, rows, events
+def aggregate(directories):
+    directories = list(directories)
+    runs = [evaluate_run(d) for d in directories]
+    manifests = [json.loads((Path(d) / "manifest.json").read_text()) for d in directories]
+    if not manifests:
+        return {"status": "BLOCKED", "runs": []}
+    baseline = manifests[0]["config"]
+    compatible = all(m["config"] == baseline for m in manifests)
+    unique = len({str(Path(d).resolve()) for d in directories}) == len(directories)
+    seeds = len({m["seed"] for m in manifests}) == len(manifests)
+    status = "FAIL" if any(r["status"] == "FAIL" for r in runs) else "BLOCKED"
+    if compatible and unique and seeds and len(runs) >= baseline["acceptance"]["trials"] and all(r["status"] == "PASS" for r in runs):
+        status = "PASS"
+    worst = {}
+    for name in ("collisions", "lane_invasions", "false_stops", "cruise_rms_mps", "mean_cte_m", "latency_p95_ms"):
+        values = [r["metrics"][name] for r in runs]
+        worst[name] = None if None in values else max(values)
+    return {"status": status, "runs": runs, "worst_run_metrics": worst,
+            "compatible_config": compatible, "unique_runs_and_seeds": unique and seeds}

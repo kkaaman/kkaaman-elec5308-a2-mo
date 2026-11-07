@@ -7,7 +7,7 @@ from dataclasses import asdict, replace
 from autonomy.baseline import BaselinePolicy
 from autonomy.localisation import PoseEstimator, pose_errors, wrap
 from autonomy.stack import SkeletonStack, StackConfig
-from evaluation.metrics import summarize
+from evaluation.baseline35_metrics import summarize
 from evaluation.run_logger import RunLogger, json_text
 from navigation_control.types import VehicleState
 

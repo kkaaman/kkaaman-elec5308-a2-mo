@@ -14,15 +14,18 @@ dependencies = [
     "torchvision",
     "ultralytics",
     "transformers",
-    "PyYAML",
     "matplotlib",
     "lap>=0.5.12",
+    "PyYAML>=6.0",
 ]
 
 [project.optional-dependencies]
+remote = ["pillow", "matplotlib"]
 test = [
     "pytest",
     "ruff",
+    "fastapi==0.115.0",
+    "httpx>=0.27",
 ]
 docs = [
     "sphinx",
@@ -30,6 +33,10 @@ docs = [
 ]
 carla = [
     "carla==0.9.16",
+]
+server = [
+    "fastapi==0.115.0",
+    "uvicorn==0.30.6",
 ]
 training = [
     "pandas",
@@ -74,6 +81,8 @@ ignore = ["E501"]
 "carla_adapter".msg = "Core must not depend on the CARLA adapter."
 
 [tool.ruff.lint.per-file-ignores]
+# Read-only offline adapter decoding audit; no simulator connection.
+"scripts/audit_lidar_live.py" = ["TID251"]
 # Adapter implementations and existing simulator entry points only. The AST
 # check independently prevents core from depending on these exempt modules.
 "src/carla_adapter/*.py" = ["TID251"]
@@ -83,18 +92,30 @@ ignore = ["E501"]
 "examples/a1/run_baseline.py" = ["TID251"]
 "scripts/export_lane_graph.py" = ["TID251"]
 "scripts/calibrate_vehicle.py" = ["TID251"]
+
+"scripts/calibrate_depth.py" = ["TID251"]
+"tests/unit/test_depth_calibration.py" = ["TID251"]
+"scripts/calibrate_longitudinal.py" = ["TID251"]
+
 "scripts/check_junction_routes.py" = ["TID251"]
 "scripts/check_rgbd_capture.py" = ["TID251"]
+"scripts/measure_operational_governance.py" = ["TID251"]
+"scripts/capture_operational_approach.py" = ["TID251"]
+"tests/unit/test_operational_freshness.py" = ["TID251"]
+"scripts/capture_obstacle_tracks.py" = ["TID251"]
+"scripts/capture_lidar_sweeps.py" = ["TID251"]
+"tests/unit/test_lidar_capture.py" = ["TID251"]
+"scripts/run_scenario.py" = ["TID251"]
+"scripts/check_baseline_mission.py" = ["TID251"]
+"tests/unit/test_s0_runner.py" = ["TID251"]
 "tests/unit/test_rgbd_capture.py" = ["TID251"]
+"tests/unit/test_track_capture.py" = ["TID251"]
 "tests/test_carla_adapter.py" = ["E402", "TID251"]
 "tests/unit/test_world_lifecycle.py" = ["TID251"]
 "tests/unit/test_vehicle_geometry.py" = ["TID251"]
 "tests/unit/test_topology_export.py" = ["TID251"]
 
-"scripts/run_scenario.py" = ["TID251"]
 "scripts/prepare_mission.py" = ["TID251"]
-"scripts/calibrate_depth.py" = ["TID251"]
-"scripts/calibrate_longitudinal.py" = ["TID251"]
 "scripts/capture_frames.py" = ["TID251"]
 "scripts/verify_event_sensors.py" = ["TID251"]
 
@@ -111,6 +132,7 @@ ignore = ["E501"]
 "scripts/repair_mapless_capture.py" = ["TID251"]
 "scripts/check_geolocation.py" = ["TID251"]
 "scripts/make_satnav_route.py" = ["TID251"]
+"scripts/baseline35_run_scenario.py" = ["TID251"]
 "scripts/run_mapless_drive.py" = ["TID251"]
 "scripts/run_mapless_stack.py" = ["TID251"]
 "scripts/find_showcase_routes.py" = ["TID251"]
@@ -125,3 +147,12 @@ ignore = ["E501"]
 "tests/unit/test_showcase_lights.py" = ["TID251"]
 "tests/unit/test_mapless_scenarios.py" = ["TID251"]
 "tests/unit/test_mapless_mission.py" = ["TID251"]
+
+"scripts/verify_scenarios.py" = ["TID251"]
+"tests/unit/test_scenario_events.py" = ["TID251"]
+"tests/unit/test_scenario_world.py" = ["TID251"]
+
+"tests/unit/test_weather_matrix.py" = ["TID251"]
+
+"scripts/screen_lidar_geometry.py" = ["TID251"]
+"scripts/audit_issue40_geometry.py" = ["TID251"]

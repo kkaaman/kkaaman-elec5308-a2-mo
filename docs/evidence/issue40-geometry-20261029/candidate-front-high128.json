@@ -1,0 +1,14 @@
+{
+  "x_actor_m": 2.5,
+  "y_actor_m": 0,
+  "z_actor_m": 1.5,
+  "yaw_deg": 0,
+  "pitch_deg": 0,
+  "roll_deg": 0,
+  "channels": 128,
+  "range_m": 50,
+  "points_per_second": 1280000,
+  "upper_fov_deg": 10,
+  "lower_fov_deg": -85,
+  "horizontal_fov_deg": 360
+}

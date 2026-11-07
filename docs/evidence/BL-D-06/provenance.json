@@ -1,0 +1,50 @@
+{
+  "benchmark.json": {
+    "source_commit": "d63f8879ceebdd10655afd5784737aafd6aa9f96",
+    "source_path": "docs/evidence/BL-C-04-06/benchmark.json",
+    "source_blob": "80e6469c8950d5099ce56eb215dcbd3bdaa9e7d4",
+    "sha256": "e6d6bb782da3100911cb5451d63b0cc56b2ae75286a6bdae089df8fbbcaab40c"
+  },
+  "capture-summary.json": {
+    "source_commit": "d63f8879ceebdd10655afd5784737aafd6aa9f96",
+    "source_path": "docs/evidence/BL-C-04-06/capture-summary.json",
+    "source_blob": "4b24876b541541ba3d0fd84126df8bc601b74810",
+    "sha256": "37fd479116e67bc3ee1bf9994f69191dbd5c92f8093e807dafb41d1aaffcc402"
+  },
+  "depth-calibration.json": {
+    "source_commit": "d63f8879ceebdd10655afd5784737aafd6aa9f96",
+    "source_path": "docs/evidence/BL-C-04-06/depth-calibration.json",
+    "source_blob": "6cebb4a4bc74c6bb16925b2960020ba50c2e943b",
+    "sha256": "89d64df2475790eea16a0fc2b862a9fcbafdf125c9f3fd5ef3f74453afc9cf5f"
+  },
+  "longitudinal.json": {
+    "source_commit": "d63f8879ceebdd10655afd5784737aafd6aa9f96",
+    "source_path": "docs/evidence/BL-C-04-06/longitudinal.json",
+    "source_blob": "3631cc80dab6f7373f8c4a77b9839261d14dd02a",
+    "sha256": "f718d60b26416675e563bb92099d01aebd95c4aa7011e141414cb82ec2f3ee73"
+  },
+  "depth-analysis.json": {
+    "source_commit": "b9ac2e35d73310442682ebc7a7870130ef289a8c",
+    "source_path": "docs/evidence/TEST-13/depth_analysis.json",
+    "source_blob": "f1014d2fe75d8543fba514a78537632e399eced4",
+    "sha256": "0ccfc2a96f48312d0e1b699f767409682aa3889bc2140f9789e2ed3018e406ea"
+  },
+  "acceptance.json": {
+    "source_commit": "f9d0584385ba073ef70f4a3aeae6842a468c1841",
+    "source_path": "configs/acceptance.json",
+    "source_blob": "b35e91e92fd84fed4b28f0bb3b455dbf313de48a",
+    "sha256": "9f8ba3cf712dedd6d0483eb228a6df8155e9f2e65880bd6a560ec07495c6c7d8"
+  },
+  "navigation-baseline.json": {
+    "source_commit": "f9d0584385ba073ef70f4a3aeae6842a468c1841",
+    "source_path": "configs/mission_baseline.json",
+    "source_blob": "ddb414940708af0a88a5c0f909b64edcb6d6c2e3",
+    "sha256": "06f6fa7ce24d399f4ec731b77230836881ac05832f5a1858d724032d12cfdbd1"
+  },
+  "controller-timing.json": {
+    "source_commit": "f9d0584385ba073ef70f4a3aeae6842a468c1841",
+    "source_path": "docs/evidence/TEST-02/rgb-repair-results.json",
+    "source_blob": "c394ddb2824900de75f85ddb4ba784443ef45b4a",
+    "sha256": "8fe40db5bfe2288d4b2b52d2991e6a763ce2e590df328e7b34f9d89bf9153710"
+  }
+}

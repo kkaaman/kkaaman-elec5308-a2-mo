@@ -32,10 +32,6 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
-    env:
-      OMP_NUM_THREADS: "1"
-      OPENBLAS_NUM_THREADS: "1"
-      MKL_NUM_THREADS: "1"
 
     steps:
       - name: Checkout repository
@@ -64,15 +60,27 @@ jobs:
         run: |
           python -m pytest
 
-      - name: Record CARLA-free S0 evidence
-        run: python scripts/run_scenario.py --engine harness --scenario S0 --output runs/ci-S0
+      - name: Run five offline S0 acceptance trials
+        run: python scripts/run_s0_acceptance.py --output runs/S0
 
-      - name: Upload harness evidence
+      - name: Run offline forward-parking P1 acceptance
+        run: python scripts/run_p1_acceptance.py --output runs/P1
+
+      - name: Retain forward-parking evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: harness-S0
-          path: runs/ci-S0
+          name: offline-p1-acceptance
+          path: runs/P1
+          if-no-files-found: warn
+
+      - name: Retain acceptance logs and results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: offline-s0-acceptance
+          path: runs/S0
+          if-no-files-found: warn
 
   docs:
     runs-on: ubuntu-latest
@@ -91,6 +99,39 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -e ".[docs]"
 
+      - name: Check module inventory
+        run: python scripts/generate_module_notes.py --check
+
       - name: Build documentation
         run: |
           sphinx-build -W docs docs/_build/html
+
+      - name: Preserve generated API and module documentation
+        uses: actions/upload-artifact@v4
+        with:
+          name: documentation-html
+          path: docs/_build/html
+          if-no-files-found: error
+
+  offline-fault-fixtures:
+    name: TEST-18 available fixtures (admission remains blocked)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install only offline fixture dependencies
+        run: python -m pip install numpy pytest
+      - name: Test fault harness
+        run: python -m pytest -q tests/unit/test_all_flags_faults.py
+      - name: Export available-fixture diagnostics
+        if: always()
+        run: python scripts/run_all_flags_faults.py --check-fixtures --output runs/TEST-18/ci
+      - name: Retain all fault diagnostics including failures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: offline-all-flags-fault-fixtures
+          path: runs/TEST-18
+          if-no-files-found: warn

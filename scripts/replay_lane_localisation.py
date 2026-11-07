@@ -25,10 +25,11 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
-from replay_lane_monitor import LANE_SHA256, calibration_from, video_frames  # noqa: E402
+from baseline35_replay_lane_monitor import LANE_SHA256, calibration_from, video_frames  # noqa: E402
 
 from autonomy.lane_localisation import LaneAiding  # noqa: E402
 from autonomy.localisation import LocalisationConfig  # noqa: E402
+from evaluation.baseline35_metrics import load_run  # noqa: E402
 from evaluation.lane_localisation_replay import (  # noqa: E402
     VARIANTS,
     lane_measurements,
@@ -37,9 +38,8 @@ from evaluation.lane_localisation_replay import (  # noqa: E402
     summarise,
 )
 from evaluation.lane_monitor_replay import replay as lane_monitor  # noqa: E402
-from evaluation.metrics import load_run  # noqa: E402
 from evaluation.run_logger import file_sha256  # noqa: E402
-from planning.corridor import RouteGeometry  # noqa: E402
+from planning.baseline35_corridor import RouteGeometry  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 LABELS = dict(

@@ -3,7 +3,7 @@
 import json
 from pathlib import Path
 
-from evaluation.metrics import evaluate, load_run, summarize
+from evaluation.baseline35_metrics import evaluate, load_run, summarize
 from evaluation.run_logger import file_sha256
 
 

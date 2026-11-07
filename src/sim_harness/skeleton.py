@@ -70,7 +70,7 @@ class ContractWorld:
             raise RuntimeError("World is closed or not reset")
         now = self.frame_id * 0.05
         if packet.source_frame_id != self.frame_id or not packet.is_current(
-            self.episode_id, now
+            self.episode_id, now, monotonic_s=time.monotonic()
         ):
             self.last_command = ControlCommand(0, 0, 1)
             raise ValueError("Rejected stale or foreign packet; full brake selected")

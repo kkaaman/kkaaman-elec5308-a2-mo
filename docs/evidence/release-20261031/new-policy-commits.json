@@ -1,0 +1,16 @@
+{
+  "policy_baselines": {
+    "pr99": "a1ae152ab0ac39e4216092f097dc436ceb0b6a48",
+    "pr101": "d8425ad905eb5808fa24473378c8045173fc2219",
+    "pr117": "8446d6afcd3601e3dbe85cad1816d0dcef561bb9"
+  },
+  "audited_commits": [
+    {
+      "sha": "dc106566e555fa6624bb5e3003432ddb7d9397d7",
+      "subject": "docs(review): refresh runtime disclosure after human inspection",
+      "status": "PASS"
+    }
+  ],
+  "new_pr_merges": [],
+  "note": "The commit publishing this audit is verified separately before push; its exact SHA/subject will be recorded in PR117 and final response."
+}

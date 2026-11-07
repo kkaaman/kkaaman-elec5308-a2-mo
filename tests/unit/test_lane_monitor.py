@@ -9,7 +9,7 @@ import pytest
 from evaluation.lane_monitor_replay import replay, report
 from geometry.camera import CameraIntrinsics, ego_point_to_pixel
 from geometry.transforms import ego_to_world_matrix, inverse_rigid
-from planning.corridor import RouteGeometry
+from planning.baseline35_corridor import RouteGeometry
 from sim_harness.baseline import mission_route
 from visualisation.lane_monitor import (
     REFERENCE_X_M,

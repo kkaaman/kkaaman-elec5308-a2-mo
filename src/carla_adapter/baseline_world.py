@@ -18,7 +18,7 @@ from carla_adapter.vehicle import FixedVehicleAdapter
 from carla_adapter.world import SynchronousWorldSession, WorldTiming, _settings_record
 from evaluation.event_checks import annotate_invasion
 from geometry.camera import CameraIntrinsics
-from planning.corridor import RouteGeometry
+from planning.baseline35_corridor import RouteGeometry
 from planning.mission import route_graph, scenario_obstacle_s
 
 

@@ -8,9 +8,9 @@ import pytest
 
 from autonomy.baseline import BaselineConfig
 from autonomy.configuration import read_config, write_config
-from carla_adapter.depth_calibration import choose_convention
-from evaluation.longitudinal import braking_summary
-from evaluation.perception_replay import axial_image, range_summary
+from carla_adapter.baseline35_depth_calibration import choose_convention
+from evaluation.baseline35_longitudinal import braking_summary
+from evaluation.baseline35_perception_replay import axial_image, range_summary
 from geometry.camera import CameraIntrinsics
 from obstacle_perception.box_depth import estimate_box_depth
 from obstacle_perception.types import PixelBox
@@ -178,7 +178,7 @@ def test_range_gate_uses_in_path_targets_with_ninety_percent_of_poses():
 
 
 def test_scenario_target_matches_requested_pose_only():
-    from evaluation.perception_replay import tag_scenario_target
+    from evaluation.baseline35_perception_replay import tag_scenario_target
 
     cal = CameraIntrinsics.from_horizontal_fov(640, 360, math.pi / 2).calibration(
         ((0, 0, 1, 2.88641), (-1, 0, 0, 0), (0, -1, 0, 2.0), (0, 0, 0, 1))
@@ -198,7 +198,7 @@ def test_scenario_target_matches_requested_pose_only():
 
 
 def test_scenario_target_by_actor_id_includes_targets_round_a_bend():
-    from evaluation.perception_replay import instance_actor_id, tag_scenario_target
+    from evaluation.baseline35_perception_replay import instance_actor_id, tag_scenario_target
 
     cal = CameraIntrinsics.from_horizontal_fov(640, 360, math.pi / 2).calibration(
         ((0, 0, 1, 2.88641), (-1, 0, 0, 0), (0, -1, 0, 2.0), (0, 0, 0, 1))

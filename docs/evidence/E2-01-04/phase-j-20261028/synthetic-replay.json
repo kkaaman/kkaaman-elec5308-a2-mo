@@ -1,0 +1,1087 @@
+{
+  "summary": {
+    "input_origin": "synthetic",
+    "episode_id": "lidar-synthetic",
+    "frames": 10,
+    "sweep_valid_frames": 8,
+    "fused_valid_frames": 7,
+    "hold_frames": 3,
+    "hold_reasons": {
+      "front-rgbd:depth_unavailable": 1,
+      "lidar:unconfirmed_tracks": 1,
+      "lidar:sparse_sweep_points": 2
+    },
+    "nearest_source_counts": {
+      "lidar": 5,
+      "front-rgbd": 2
+    },
+    "max_disagreement_m": 4.024420547485352,
+    "depth_loss_frames": 1,
+    "depth_loss_frames_treated_clear": 0,
+    "lidar_loss_frames": 3,
+    "lidar_loss_frames_treated_clear": 0,
+    "max_abs_lidar_gap_error_m": 0.0348308563232429,
+    "lidar_track_ids": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "lidar_track_sources": [
+      "lidar"
+    ],
+    "policy": {
+      "min_points": 500,
+      "min_density_fraction": 0.1,
+      "max_range_m": 40.0,
+      "band_length_m": 2.0,
+      "road_window_m": 3.0,
+      "path_window_m": 1.5,
+      "surface_depth_m": 0.05,
+      "band_tolerance_m": 0.07,
+      "band_tolerance_per_m": 0.015,
+      "max_grade": 0.12,
+      "max_band_gap_m": 4.0,
+      "ground_min_m": -0.4,
+      "ground_max_m": 0.1,
+      "obstacle_min_m": 0.3,
+      "overhead_m": 2.4,
+      "min_band_points": 3,
+      "cell_m": 0.5,
+      "cluster_merge_m": 1.5,
+      "min_cluster_points": 6,
+      "max_clusters": 32,
+      "corridor_half_width_m": 1.5,
+      "corridor_ahead_m": 40.0,
+      "raised_corridor_min_points": 12,
+      "clear_bin_m": 0.5,
+      "clear_min_points": 2,
+      "clear_gap_m": 1.0,
+      "clear_gap_per_m": 0.3,
+      "clear_start_m": 8.0,
+      "clear_strips": 3,
+      "clear_min_strips": 2
+    },
+    "body": {
+      "front_m": 3.8,
+      "rear_m": -1.0,
+      "half_width_m": 1.05,
+      "height_m": 1.6,
+      "margin_m": 0.3
+    }
+  },
+  "frames": [
+    {
+      "frame_id": 5,
+      "sim_time_s": 0.25,
+      "note": "depth_dropped",
+      "point_count": 3954,
+      "density_fraction": 0.659,
+      "sweep_valid": true,
+      "sweep_invalid_reason": null,
+      "clusters": 4,
+      "in_corridor_clusters": 1,
+      "road_points": 1858,
+      "raised_points": 1458,
+      "obstacle_points": 574,
+      "seen_clear_m": 23.0,
+      "lidar_report": {
+        "valid": false,
+        "nearest_gap_m": null,
+        "visible_distance_m": null,
+        "clearance_valid": false,
+        "invalid_reason": "unconfirmed_tracks",
+        "track_ids": []
+      },
+      "depth_report": {
+        "valid": false,
+        "nearest_gap_m": null,
+        "invalid_reason": "depth_unavailable"
+      },
+      "expected_gap_m": 24.0,
+      "lidar_gap_error_m": null,
+      "fused": {
+        "valid": false,
+        "obstacle_gap_m": null,
+        "visible_distance_m": null,
+        "clearance_valid": false,
+        "nearest_source_id": null,
+        "source_gaps_m": {
+          "front-rgbd": null,
+          "lidar": null
+        },
+        "disagreement_m": null,
+        "invalid_reasons": [
+          "front-rgbd:depth_unavailable",
+          "lidar:unconfirmed_tracks"
+        ],
+        "track_count": 0
+      },
+      "governor_input": {
+        "valid": false,
+        "obstacle_gap_m": null,
+        "visible_distance_m": null,
+        "clearance_valid": false,
+        "hold": true
+      },
+      "tracks": [
+        {
+          "track_id": 0,
+          "source_id": "lidar",
+          "confirmed": false,
+          "current": true,
+          "gap_valid": false,
+          "gap_m": null,
+          "robust_gap_m": null,
+          "invalid_reason": "unconfirmed",
+          "nearest_surface_m": 27.789173126220703
+        },
+        {
+          "track_id": 1,
+          "source_id": "lidar",
+          "confirmed": false,
+          "current": true,
+          "gap_valid": false,
+          "gap_m": null,
+          "robust_gap_m": null,
+          "invalid_reason": "unconfirmed",
+          "nearest_surface_m": 9.662833728106365
+        },
+        {
+          "track_id": 2,
+          "source_id": "lidar",
+          "confirmed": false,
+          "current": true,
+          "gap_valid": false,
+          "gap_m": null,
+          "robust_gap_m": null,
+          "invalid_reason": "unconfirmed",
+          "nearest_surface_m": 9.90610717162097
+        },
+        {
+          "track_id": 3,
+          "source_id": "lidar",
+          "confirmed": false,
+          "current": true,
+          "gap_valid": false,
+          "gap_m": null,
+          "robust_gap_m": null,
+          "invalid_reason": "unconfirmed",
+          "nearest_surface_m": 12.564664051467716
+        }
+      ]
+    },
+    {
+      "frame_id": 10,
+      "sim_time_s": 0.5,
+      "note": "agree",
+      "point_count": 3954,
+      "density_fraction": 0.659,
+      "sweep_valid": true,
+      "sweep_invalid_reason": null,
+      "clusters": 4,
+      "in_corridor_clusters": 1,
+      "road_points": 1858,
+      "raised_points": 1456,
+      "obstacle_points": 576,
+      "seen_clear_m": 23.0,
+      "lidar_report": {
+        "valid": true,
+        "nearest_gap_m": 22.987771224975585,
+        "visible_distance_m": 22.987771224975585,
+        "clearance_valid": false,
+        "invalid_reason": null,
+        "track_ids": [
+          0,
+          1,
+          2,
+          3
+        ]
+      },
+      "depth_report": {
+        "valid": true,
+        "nearest_gap_m": 23.9,
+        "invalid_reason": null
+      },
+      "expected_gap_m": 23.0,
+      "lidar_gap_error_m": -0.012228775024414773,
+      "fused": {
+        "valid": true,
+        "obstacle_gap_m": 22.987771224975585,
+        "visible_distance_m": 22.987771224975585,
+        "clearance_valid": false,
+        "nearest_source_id": "lidar",
+        "source_gaps_m": {
+          "front-rgbd": 23.9,
+          "lidar": 22.987771224975585
+        },
+        "disagreement_m": 0.9122287750244134,
+        "invalid_reasons": [],
+        "track_count": 4
+      },
+      "governor_input": {
+        "valid": true,
+        "obstacle_gap_m": 22.987771224975585,
+        "visible_distance_m": 22.987771224975585,
+        "clearance_valid": false,
+        "hold": false
+      },
+      "tracks": [
+        {
+          "track_id": 0,
+          "source_id": "lidar",
+          "confirmed": true,
+          "current": true,
+          "gap_valid": true,
+          "gap_m": 22.987771224975585,
+          "robust_gap_m": 22.987771224975585,
+          "invalid_reason": null,
+          "nearest_surface_m": 26.79436466158885
+        },
+        {
+          "track_id": 1,
+          "source_id": "lidar",
+          "confirmed": true,
+          "current": true,
+          "gap_valid": false,
+          "gap_m": null,
+          "robust_gap_m": null,
+          "invalid_reason": "outside_corridor",
+          "nearest_surface_m": 9.663191777619623
+        },
+        {
+          "track_id": 2,
+          "source_id": "lidar",
+          "confirmed": true,
+          "current": true,
+          "gap_valid": false,
+          "gap_m": null,
+          "robust_gap_m": null,
+          "invalid_reason": "outside_corridor",
+          "nearest_surface_m": 9.896860007426806
+        },
+        {
+          "track_id": 3,
+          "source_id": "lidar",
+          "confirmed": true,
+          "current": true,
+          "gap_valid": false,
+          "gap_m": null,
+          "robust_gap_m": null,
+          "invalid_reason": "outside_corridor",
+          "nearest_surface_m": 12.558494773789706
+        }
+      ]
+    },
+    {
+      "frame_id": 15,
+      "sim_time_s": 0.75,
+      "note": "depth_far_disagreement",
+      "point_count": 3954,
+      "density_fraction": 0.659,
+      "sweep_valid": true,
+      "sweep_invalid_reason": null,
+      "clusters": 4,
+      "in_corridor_clusters": 1,
+      "road_points": 1858,
+      "raised_points": 1457,
+      "obstacle_points": 575,
+      "seen_clear_m": 18.0,
+      "lidar_report": {
+        "valid": true,
+        "nearest_gap_m": 21.975579452514648,
+        "visible_distance_m": 18.0,
+        "clearance_valid": false,
+        "invalid_reason": null,
+        "track_ids": [
+          0,
+          1,
+          2,
+          3
+        ]
+      },
+      "depth_report": {
+        "valid": true,
+        "nearest_gap_m": 26.0,
+        "invalid_reason": null
+      },
+      "expected_gap_m": 22.0,
+      "lidar_gap_error_m": -0.024420547485352273,
+      "fused": {
+        "valid": true,
+        "obstacle_gap_m": 21.975579452514648,
+        "visible_distance_m": 18.0,
+        "clearance_valid": false,
+        "nearest_source_id": "lidar",
+        "source_gaps_m": {
+          "front-rgbd": 26.0,
+          "lidar": 21.975579452514648
+        },
+        "disagreement_m": 4.024420547485352,
+        "invalid_reasons": [],
+        "track_count": 4
+      },
+      "governor_input": {
+        "valid": true,
+        "obstacle_gap_m": 21.975579452514648,
+        "visible_distance_m": 18.0,
+        "clearance_valid": false,
+        "hold": false
+      },
+      "tracks": [
+        {
+          "track_id": 0,
+          "source_id": "lidar",
+          "confirmed": true,
+          "current": true,
+          "gap_valid": true,
+          "gap_m": 21.975579452514648,
+          "robust_gap_m": 22.481675338745116,
+          "invalid_reason": null,
+          "nearest_surface_m": 25.7769982690885
+        },
+        {
+          "track_id": 1,
+          "source_id": "lidar",
+          "confirmed": true,
+          "current": true,
+          "gap_valid": false,
+          "gap_m": null,
+          "robust_gap_m": null,
+          "invalid_reason": "outside_corridor",
+          "nearest_surface_m": 9.66668562415084
+        },
+        {
+          "track_id": 2,
+          "source_id": "lidar",
+          "confirmed": true,
+          "current": true,
+          "gap_valid": false,
+          "gap_m": null,
+          "robust_gap_m": null,
+          "invalid_reason": "outside_corridor",
+          "nearest_surface_m": 9.89910234818208
+        },
+        {
+          "track_id": 3,
+          "source_id": "lidar",
+          "confirmed": true,
+          "current": true,
+          "gap_valid": false,
+          "gap_m": null,
+          "robust_gap_m": null,
+          "invalid_reason": "outside_corridor",
+          "nearest_surface_m": 12.563672115202959
+        }
+      ]
+    },
+    {
+      "frame_id": 20,
+      "sim_time_s": 1.0,
+      "note": "depth_nearer_disagreement",
+      "point_count": 3954,
+      "density_fraction": 0.659,
+      "sweep_valid": true,
+      "sweep_invalid_reason": null,
+      "clusters": 4,
+      "in_corridor_clusters": 1,
+      "road_points": 1851,
+      "raised_points": 1465,
+      "obstacle_points": 574,
+      "seen_clear_m": 18.0,
+      "lidar_report": {
+        "valid": true,
+        "nearest_gap_m": 20.98322982788086,
+        "visible_distance_m": 18.0,
+        "clearance_valid": false,
+        "invalid_reason": null,
+        "track_ids": [
+          0,
+          1,
+          2,
+          3
+        ]
+      },
+      "depth_report": {
+        "valid": true,
+        "nearest_gap_m": 20.5,
+        "invalid_reason": null
+      },
+      "expected_gap_m": 21.0,
+      "lidar_gap_error_m": -0.016770172119141336,
+      "fused": {
+        "valid": true,
+        "obstacle_gap_m": 20.5,
+        "visible_distance_m": 18.0,
+        "clearance_valid": false,
+        "nearest_source_id": "front-rgbd",
+        "source_gaps_m": {
+          "front-rgbd": 20.5,
+          "lidar": 20.98322982788086
+        },
+        "disagreement_m": 0.48322982788085866,
+        "invalid_reasons": [],
+        "track_count": 4
+      },
+      "governor_input": {
+        "valid": true,
+        "obstacle_gap_m": 20.5,
+        "visible_distance_m": 18.0,
+        "clearance_valid": false,
+        "hold": false
+      },
+      "tracks": [
+        {
+          "track_id": 0,
+          "source_id": "lidar",
+          "confirmed": true,
+          "current": true,
+          "gap_valid": true,
+          "gap_m": 20.98322982788086,
+          "robust_gap_m": 21.975579452514648,
+          "invalid_reason": null,
+          "nearest_surface_m": 24.790084838867188
+        },
+        {
+          "track_id": 1,
+          "source_id": "lidar",
+          "confirmed": true,
+          "current": true,
+          "gap_valid": false,
+          "gap_m": null,
+          "robust_gap_m": null,
+          "invalid_reason": "outside_corridor",
+          "nearest_surface_m": 9.661736341347128
+        },
+        {
+          "track_id": 2,
+          "source_id": "lidar",
+          "confirmed": true,
+          "current": true,
+          "gap_valid": false,
+          "gap_m": null,
+          "robust_gap_m": null,
+          "invalid_reason": "outside_corridor",
+          "nearest_surface_m": 9.904752712825983
+        },
+        {
+          "track_id": 3,
+          "source_id": "lidar",
+          "confirmed": true,
+          "current": true,
+          "gap_valid": false,
+          "gap_m": null,
+          "robust_gap_m": null,
+          "invalid_reason": "outside_corridor",
+          "nearest_surface_m": 12.56947732493373
+        }
+      ]
+    },
+    {
+      "frame_id": 25,
+      "sim_time_s": 1.25,
+      "note": "agree",
+      "point_count": 3954,
+      "density_fraction": 0.659,
+      "sweep_valid": true,
+      "sweep_invalid_reason": null,
+      "clusters": 4,
+      "in_corridor_clusters": 1,
+      "road_points": 1851,
+      "raised_points": 1464,
+      "obstacle_points": 575,
+      "seen_clear_m": 18.0,
+      "lidar_report": {
+        "valid": true,
+        "nearest_gap_m": 19.965169143676757,
+        "visible_distance_m": 18.0,
+        "clearance_valid": false,
+        "invalid_reason": null,
+        "track_ids": [
+          0,
+          1,
+          2,
+          3
+        ]
+      },
+      "depth_report": {
+        "valid": true,
+        "nearest_gap_m": 19.9,
+        "invalid_reason": null
+      },
+      "expected_gap_m": 20.0,
+      "lidar_gap_error_m": -0.0348308563232429,
+      "fused": {
+        "valid": true,
+        "obstacle_gap_m": 19.9,
+        "visible_distance_m": 18.0,
+        "clearance_valid": false,
+        "nearest_source_id": "front-rgbd",
+        "source_gaps_m": {
+          "front-rgbd": 19.9,
+          "lidar": 19.965169143676757
+        },
+        "disagreement_m": 0.06516914367675852,
+        "invalid_reasons": [],
+        "track_count": 4
+      },
+      "governor_input": {
+        "valid": true,
+        "obstacle_gap_m": 19.9,
+        "visible_distance_m": 18.0,
+        "clearance_valid": false,
+        "hold": false
+      },
+      "tracks": [
+        {
+          "track_id": 0,
+          "source_id": "lidar",
+          "confirmed": true,
+          "current": true,
+          "gap_valid": true,
+          "gap_m": 19.965169143676757,
+          "robust_gap_m": 20.98322982788086,
+          "invalid_reason": null,
+          "nearest_surface_m": 23.765169143676758
+        },
+        {
+          "track_id": 1,
+          "source_id": "lidar",
+          "confirmed": true,
+          "current": true,
+          "gap_valid": false,
+          "gap_m": null,
+          "robust_gap_m": null,
+          "invalid_reason": "outside_corridor",
+          "nearest_surface_m": 9.669146957090048
+        },
+        {
+          "track_id": 2,
+          "source_id": "lidar",
+          "confirmed": true,
+          "current": true,
+          "gap_valid": false,
+          "gap_m": null,
+          "robust_gap_m": null,
+          "invalid_reason": "outside_corridor",
+          "nearest_surface_m": 9.896910038874836
+        },
+        {
+          "track_id": 3,
+          "source_id": "lidar",
+          "confirmed": true,
+          "current": true,
+          "gap_valid": false,
+          "gap_m": null,
+          "robust_gap_m": null,
+          "invalid_reason": "outside_corridor",
+          "nearest_surface_m": 12.570226052081722
+        }
+      ]
+    },
+    {
+      "frame_id": 30,
+      "sim_time_s": 1.5,
+      "note": "agree",
+      "point_count": 3954,
+      "density_fraction": 0.659,
+      "sweep_valid": true,
+      "sweep_invalid_reason": null,
+      "clusters": 4,
+      "in_corridor_clusters": 1,
+      "road_points": 1847,
+      "raised_points": 1457,
+      "obstacle_points": 588,
+      "seen_clear_m": 18.0,
+      "lidar_report": {
+        "valid": true,
+        "nearest_gap_m": 18.9744083404541,
+        "visible_distance_m": 18.0,
+        "clearance_valid": false,
+        "invalid_reason": null,
+        "track_ids": [
+          0,
+          1,
+          2,
+          3
+        ]
+      },
+      "depth_report": {
+        "valid": true,
+        "nearest_gap_m": 19.0,
+        "invalid_reason": null
+      },
+      "expected_gap_m": 19.0,
+      "lidar_gap_error_m": -0.025591659545899148,
+      "fused": {
+        "valid": true,
+        "obstacle_gap_m": 18.9744083404541,
+        "visible_distance_m": 18.0,
+        "clearance_valid": false,
+        "nearest_source_id": "lidar",
+        "source_gaps_m": {
+          "front-rgbd": 19.0,
+          "lidar": 18.9744083404541
+        },
+        "disagreement_m": 0.025591659545899148,
+        "invalid_reasons": [],
+        "track_count": 4
+      },
+      "governor_input": {
+        "valid": true,
+        "obstacle_gap_m": 18.9744083404541,
+        "visible_distance_m": 18.0,
+        "clearance_valid": false,
+        "hold": false
+      },
+      "tracks": [
+        {
+          "track_id": 0,
+          "source_id": "lidar",
+          "confirmed": true,
+          "current": true,
+          "gap_valid": true,
+          "gap_m": 18.9744083404541,
+          "robust_gap_m": 19.965169143676757,
+          "invalid_reason": null,
+          "nearest_surface_m": 22.7744083404541
+        },
+        {
+          "track_id": 1,
+          "source_id": "lidar",
+          "confirmed": true,
+          "current": true,
+          "gap_valid": false,
+          "gap_m": null,
+          "robust_gap_m": null,
+          "invalid_reason": "outside_corridor",
+          "nearest_surface_m": 9.672175192732857
+        },
+        {
+          "track_id": 2,
+          "source_id": "lidar",
+          "confirmed": true,
+          "current": true,
+          "gap_valid": false,
+          "gap_m": null,
+          "robust_gap_m": null,
+          "invalid_reason": "outside_corridor",
+          "nearest_surface_m": 9.90388486469403
+        },
+        {
+          "track_id": 3,
+          "source_id": "lidar",
+          "confirmed": true,
+          "current": true,
+          "gap_valid": false,
+          "gap_m": null,
+          "robust_gap_m": null,
+          "invalid_reason": "outside_corridor",
+          "nearest_surface_m": 12.57274640196028
+        }
+      ]
+    },
+    {
+      "frame_id": 35,
+      "sim_time_s": 1.75,
+      "note": "agree",
+      "point_count": 3954,
+      "density_fraction": 0.659,
+      "sweep_valid": true,
+      "sweep_invalid_reason": null,
+      "clusters": 4,
+      "in_corridor_clusters": 1,
+      "road_points": 1847,
+      "raised_points": 1458,
+      "obstacle_points": 587,
+      "seen_clear_m": 18.0,
+      "lidar_report": {
+        "valid": true,
+        "nearest_gap_m": 17.984021377563476,
+        "visible_distance_m": 17.984021377563476,
+        "clearance_valid": false,
+        "invalid_reason": null,
+        "track_ids": [
+          0,
+          1,
+          2,
+          3
+        ]
+      },
+      "depth_report": {
+        "valid": true,
+        "nearest_gap_m": 18.0,
+        "invalid_reason": null
+      },
+      "expected_gap_m": 18.0,
+      "lidar_gap_error_m": -0.015978622436524148,
+      "fused": {
+        "valid": true,
+        "obstacle_gap_m": 17.984021377563476,
+        "visible_distance_m": 17.984021377563476,
+        "clearance_valid": false,
+        "nearest_source_id": "lidar",
+        "source_gaps_m": {
+          "front-rgbd": 18.0,
+          "lidar": 17.984021377563476
+        },
+        "disagreement_m": 0.015978622436524148,
+        "invalid_reasons": [],
+        "track_count": 4
+      },
+      "governor_input": {
+        "valid": true,
+        "obstacle_gap_m": 17.984021377563476,
+        "visible_distance_m": 17.984021377563476,
+        "clearance_valid": false,
+        "hold": false
+      },
+      "tracks": [
+        {
+          "track_id": 0,
+          "source_id": "lidar",
+          "confirmed": true,
+          "current": true,
+          "gap_valid": true,
+          "gap_m": 17.984021377563476,
+          "robust_gap_m": 18.9744083404541,
+          "invalid_reason": null,
+          "nearest_surface_m": 21.78901032111282
+        },
+        {
+          "track_id": 1,
+          "source_id": "lidar",
+          "confirmed": true,
+          "current": true,
+          "gap_valid": false,
+          "gap_m": null,
+          "robust_gap_m": null,
+          "invalid_reason": "outside_corridor",
+          "nearest_surface_m": 9.658008485107022
+        },
+        {
+          "track_id": 2,
+          "source_id": "lidar",
+          "confirmed": true,
+          "current": true,
+          "gap_valid": false,
+          "gap_m": null,
+          "robust_gap_m": null,
+          "invalid_reason": "outside_corridor",
+          "nearest_surface_m": 9.907964046726084
+        },
+        {
+          "track_id": 3,
+          "source_id": "lidar",
+          "confirmed": true,
+          "current": true,
+          "gap_valid": false,
+          "gap_m": null,
+          "robust_gap_m": null,
+          "invalid_reason": "outside_corridor",
+          "nearest_surface_m": 12.561060250092247
+        }
+      ]
+    },
+    {
+      "frame_id": 40,
+      "sim_time_s": 2.0,
+      "note": "agree",
+      "point_count": 3954,
+      "density_fraction": 0.659,
+      "sweep_valid": true,
+      "sweep_invalid_reason": null,
+      "clusters": 4,
+      "in_corridor_clusters": 1,
+      "road_points": 1838,
+      "raised_points": 1467,
+      "obstacle_points": 587,
+      "seen_clear_m": 15.0,
+      "lidar_report": {
+        "valid": true,
+        "nearest_gap_m": 16.977681350708007,
+        "visible_distance_m": 15.0,
+        "clearance_valid": false,
+        "invalid_reason": null,
+        "track_ids": [
+          0,
+          1,
+          2,
+          3
+        ]
+      },
+      "depth_report": {
+        "valid": true,
+        "nearest_gap_m": 17.0,
+        "invalid_reason": null
+      },
+      "expected_gap_m": 17.0,
+      "lidar_gap_error_m": -0.022318649291992898,
+      "fused": {
+        "valid": true,
+        "obstacle_gap_m": 16.977681350708007,
+        "visible_distance_m": 15.0,
+        "clearance_valid": false,
+        "nearest_source_id": "lidar",
+        "source_gaps_m": {
+          "front-rgbd": 17.0,
+          "lidar": 16.977681350708007
+        },
+        "disagreement_m": 0.022318649291992898,
+        "invalid_reasons": [],
+        "track_count": 4
+      },
+      "governor_input": {
+        "valid": true,
+        "obstacle_gap_m": 16.977681350708007,
+        "visible_distance_m": 15.0,
+        "clearance_valid": false,
+        "hold": false
+      },
+      "tracks": [
+        {
+          "track_id": 0,
+          "source_id": "lidar",
+          "confirmed": true,
+          "current": true,
+          "gap_valid": true,
+          "gap_m": 16.977681350708007,
+          "robust_gap_m": 17.984021377563476,
+          "invalid_reason": null,
+          "nearest_surface_m": 20.778791313429213
+        },
+        {
+          "track_id": 1,
+          "source_id": "lidar",
+          "confirmed": true,
+          "current": true,
+          "gap_valid": false,
+          "gap_m": null,
+          "robust_gap_m": null,
+          "invalid_reason": "outside_corridor",
+          "nearest_surface_m": 9.672161153448927
+        },
+        {
+          "track_id": 2,
+          "source_id": "lidar",
+          "confirmed": true,
+          "current": true,
+          "gap_valid": false,
+          "gap_m": null,
+          "robust_gap_m": null,
+          "invalid_reason": "outside_corridor",
+          "nearest_surface_m": 9.906784589776732
+        },
+        {
+          "track_id": 3,
+          "source_id": "lidar",
+          "confirmed": true,
+          "current": true,
+          "gap_valid": false,
+          "gap_m": null,
+          "robust_gap_m": null,
+          "invalid_reason": "outside_corridor",
+          "nearest_surface_m": 12.559010482885956
+        }
+      ]
+    },
+    {
+      "frame_id": 45,
+      "sim_time_s": 2.25,
+      "note": "sparse_dropout",
+      "point_count": 208,
+      "density_fraction": 0.034666666666666665,
+      "sweep_valid": false,
+      "sweep_invalid_reason": "sparse_sweep_points",
+      "clusters": 0,
+      "in_corridor_clusters": 0,
+      "road_points": 0,
+      "raised_points": 0,
+      "obstacle_points": 0,
+      "seen_clear_m": null,
+      "lidar_report": {
+        "valid": false,
+        "nearest_gap_m": null,
+        "visible_distance_m": null,
+        "clearance_valid": false,
+        "invalid_reason": "sparse_sweep_points",
+        "track_ids": []
+      },
+      "depth_report": {
+        "valid": true,
+        "nearest_gap_m": 17.0,
+        "invalid_reason": null
+      },
+      "expected_gap_m": 17.0,
+      "lidar_gap_error_m": null,
+      "fused": {
+        "valid": false,
+        "obstacle_gap_m": null,
+        "visible_distance_m": null,
+        "clearance_valid": false,
+        "nearest_source_id": null,
+        "source_gaps_m": {
+          "front-rgbd": 17.0,
+          "lidar": null
+        },
+        "disagreement_m": null,
+        "invalid_reasons": [
+          "lidar:sparse_sweep_points"
+        ],
+        "track_count": 0
+      },
+      "governor_input": {
+        "valid": false,
+        "obstacle_gap_m": null,
+        "visible_distance_m": null,
+        "clearance_valid": false,
+        "hold": true
+      },
+      "tracks": [
+        {
+          "track_id": 0,
+          "source_id": "lidar",
+          "confirmed": true,
+          "current": false,
+          "gap_valid": false,
+          "gap_m": null,
+          "robust_gap_m": null,
+          "invalid_reason": "invalid_sweep",
+          "nearest_surface_m": 20.778791313429213
+        },
+        {
+          "track_id": 1,
+          "source_id": "lidar",
+          "confirmed": true,
+          "current": false,
+          "gap_valid": false,
+          "gap_m": null,
+          "robust_gap_m": null,
+          "invalid_reason": "invalid_sweep",
+          "nearest_surface_m": 9.672161153448927
+        },
+        {
+          "track_id": 2,
+          "source_id": "lidar",
+          "confirmed": true,
+          "current": false,
+          "gap_valid": false,
+          "gap_m": null,
+          "robust_gap_m": null,
+          "invalid_reason": "invalid_sweep",
+          "nearest_surface_m": 9.906784589776732
+        },
+        {
+          "track_id": 3,
+          "source_id": "lidar",
+          "confirmed": true,
+          "current": false,
+          "gap_valid": false,
+          "gap_m": null,
+          "robust_gap_m": null,
+          "invalid_reason": "invalid_sweep",
+          "nearest_surface_m": 12.559010482885956
+        }
+      ]
+    },
+    {
+      "frame_id": 50,
+      "sim_time_s": 2.5,
+      "note": "empty_sweep",
+      "point_count": 0,
+      "density_fraction": 0.0,
+      "sweep_valid": false,
+      "sweep_invalid_reason": "sparse_sweep_points",
+      "clusters": 0,
+      "in_corridor_clusters": 0,
+      "road_points": 0,
+      "raised_points": 0,
+      "obstacle_points": 0,
+      "seen_clear_m": null,
+      "lidar_report": {
+        "valid": false,
+        "nearest_gap_m": null,
+        "visible_distance_m": null,
+        "clearance_valid": false,
+        "invalid_reason": "sparse_sweep_points",
+        "track_ids": []
+      },
+      "depth_report": {
+        "valid": true,
+        "nearest_gap_m": 17.0,
+        "invalid_reason": null
+      },
+      "expected_gap_m": 17.0,
+      "lidar_gap_error_m": null,
+      "fused": {
+        "valid": false,
+        "obstacle_gap_m": null,
+        "visible_distance_m": null,
+        "clearance_valid": false,
+        "nearest_source_id": null,
+        "source_gaps_m": {
+          "front-rgbd": 17.0,
+          "lidar": null
+        },
+        "disagreement_m": null,
+        "invalid_reasons": [
+          "lidar:sparse_sweep_points"
+        ],
+        "track_count": 0
+      },
+      "governor_input": {
+        "valid": false,
+        "obstacle_gap_m": null,
+        "visible_distance_m": null,
+        "clearance_valid": false,
+        "hold": true
+      },
+      "tracks": [
+        {
+          "track_id": 0,
+          "source_id": "lidar",
+          "confirmed": false,
+          "current": false,
+          "gap_valid": false,
+          "gap_m": null,
+          "robust_gap_m": null,
+          "invalid_reason": "invalid_sweep",
+          "nearest_surface_m": 20.778791313429213
+        },
+        {
+          "track_id": 1,
+          "source_id": "lidar",
+          "confirmed": false,
+          "current": false,
+          "gap_valid": false,
+          "gap_m": null,
+          "robust_gap_m": null,
+          "invalid_reason": "invalid_sweep",
+          "nearest_surface_m": 9.672161153448927
+        },
+        {
+          "track_id": 2,
+          "source_id": "lidar",
+          "confirmed": false,
+          "current": false,
+          "gap_valid": false,
+          "gap_m": null,
+          "robust_gap_m": null,
+          "invalid_reason": "invalid_sweep",
+          "nearest_surface_m": 9.906784589776732
+        },
+        {
+          "track_id": 3,
+          "source_id": "lidar",
+          "confirmed": false,
+          "current": false,
+          "gap_valid": false,
+          "gap_m": null,
+          "robust_gap_m": null,
+          "invalid_reason": "invalid_sweep",
+          "nearest_surface_m": 12.559010482885956
+        }
+      ]
+    }
+  ]
+}

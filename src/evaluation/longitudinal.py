@@ -42,13 +42,23 @@ def braking_summary(rows):
     conservative = 0.7 * decel if decel is not None else None
     if conservative is not None and (not math.isfinite(conservative) or conservative <= 0):
         complete = False
+    response_lag = max(
+        (x["response_lag_s"] for x in measurements),
+        default=None,
+    )
+    if response_lag is None or not math.isfinite(response_lag) or response_lag < 0:
+        complete = False
+
     return dict(
         status="MEASURED_PASS" if complete else "INCOMPLETE",
         trials=measurements,
         deceleration_mps2=conservative,
-        response_budget_s=max((x["response_lag_s"] for x in measurements), default=0)
-        + 0.2
-        + 0.1
-        + 0.1,
-        scope="Dry-road fixed-vehicle braking >=0.4; 30% deceleration margin plus camera, processing and confirmation budgets",
+        measured_response_lag_s=response_lag,
+        response_budget_s=response_lag,
+        scope=(
+            "Dry-road fixed-vehicle braking >=0.4; 30% deceleration reserve. "
+            "Response budget contains measured vehicle lag only; perception, "
+            "processing and confirmation latency must be supplied separately "
+            "from their own measured evidence."
+        ),
     )

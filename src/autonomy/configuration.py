@@ -8,8 +8,8 @@ from pathlib import Path
 from autonomy.baseline import BaselineConfig
 from navigation_control.types import ControllerConfig
 from obstacle_perception.track_filter import TrackFilterConfig
-from planning.behaviour import BehaviourConfig
-from planning.speed_governor import GovernorConfig
+from planning.baseline35_behaviour import BehaviourConfig
+from planning.baseline35_speed_governor import GovernorConfig
 
 
 def content_hash(value):

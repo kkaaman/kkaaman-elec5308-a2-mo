@@ -9,7 +9,7 @@ from types import SimpleNamespace
 import numpy as np
 from PIL import Image
 
-from carla_adapter.dataset_capture import FrameBuffer
+from carla_adapter.baseline35_dataset_capture import FrameBuffer
 from evaluation.dataset import (
     KIT_VERSION,
     confusion,
@@ -236,7 +236,11 @@ if __name__ == "__main__":
 
 
 def test_capture_maps_and_demo_map_guard():
-    from carla_adapter.dataset_capture import is_demo_map, same_map, supported_capture_map
+    from carla_adapter.baseline35_dataset_capture import (
+        is_demo_map,
+        same_map,
+        supported_capture_map,
+    )
     from evaluation.dataset import recorded_on_demo_map
 
     assert supported_capture_map("Town05") and supported_capture_map("Carla/Maps/Town03_Opt")

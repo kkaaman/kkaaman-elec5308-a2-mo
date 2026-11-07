@@ -1,0 +1,207 @@
+{
+  "schema_version": 1,
+  "kind": "operational_same_frame_approach",
+  "status": "INCOMPLETE",
+  "preflight": false,
+  "server": "0.9.16",
+  "client": "0.9.16",
+  "map": "Carla/Maps/Town10HD_Opt",
+  "opendrive_sha256": "5d883b799f634030af92be1e9d79d107845540ba04338e8c60e095be1aef7be7",
+  "rig": {
+    "width": 640,
+    "height": 360,
+    "fov_deg": 90,
+    "x_actor_m": 1.5,
+    "z_actor_m": 2.0
+  },
+  "depth_convention": "axial",
+  "weather": "WeatherParameters(cloudiness=20.000000, precipitation=0.000000, precipitation_deposits=0.000000, wind_intensity=10.000000, sun_azimuth_angle=300.000000, sun_altitude_angle=45.000000, fog_density=2.000000, fog_distance=0.750000, fog_falloff=0.100000, wetness=0.000000, scattering_intensity=1.000000, mie_scattering_scale=0.030000, rayleigh_scattering_scale=0.033100, dust_storm=0.000000)",
+  "fixed_delta_seconds": 0.05,
+  "source_hashes": {
+    "scripts/capture_operational_approach.py": "fb4c64a35fcd791911b0ed8e7e2feb510f4bf7f6c47dc7efa04c49fd8b1b421e",
+    "scripts/measure_operational_governance.py": "fd2bf74b96b7a79ab476e265a4c13fa7a277f612ecdd2b0db16dc66806f93daa",
+    "scripts/capture_obstacle_tracks.py": "ad36188e15471a028a08a0b2df6a39a430e533d005f7ff2e90514ef449698664",
+    "scripts/review_operational_range.py": "bf359e1a7e9ec5e97192f2fbdd4a28df3695b2b9fc486a2cb9cffeefac6fdd39",
+    "src/autonomy/stack.py": "73225409d124e10c60fddadb95568fd945d52834b939ffbfad02b2bb19026b95",
+    "src/autonomy/freshness.py": "fd11d2ceda67eb9675031569a90c6abc1ed3f3e1f0e9ae78fe3f48394c2977f8",
+    "src/autonomy/operational.py": "5baaa7c347aa2ca3c0b63c5055d3ed71371f72218a8043abbe60f01b24a08877",
+    "src/autonomy/obstacle_policy.py": "03de571deee9fb1a73a18e534b9f9a65b8824050c49e22e8caafd5f0f8076012",
+    "src/autonomy/interfaces.py": "bb56919b50bee998fd3b39a451c857d8f5c9d333595c7633d8e14be483a14dd3",
+    "src/perception/frame_detector.py": "acef9fa4cc86bf40d7fb90fb8df6ded6879966929dd2ad9f9804e8ee3354f65b",
+    "src/perception/object_detection.py": "130b2fef40353c2ef36b58e1015e2b9cd2fbe5340df6d008049bada79c07b889",
+    "src/obstacle_perception/tracking.py": "c0a2781e4b5fde3080c8b2d0d18e697be46cc4ea0e4b22c18d57e0a5b58cef61",
+    "src/obstacle_perception/box_depth.py": "d00ac5dcb4ca5a808f09bbed54a2bb541fffa8a030090983ae2ed3345bf3a897",
+    "src/planning/speed_governor.py": "41a1f518de445eb6c388fff8576e6d1bb4810fdf8a2c3c634717757254a258e2",
+    "src/carla_adapter/sensors.py": "71ea20ad14f736e3606acb92b9a433b85dd86631c7d9a51cd7ae133b6e6d0a6a",
+    "src/carla_adapter/vehicle.py": "1580fb5124b3bf7fa2d0e46b788e757da6566f17a551bbd24d85a29a23203493",
+    "src/carla_adapter/world.py": "2d844de3e9e8f8cd71023469094891ca4974eb72a008ffb9dc81f036e5561161",
+    "configs/mission_baseline.json": "c85a38cb1640e36b7b2617fa968b20ddfa2af78250694f193647c558164b5f61",
+    "configs/stack.yaml": "127570e0b9086b2621bb338e9d9ed7106f1e421074d6e236f4d1ea4b3a690d13",
+    "configs/acceptance.json": "9f8ba3cf712dedd6d0483eb228a6df8155e9f2e65880bd6a560ec07495c6c7d8",
+    "configs/models.yaml": "a8e1a7956ed5646593167694264235dcd106c4d4eb4cb0cf97f4527191117533"
+  },
+  "operational_profile": {
+    "status": "BLOCKED_CAPTURE_GEOMETRY_RECHECK",
+    "required_evidence": {
+      "depth_accuracy": "BL-B-04",
+      "detector_range_and_latency": "BL-C-05",
+      "longitudinal_response": "BL-E-03"
+    },
+    "candidate_constraints": {
+      "cruise_speed_mps": 5.0,
+      "minimum_detection_range_m": 25.0,
+      "stop_margin_m": {
+        "minimum": 2.5,
+        "maximum": 6.0
+      },
+      "perception_latency_p95_s": 0.1
+    },
+    "frozen_values": {
+      "cruise_speed_mps": null,
+      "deceleration_mps2": 1.497566177392398,
+      "response_budget_s": null,
+      "stop_margin_m": 6.0
+    },
+    "freeze_rule": "Local technical candidate: use only the freshness-gated same-frame path and checked packet expiry, identical model/tracker/rig/depth/confirmation settings, all-track validity and supported perceived geometry. New controlled first-admission evidence supports 4.0 m/s with the enforced response budget. Not a team G1 admission or closed-loop stopping certificate.",
+    "review_date": "2026-10-21",
+    "review_report": "../docs/evidence/BL-D-06/review.json",
+    "decision_record": "../docs/baseline_threshold_freeze.md",
+    "candidate_constraints_note": "D-003 permits a lower supported cruise; neither 4.0 nor 3.2 m/s is mandatory. Acceptance constraints and numerical candidate/frozen values are unchanged.",
+    "implementation_policy": {
+      "acceleration_mps2": 1.0,
+      "lateral_acceleration_mps2": 1.5,
+      "emergency_margin_m": 2.0,
+      "provenance": "Existing BL-D-07 tests/unit/test_speed_governor.py config fixture; explicitly policy, not newly measured physical limits."
+    },
+    "parameter_kinds": {
+      "cruise_speed_mps": "Unchanged 4.0 m/s candidate now supported for bounded freshness-gated operation; publication/team review pending",
+      "deceleration_mps2": "BL-E-03 calibration with existing reserve",
+      "response_budget_s": "0.5 s enforced capture age + 0.1 s separate delivery reserve + measured BL-E lag once",
+      "stop_margin_m": "Unchanged acceptance upper bound",
+      "lateral_acceleration_mps2": "Existing implementation policy, not physical calibration",
+      "emergency_margin_m": "Existing emergency policy, not normal stopped acceptance margin"
+    },
+    "operational_gate": {
+      "command_ttl_s": 0.1,
+      "max_observation_age_s": 0.5,
+      "max_step_wall_s": 0.1,
+      "require_depth": true
+    },
+    "track_policy": {
+      "hits": 2,
+      "window": 3,
+      "expiry_s": 0.5,
+      "distance_samples": 5
+    },
+    "detector": {
+      "confidence": 0.25,
+      "image_size": 640,
+      "model_sha256": "9b09cc8bf347f0fc8a5f7657480587f25db09b34bf33b0652110fb03a8ad4fef",
+      "tracker": "botsort.yaml",
+      "tracker_settings": {
+        "tracker_type": "botsort",
+        "track_high_thresh": 0.25,
+        "track_low_thresh": 0.1,
+        "new_track_thresh": 0.25,
+        "track_buffer": 30,
+        "match_thresh": 0.8,
+        "fuse_score": true,
+        "gmc_method": "sparseOptFlow",
+        "proximity_thresh": 0.5,
+        "appearance_thresh": 0.8,
+        "with_reid": false,
+        "model": "auto"
+      },
+      "device": "cuda:0",
+      "versions": {
+        "ultralytics": "8.4.177",
+        "torch": "2.6.0+cu124",
+        "numpy": "2.5.2",
+        "lap": "0.5.13"
+      },
+      "allowed_classes": [
+        "person",
+        "bicycle",
+        "car",
+        "motorcycle",
+        "bus",
+        "truck",
+        "traffic light",
+        "stop sign"
+      ]
+    },
+    "fixed_delta_seconds": 0.05,
+    "response_composition": {
+      "measured_perception_control_max_s": 0.18552801799978624,
+      "measured_vehicle_response_s": 0.3500000052154064,
+      "measured_total_s": 0.5355280232151927,
+      "enforced_capture_age_budget_s": 0.5,
+      "post_decision_delivery_reserve_s": 0.1,
+      "note": "Sensor, detector, filter and control availability appear once in measured end-to-end response. Candidate covers the enforced admission bound, plus distinct command-delivery reserve and vehicle lag once.",
+      "candidate_total_response_budget_s": 0.9500000052154064
+    },
+    "depth_policy": {
+      "inner_fraction": 0.5,
+      "min_valid_fraction": 0.6,
+      "min_pixels": 9,
+      "max_depth_m": 25.0,
+      "max_spread_m": 1.0,
+      "max_relative_spread": 0.1
+    },
+    "camera_rig": {
+      "width": 640,
+      "height": 360,
+      "fov_deg": 90,
+      "x_actor_m": 1.5,
+      "z_actor_m": 2.0
+    },
+    "candidate_values": {
+      "cruise_speed_mps": 4.0,
+      "deceleration_mps2": 1.497566177392398,
+      "response_budget_s": 0.9500000052154064,
+      "stop_margin_m": 6.0
+    },
+    "publication_status": "LOCAL_CANDIDATE_NOT_COMMITTED_OR_TEAM_ADMITTED",
+    "operational_range_evidence": {
+      "report": "../docs/evidence/BL-D-06/operational-approach/review.json",
+      "usable_first_admission_range_m": 22.348599722608924,
+      "scope": "Controlled straight-scene all-track supported-surface provider; no empty-corridor clearance inference, no general full-corridor visibility certificate"
+    }
+  },
+  "source_id": "front-rgbd",
+  "model_version": "9b09cc8bf347f0fc8a5f7657480587f25db09b34bf33b0652110fb03a8ad4fef",
+  "settings": {
+    "confidence": 0.25,
+    "image_size": 640,
+    "tracker": "botsort.yaml",
+    "tracker_settings": {
+      "tracker_type": "botsort",
+      "track_high_thresh": 0.25,
+      "track_low_thresh": 0.1,
+      "new_track_thresh": 0.25,
+      "track_buffer": 30,
+      "match_thresh": 0.8,
+      "fuse_score": true,
+      "gmc_method": "sparseOptFlow",
+      "proximity_thresh": 0.5,
+      "appearance_thresh": 0.8,
+      "with_reid": false,
+      "model": "auto"
+    },
+    "tracker_sha256": "8cd88930d3be5557be0777f384eecff0a36a7011850fe613fc0a68178bfd5b01",
+    "model_sha256": "9b09cc8bf347f0fc8a5f7657480587f25db09b34bf33b0652110fb03a8ad4fef",
+    "versions": {
+      "ultralytics": "8.4.177",
+      "torch": "2.6.0+cu124",
+      "numpy": "2.5.2",
+      "opencv-python": "5.0.0.93",
+      "lap": "0.5.13"
+    }
+  },
+  "scope": "Parked ego, actual gated stack/governor/PathFollower shadow outputs; all tracks retained, no evaluation truth in control; conservative straight-scene supported-point provider, no empty clearance claim",
+  "failure_injection": "Explicit labelled dropout after real read, input depth withheld; ordinary stack missing-depth latch; explicit new-episode reset on next frame",
+  "cases": [],
+  "failure": "NameError: name 'spawn' is not defined",
+  "settings_restored": true,
+  "no_actor_leaks": true
+}

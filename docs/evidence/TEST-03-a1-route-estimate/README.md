@@ -109,7 +109,7 @@ Every S1 threshold that applies passes:
 
 ## Files
 
-- `comparison.json`: `scripts/compare_runs.py` output for the five estimate runs (A1
+- `comparison.json`: `scripts/baseline35_compare_runs.py` output for the five estimate runs (A1
   against A2).
 - `checks.json` and `cte_estimate_vs_truth.png`: made by `plot_estimate_vs_truth.py`
   from the simulator-pose and estimate `compare_runs` folders.
